@@ -132,10 +132,14 @@ export function normalizePhotos(raw: any): ReportPhoto[] {
       if (!resolvedThumb && resolvedUrl) resolvedThumb = resolvedUrl;
       if (!resolvedUrl && resolvedThumb) resolvedUrl = resolvedThumb;
 
+      const m = typeof item.medium === 'string' ? item.medium.trim() : '';
+      const resolvedMedium = m.startsWith('http://') || m.startsWith('https://') ? m : '';
+
       if (resolvedThumb || resolvedUrl) {
         results.push({
           url: resolvedUrl || resolvedThumb,
           thumb: resolvedThumb || resolvedUrl,
+          ...(resolvedMedium ? { medium: resolvedMedium } : {}),
         });
       }
     }

@@ -6,6 +6,8 @@ import { useT, translate } from '../i18n';
 
 export interface GalleryItem {
   url: string;
+  /** Smaller copy shown instantly while the full photo loads. */
+  preview?: string;
   caption?: string;
 }
 
@@ -13,6 +15,7 @@ export interface GalleryItem {
 export function photoItems(photos: ReportPhoto[], treeId: string, date: any): GalleryItem[] {
   return photos.map((p, i) => ({
     url: p.url,
+    preview: p.medium || p.thumb,
     caption: translate('photo.caption', { id: treeId, i: i + 1, n: photos.length, date: formatDateTime(date) }),
   }));
 }
@@ -29,6 +32,7 @@ export const PhotoLightbox: React.FC<PhotoLightboxProps> = ({ items, index = 0, 
   const [i, setI] = useState(Math.min(Math.max(index, 0), Math.max(items.length - 1, 0)));
   const [scale, setScale] = useState(1);
   const [failed, setFailed] = useState<Record<number, boolean>>({});
+  const [fullLoaded, setFullLoaded] = useState<Record<number, boolean>>({});
   const touchX = useRef<number | null>(null);
   const count = items.length;
 
@@ -118,12 +122,22 @@ export const PhotoLightbox: React.FC<PhotoLightboxProps> = ({ items, index = 0, 
         ) : (
           <img
             key={i}
-            src={item.url}
+            // show the already-cached medium copy right away, swap to the full photo once it has loaded
+            src={fullLoaded[i] || !item.preview ? item.url : item.preview}
             alt={item.caption || t('photo.inspection')}
             onError={() => setFailed((f) => ({ ...f, [i]: true }))}
             style={{ transform: `scale(${scale})`, transition: 'transform 0.2s ease-out' }}
             className="max-h-full max-w-full object-contain rounded-md shadow-2xl select-none"
             draggable={false}
+          />
+        )}
+        {item.preview && !fullLoaded[i] && !failed[i] && (
+          <img
+            src={item.url}
+            alt=""
+            className="hidden"
+            onLoad={() => setFullLoaded((f) => ({ ...f, [i]: true }))}
+            onError={() => setFullLoaded((f) => ({ ...f, [i]: true }))}
           />
         )}
 
@@ -137,8 +151,8 @@ export const PhotoLightbox: React.FC<PhotoLightboxProps> = ({ items, index = 0, 
       {/* preload the neighbours so stepping feels instant */}
       {count > 1 && (
         <div className="hidden" aria-hidden>
-          <img src={items[(i + 1) % count].url} alt="" />
-          <img src={items[(i - 1 + count) % count].url} alt="" />
+          <img src={items[(i + 1) % count].preview || items[(i + 1) % count].url} alt="" />
+          <img src={items[(i - 1 + count) % count].preview || items[(i - 1 + count) % count].url} alt="" />
         </div>
       )}
 

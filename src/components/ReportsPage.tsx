@@ -215,12 +215,13 @@ export const ReportsPage: React.FC = () => {
             </button>
           </div>
         ) : (
-          filteredReports.map((report) => {
+          filteredReports.map((report, idx) => {
             const last4 = (report.workerPhone || '').replace(/\D/g, '').slice(-4);
             return (
               <ReportCard
                 key={report.id}
                 report={report}
+                eager={idx < 2}
                 tree={trees.find((t) => t.id === report.treeId)}
                 onOpenPhoto={(items, index) => setGallery({ items, index })}
                 workerHref={last4 && search !== last4 ? `/reports?q=${last4}` : undefined}

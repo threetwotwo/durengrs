@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Image as ImageIcon } from 'lucide-react';
 import type { ReportPhoto } from '../types';
 import { useT } from '../i18n';
@@ -9,21 +9,30 @@ const Tile: React.FC<{
   total: number;
   className?: string;
   more?: number;
+  eager?: boolean;
   onOpen: (index: number) => void;
-}> = ({ photo, index, total, className = '', more, onOpen }) => {
+}> = ({ photo, index, total, className = '', more, eager, onOpen }) => {
   const { t } = useT();
   const [failed, setFailed] = useState(false);
-  const [fullReady, setFullReady] = useState(false);
-  const [fullFailed, setFullFailed] = useState(false);
-  // Show the small thumbnail straight away, then fade the full photo in over it once it has loaded.
-  const base = photo.thumb || photo.url;
-  const hasThumb = !!photo.thumb && photo.thumb !== photo.url;
+  const [ready, setReady] = useState(false);
+  const imgRef = useRef<HTMLImageElement>(null);
+
+  // Three sizes: thumb (320px) is shown blurred at once, medium (900px) replaces it, and the full
+  // 1600px photo is only fetched by the viewer. Older reports without a medium copy use the full one.
+  const sharp = photo.medium || photo.url;
+  const placeholder = photo.thumb && photo.thumb !== sharp ? photo.thumb : undefined;
+
+  // Already in the browser cache: show it immediately instead of fading in.
+  useEffect(() => {
+    if (imgRef.current?.complete && imgRef.current.naturalWidth > 0) setReady(true);
+  }, [sharp]);
+
   return (
     <button
       type="button"
       onClick={() => onOpen(index)}
       aria-label={t('photo.openNth', { i: index + 1, n: total })}
-      className={`relative overflow-hidden bg-slate-200 group focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-emerald-600 ${className}`}
+      className={`relative overflow-hidden bg-slate-200 group focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-emerald-600 ${ready ? '' : 'animate-pulse'} ${className}`}
     >
       {failed ? (
         <span className="absolute inset-0 flex flex-col items-center justify-center text-slate-500 text-xs">
@@ -32,27 +41,28 @@ const Tile: React.FC<{
         </span>
       ) : (
         <>
-          <img
-            src={base}
-            alt=""
-            loading="lazy"
-            decoding="async"
-            referrerPolicy="no-referrer"
-            onError={() => setFailed(true)}
-            className="absolute inset-0 w-full h-full object-cover"
-          />
-          {hasThumb && !fullFailed && (
+          {placeholder && (
             <img
-              src={photo.url}
+              src={placeholder}
               alt=""
-              loading="lazy"
+              aria-hidden
               decoding="async"
               referrerPolicy="no-referrer"
-              onLoad={() => setFullReady(true)}
-              onError={() => setFullFailed(true)}
-              className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 group-hover:scale-[1.03] ${fullReady ? 'opacity-100' : 'opacity-0'}`}
+              className={`absolute inset-0 w-full h-full object-cover scale-110 blur-lg transition-opacity duration-300 ${ready ? 'opacity-0' : 'opacity-100'}`}
             />
           )}
+          <img
+            ref={imgRef}
+            src={sharp}
+            alt=""
+            loading={eager ? 'eager' : 'lazy'}
+            fetchPriority={eager ? 'high' : undefined}
+            decoding="async"
+            referrerPolicy="no-referrer"
+            onLoad={() => setReady(true)}
+            onError={() => setFailed(true)}
+            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 group-hover:scale-[1.03] ${ready ? 'opacity-100' : 'opacity-0'}`}
+          />
         </>
       )}
       {more ? (
@@ -72,7 +82,9 @@ export const PhotoAlbum: React.FC<{
   photos: ReportPhoto[];
   onOpen: (index: number) => void;
   className?: string;
-}> = ({ photos, onOpen, className = '' }) => {
+  /** Load right away (first cards on the page) instead of waiting until scrolled near. */
+  eager?: boolean;
+}> = ({ photos, onOpen, className = '', eager }) => {
   const n = photos.length;
   if (n === 0) return null;
   const shown = photos.slice(0, 4);
@@ -89,6 +101,7 @@ export const PhotoAlbum: React.FC<{
           index={i}
           total={n}
           onOpen={onOpen}
+          eager={eager}
           more={i === 3 ? more : 0}
           className={n === 3 && i === 0 ? 'row-span-2' : ''}
         />

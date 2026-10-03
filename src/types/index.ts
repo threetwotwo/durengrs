@@ -34,8 +34,12 @@ export interface DurianTree {
 }
 
 export interface ReportPhoto {
+  /** Full size (1600px). Only loaded when a photo is opened full screen. */
   url: string;
+  /** 320px, for blur-up placeholders and small strips. */
   thumb?: string;
+  /** 900px, shown in the album. */
+  medium?: string;
 }
 
 export interface TreeReport {

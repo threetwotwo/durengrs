@@ -25,7 +25,9 @@ export const ReportCard: React.FC<{
   onOpenPhoto: (items: GalleryItem[], index: number) => void;
   /** Hide the "reports from this worker" link where it would not make sense. */
   workerHref?: string;
-}> = ({ report, tree, onOpenPhoto, workerHref }) => {
+  /** First cards on screen: load photos immediately. */
+  eager?: boolean;
+}> = ({ report, tree, onOpenPhoto, workerHref, eager }) => {
   const { t } = useT();
   const photos = report.photos || [];
   const block = report.block || tree?.block;
@@ -44,6 +46,7 @@ export const ReportCard: React.FC<{
         {photos.length > 0 && (
           <PhotoAlbum
             photos={photos}
+            eager={eager}
             onOpen={(i) => onOpenPhoto(photoItems(photos, report.treeId, report.createdAt), i)}
             className="aspect-[4/5] sm:aspect-square md:aspect-auto md:order-last md:w-[46%] md:shrink-0 md:min-h-[340px]"
           />
