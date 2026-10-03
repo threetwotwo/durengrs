@@ -377,3 +377,40 @@ export async function saveVariantToFirestore(variant: DurianVariant): Promise<vo
     handleFirestoreError(error, OperationType.WRITE, path);
   }
 }
+
+/**
+ * Deletes variants/{code} cleanly. Trees that use the code are first moved to `reassignTo` (required when any
+ * tree uses it), with a treeEdits audit record per tree, so no tree is left pointing at a missing variant.
+ * The variant document is deleted only after every tree has been moved.
+ */
+export async function deleteVariantFromFirestore(
+  code: string,
+  treesUsingIt: DurianTree[],
+  reassignTo?: string
+): Promise<void> {
+  if (treesUsingIt.length > 0 && (!reassignTo || reassignTo === code)) {
+    throw new Error('A replacement variant is required while trees still use this code.');
+  }
+  try {
+    // 2 writes per tree (update + audit); stay well under Firestore's 500-write batch limit.
+    for (let i = 0; i < treesUsingIt.length; i += 200) {
+      const batch = writeBatch(db);
+      for (const tree of treesUsingIt.slice(i, i + 200)) {
+        batch.update(doc(db, 'trees', tree.id), { variant: reassignTo, dateUpdated: serverTimestamp() });
+        batch.set(doc(collection(db, 'treeEdits')), {
+          treeId: tree.id,
+          changes: { variant: { from: code, to: reassignTo } },
+          at: serverTimestamp(),
+          source: 'webapp',
+          reason: 'variant-deleted',
+        });
+      }
+      await batch.commit();
+    }
+    const last = writeBatch(db);
+    last.delete(doc(db, 'variants', code));
+    await last.commit();
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, `variants/${code}`);
+  }
+}

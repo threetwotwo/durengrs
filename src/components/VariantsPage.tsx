@@ -29,13 +29,14 @@ import {
   Moon,
   Wheat,
   BookOpen,
+  Trash2,
 } from 'lucide-react';
 
 const fieldCls =
   'w-full text-sm p-2.5 border rounded-md focus:ring-2 focus:ring-emerald-500 aria-[invalid=true]:border-rose-500 aria-[invalid=true]:bg-rose-50/40';
 
 export const VariantsPage: React.FC = () => {
-  const { variants, trees, harvestCycles, saveVariant } = useFarm();
+  const { variants, trees, harvestCycles, saveVariant, deleteVariant } = useFarm();
   const { t, lang } = useT();
   const [params, setParams] = useQueryParams();
 
@@ -50,6 +51,9 @@ export const VariantsPage: React.FC = () => {
   const [characteristics, setCharacteristics] = useState('');
   const [ripeningDays, setRipeningDays] = useState('');
   const [submitted, setSubmitted] = useState(false);
+  // Delete flow (edit mode): confirm, and pick where the variant's trees go.
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [reassignTo, setReassignTo] = useState('');
 
   const [isSaving, setIsSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -112,6 +116,7 @@ export const VariantsPage: React.FC = () => {
     setRipeningDays('');
     setFormError(null);
     setSubmitted(false);
+    setConfirmDelete(false);
   };
 
   const openEditModal = (variant: DurianVariant) => {
@@ -125,6 +130,8 @@ export const VariantsPage: React.FC = () => {
     setRipeningDays(variant.ripeningDays !== undefined && variant.ripeningDays !== null ? String(variant.ripeningDays) : '');
     setFormError(null);
     setSubmitted(false);
+    setConfirmDelete(false);
+    setReassignTo('');
   };
 
   // Deep links from the Guide: ?edit=MK opens that variant, ?new=XY starts a new one with that code.
@@ -199,6 +206,30 @@ export const VariantsPage: React.FC = () => {
       closeModal();
     } catch (err: any) {
       setFormError(t('var.error.save', { msg: err.message }));
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const usingTrees = modalMode === 'edit' ? treeCountMap.get(code) || 0 : 0;
+  const handleDelete = async () => {
+    if (usingTrees > 0 && !reassignTo) {
+      setFormError(t('var.del.needTarget'));
+      return;
+    }
+    setIsSaving(true);
+    setFormError(null);
+    try {
+      await deleteVariant(code, usingTrees > 0 ? reassignTo : undefined);
+      setSuccessToast(
+        usingTrees > 0
+          ? t('var.del.doneMoved', { code, n: usingTrees, to: reassignTo })
+          : t('var.del.done', { code })
+      );
+      setTimeout(() => setSuccessToast(null), 4000);
+      closeModal();
+    } catch (err: any) {
+      setFormError(t('var.del.failed', { msg: err?.message || '' }));
     } finally {
       setIsSaving(false);
     }
@@ -576,7 +607,63 @@ export const VariantsPage: React.FC = () => {
                 />
               </div>
 
+              {confirmDelete && (
+                <div role="alertdialog" aria-labelledby="var-del-h" className="p-4 rounded-lg border border-rose-200 bg-rose-50 space-y-3">
+                  <h3 id="var-del-h" className="text-sm font-bold text-rose-900">{t('var.del.title', { code })}</h3>
+                  {usingTrees > 0 ? (
+                    <>
+                      <p className="text-sm text-rose-900">{t(usingTrees === 1 ? 'var.del.usedBy.one' : 'var.del.usedBy', { n: usingTrees })}</p>
+                      <div>
+                        <label htmlFor="vf-reassign" className="block text-xs font-semibold text-rose-900 mb-1">{t('var.del.moveTo')}</label>
+                        <select
+                          id="vf-reassign"
+                          value={reassignTo}
+                          onChange={(e) => setReassignTo(e.target.value)}
+                          className={`${fieldCls} border-slate-300 bg-white`}
+                        >
+                          <option value="">{t('var.del.choose')}</option>
+                          {variants
+                            .filter((v) => v.code !== code)
+                            .map((v) => (
+                              <option key={v.code} value={v.code}>{v.code} · {v.name}</option>
+                            ))}
+                        </select>
+                      </div>
+                    </>
+                  ) : (
+                    <p className="text-sm text-rose-900">{t('var.del.unused')}</p>
+                  )}
+                  <p className="text-xs text-rose-800">{t('var.del.permanent')}</p>
+                  <div className="flex justify-end gap-2">
+                    <button type="button" onClick={() => setConfirmDelete(false)} disabled={isSaving} className="min-h-11 px-4 text-sm font-medium text-slate-700 hover:bg-white rounded-md">
+                      {t('common.cancel')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleDelete}
+                      disabled={isSaving || (usingTrees > 0 && !reassignTo)}
+                      className="min-h-11 px-4 text-sm font-bold bg-rose-600 hover:bg-rose-700 text-white rounded-md disabled:opacity-50"
+                    >
+                      {isSaving ? t('var.del.deleting') : usingTrees > 0 ? t('var.del.confirmMove', { n: usingTrees }) : t('var.del.confirm')}
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200">
+                {modalMode === 'edit' && !confirmDelete && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setConfirmDelete(true);
+                      setFormError(null);
+                    }}
+                    className="mr-auto min-h-11 px-3 text-sm font-semibold text-rose-700 hover:bg-rose-50 rounded-md inline-flex items-center gap-1.5"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    {t('var.del.button')}
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={closeModal}
@@ -586,7 +673,7 @@ export const VariantsPage: React.FC = () => {
                 </button>
                 <button
                   type="submit"
-                  disabled={isSaving}
+                  disabled={isSaving || confirmDelete}
                   className="min-h-11 px-5 text-sm font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-md shadow-xs disabled:opacity-50 transition-colors flex items-center gap-1.5"
                 >
                   {isSaving ? (

@@ -7,6 +7,7 @@ import {
   activeProjectId,
   saveTreeChanges,
   saveVariantToFirestore,
+  deleteVariantFromFirestore,
   getReportsCount,
   handleFirestoreError,
   OperationType,
@@ -36,6 +37,8 @@ interface FarmContextType {
   activeTab: AppTab;
   updateTree: (originalTree: DurianTree, updatedFields: Partial<DurianTree>) => Promise<boolean>;
   saveVariant: (variant: DurianVariant) => Promise<void>;
+  /** Deletes a variant; trees using it are moved to `reassignTo` first. */
+  deleteVariant: (code: string, reassignTo?: string) => Promise<void>;
   totalFruits: number;
 }
 
@@ -285,6 +288,10 @@ export const FarmProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
   };
 
+  const deleteVariant = async (code: string, reassignTo?: string) => {
+    await deleteVariantFromFirestore(code, trees.filter((t) => t.variant === code), reassignTo);
+  };
+
   const totalFruits = trees.reduce((acc, t) => acc + (t.estimatedFruitCount || 0), 0);
 
   return (
@@ -307,6 +314,7 @@ export const FarmProvider: React.FC<{ children: React.ReactNode }> = ({ children
         activeTab,
         updateTree,
         saveVariant,
+        deleteVariant,
         totalFruits,
       }}
     >
