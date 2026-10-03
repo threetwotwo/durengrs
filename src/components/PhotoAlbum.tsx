@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Image as ImageIcon } from 'lucide-react';
 import type { ReportPhoto } from '../types';
+import { useT } from '../i18n';
 
 const Tile: React.FC<{
   photo: ReportPhoto;
@@ -10,6 +11,7 @@ const Tile: React.FC<{
   more?: number;
   onOpen: (index: number) => void;
 }> = ({ photo, index, total, className = '', more, onOpen }) => {
+  const { t } = useT();
   const [failed, setFailed] = useState(false);
   const [fullReady, setFullReady] = useState(false);
   const [fullFailed, setFullFailed] = useState(false);
@@ -20,13 +22,13 @@ const Tile: React.FC<{
     <button
       type="button"
       onClick={() => onOpen(index)}
-      aria-label={`Open photo ${index + 1} of ${total}`}
+      aria-label={t('photo.openNth', { i: index + 1, n: total })}
       className={`relative overflow-hidden bg-slate-200 group focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-emerald-600 ${className}`}
     >
       {failed ? (
         <span className="absolute inset-0 flex flex-col items-center justify-center text-slate-500 text-xs">
           <ImageIcon className="w-5 h-5 mb-1" />
-          Photo {index + 1}
+          {t('photo.nth', { n: index + 1 })}
         </span>
       ) : (
         <>

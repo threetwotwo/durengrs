@@ -8,16 +8,30 @@ import {
   updateDoc,
 } from 'firebase/firestore';
 import { db } from './firebase';
+import { getLang, locale, translate } from '../i18n';
 
 export type TreatmentType = 'fertilizer' | 'spray' | 'pruning' | 'irrigation' | 'other';
 
-export const TREATMENT_TYPE_LABELS: Record<TreatmentType, string> = {
-  fertilizer: 'Fertilizer',
-  spray: 'Spray',
-  pruning: 'Pruning',
-  irrigation: 'Irrigation',
-  other: 'Other',
-};
+export function typeLabel(type: TreatmentType): string {
+  return translate(`sched.type.${type}`);
+}
+
+/** Object with getters, so the label is looked up (and translated) at the moment it is read. */
+export const TREATMENT_TYPE_LABELS = (() => {
+  const o = {} as Record<TreatmentType, string>;
+  for (const k of ['fertilizer', 'spray', 'pruning', 'irrigation', 'other'] as TreatmentType[]) {
+    Object.defineProperty(o, k, { enumerable: true, get: () => typeLabel(k) });
+  }
+  return o;
+})();
+
+const MONTHS_EN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/** Short month name (1-12) in the current language. */
+export function monthShort(month: number): string {
+  if (getLang() === 'en') return MONTHS_EN[month - 1] || '';
+  return new Date(2000, month - 1, 1).toLocaleDateString(locale(), { month: 'short' });
+}
 
 /** A recurring routine, e.g. "Fruit-set potassium feed, every 35 days, Blocks A-C". */
 export interface TreatmentPlan {
@@ -121,14 +135,14 @@ function applyWindow(dateStr: string, plan: TreatmentPlan): string {
 }
 
 export function relativeDue(days: number): string {
-  if (days < 0) return `Overdue ${Math.abs(days)}d`;
-  if (days === 0) return 'Due today';
-  if (days === 1) return 'Due tomorrow';
-  return `Due in ${days}d`;
+  if (days < 0) return translate('sched.due.overdue', { n: Math.abs(days) });
+  if (days === 0) return translate('sched.due.today');
+  if (days === 1) return translate('sched.due.tomorrow');
+  return translate('sched.due.in', { n: days });
 }
 
 export function formatShortDate(s: string): string {
-  return parseDateStr(s).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+  return parseDateStr(s).toLocaleDateString(locale(), { day: '2-digit', month: 'short' });
 }
 
 // ---------- schedule computation ----------
@@ -185,80 +199,30 @@ export function computeTasks(
 
 export type PlanTemplate = Omit<TreatmentPlan, 'id' | 'active' | 'allBlocks' | 'blocks'>;
 
+type TemplateFields = 'name' | 'product' | 'dose' | 'stage' | 'notes';
+
+/** Template whose text fields are getters, translated when read (not at module load). */
+function tpl(
+  id: string,
+  base: Omit<PlanTemplate, TemplateFields>,
+  fields: Partial<Record<TemplateFields, boolean>>
+): PlanTemplate {
+  const o = { ...base } as PlanTemplate;
+  (Object.keys(fields) as TemplateFields[]).forEach((f) => {
+    Object.defineProperty(o, f, { enumerable: true, get: () => translate(`sched.tpl.${id}.${f}`) });
+  });
+  return o;
+}
+
 export const PLAN_TEMPLATES: PlanTemplate[] = [
-  {
-    name: 'Leaf-flush feed (high nitrogen)',
-    type: 'fertilizer',
-    product: 'NPK high N (e.g. 15:5:20) + Mg, Zn',
-    dose: 'Split into 2-3 doses',
-    everyDays: 30,
-    startMonth: 1,
-    endMonth: 3,
-    stage: 'Vegetative growth',
-    notes: 'Supports new leaves and branches. Magnesium and zinc help chlorophyll formation.',
-  },
-  {
-    name: 'Flowering soil feed (P + K)',
-    type: 'fertilizer',
-    product: 'Balanced NPK with higher P and K, moderate N',
-    everyDays: 30,
-    startMonth: 4,
-    endMonth: 6,
-    stage: 'Flowering',
-    notes: 'Supports flower bud initiation.',
-  },
-  {
-    name: 'Flowering foliar spray (boron + calcium)',
-    type: 'fertilizer',
-    product: 'Foliar boron + calcium',
-    dose: 'Early morning or late afternoon',
-    everyDays: 14,
-    startMonth: 4,
-    endMonth: 6,
-    stage: 'Flowering',
-    notes: 'Helps reduce flower drop. Spray when it is cool, not in midday sun.',
-  },
-  {
-    name: 'Fruit-development potassium feed',
-    type: 'fertilizer',
-    product: 'High potassium, moderate nitrogen',
-    dose: 'Small doses; water in',
-    everyDays: 35,
-    startMonth: 7,
-    endMonth: 9,
-    stage: 'Fruit development',
-    notes: 'Fruit size, taste and shelf life. Combine with irrigation.',
-  },
-  {
-    name: 'Post-harvest recovery feed',
-    type: 'fertilizer',
-    product: 'Balanced N and K, deep soil application',
-    everyDays: 45,
-    startMonth: 10,
-    endMonth: 12,
-    stage: 'Post-harvest recovery',
-    notes: 'Rebuilds tree reserves. Add mulch to hold soil moisture.',
-  },
-  {
-    name: 'Preventive fungicide spray',
-    type: 'spray',
-    product: 'Your fungicide',
-    everyDays: 14,
-    notes: 'Mainly for the rainy season. Check the label for dose and pre-harvest interval (PHI).',
-  },
-  {
-    name: 'Pest control spray',
-    type: 'spray',
-    product: 'Your insecticide',
-    everyDays: 21,
-    notes: 'Check the label for dose and pre-harvest interval (PHI). Do not spray during flowering without advice.',
-  },
-  {
-    name: 'Canopy pruning',
-    type: 'pruning',
-    everyDays: 365,
-    notes: 'Remove dead and crossing branches, usually after harvest.',
-  },
+  tpl('leaf', { type: 'fertilizer', everyDays: 30, startMonth: 1, endMonth: 3 }, { name: true, product: true, dose: true, stage: true, notes: true }),
+  tpl('flowerSoil', { type: 'fertilizer', everyDays: 30, startMonth: 4, endMonth: 6 }, { name: true, product: true, stage: true, notes: true }),
+  tpl('flowerFoliar', { type: 'fertilizer', everyDays: 14, startMonth: 4, endMonth: 6 }, { name: true, product: true, dose: true, stage: true, notes: true }),
+  tpl('fruit', { type: 'fertilizer', everyDays: 35, startMonth: 7, endMonth: 9 }, { name: true, product: true, dose: true, stage: true, notes: true }),
+  tpl('post', { type: 'fertilizer', everyDays: 45, startMonth: 10, endMonth: 12 }, { name: true, product: true, stage: true, notes: true }),
+  tpl('fungicide', { type: 'spray', everyDays: 14 }, { name: true, product: true, notes: true }),
+  tpl('pest', { type: 'spray', everyDays: 21 }, { name: true, product: true, notes: true }),
+  tpl('prune', { type: 'pruning', everyDays: 365 }, { name: true, notes: true }),
 ];
 
 // ---------- Firestore writes ----------

@@ -10,6 +10,7 @@ import { PhotoLightbox, photoItems, type GalleryItem } from './PhotoLightbox';
 import { TaskRow } from './TaskRow';
 import { MarkDoneSheet, UndoToast, undoLogged, useUndoToast } from './TreatmentSheets';
 import { ScheduleTask, relativeDue } from '../lib/treatments';
+import { useT } from '../i18n';
 import { ReportPhoto, TreeCondition, TreeReport, DurianTree } from '../types';
 import {
   db,
@@ -45,6 +46,7 @@ export const Dashboard: React.FC = () => {
     plans,
     scheduleTasks,
   } = useFarm();
+  const { t, locale } = useT();
   const [doneTask, setDoneTask] = useState<ScheduleTask | null>(null);
   const { toast, show: showToast, clear: clearToast } = useUndoToast();
 
@@ -88,13 +90,13 @@ export const Dashboard: React.FC = () => {
 
     const sevenDaysAgoMs = Date.now() - 7 * 24 * 60 * 60 * 1000;
 
-    trees.forEach((t) => {
-      if (t.condition === 'healthy') healthy++;
-      else if (t.condition === 'minor') minor++;
-      else if (t.condition === 'emergency') emergency++;
+    trees.forEach((tr) => {
+      if (tr.condition === 'healthy') healthy++;
+      else if (tr.condition === 'minor') minor++;
+      else if (tr.condition === 'emergency') emergency++;
       else notAssessed++;
 
-      const repTime = normalizeTimestamp(t.lastReportAt);
+      const repTime = normalizeTimestamp(tr.lastReportAt);
       if (!repTime || repTime < sevenDaysAgoMs) {
         noReport7d++;
       }
@@ -122,14 +124,16 @@ export const Dashboard: React.FC = () => {
   const overdueCount = useMemo(() => scheduleTasks.filter((x) => x.status === 'overdue').length, [scheduleTasks]);
   const nextTask = scheduleTasks.find((x) => x.status === 'upcoming');
   const hour = new Date().getHours();
-  const greeting = hour < 11 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
-  const todayLabel = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
+  const greeting = t(
+    hour < 11 ? 'dash.greet.morning' : hour < 15 ? 'dash.greet.noon' : hour < 17 ? 'dash.greet.afternoon' : hour < 18 ? 'dash.greet.late' : 'dash.greet.evening'
+  );
+  const todayLabel = new Date().toLocaleDateString(locale, { weekday: 'long', day: 'numeric', month: 'long' });
 
   // Needs attention: trees overdue for a re-check come first (emergency before minor, longest wait first).
   const attentionItems = useMemo(() => {
     const now = Date.now();
     const items = trees
-      .filter((t) => t.condition === 'emergency' || t.condition === 'minor')
+      .filter((tr) => tr.condition === 'emergency' || tr.condition === 'minor')
       .map((tree) => ({ tree, fu: followUpOf(tree, normalizeTimestamp(tree.lastReportAt), now) }));
     items.sort((a, b) => {
       if (a.fu.needs !== b.fu.needs) return a.fu.needs ? -1 : 1;
@@ -148,17 +152,17 @@ export const Dashboard: React.FC = () => {
       { block: string; healthy: number; minor: number; emergency: number; not_assessed: number; total: number; fruits: number }
     >();
 
-    trees.forEach((t) => {
-      const b = t.block || 'Unassigned';
+    trees.forEach((tr) => {
+      const b = tr.block || 'Unassigned';
       if (!map.has(b)) {
         map.set(b, { block: b, healthy: 0, minor: 0, emergency: 0, not_assessed: 0, total: 0, fruits: 0 });
       }
       const entry = map.get(b)!;
       entry.total++;
-      entry.fruits += t.estimatedFruitCount || 0;
-      if (t.condition === 'healthy') entry.healthy++;
-      else if (t.condition === 'minor') entry.minor++;
-      else if (t.condition === 'emergency') entry.emergency++;
+      entry.fruits += tr.estimatedFruitCount || 0;
+      if (tr.condition === 'healthy') entry.healthy++;
+      else if (tr.condition === 'minor') entry.minor++;
+      else if (tr.condition === 'emergency') entry.emergency++;
       else entry.not_assessed++;
     });
 
@@ -236,8 +240,8 @@ export const Dashboard: React.FC = () => {
           <p className="text-sm text-slate-600">
             {todayLabel} ·{' '}
             {counts.emergency + overdueCount === 0
-              ? 'Nothing urgent right now.'
-              : `${counts.emergency + overdueCount} item${counts.emergency + overdueCount === 1 ? '' : 's'} need attention.`}
+              ? t('dash.nothingUrgent')
+              : t(counts.emergency + overdueCount === 1 ? 'dash.attention.one' : 'dash.attention.other', { n: counts.emergency + overdueCount })}
           </p>
         </div>
       </div>
@@ -252,12 +256,12 @@ export const Dashboard: React.FC = () => {
         >
           <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-600">
             <AlertOctagon className={`w-4 h-4 ${counts.emergency > 0 ? 'text-rose-600' : 'text-slate-400'}`} />
-            Emergency
+            {t('cond.emergency')}
           </span>
           <span className={`block mt-2 text-3xl font-bold tabular ${counts.emergency > 0 ? 'text-rose-700' : 'text-slate-900'}`}>
             {counts.emergency}
           </span>
-          <span className="block text-xs text-slate-600 mt-0.5">{counts.emergency === 0 ? 'None, good' : 'trees need urgent care'}</span>
+          <span className="block text-xs text-slate-600 mt-0.5">{counts.emergency === 0 ? t('dash.kpi.emergency.none') : t('dash.kpi.emergency.some')}</span>
         </button>
 
         <button
@@ -266,10 +270,10 @@ export const Dashboard: React.FC = () => {
         >
           <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-600">
             <AlertTriangle className={`w-4 h-4 ${counts.minor > 0 ? 'text-amber-600' : 'text-slate-400'}`} />
-            Watch list
+            {t('dash.kpi.watch')}
           </span>
           <span className="block mt-2 text-3xl font-bold tabular text-slate-900">{counts.minor}</span>
-          <span className="block text-xs text-slate-600 mt-0.5">trees with minor issues</span>
+          <span className="block text-xs text-slate-600 mt-0.5">{t('dash.kpi.watch.sub')}</span>
         </button>
 
         <button
@@ -278,11 +282,11 @@ export const Dashboard: React.FC = () => {
         >
           <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-600">
             <Clock className="w-4 h-4 text-slate-400" />
-            Reported today
+            {t('dash.kpi.today')}
           </span>
           <span className="block mt-2 text-3xl font-bold tabular text-slate-900">{counts.reportedToday}</span>
           <span className="block text-xs text-slate-600 mt-0.5 tabular">
-            {counts.reported7d} of {counts.total} in 7 days
+            {t('dash.kpi.today.sub', { a: counts.reported7d, b: counts.total })}
           </span>
         </button>
 
@@ -294,13 +298,13 @@ export const Dashboard: React.FC = () => {
         >
           <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-600">
             <CalendarCheck className={`w-4 h-4 ${overdueCount > 0 ? 'text-rose-600' : 'text-slate-400'}`} />
-            Routine work due
+            {t('dash.kpi.routine')}
           </span>
           <span className={`block mt-2 text-3xl font-bold tabular ${overdueCount > 0 ? 'text-rose-700' : 'text-slate-900'}`}>
             {dueSoon.length}
           </span>
           <span className="block text-xs text-slate-600 mt-0.5 tabular">
-            {overdueCount > 0 ? `${overdueCount} overdue` : 'in the next 7 days'}
+            {overdueCount > 0 ? t('dash.kpi.routine.overdue', { n: overdueCount }) : t('dash.kpi.routine.sub')}
           </span>
         </button>
       </div>
@@ -310,10 +314,10 @@ export const Dashboard: React.FC = () => {
         <section className="lg:col-span-7 bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden" aria-labelledby="att-h">
           <div className="p-4 border-b border-slate-200 flex items-center justify-between gap-2">
             <h2 id="att-h" className="text-sm font-bold text-slate-900">
-              Needs attention <span className="text-slate-500 font-medium tabular">({attentionTrees.length})</span>
+              {t('dash.att.title')} <span className="text-slate-500 font-medium tabular">({attentionTrees.length})</span>
               {followUpCount > 0 && (
                 <span className="ml-2 px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200 text-xs font-semibold">
-                  {followUpCount} overdue for a check
+                  {t('dash.att.overdue', { n: followUpCount })}
                 </span>
               )}
             </h2>
@@ -324,7 +328,7 @@ export const Dashboard: React.FC = () => {
                 }}
                 className="text-xs font-semibold text-emerald-700 hover:text-emerald-800 flex items-center gap-1 min-h-8"
               >
-                View all {followUpCount > 0 ? followUpCount : attentionTrees.length}
+                {t('dash.att.viewAll', { n: followUpCount > 0 ? followUpCount : attentionTrees.length })}
                 <ArrowRight className="w-3.5 h-3.5" />
               </button>
             )}
@@ -332,8 +336,8 @@ export const Dashboard: React.FC = () => {
           {attentionTrees.length === 0 ? (
             <div className="p-8 text-center">
               <Check className="w-8 h-8 text-emerald-500 mx-auto mb-2" />
-              <p className="text-sm font-semibold text-slate-800">All clear</p>
-              <p className="text-xs text-slate-600 mt-0.5">No trees are marked emergency or minor.</p>
+              <p className="text-sm font-semibold text-slate-800">{t('dash.att.clear')}</p>
+              <p className="text-xs text-slate-600 mt-0.5">{t('dash.att.clear.sub')}</p>
             </div>
           ) : (
             <div className="divide-y divide-slate-100">
@@ -347,10 +351,10 @@ export const Dashboard: React.FC = () => {
                     <span className="text-sm font-bold font-mono text-slate-900 bg-slate-100 px-2 py-1 rounded shrink-0 min-w-12 text-center">{tree.id}</span>
                     <span className="min-w-0">
                       <span className="block text-sm font-semibold text-slate-900">
-                        {tree.variant} · Block {tree.block || '—'}
+                        {tree.variant} · {t('common.blockN', { n: tree.block || '—' })}
                       </span>
                       <span className="block text-xs text-slate-600 truncate">
-                        {tree.conditionNotes || tree.notes || 'No issue notes'}
+                        {tree.conditionNotes || tree.notes || t('dash.att.noNotes')}
                       </span>
                     </span>
                   </span>
@@ -368,45 +372,45 @@ export const Dashboard: React.FC = () => {
 
         <section className="lg:col-span-5 bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden" aria-labelledby="wk-h">
           <div className="p-4 border-b border-slate-200 flex items-center justify-between gap-2">
-            <h2 id="wk-h" className="text-sm font-bold text-slate-900">Routine work</h2>
+            <h2 id="wk-h" className="text-sm font-bold text-slate-900">{t('dash.wk.title')}</h2>
             <button
               onClick={() => navigate('/schedule')}
               className="text-xs font-semibold text-emerald-700 hover:text-emerald-800 flex items-center gap-1 min-h-8"
             >
-              Open schedule
+              {t('dash.wk.open')}
               <ArrowRight className="w-3.5 h-3.5" />
             </button>
           </div>
           {plans.length === 0 ? (
             <div className="p-6 text-center">
               <CalendarCheck className="w-8 h-8 text-slate-400 mx-auto mb-2" />
-              <p className="text-sm font-semibold text-slate-800">No routines yet</p>
-              <p className="text-xs text-slate-600 mt-0.5 mb-3">Track fertilizer and spray rounds and see what is due.</p>
+              <p className="text-sm font-semibold text-slate-800">{t('dash.wk.empty')}</p>
+              <p className="text-xs text-slate-600 mt-0.5 mb-3">{t('dash.wk.empty.sub')}</p>
               <button
                 onClick={() => navigate('/schedule')}
                 className="min-h-11 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold"
               >
-                Set up routines
+                {t('dash.wk.setup')}
               </button>
             </div>
           ) : dueSoon.length === 0 ? (
             <div className="p-6 text-center">
               <Check className="w-8 h-8 text-emerald-500 mx-auto mb-2" />
-              <p className="text-sm font-semibold text-slate-800">Nothing due this week</p>
+              <p className="text-sm font-semibold text-slate-800">{t('dash.wk.none')}</p>
               {nextTask && (
                 <p className="text-xs text-slate-600 mt-0.5">
-                  Next: {nextTask.plan.name} · {relativeDue(nextTask.days).toLowerCase()}
+                  {t('dash.wk.next', { name: nextTask.plan.name, when: relativeDue(nextTask.days).toLowerCase() })}
                 </p>
               )}
             </div>
           ) : (
             <div className="divide-y divide-slate-100">
-              {dueSoon.slice(0, 5).map((t) => (
-                <TaskRow key={t.plan.id} task={t} compact onDone={setDoneTask} />
+              {dueSoon.slice(0, 5).map((task) => (
+                <TaskRow key={task.plan.id} task={task} compact onDone={setDoneTask} />
               ))}
               {dueSoon.length > 5 && (
                 <button onClick={() => navigate('/schedule')} className="w-full p-3 text-xs font-semibold text-emerald-700 hover:bg-slate-50 min-h-11">
-                  {dueSoon.length - 5} more in schedule
+                  {t('dash.wk.more', { n: dueSoon.length - 5 })}
                 </button>
               )}
             </div>
@@ -417,10 +421,10 @@ export const Dashboard: React.FC = () => {
       {/* Orchard health: one stacked bar instead of five tiles */}
       <section className="bg-white rounded-xl border border-slate-200 shadow-xs p-4 space-y-3" aria-labelledby="oh-h">
         <div className="flex items-baseline justify-between gap-2">
-          <h2 id="oh-h" className="text-sm font-bold text-slate-900">Orchard health</h2>
-          <span className="text-xs text-slate-600 tabular">{counts.total} trees</span>
+          <h2 id="oh-h" className="text-sm font-bold text-slate-900">{t('dash.health.title')}</h2>
+          <span className="text-xs text-slate-600 tabular">{t('dash.health.total', { n: counts.total })}</span>
         </div>
-        <div className="flex h-3 rounded-full overflow-hidden bg-slate-100" role="img" aria-label={`Healthy ${counts.healthy}, minor ${counts.minor}, emergency ${counts.emergency}, not assessed ${counts.notAssessed}`}>
+        <div className="flex h-3 rounded-full overflow-hidden bg-slate-100" role="img" aria-label={t('dash.health.aria', { h: counts.healthy, m: counts.minor, e: counts.emergency, n: counts.notAssessed })}>
           {[
             { n: counts.healthy, cls: 'bg-emerald-500' },
             { n: counts.minor, cls: 'bg-amber-400' },
@@ -432,10 +436,10 @@ export const Dashboard: React.FC = () => {
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           {[
-            { key: 'healthy', label: 'Healthy', n: counts.healthy, dot: 'bg-emerald-500' },
-            { key: 'minor', label: 'Minor', n: counts.minor, dot: 'bg-amber-400' },
-            { key: 'emergency', label: 'Emergency', n: counts.emergency, dot: 'bg-rose-500' },
-            { key: 'not_assessed', label: 'Not assessed', n: counts.notAssessed, dot: 'bg-slate-300' },
+            { key: 'healthy', label: t('cond.healthy'), n: counts.healthy, dot: 'bg-emerald-500' },
+            { key: 'minor', label: t('dash.health.minor'), n: counts.minor, dot: 'bg-amber-400' },
+            { key: 'emergency', label: t('cond.emergency'), n: counts.emergency, dot: 'bg-rose-500' },
+            { key: 'not_assessed', label: t('cond.not_assessed'), n: counts.notAssessed, dot: 'bg-slate-300' },
           ].map((s) => (
             <button
               key={s.key}
@@ -453,8 +457,8 @@ export const Dashboard: React.FC = () => {
         </div>
         <div>
           <div className="flex justify-between text-xs text-slate-600 mb-1">
-            <span>Reporting coverage (last 7 days)</span>
-            <span className="tabular">{counts.reported7d} of {counts.total}</span>
+            <span>{t('dash.health.coverage')}</span>
+            <span className="tabular">{t('dash.ofTotal', { a: counts.reported7d, b: counts.total })}</span>
           </div>
           <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
             <div className="h-full bg-slate-700" style={{ width: `${counts.total ? (counts.reported7d / counts.total) * 100 : 0}%` }} />
@@ -477,13 +481,13 @@ export const Dashboard: React.FC = () => {
         <div className="lg:col-span-7 bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden flex flex-col">
           <div className="p-4 sm:p-5 border-b border-slate-200 flex items-center justify-between">
             <div>
-              <h2 className="text-sm font-bold text-slate-900">Block Distribution</h2>
+              <h2 className="text-sm font-bold text-slate-900">{t('dash.blocks.title')}</h2>
               <p className="text-xs text-slate-600 mt-0.5">
-                Trees by orchard block, sorted A to E by default
+                {t('dash.blocks.sub')}
               </p>
             </div>
             <div className="text-xs font-semibold text-slate-600">
-              {blockStats.length} blocks
+              {t('dash.blocks.count', { n: blockStats.length })}
             </div>
           </div>
 
@@ -496,7 +500,7 @@ export const Dashboard: React.FC = () => {
                     className="py-3 px-3.5 cursor-pointer hover:bg-slate-100 transition-colors"
                   >
                     <div className="flex items-center gap-1">
-                      <span>Block</span>
+                      <span>{t('common.block')}</span>
                       <ArrowUpDown className="w-3 h-3 text-slate-400" />
                     </div>
                   </th>
@@ -505,7 +509,7 @@ export const Dashboard: React.FC = () => {
                     className="py-3 px-3 cursor-pointer hover:bg-slate-100 transition-colors text-right"
                   >
                     <div className="flex items-center justify-end gap-1">
-                      <span>Trees</span>
+                      <span>{t('common.trees')}</span>
                       <ArrowUpDown className="w-3 h-3 text-slate-400" />
                     </div>
                   </th>
@@ -514,7 +518,7 @@ export const Dashboard: React.FC = () => {
                     className="py-3 px-3 cursor-pointer hover:bg-slate-100 transition-colors text-right text-emerald-800"
                   >
                     <div className="flex items-center justify-end gap-1">
-                      <span>Healthy</span>
+                      <span>{t('cond.healthy')}</span>
                       <ArrowUpDown className="w-3 h-3 text-slate-400" />
                     </div>
                   </th>
@@ -523,7 +527,7 @@ export const Dashboard: React.FC = () => {
                     className="py-3 px-3 cursor-pointer hover:bg-slate-100 transition-colors text-right text-amber-800"
                   >
                     <div className="flex items-center justify-end gap-1">
-                      <span>Minor</span>
+                      <span>{t('dash.health.minor')}</span>
                       <ArrowUpDown className="w-3 h-3 text-slate-400" />
                     </div>
                   </th>
@@ -532,7 +536,7 @@ export const Dashboard: React.FC = () => {
                     className="py-3 px-3 cursor-pointer hover:bg-slate-100 transition-colors text-right text-rose-800"
                   >
                     <div className="flex items-center justify-end gap-1">
-                      <span>Emerg.</span>
+                      <span>{t('dash.col.emerg')}</span>
                       <ArrowUpDown className="w-3 h-3 text-slate-400" />
                     </div>
                   </th>
@@ -541,7 +545,7 @@ export const Dashboard: React.FC = () => {
                     className="py-3 px-3 cursor-pointer hover:bg-slate-100 transition-colors text-right text-slate-700"
                   >
                     <div className="flex items-center justify-end gap-1">
-                      <span>Not Assessed</span>
+                      <span>{t('dash.col.notAssessed')}</span>
                       <ArrowUpDown className="w-3 h-3 text-slate-400" />
                     </div>
                   </th>
@@ -550,7 +554,7 @@ export const Dashboard: React.FC = () => {
                     className="py-3 px-3.5 cursor-pointer hover:bg-slate-100 transition-colors text-right text-emerald-800"
                   >
                     <div className="flex items-center justify-end gap-1">
-                      <span>Est. Fruits</span>
+                      <span>{t('dash.col.fruits')}</span>
                       <ArrowUpDown className="w-3 h-3 text-slate-400" />
                     </div>
                   </th>
@@ -567,7 +571,7 @@ export const Dashboard: React.FC = () => {
                   >
                     <td className="py-2.5 px-3.5 font-bold text-slate-900 font-sans">
                       <Link to={treesUrl({ block: row.block })} className="hover:underline" onClick={(e) => e.stopPropagation()}>
-                        Block {row.block}
+                        {t('common.blockN', { n: row.block })}
                       </Link>
                     </td>
                     <td className="py-2.5 px-3 text-right font-mono tabular-nums font-semibold text-slate-800">
@@ -586,7 +590,7 @@ export const Dashboard: React.FC = () => {
                       {row.not_assessed}
                     </td>
                     <td className="py-2.5 px-3.5 text-right font-mono tabular-nums font-bold text-emerald-800">
-                      {row.fruits.toLocaleString()}
+                      {row.fruits.toLocaleString(locale)}
                     </td>
                   </tr>
                 ))}
@@ -599,14 +603,14 @@ export const Dashboard: React.FC = () => {
         <div className="lg:col-span-5 bg-white rounded-xl border border-slate-200 shadow-xs p-4 sm:p-5 flex flex-col space-y-4">
           <div className="flex items-center justify-between pb-3 border-b border-slate-200">
             <div>
-              <h2 className="text-sm font-bold text-slate-900">Latest Field Reports</h2>
-              <span className="text-xs text-slate-600 font-medium">Live from WhatsApp</span>
+              <h2 className="text-sm font-bold text-slate-900">{t('dash.latest.title')}</h2>
+              <span className="text-xs text-slate-600 font-medium">{t('dash.latest.live')}</span>
             </div>
             <button
               onClick={() => navigate('/reports')}
               className="text-xs font-semibold text-emerald-700 hover:text-emerald-800 flex items-center gap-1 transition-colors"
             >
-              <span>All Reports ({totalReportsCount})</span>
+              <span>{t('dash.latest.all', { n: totalReportsCount })}</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </button>
           </div>
@@ -621,13 +625,13 @@ export const Dashboard: React.FC = () => {
             ) : latestReports.length === 0 ? (
               <div className="p-8 text-center bg-slate-50 rounded-xl border border-dashed border-slate-300">
                 <Calendar className="w-8 h-8 text-slate-400 mx-auto mb-2" />
-                <p className="text-sm font-medium text-slate-700">No inspection reports submitted yet.</p>
-                <p className="text-xs text-slate-500 mt-1">Field inspections submitted via WhatsApp will appear here live.</p>
+                <p className="text-sm font-medium text-slate-700">{t('dash.latest.empty')}</p>
+                <p className="text-xs text-slate-500 mt-1">{t('dash.latest.empty.sub')}</p>
               </div>
             ) : (
               latestReports.map((report) => {
                 const photos = report.photos || [];
-                const tree = trees.find((t) => t.id === report.treeId);
+                const tree = trees.find((tr) => tr.id === report.treeId);
                 const workerMasked = maskPhone(report.workerPhone);
 
                 return (
@@ -651,14 +655,14 @@ export const Dashboard: React.FC = () => {
                         {report.conditionAfter && <ConditionBadge condition={report.conditionAfter} size="sm" />}
                       </div>
                       <div className="flex items-baseline justify-between gap-2">
-                        <h4 className="text-sm font-bold text-slate-900">Tree {report.treeId}</h4>
+                        <h4 className="text-sm font-bold text-slate-900">{t('dash.latest.tree', { id: report.treeId })}</h4>
                         <span className="text-xs text-slate-600">
-                          {[tree?.variant, `Block ${report.block || tree?.block || '—'}`].filter(Boolean).join(' · ')}
+                          {[tree?.variant, t('common.blockN', { n: report.block || tree?.block || '—' })].filter(Boolean).join(' · ')}
                         </span>
                       </div>
                       {report.conditionChanged && report.conditionBefore && report.conditionBefore !== report.conditionAfter && (
                         <p className="flex items-center gap-1.5 text-xs font-medium text-amber-900">
-                          Was <ConditionBadge condition={report.conditionBefore} size="sm" />
+                          {t('dash.latest.was')} <ConditionBadge condition={report.conditionBefore} size="sm" />
                         </p>
                       )}
                       {report.description && /[\p{L}\p{N}]/u.test(report.description) && (

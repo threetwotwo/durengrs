@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { X } from 'lucide-react';
+import { useT } from '../i18n';
 
 /** Bottom sheet on phones, centered dialog on desktop. Esc and backdrop close it. */
 export const Sheet: React.FC<{
@@ -9,6 +10,7 @@ export const Sheet: React.FC<{
   children: React.ReactNode;
   footer?: React.ReactNode;
 }> = ({ title, subtitle, onClose, children, footer }) => {
+  const { t } = useT();
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
     document.addEventListener('keydown', onKey);
@@ -34,7 +36,7 @@ export const Sheet: React.FC<{
             <h2 className="text-base font-bold text-slate-900">{title}</h2>
             {subtitle && <p className="text-xs text-slate-600 mt-0.5">{subtitle}</p>}
           </div>
-          <button onClick={onClose} className="p-2 -m-1 rounded-lg text-slate-500 hover:bg-slate-100" aria-label="Close">
+          <button onClick={onClose} className="p-2 -m-1 rounded-lg text-slate-500 hover:bg-slate-100" aria-label={t('common.close')}>
             <X className="w-5 h-5" />
           </button>
         </div>

@@ -1,3 +1,4 @@
+import { translate, locale } from '../i18n';
 import React, { createContext, useContext, useEffect, useMemo, useState, useCallback } from 'react';
 import { collection, onSnapshot, query, where, orderBy, limit, Timestamp } from 'firebase/firestore';
 import { DurianTree, DurianVariant, TreeReport, TreeCondition } from '../types';
@@ -94,7 +95,7 @@ export const FarmProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.error('Schedule listener failed:', err);
       setScheduleError(
         err?.code === 'permission-denied'
-          ? 'Firestore rules do not allow treatmentPlans / treatments yet. Publish the updated firestore.rules.'
+          ? translate('err.rules')
           : String(err?.message || err)
       );
     };
@@ -204,7 +205,7 @@ export const FarmProvider: React.FC<{ children: React.ReactNode }> = ({ children
         },
         (err) => {
           console.error('Firestore trees error:', err);
-          setError(`Could not load trees (${err.message})`);
+          setError(translate('err.trees', { msg: err.message }));
           setLoading(false);
           try {
             handleFirestoreError(err, OperationType.LIST, 'trees');
@@ -245,7 +246,7 @@ export const FarmProvider: React.FC<{ children: React.ReactNode }> = ({ children
       refreshReportsCount();
     } catch (e: any) {
       console.error('Failed to attach listeners:', e);
-      setError(`Failed to attach Firestore listeners: ${e.message}`);
+      setError(translate('err.listeners', { msg: e.message }));
       setLoading(false);
     }
 
@@ -334,7 +335,7 @@ export function formatDateTime(val: any): string {
   const ts = normalizeTimestamp(val);
   if (!ts) return '—';
   const d = new Date(ts);
-  return d.toLocaleDateString('en-GB', {
+  return d.toLocaleDateString(locale(), {
     day: '2-digit',
     month: 'short',
     year: 'numeric',
@@ -347,7 +348,7 @@ export function formatDate(val: any): string {
   const ts = normalizeTimestamp(val);
   if (!ts) return '—';
   const d = new Date(ts);
-  return d.toLocaleDateString('en-GB', {
+  return d.toLocaleDateString(locale(), {
     day: '2-digit',
     month: 'short',
     year: 'numeric',
@@ -356,14 +357,14 @@ export function formatDate(val: any): string {
 
 export function formatTimeAgo(val: any): string {
   const ts = normalizeTimestamp(val);
-  if (!ts) return 'No reports';
+  if (!ts) return translate('date.none');
   const diffMs = Date.now() - ts;
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
   if (diffDays <= 0) {
     const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-    if (diffHours <= 0) return 'Today';
-    return `${diffHours}h ago`;
+    if (diffHours <= 0) return translate('common.today');
+    return translate('time.hAgo', { n: diffHours });
   }
-  if (diffDays === 1) return 'Yesterday';
-  return `${diffDays} days ago`;
+  if (diffDays === 1) return translate('common.yesterday');
+  return translate('time.dAgo', { n: diffDays });
 }

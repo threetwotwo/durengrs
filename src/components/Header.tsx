@@ -1,6 +1,7 @@
 import React from 'react';
 import { useFarm, AppTab } from '../context/FarmContext';
 import { Link } from './Link';
+import { useT, type Lang } from '../i18n';
 import { LayoutDashboard, TableProperties, Sprout, ClipboardList, CalendarCheck } from 'lucide-react';
 
 /** Monogram "C" with a leaf at the open end. Calm and generic on purpose. */
@@ -33,26 +34,27 @@ const toneClass: Record<Tone, string> = {
 };
 
 export function useNavItems(): NavItem[] {
+  const { t } = useT();
   const { unreadReportsCount, scheduleTasks } = useFarm();
   const overdue = scheduleTasks.filter((t) => t.status === 'overdue').length;
   const soon = scheduleTasks.filter((t) => t.status === 'soon').length;
 
   let scheduleBadge: NavItem['badge'];
-  if (overdue > 0) scheduleBadge = { text: `${overdue} overdue`, tone: 'danger' };
-  else if (soon > 0) scheduleBadge = { text: `${soon} due`, tone: 'warn' };
+  if (overdue > 0) scheduleBadge = { text: t('nav.badge.overdue', { n: overdue }), tone: 'danger' };
+  else if (soon > 0) scheduleBadge = { text: t('nav.badge.due', { n: soon }), tone: 'warn' };
 
   return [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'schedule', label: 'Schedule', icon: CalendarCheck, badge: scheduleBadge },
-    { id: 'trees', label: 'Trees', icon: TableProperties },
-    { id: 'variants', label: 'Variants', icon: Sprout },
+    { id: 'dashboard', label: t('nav.dashboard'), icon: LayoutDashboard },
+    { id: 'schedule', label: t('nav.schedule'), icon: CalendarCheck, badge: scheduleBadge },
+    { id: 'trees', label: t('nav.trees'), icon: TableProperties },
+    { id: 'variants', label: t('nav.variants'), icon: Sprout },
     {
       id: 'reports',
-      label: 'Reports',
+      label: t('nav.reports'),
       icon: ClipboardList,
       badge:
         unreadReportsCount > 0
-          ? { text: unreadReportsCount > 99 ? '99+' : `${unreadReportsCount} new`, tone: 'new' }
+          ? { text: unreadReportsCount > 99 ? '99+' : t('nav.badge.new', { n: unreadReportsCount }), tone: 'new' }
           : undefined,
     },
   ];
@@ -60,7 +62,32 @@ export function useNavItems(): NavItem[] {
 
 const tabPath = (id: AppTab) => (id === 'dashboard' ? '/' : `/${id}`);
 
+/** ID | EN switch. Shows the current language; both options visible so it is obvious how to change it. */
+export const LanguageToggle: React.FC = () => {
+  const { lang, setLang, t } = useT();
+  const opt = (code: Lang, label: string) => (
+    <button
+      type="button"
+      onClick={() => setLang(code)}
+      aria-pressed={lang === code}
+      lang={code}
+      className={`min-w-9 h-8 px-2 rounded-md text-xs font-bold transition-colors ${
+        lang === code ? 'bg-white text-slate-900' : 'text-slate-300 hover:text-white'
+      }`}
+    >
+      {label}
+    </button>
+  );
+  return (
+    <div role="group" aria-label={t('lang.label')} className="inline-flex items-center p-0.5 rounded-lg bg-slate-800 border border-slate-700">
+      {opt('id', 'ID')}
+      {opt('en', 'EN')}
+    </div>
+  );
+};
+
 export const Header: React.FC = () => {
+  const { t } = useT();
   const { activeTab, trees, blocks } = useFarm();
   const navItems = useNavItems();
 
@@ -71,19 +98,20 @@ export const Header: React.FC = () => {
           <Link
             to="/"
             className="flex items-center gap-3 text-left rounded-lg focus-visible:outline-2 focus-visible:outline-emerald-400"
-            aria-label="Cilowong Durian Estate, go to dashboard"
+            aria-label={t('brand.home')}
           >
             <BrandMark className="w-9 h-9 shrink-0" />
             <span className="leading-tight">
               <span className="block font-display text-lg font-bold tracking-tight text-white">Cilowong</span>
               <span className="block text-xs text-slate-400 tabular">
-                Durian Estate{trees.length > 0 ? ` · ${trees.length} trees · ${blocks.length} blocks` : ''}
+                {trees.length > 0 ? t('brand.subCounts', { trees: trees.length, blocks: blocks.length }) : t('brand.sub')}
               </span>
             </span>
           </Link>
 
           {/* Desktop navigation. On phones the bottom tab bar is used instead. */}
-          <nav className="hidden md:flex items-center gap-1" aria-label="Main">
+          <div className="hidden md:flex items-center gap-3">
+          <nav className="flex items-center gap-1" aria-label={t('nav.main')}>
             {navItems.map((item) => {
               const Icon = item.icon;
               const isActive = activeTab === item.id;
@@ -107,6 +135,11 @@ export const Header: React.FC = () => {
               );
             })}
           </nav>
+          <LanguageToggle />
+          </div>
+          <div className="md:hidden">
+            <LanguageToggle />
+          </div>
         </div>
       </div>
     </header>
@@ -115,13 +148,14 @@ export const Header: React.FC = () => {
 
 /** Fixed bottom tab bar for phones: thumb reach, labels always visible. */
 export const BottomNav: React.FC = () => {
+  const { t } = useT();
   const { activeTab } = useFarm();
   const navItems = useNavItems();
 
   return (
     <nav
       className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-slate-900 border-t border-slate-800 pb-[env(safe-area-inset-bottom)]"
-      aria-label="Main"
+      aria-label={t('nav.main')}
     >
       <ul className="grid grid-cols-5">
         {navItems.map((item) => {

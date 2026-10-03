@@ -4,6 +4,7 @@ import { DurianVariant } from '../types';
 import { PageHeader, btnPrimary, inputCls } from './PageHeader';
 import { Link } from './Link';
 import { treesUrl } from '../lib/router';
+import { useT } from '../i18n';
 import {
   Sprout,
   Plus,
@@ -20,6 +21,7 @@ import {
 
 export const VariantsPage: React.FC = () => {
   const { variants, trees, saveVariant } = useFarm();
+  const { t } = useT();
 
   const [search, setSearch] = useState('');
   const [modalMode, setModalMode] = useState<'create' | 'edit' | null>(null);
@@ -103,7 +105,7 @@ export const VariantsPage: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!code.trim() || !name.trim()) {
-      setFormError('Variant Code and Variant Name are required.');
+      setFormError(t('var.error.required'));
       return;
     }
 
@@ -125,13 +127,13 @@ export const VariantsPage: React.FC = () => {
 
       setSuccessToast(
         modalMode === 'create'
-          ? `Variant "${cleanCode}" added.`
-          : `Variant "${cleanCode}" updated.`
+          ? t('var.toast.added', { code: cleanCode })
+          : t('var.toast.updated', { code: cleanCode })
       );
       setTimeout(() => setSuccessToast(null), 3000);
       closeModal();
     } catch (err: any) {
-      setFormError(`Failed to save variant: ${err.message}`);
+      setFormError(t('var.error.save', { msg: err.message }));
     } finally {
       setIsSaving(false);
     }
@@ -140,12 +142,12 @@ export const VariantsPage: React.FC = () => {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Variants"
-        description="Durian varieties on the farm, how many trees each has and how healthy they are."
+        title={t('var.title')}
+        description={t('var.desc')}
         actions={
           <button onClick={openCreateModal} className={btnPrimary}>
             <Plus className="w-4 h-4" />
-            Add variant
+            {t('var.add')}
           </button>
         }
       />
@@ -164,12 +166,12 @@ export const VariantsPage: React.FC = () => {
             type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by code, name or origin…"
-            aria-label="Search variants"
+            placeholder={t('var.search.placeholder')}
+            aria-label={t('var.search.aria')}
             className={`${inputCls} pl-9`}
           />
         </div>
-        <span className="text-sm text-slate-600 whitespace-nowrap tabular">{filteredVariants.length} variants</span>
+        <span className="text-sm text-slate-600 whitespace-nowrap tabular">{t('var.count', { n: filteredVariants.length })}</span>
       </div>
 
       {/* Variant Cards Grid */}
@@ -206,8 +208,8 @@ export const VariantsPage: React.FC = () => {
                   <button
                     onClick={() => openEditModal(variant)}
                     className="min-h-11 min-w-11 -m-2 flex items-center justify-center rounded-lg text-slate-500 hover:text-emerald-700 hover:bg-emerald-50 transition-colors"
-                    title="Edit variant"
-                    aria-label={`Edit ${variant.name}`}
+                    title={t('var.edit.title')}
+                    aria-label={t('var.edit.aria', { name: variant.name })}
                   >
                     <Edit2 className="w-3.5 h-3.5" />
                   </button>
@@ -224,7 +226,7 @@ export const VariantsPage: React.FC = () => {
                 {variant.characteristics && (
                   <div className="text-xs text-slate-600 space-y-0.5">
                     <span className="font-semibold text-slate-700 block text-xs uppercase tracking-wider">
-                      Traits
+                      {t('var.traits')}
                     </span>
                     <p className="line-clamp-2">{variant.characteristics}</p>
                   </div>
@@ -237,7 +239,7 @@ export const VariantsPage: React.FC = () => {
                   <div
                     className="flex h-2 rounded-full overflow-hidden bg-slate-100"
                     role="img"
-                    aria-label={`Healthy ${health.healthy}, minor ${health.minor}, emergency ${health.emergency}, not assessed ${health.not_assessed}`}
+                    aria-label={t('var.health.aria', { ...health })}
                   >
                     {[
                       { n: health.healthy, c: 'bg-emerald-500' },
@@ -249,23 +251,23 @@ export const VariantsPage: React.FC = () => {
                 )}
                 <div className="flex items-center justify-between gap-2 text-sm">
                   <Link to={treesUrl({ variant: variant.code })} className="font-semibold text-emerald-700 hover:text-emerald-800 hover:underline">
-                    {treeCount} {treeCount === 1 ? 'tree' : 'trees'}
+                    {t(treeCount === 1 ? 'var.trees.one' : 'var.trees.other', { n: treeCount })}
                   </Link>
                   <span className="text-xs text-slate-600 tabular">
-                    {health.emergency > 0 && <span className="text-rose-700 font-semibold">{health.emergency} emergency · </span>}
-                    {health.minor > 0 && <span className="text-amber-700 font-semibold">{health.minor} minor · </span>}
-                    {health.healthy} healthy
+                    {health.emergency > 0 && <span className="text-rose-700 font-semibold">{t('var.n.emergency', { n: health.emergency })} · </span>}
+                    {health.minor > 0 && <span className="text-amber-700 font-semibold">{t('var.n.minor', { n: health.minor })} · </span>}
+                    {t('var.n.healthy', { n: health.healthy })}
                   </span>
                 </div>
                 <div className="text-xs">
                   {variant.ripeningDays ? (
                     <span className="flex items-center gap-1 text-slate-600 tabular">
                       <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                      About {variant.ripeningDays} days from flowering to ripe
+                      {t('var.ripening', { n: variant.ripeningDays })}
                     </span>
                   ) : (
                     <button onClick={() => openEditModal(variant)} className="text-slate-500 hover:text-emerald-700 underline decoration-dotted min-h-8">
-                      Add ripening time
+                      {t('var.addRipening')}
                     </button>
                   )}
                 </div>
@@ -283,11 +285,12 @@ export const VariantsPage: React.FC = () => {
               <div className="flex items-center gap-2">
                 <Sprout className="w-5 h-5 text-emerald-400" />
                 <h2 className="text-base font-bold">
-                  {modalMode === 'create' ? 'Add New Durian Variant' : `Edit Variant (${code})`}
+                  {modalMode === 'create' ? t('var.modal.create') : t('var.modal.edit', { code })}
                 </h2>
               </div>
               <button
                 onClick={closeModal}
+                aria-label={t('common.close')}
                 className="p-1 rounded-md text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
               >
                 <X className="w-5 h-5" />
@@ -304,31 +307,31 @@ export const VariantsPage: React.FC = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 <div>
                   <label className="block text-xs font-medium text-slate-700 mb-1">
-                    Variant Code <span className="text-rose-500">*</span>
+                    {t('var.f.code')} <span className="text-rose-500">*</span>
                   </label>
                   <input
                     type="text"
                     value={code}
                     onChange={(e) => setCode(e.target.value)}
-                    placeholder="e.g. MK, BT, BW"
+                    placeholder={t('var.f.code.ph')}
                     disabled={modalMode === 'edit'}
                     required
                     className="w-full text-xs p-2.5 border border-slate-300 rounded-md focus:ring-2 focus:ring-emerald-500 font-mono font-bold uppercase disabled:bg-slate-100 disabled:text-slate-500"
                   />
                   <p className="text-xs text-slate-400 mt-0.5">
-                    Document ID in <code className="text-slate-600">variants/&#123;code&#125;</code>
+                    {t('var.f.code.hint')} <code className="text-slate-600">variants/&#123;code&#125;</code>
                   </p>
                 </div>
 
                 <div>
                   <label className="block text-xs font-medium text-slate-700 mb-1">
-                    Variant Name <span className="text-rose-500">*</span>
+                    {t('var.f.name')} <span className="text-rose-500">*</span>
                   </label>
                   <input
                     type="text"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    placeholder="e.g. Musang King"
+                    placeholder={t('var.f.name.ph')}
                     required
                     className="w-full text-xs p-2.5 border border-slate-300 rounded-md focus:ring-2 focus:ring-emerald-500 font-medium"
                   />
@@ -338,26 +341,26 @@ export const VariantsPage: React.FC = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 <div>
                   <label className="block text-xs font-medium text-slate-700 mb-1">
-                    Origin / Region
+                    {t('var.f.origin')}
                   </label>
                   <input
                     type="text"
                     value={origin}
                     onChange={(e) => setOrigin(e.target.value)}
-                    placeholder="e.g. Kelantan, Malaysia"
+                    placeholder={t('var.f.origin.ph')}
                     className="w-full text-xs p-2.5 border border-slate-300 rounded-md focus:ring-2 focus:ring-emerald-500"
                   />
                 </div>
 
                 <div>
                   <label className="block text-xs font-medium text-slate-700 mb-1">
-                    Ripening Schedule (Days from Bloom)
+                    {t('var.f.ripening')}
                   </label>
                   <input
                     type="number"
                     value={ripeningDays}
                     onChange={(e) => setRipeningDays(e.target.value)}
-                    placeholder="e.g. 105"
+                    placeholder={t('var.f.ripening.ph')}
                     className="w-full text-xs p-2.5 border border-slate-300 rounded-md focus:ring-2 focus:ring-emerald-500 font-mono"
                   />
                 </div>
@@ -365,26 +368,26 @@ export const VariantsPage: React.FC = () => {
 
               <div>
                 <label className="block text-xs font-medium text-slate-700 mb-1">
-                  Taste Profile & Flesh Description
+                  {t('var.f.desc')}
                 </label>
                 <textarea
                   rows={2}
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Deep golden flesh, rich custard, sweet-bitter balance..."
+                  placeholder={t('var.f.desc.ph')}
                   className="w-full text-xs p-2.5 border border-slate-300 rounded-md focus:ring-2 focus:ring-emerald-500"
                 />
               </div>
 
               <div>
                 <label className="block text-xs font-medium text-slate-700 mb-1">
-                  Botanical Characteristics
+                  {t('var.f.traits')}
                 </label>
                 <textarea
                   rows={2}
                   value={characteristics}
                   onChange={(e) => setCharacteristics(e.target.value)}
-                  placeholder="Tree architecture, flower cluster habits, disease tolerance, leaf features..."
+                  placeholder={t('var.f.traits.ph')}
                   className="w-full text-xs p-2.5 border border-slate-300 rounded-md focus:ring-2 focus:ring-emerald-500"
                 />
               </div>
@@ -395,7 +398,7 @@ export const VariantsPage: React.FC = () => {
                   onClick={closeModal}
                   className="px-4 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100 rounded-md transition-colors"
                 >
-                  Cancel
+                  {t('common.cancel')}
                 </button>
                 <button
                   type="submit"
@@ -405,10 +408,10 @@ export const VariantsPage: React.FC = () => {
                   {isSaving ? (
                     <>
                       <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                      <span>Saving...</span>
+                      <span>{t('var.saving')}</span>
                     </>
                   ) : (
-                    <span>{modalMode === 'create' ? 'Create Variant' : 'Save Changes'}</span>
+                    <span>{modalMode === 'create' ? t('var.create') : t('var.save')}</span>
                   )}
                 </button>
               </div>

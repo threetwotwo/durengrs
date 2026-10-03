@@ -7,15 +7,17 @@ import { summariseActivity, maskPhone } from '../lib/insights';
 import { Link } from './Link';
 import { treesUrl } from '../lib/router';
 import { formatTimeAgo } from '../context/FarmContext';
+import { useT } from '../i18n';
 
 const PERIODS = [7, 14, 30] as const;
 
 /** Who is reporting, how often, and which blocks nobody has looked at. */
 export const ActivityView: React.FC = () => {
   const { trees } = useFarm();
+  const { t } = useT();
   const [reports, setReports] = useState<TreeReport[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<boolean>(false);
   const [period, setPeriod] = useState<(typeof PERIODS)[number]>(14);
 
   // One read of the last 30 days (max 1000 reports) when this view opens; the period toggle is local.
@@ -30,7 +32,7 @@ export const ActivityView: React.FC = () => {
         if (!cancelled) setReports(snap.docs.map(parseReportDoc));
       } catch (e) {
         console.error('Activity load failed:', e);
-        if (!cancelled) setError('Could not load activity. Check your connection and try again.');
+        if (!cancelled) setError(true);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -46,11 +48,11 @@ export const ActivityView: React.FC = () => {
   const treesTotal = summary.perBlock.reduce((n, b) => n + b.total, 0);
 
   if (loading) return <div className="h-64 rounded-xl bg-white border border-slate-200 animate-pulse" />;
-  if (error) return <div role="alert" className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-sm text-rose-800">{error}</div>;
+  if (error) return <div role="alert" className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-sm text-rose-800">{t('act.error')}</div>;
 
   return (
     <div className="space-y-4">
-      <div role="group" aria-label="Period" className="inline-flex p-1 rounded-xl bg-slate-200/70 gap-1">
+      <div role="group" aria-label={t('act.period')} className="inline-flex p-1 rounded-xl bg-slate-200/70 gap-1">
         {PERIODS.map((p) => (
           <button
             key={p}
@@ -58,17 +60,17 @@ export const ActivityView: React.FC = () => {
             aria-pressed={period === p}
             className={`min-h-10 px-4 rounded-lg text-sm font-semibold ${period === p ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
           >
-            Last {p} days
+            {t('act.lastDays', { n: p })}
           </button>
         ))}
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {[
-          { label: 'Reports', value: summary.total, note: `${(summary.total / period).toFixed(1)} per day` },
-          { label: 'Active workers', value: summary.perWorker.length, note: 'sent at least one report' },
-          { label: 'Trees visited', value: treesVisited, note: `of ${treesTotal} trees` },
-          { label: 'Coverage', value: `${treesTotal ? Math.round((treesVisited / treesTotal) * 100) : 0}%`, note: 'trees reported at least once' },
+          { label: t('act.kpi.reports'), value: summary.total, note: t('act.kpi.perDay', { n: (summary.total / period).toFixed(1) }) },
+          { label: t('act.kpi.workers'), value: summary.perWorker.length, note: t('act.kpi.workersNote') },
+          { label: t('act.kpi.visited'), value: treesVisited, note: t('act.kpi.ofTrees', { n: treesTotal }) },
+          { label: t('act.kpi.coverage'), value: `${treesTotal ? Math.round((treesVisited / treesTotal) * 100) : 0}%`, note: t('act.kpi.coverageNote') },
         ].map((k) => (
           <div key={k.label} className="p-4 rounded-xl border border-slate-200 bg-white">
             <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">{k.label}</span>
@@ -79,10 +81,10 @@ export const ActivityView: React.FC = () => {
       </div>
 
       <section className="bg-white rounded-xl border border-slate-200 p-4" aria-labelledby="act-day">
-        <h2 id="act-day" className="text-sm font-bold text-slate-900 mb-3">Reports per day</h2>
-        <div className="flex items-end gap-1 h-32" role="img" aria-label={`Reports per day over the last ${period} days`}>
+        <h2 id="act-day" className="text-sm font-bold text-slate-900 mb-3">{t('act.perDay')}</h2>
+        <div className="flex items-end gap-1 h-32" role="img" aria-label={t('act.perDayAria', { n: period })}>
           {summary.perDay.map((d) => (
-            <div key={d.date} className="flex-1 flex flex-col items-center justify-end h-full" title={`${d.label}: ${d.count} reports`}>
+            <div key={d.date} className="flex-1 flex flex-col items-center justify-end h-full" title={t('act.dayTitle', { label: d.label, count: d.count })}>
               {d.count > 0 && <span className="text-[0px] sm:text-xs text-slate-600 tabular mb-0.5">{d.count}</span>}
               <div className={`w-full rounded-t ${d.count > 0 ? 'bg-emerald-500' : 'bg-slate-200'}`} style={{ height: `${d.count > 0 ? Math.max(6, (d.count / maxDay) * 100) : 3}%` }} />
             </div>
@@ -94,24 +96,24 @@ export const ActivityView: React.FC = () => {
         </div>
         {summary.perDay.some((d) => d.count === 0) && (
           <p className="text-xs text-slate-600 mt-2">
-            {summary.perDay.filter((d) => d.count === 0).length} day(s) with no reports at all.
+            {t('act.emptyDays', { n: summary.perDay.filter((d) => d.count === 0).length })}
           </p>
         )}
       </section>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <section className="bg-white rounded-xl border border-slate-200 overflow-hidden" aria-labelledby="act-w">
-          <h2 id="act-w" className="px-4 py-3 text-sm font-bold text-slate-900 border-b border-slate-200">By worker</h2>
+          <h2 id="act-w" className="px-4 py-3 text-sm font-bold text-slate-900 border-b border-slate-200">{t('act.byWorker')}</h2>
           {summary.perWorker.length === 0 ? (
-            <p className="p-6 text-sm text-slate-600 text-center">No reports in this period.</p>
+            <p className="p-6 text-sm text-slate-600 text-center">{t('act.noReports')}</p>
           ) : (
             <table className="w-full text-sm text-left">
               <thead className="text-xs uppercase tracking-wide text-slate-600 bg-slate-50">
                 <tr>
-                  <th className="px-4 py-2 font-semibold">Worker</th>
-                  <th className="px-3 py-2 font-semibold text-right">Reports</th>
-                  <th className="px-3 py-2 font-semibold text-right">Trees</th>
-                  <th className="px-3 py-2 font-semibold">Last report</th>
+                  <th className="px-4 py-2 font-semibold">{t('act.worker')}</th>
+                  <th className="px-3 py-2 font-semibold text-right">{t('common.reports')}</th>
+                  <th className="px-3 py-2 font-semibold text-right">{t('common.trees')}</th>
+                  <th className="px-3 py-2 font-semibold">{t('field.lastReport')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -129,17 +131,17 @@ export const ActivityView: React.FC = () => {
         </section>
 
         <section className="bg-white rounded-xl border border-slate-200 p-4 space-y-3" aria-labelledby="act-b">
-          <h2 id="act-b" className="text-sm font-bold text-slate-900">Block coverage</h2>
+          <h2 id="act-b" className="text-sm font-bold text-slate-900">{t('act.blockCoverage')}</h2>
           {summary.perBlock.map((b) => {
             const pct = b.total ? Math.round((b.reported / b.total) * 100) : 0;
             return (
               <div key={b.block}>
                 <div className="flex items-baseline justify-between text-sm">
                   <Link to={treesUrl({ block: b.block, stale: '1' })} className="font-semibold text-slate-900 hover:underline">
-                    Block {b.block}
+                    {t('common.blockN', { n: b.block })}
                   </Link>
                   <span className="tabular text-slate-600">
-                    {b.reported} of {b.total} trees · <span className={pct < 25 ? 'text-rose-700 font-semibold' : 'font-semibold text-slate-900'}>{pct}%</span>
+                    {t('act.blockOf', { reported: b.reported, total: b.total })} · <span className={pct < 25 ? 'text-rose-700 font-semibold' : 'font-semibold text-slate-900'}>{pct}%</span>
                   </span>
                 </div>
                 <div className="h-2 rounded-full bg-slate-100 overflow-hidden mt-1">
@@ -148,7 +150,7 @@ export const ActivityView: React.FC = () => {
               </div>
             );
           })}
-          <p className="text-xs text-slate-500">Tap a block to see the trees nobody has reported on this week.</p>
+          <p className="text-xs text-slate-500">{t('act.blockHint')}</p>
         </section>
       </div>
     </div>

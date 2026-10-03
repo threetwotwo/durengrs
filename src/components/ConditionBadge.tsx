@@ -1,5 +1,6 @@
 import React from 'react';
 import { TreeCondition } from '../types';
+import { useT } from '../i18n';
 import { Check, AlertTriangle, AlertOctagon, Minus } from 'lucide-react';
 
 interface ConditionBadgeProps {
@@ -15,28 +16,29 @@ export const ConditionBadge: React.FC<ConditionBadgeProps> = ({
   showIcon = true,
   className = '',
 }) => {
+  const { t } = useT();
   const norm = (condition || '').toLowerCase().replace(/[\s_-]+/g, '_');
 
   let colorClasses = 'bg-slate-100 text-slate-700 border-slate-300';
-  let label = 'Not assessed';
+  let label = t('cond.not_assessed');
   let Icon = Minus;
 
   if (norm === 'healthy') {
     colorClasses = 'bg-emerald-100 text-emerald-800 border-emerald-300';
-    label = 'Healthy';
+    label = t('cond.healthy');
     Icon = Check;
   } else if (norm === 'minor' || norm === 'minor_issue') {
     colorClasses = 'bg-amber-100 text-amber-800 border-amber-300';
-    label = 'Minor Issue';
+    label = t('cond.minor');
     Icon = AlertTriangle;
   } else if (norm === 'emergency') {
     colorClasses = 'bg-rose-100 text-rose-800 border-rose-300 font-bold';
-    label = 'Emergency';
+    label = t('cond.emergency');
     Icon = AlertOctagon;
   } else {
     // not_assessed or missing
     colorClasses = 'bg-slate-100 text-slate-700 border-slate-300';
-    label = 'Not assessed';
+    label = t('cond.not_assessed');
     Icon = Minus;
   }
 

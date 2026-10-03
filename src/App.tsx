@@ -5,6 +5,7 @@ import { Dashboard } from './components/Dashboard';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { TAB_TITLES, goBack, navigate, useRoute } from './lib/router';
 import { AlertCircle, RefreshCw } from 'lucide-react';
+import { useT } from './i18n';
 
 const TreesTable = lazy(() => import('./components/TreesTable').then((m) => ({ default: m.TreesTable })));
 const TreeDetailView = lazy(() => import('./components/TreeDetailView').then((m) => ({ default: m.TreeDetailView })));
@@ -14,6 +15,7 @@ const SchedulePage = lazy(() => import('./components/SchedulePage').then((m) => 
 
 const AppContent: React.FC = () => {
   const { loading, error } = useFarm();
+  const { t, lang } = useT();
   const route = useRoute();
   const mainRef = useRef<HTMLElement>(null);
 
@@ -25,9 +27,9 @@ const AppContent: React.FC = () => {
   // New page: scroll to top, update the tab title, move keyboard/screen-reader focus to the content.
   useEffect(() => {
     window.scrollTo(0, 0);
-    document.title = `${route.treeId ? `Tree ${route.treeId}` : TAB_TITLES[route.tab]} · Cilowong`;
+    document.title = `${route.treeId ? t('app.title.tree', { id: route.treeId }) : t(TAB_TITLES[route.tab])} · Cilowong`;
     mainRef.current?.focus({ preventScroll: true });
-  }, [route.pageKey]);
+  }, [route.pageKey, lang]);
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-100 text-slate-900 font-sans">
@@ -39,7 +41,7 @@ const AppContent: React.FC = () => {
         }}
         className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:m-2 focus:px-3 focus:py-2 focus:rounded-lg focus:bg-white focus:text-slate-900"
       >
-        Skip to content
+        {t('app.skip')}
       </a>
       <Header />
 
@@ -61,10 +63,10 @@ const AppContent: React.FC = () => {
         {loading ? (
           <div className="flex flex-col items-center justify-center min-h-[50vh] space-y-2.5" role="status">
             <RefreshCw className="w-7 h-7 text-emerald-600 animate-spin" />
-            <p className="text-sm font-medium text-slate-600">Loading orchard records…</p>
+            <p className="text-sm font-medium text-slate-600">{t('app.loading')}</p>
           </div>
         ) : (
-          <ErrorBoundary resetKey={route.pageKey}>
+          <ErrorBoundary key={lang} resetKey={route.pageKey}>
             <Suspense fallback={<div className="h-64 rounded-xl bg-white border border-slate-200 animate-pulse" />}>
               {route.tab === 'dashboard' && <Dashboard />}
               {route.tab === 'schedule' && <SchedulePage />}
@@ -84,7 +86,7 @@ const AppContent: React.FC = () => {
       <BottomNav />
 
       <footer className="hidden md:block bg-white border-t border-slate-200 py-3 text-xs text-slate-500">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">Cilowong Durian Estate</div>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">{t('app.footer')}</div>
       </footer>
     </div>
   );

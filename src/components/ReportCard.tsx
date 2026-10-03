@@ -5,6 +5,7 @@ import { ReportDate } from './ReportDate';
 import { Link } from './Link';
 import { treeUrl } from '../lib/router';
 import { maskPhone } from '../lib/insights';
+import { useT } from '../i18n';
 import { photoItems, type GalleryItem } from './PhotoLightbox';
 import { PhotoAlbum } from './PhotoAlbum';
 import type { DurianTree, ReportPhoto, TreeReport } from '../types';
@@ -25,6 +26,7 @@ export const ReportCard: React.FC<{
   /** Hide the "reports from this worker" link where it would not make sense. */
   workerHref?: string;
 }> = ({ report, tree, onOpenPhoto, workerHref }) => {
+  const { t } = useT();
   const photos = report.photos || [];
   const block = report.block || tree?.block;
   const worded = hasWords(report.description);
@@ -54,11 +56,11 @@ export const ReportCard: React.FC<{
               to={treeUrl(report.treeId)}
               className="group inline-flex items-center gap-1.5 text-base font-bold text-slate-900 hover:text-emerald-700"
             >
-              Tree {report.treeId}
+              {t('rep.treeN', { id: report.treeId })}
               <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-emerald-600 group-hover:translate-x-0.5 transition" />
             </Link>
             <p className="text-sm text-slate-600 mt-0.5">
-              {[tree?.variant, block ? `Block ${block}` : null].filter(Boolean).join(' · ') || 'Unknown location'}
+              {[tree?.variant, block ? t('common.blockN', { n: block }) : null].filter(Boolean).join(' · ') || t('rep.unknownLocation')}
             </p>
           </div>
           {report.conditionAfter && <ConditionBadge condition={report.conditionAfter} size="sm" />}
@@ -69,7 +71,7 @@ export const ReportCard: React.FC<{
         {report.conditionChanged && report.conditionBefore && report.conditionBefore !== report.conditionAfter && (
           <p className="flex items-center gap-2 text-xs font-medium text-amber-900">
             <ArrowRightLeft className="w-3.5 h-3.5" aria-hidden />
-            Condition changed. Was
+            {t('rep.changedWas')}
             <ConditionBadge condition={report.conditionBefore} size="sm" />
           </p>
         )}
@@ -83,12 +85,12 @@ export const ReportCard: React.FC<{
           <p className="text-sm text-slate-500">
             {reaction ? (
               <>
-                No written note <span className="ml-1 text-base" aria-label="Worker reaction">{reaction}</span>
+                {t('rep.noNote')} <span className="ml-1 text-base" aria-label={t('rep.reaction')}>{reaction}</span>
               </>
             ) : noContent ? (
-              'Status update only. No note or photos were sent.'
+              t('rep.statusOnly')
             ) : (
-              'No written note.'
+              t('rep.noNote.dot')
             )}
           </p>
         )}
@@ -98,11 +100,11 @@ export const ReportCard: React.FC<{
           <footer className="mt-auto pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2 text-xs text-slate-600">
             <span className="inline-flex items-center gap-1.5">
               <User className="w-3.5 h-3.5 text-slate-400" aria-hidden />
-              Reported by <span className="font-mono">{phone}</span>
+              {t('rep.reportedBy')} <span className="font-mono">{phone}</span>
             </span>
             {workerHref && (
               <Link to={workerHref} replace className="font-semibold text-emerald-700 hover:underline min-h-8 inline-flex items-center">
-                All from this worker
+                {t('rep.allFromWorker')}
               </Link>
             )}
           </footer>

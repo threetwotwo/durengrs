@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useT } from '../i18n';
 import { useFarm, formatDateTime, formatDate, normalizeTimestamp } from '../context/FarmContext';
 import { DurianTree, TreeCondition, ReportPhoto, TreeReport } from '../types';
 import { ConditionBadge } from './ConditionBadge';
@@ -41,9 +42,10 @@ const ThumbnailItem: React.FC<{
   treeId: string;
   onOpen: (url: string, caption: string) => void;
 }> = ({ photo, idx, reportDate, treeId, onOpen }) => {
+  const { t } = useT();
   const [loadFailed, setLoadFailed] = useState(false);
   const src = photo.thumb || photo.url;
-  const caption = `Tree ${treeId} · Photo ${idx + 1} (${formatDateTime(reportDate)})`;
+  const caption = t('tree.photoCaption', { id: treeId, n: idx + 1, date: formatDateTime(reportDate) });
 
   return (
     <div
@@ -53,7 +55,7 @@ const ThumbnailItem: React.FC<{
       {!loadFailed ? (
         <img
           src={src}
-          alt={`Inspection photo ${idx + 1}`}
+          alt={t('tree.photoAlt', { n: idx + 1 })}
           loading="lazy"
           decoding="async"
           width="120"
@@ -65,7 +67,7 @@ const ThumbnailItem: React.FC<{
       ) : (
         <div className="w-full h-full flex flex-col items-center justify-center p-2 text-center text-slate-500 hover:text-emerald-700 bg-slate-50">
           <ImageIcon className="w-5 h-5 mb-1 text-slate-400" />
-          <span className="text-xs font-semibold">View {idx + 1}</span>
+          <span className="text-xs font-semibold">{t('tree.photoView', { n: idx + 1 })}</span>
         </div>
       )}
 
@@ -77,6 +79,7 @@ const ThumbnailItem: React.FC<{
 };
 
 export const TreeDetailView: React.FC<TreeDetailViewProps> = ({ treeId, onBack }) => {
+  const { t } = useT();
   const { trees, variants, updateTree, treatments } = useFarm();
 
   const tree = trees.find((t) => t.id === treeId);
@@ -206,7 +209,7 @@ export const TreeDetailView: React.FC<TreeDetailViewProps> = ({ treeId, onBack }
   useEffect(() => {
     if (!hasUnsavedChanges) return;
     setNavigationBlocker(() =>
-      window.confirm('You have unsaved changes on this tree. Discard them?')
+      window.confirm(t('tree.confirmDiscard'))
     );
     return () => setNavigationBlocker(null);
   }, [hasUnsavedChanges]);
@@ -240,12 +243,12 @@ export const TreeDetailView: React.FC<TreeDetailViewProps> = ({ treeId, onBack }
   if (!tree && trees.length > 0) {
     return (
       <div className="bg-white rounded-xl p-8 text-center border border-slate-200 shadow-xs">
-        <p className="text-sm font-semibold text-slate-700">Tree {treeId} not found</p>
+        <p className="text-sm font-semibold text-slate-700">{t('tree.notFound', { id: treeId })}</p>
         <button
           onClick={onBack}
           className="mt-3 px-4 py-1.5 text-xs font-semibold bg-slate-900 text-white rounded-lg hover:bg-slate-800"
         >
-          Back to trees
+          {t('tree.backToTrees')}
         </button>
       </div>
     );
@@ -287,17 +290,18 @@ export const TreeDetailView: React.FC<TreeDetailViewProps> = ({ treeId, onBack }
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 2500);
     } catch (err: any) {
-      setSaveError(`Save failed: ${err.message}`);
+      setSaveError(t('tree.saveFailed', { msg: err.message }));
     } finally {
       setIsSaving(false);
     }
   };
 
-  const conditions: { id: TreeCondition; label: string }[] = [
-    { id: 'healthy', label: 'Healthy' },
-    { id: 'minor', label: 'Minor Issue' },
-    { id: 'emergency', label: 'Emergency' },
-    { id: 'not_assessed', label: 'Not assessed' },
+  // Labels come from ConditionBadge; only the ids are needed here.
+  const conditions: { id: TreeCondition }[] = [
+    { id: 'healthy' },
+    { id: 'minor' },
+    { id: 'emergency' },
+    { id: 'not_assessed' },
   ];
 
   const currentVariant = variants.find((v) => v.code === formData.variant);
@@ -319,8 +323,8 @@ export const TreeDetailView: React.FC<TreeDetailViewProps> = ({ treeId, onBack }
           <button
             onClick={() => safeNavigate(onBack)}
             className="min-h-11 min-w-11 flex items-center justify-center rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors"
-            title="Back"
-            aria-label="Back"
+            title={t('common.back')}
+            aria-label={t('common.back')}
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
@@ -328,12 +332,12 @@ export const TreeDetailView: React.FC<TreeDetailViewProps> = ({ treeId, onBack }
           <div>
             <div className="flex items-center gap-2.5">
               <h1 className="text-xl font-bold font-mono tracking-tight text-slate-900">
-                Tree {treeId} · {tree?.variant || formData.variant || 'MK'}
+                {t('tree.label', { id: treeId })} · {tree?.variant || formData.variant || 'MK'}
               </h1>
               <ConditionBadge condition={formData.condition} size="md" />
             </div>
             <p className="text-xs text-slate-600 mt-0.5 font-sans">
-              Block {formData.block || '—'}{currentVariant ? ` · ${currentVariant.name}` : ''}
+              {t('common.blockN', { n: formData.block || '—' })}{currentVariant ? ` · ${currentVariant.name}` : ''}
             </p>
           </div>
         </div>
@@ -346,7 +350,7 @@ export const TreeDetailView: React.FC<TreeDetailViewProps> = ({ treeId, onBack }
               onClick={() => prevTree && navigate(treeUrl(prevTree.id), { replace: true })}
               disabled={!prevTree}
               className="min-h-10 min-w-10 flex items-center justify-center rounded text-slate-600 hover:text-slate-900 hover:bg-white disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
-              title={prevTree ? `Previous: Tree ${prevTree.id}` : 'First tree'}
+              title={prevTree ? t('tree.prevTree', { id: prevTree.id }) : t('tree.firstTree')}
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
@@ -357,7 +361,7 @@ export const TreeDetailView: React.FC<TreeDetailViewProps> = ({ treeId, onBack }
               onClick={() => nextTree && navigate(treeUrl(nextTree.id), { replace: true })}
               disabled={!nextTree}
               className="min-h-10 min-w-10 flex items-center justify-center rounded text-slate-600 hover:text-slate-900 hover:bg-white disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
-              title={nextTree ? `Next: Tree ${nextTree.id}` : 'Last tree'}
+              title={nextTree ? t('tree.nextTree', { id: nextTree.id }) : t('tree.lastTree')}
             >
               <ChevronRight className="w-4 h-4" />
             </button>
@@ -376,17 +380,17 @@ export const TreeDetailView: React.FC<TreeDetailViewProps> = ({ treeId, onBack }
             {isSaving ? (
               <>
                 <RefreshCw className="w-4 h-4 animate-spin" />
-                <span>Saving...</span>
+                <span>{t('tree.saving')}</span>
               </>
             ) : saveSuccess ? (
               <>
                 <Check className="w-4 h-4 text-emerald-400" />
-                <span>Saved!</span>
+                <span>{t('tree.savedBang')}</span>
               </>
             ) : (
               <>
                 <Save className="w-4 h-4" />
-                <span>{hasUnsavedChanges ? 'Save Changes' : 'Saved'}</span>
+                <span>{hasUnsavedChanges ? t('tree.saveChanges') : t('tree.saved')}</span>
                 {hasUnsavedChanges && (
                   <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
                 )}
@@ -401,14 +405,14 @@ export const TreeDetailView: React.FC<TreeDetailViewProps> = ({ treeId, onBack }
         <div className="px-4 py-2.5 bg-amber-50 border border-amber-200 text-amber-900 text-xs rounded-xl flex items-center justify-between gap-2 shadow-2xs animate-fade-in">
           <div className="flex items-center gap-2">
             <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
-            <span>You have unsaved changes. Remember to click &quot;Save Changes&quot; before switching trees.</span>
+            <span>{t('tree.unsavedBanner')}</span>
           </div>
           <button
             onClick={() => handleSave()}
             disabled={isSaving}
             className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-md font-semibold text-xs transition-colors shrink-0"
           >
-            Save now
+            {t('tree.saveNow')}
           </button>
         </div>
       )}
@@ -422,7 +426,7 @@ export const TreeDetailView: React.FC<TreeDetailViewProps> = ({ treeId, onBack }
       {/* History: condition changes and photos, oldest to newest, so progress or decline is easy to see */}
       {(historyPhotos.length > 0 || conditionChanges.length > 0) && (
         <section className="bg-white rounded-xl border border-slate-200 shadow-xs p-4 space-y-3" aria-labelledby="hist-h">
-          <h2 id="hist-h" className="text-sm font-bold text-slate-900">History</h2>
+          <h2 id="hist-h" className="text-sm font-bold text-slate-900">{t('tree.history')}</h2>
           {conditionChanges.length > 0 && (
             <ol className="flex flex-wrap items-center gap-x-2 gap-y-2">
               {conditionChanges.map((c, i) => (
@@ -441,9 +445,9 @@ export const TreeDetailView: React.FC<TreeDetailViewProps> = ({ treeId, onBack }
               {historyPhotos.map((ph, i) => (
                 <button
                   key={`${ph.id}-${i}`}
-                  onClick={() => setGallery({ items: historyPhotos.map((h) => ({ url: h.url, caption: `Tree ${treeId} · ${formatDateTime(h.at)}` })), index: i })}
+                  onClick={() => setGallery({ items: historyPhotos.map((h) => ({ url: h.url, caption: t('tree.historyPhotoCaption', { id: treeId, date: formatDateTime(h.at) }) })), index: i })}
                   className="shrink-0 w-[88px] text-left group"
-                  aria-label={`Photo from ${formatShortDate(ph.date)}`}
+                  aria-label={t('tree.historyPhotoAria', { date: formatShortDate(ph.date) })}
                 >
                   <img src={ph.thumb} alt="" loading="lazy" decoding="async" width="88" height="88" className="w-[88px] h-[88px] object-cover rounded-lg border border-slate-200 group-hover:ring-2 group-hover:ring-emerald-500" />
                   <span className="block text-xs text-slate-600 mt-1 tabular">{formatShortDate(ph.date)}</span>
@@ -459,9 +463,9 @@ export const TreeDetailView: React.FC<TreeDetailViewProps> = ({ treeId, onBack }
         {/* Left Column: Form Details */}
         <div className="lg:col-span-7 bg-white rounded-xl border border-slate-200 shadow-xs p-5 space-y-5">
           <div className="border-b border-slate-200 pb-3">
-            <h2 className="text-sm font-bold text-slate-900">Tree Profile & Measurements</h2>
+            <h2 className="text-sm font-bold text-slate-900">{t('tree.profileTitle')}</h2>
             <p className="text-xs text-slate-600 mt-0.5">
-              Edit this tree's details. Clearing a measurement removes it.
+              {t('tree.profileHint')}
             </p>
           </div>
 
@@ -469,7 +473,7 @@ export const TreeDetailView: React.FC<TreeDetailViewProps> = ({ treeId, onBack }
             {/* Condition Picker */}
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                Health Condition
+                {t('tree.condition')}
               </label>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {conditions.map((c) => {
@@ -501,13 +505,13 @@ export const TreeDetailView: React.FC<TreeDetailViewProps> = ({ treeId, onBack }
             {/* Condition Notes */}
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Condition Notes
+                {t('tree.conditionNotes')}
               </label>
               <input
                 type="text"
                 value={formData.conditionNotes}
                 onChange={(e) => setFormData({ ...formData, conditionNotes: e.target.value })}
-                placeholder="e.g. Stem borer detected, treated with organic copper spray"
+                placeholder={t('tree.conditionNotesPlaceholder')}
                 className="w-full min-h-11 text-sm px-3 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none placeholder:text-slate-500"
               />
             </div>
@@ -516,27 +520,27 @@ export const TreeDetailView: React.FC<TreeDetailViewProps> = ({ treeId, onBack }
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Block
+                  {t('common.block')}
                 </label>
                 <input
                   type="text"
                   value={formData.block}
                   onChange={(e) => setFormData({ ...formData, block: e.target.value })}
-                  placeholder="e.g. A, B, C"
+                  placeholder={t('tree.blockPlaceholder')}
                   className="w-full min-h-11 text-sm px-3 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                 />
               </div>
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Variant
+                  {t('common.variant')}
                 </label>
                 <select
                   value={formData.variant}
                   onChange={(e) => setFormData({ ...formData, variant: e.target.value })}
                   className="w-full min-h-11 text-sm px-3 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                 >
-                  <option value="">Select Variant...</option>
+                  <option value="">{t('tree.selectVariant')}</option>
                   {variants.map((v) => (
                     <option key={v.code} value={v.code}>
                       {v.code} - {v.name}
@@ -550,24 +554,24 @@ export const TreeDetailView: React.FC<TreeDetailViewProps> = ({ treeId, onBack }
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Supplier
+                  {t('tree.supplier')}
                 </label>
                 <input
                   type="text"
                   value={formData.supplier}
                   onChange={(e) => setFormData({ ...formData, supplier: e.target.value })}
-                  placeholder="e.g. Aziz"
+                  placeholder={t('tree.supplierPlaceholder')}
                   className="w-full min-h-11 text-sm px-3 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none placeholder:text-slate-500"
                 />
               </div>
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Date Planted
+                  {t('tree.datePlanted')}
                 </label>
                 <div className="text-xs p-2 bg-slate-50 border border-slate-200 rounded-lg font-sans text-slate-700 flex items-center justify-between">
                   <span>{formatDate(tree?.datePlanted)}</span>
-                  <span className="text-xs text-slate-500">Recorded</span>
+                  <span className="text-xs text-slate-500">{t('tree.recorded')}</span>
                 </div>
               </div>
             </div>
@@ -575,12 +579,12 @@ export const TreeDetailView: React.FC<TreeDetailViewProps> = ({ treeId, onBack }
             {/* Biometrics & Yield (Requirement 16: Canopy Spread (cm)) */}
             <div className="pt-2 border-t border-slate-200">
               <span className="text-xs font-bold text-slate-600 uppercase tracking-wide block mb-3">
-                Biometrics & Yield Measurements
+                {t('tree.biometrics')}
               </span>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                 <div>
                   <label className="block text-xs text-slate-700 mb-1 font-medium">
-                    Trunk Girth (cm)
+                    {t('field.trunk')}
                   </label>
                   <input
                     type="number"
@@ -594,7 +598,7 @@ export const TreeDetailView: React.FC<TreeDetailViewProps> = ({ treeId, onBack }
 
                 <div>
                   <label className="block text-xs text-slate-700 mb-1 font-medium">
-                    Canopy Spread (cm)
+                    {t('field.canopy')}
                   </label>
                   <input
                     type="text"
@@ -607,7 +611,7 @@ export const TreeDetailView: React.FC<TreeDetailViewProps> = ({ treeId, onBack }
 
                 <div>
                   <label className="block text-xs text-slate-700 mb-1 font-medium">
-                    Flower Clusters
+                    {t('field.clusters')}
                   </label>
                   <input
                     type="number"
@@ -620,7 +624,7 @@ export const TreeDetailView: React.FC<TreeDetailViewProps> = ({ treeId, onBack }
 
                 <div>
                   <label className="block text-xs font-semibold text-emerald-800 mb-1">
-                    Est. Fruits
+                    {t('field.fruits')}
                   </label>
                   <input
                     type="number"
@@ -636,13 +640,13 @@ export const TreeDetailView: React.FC<TreeDetailViewProps> = ({ treeId, onBack }
             {/* General Notes */}
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">
-                General Tree Notes
+                {t('tree.notes')}
               </label>
               <textarea
                 rows={3}
                 value={formData.notes}
                 onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                placeholder="Field observations, soil treatment, pruning notes..."
+                placeholder={t('tree.notesPlaceholder')}
                 className="w-full min-h-11 text-sm px-3 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none placeholder:text-slate-500"
               />
             </div>
@@ -654,15 +658,15 @@ export const TreeDetailView: React.FC<TreeDetailViewProps> = ({ treeId, onBack }
           <div className="border-b border-slate-200 pb-3 flex items-center justify-between">
             <div>
               <h2 className="text-sm font-bold text-slate-900">
-                Inspection Log ({treeReports.length})
+                {t('tree.logTitle', { n: treeReports.length })}
               </h2>
               <p className="text-xs text-slate-600 mt-0.5">
-                Targeted timeline for Tree {treeId}
+                {t('tree.logSubtitle', { id: treeId })}
               </p>
             </div>
             {treeReports.length > 0 && (
               <span className="text-xs font-sans text-slate-500">
-                Latest: {formatDate(treeReports[0].createdAt)}
+                {t('tree.latest', { date: formatDate(treeReports[0].createdAt) })}
               </span>
             )}
           </div>
@@ -677,8 +681,8 @@ export const TreeDetailView: React.FC<TreeDetailViewProps> = ({ treeId, onBack }
             ) : treeReports.length === 0 ? (
               <div className="p-8 text-center bg-slate-50 rounded-xl border border-dashed border-slate-300">
                 <Calendar className="w-8 h-8 text-slate-400 mx-auto mb-2" />
-                <p className="text-xs font-semibold text-slate-700">No inspection reports for Tree {treeId}.</p>
-                <p className="text-xs text-slate-500 mt-1">Reports submitted via WhatsApp bot will appear here live.</p>
+                <p className="text-xs font-semibold text-slate-700">{t('tree.noReports', { id: treeId })}</p>
+                <p className="text-xs text-slate-500 mt-1">{t('tree.noReportsHint')}</p>
               </div>
             ) : (
               <div className="relative pl-7 space-y-4">
@@ -718,7 +722,7 @@ export const TreeDetailView: React.FC<TreeDetailViewProps> = ({ treeId, onBack }
                         {/* Condition changed indicator */}
                         {report.conditionChanged && (
                           <div className="p-2 rounded-lg bg-amber-50 border border-amber-200 flex items-center gap-1.5 text-xs text-amber-900 font-medium">
-                            <span>Condition changed:</span>
+                            <span>{t('cond.changed')}:</span>
                             <ConditionBadge condition={report.conditionBefore || 'not_assessed'} size="sm" />
                             <span>→</span>
                             <ConditionBadge condition={report.conditionAfter || 'minor'} size="sm" />
@@ -744,7 +748,7 @@ export const TreeDetailView: React.FC<TreeDetailViewProps> = ({ treeId, onBack }
                         {photos.length > 0 && (
                           <div className="pt-0.5">
                             <span className="text-xs font-semibold text-slate-600 block mb-1.5">
-                              Inspection Photos ({photos.length})
+                              {t('tree.reportPhotos', { n: photos.length })}
                             </span>
                             <div className="grid grid-cols-3 gap-2">
                               {photos.map((photo, pIdx) => (
@@ -772,7 +776,7 @@ export const TreeDetailView: React.FC<TreeDetailViewProps> = ({ treeId, onBack }
                       onClick={() => setReportsLimit((prev) => prev + 20)}
                       className="px-4 py-2 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors border border-emerald-200"
                     >
-                      Load older reports
+                      {t('tree.loadOlder')}
                     </button>
                   </div>
                 )}
@@ -786,7 +790,7 @@ export const TreeDetailView: React.FC<TreeDetailViewProps> = ({ treeId, onBack }
       {blockTreatments.length > 0 && (
         <section className="bg-white rounded-xl border border-slate-200 shadow-xs p-4" aria-labelledby="tr-h">
           <h2 id="tr-h" className="text-sm font-bold text-slate-900 mb-2">
-            Recent treatments <span className="text-slate-500 font-medium">· Block {tree?.block}</span>
+            {t('tree.recentTreatments')} <span className="text-slate-500 font-medium">· {t('common.blockN', { n: tree?.block ?? '' })}</span>
           </h2>
           <ul className="divide-y divide-slate-100">
             {blockTreatments.map((x) => (

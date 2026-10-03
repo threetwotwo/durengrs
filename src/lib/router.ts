@@ -173,10 +173,11 @@ export function treesUrl(filters: Record<string, string | null | undefined> = {}
 
 export const treeUrl = (id: string) => `/trees/${encodeURIComponent(id)}`;
 
+/** i18n keys, resolve with t(). */
 export const TAB_TITLES: Record<AppTab, string> = {
-  dashboard: 'Dashboard',
-  schedule: 'Schedule',
-  trees: 'Trees',
-  variants: 'Variants',
-  reports: 'Reports',
+  dashboard: 'nav.dashboard',
+  schedule: 'nav.schedule',
+  trees: 'nav.trees',
+  variants: 'nav.variants',
+  reports: 'nav.reports',
 };

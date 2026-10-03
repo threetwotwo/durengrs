@@ -5,16 +5,18 @@ import { useFarm } from '../context/FarmContext';
 import {
   PlanTemplate,
   ScheduleTask,
-  TREATMENT_TYPE_LABELS,
   TreatmentPlan,
   TreatmentType,
   logTreatment,
+  monthShort,
   removeTreatment,
   savePlan,
   todayStr,
+  typeLabel,
 } from '../lib/treatments';
+import { useT } from '../i18n';
 
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const MONTH_NUMS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
 
 // ---------- undo toast ----------
 
@@ -32,6 +34,7 @@ export const UndoToast: React.FC<{
   toast: { message: string; undo: () => Promise<void> } | null;
   onClear: () => void;
 }> = ({ toast, onClear }) => {
+  const { t } = useT();
   if (!toast) return null;
   return (
     <div
@@ -50,7 +53,7 @@ export const UndoToast: React.FC<{
         className="flex items-center gap-1 font-semibold text-emerald-300 hover:text-emerald-200 min-h-11 px-2"
       >
         <Undo2 className="w-4 h-4" />
-        Undo
+        {t('sched.undo')}
       </button>
     </div>
   );
@@ -63,6 +66,7 @@ export const MarkDoneSheet: React.FC<{
   onClose: () => void;
   onSaved: (id: string, message: string) => void;
 }> = ({ task, onClose, onSaved }) => {
+  const { t } = useT();
   const { plan } = task;
   const [date, setDate] = useState(todayStr());
   const [selected, setSelected] = useState<string[]>(
@@ -79,7 +83,7 @@ export const MarkDoneSheet: React.FC<{
     setSelected((prev) => (prev.includes(b) ? prev.filter((x) => x !== b) : [...prev, b]));
 
   const save = async () => {
-    if (selected.length === 0) return setError('Select at least one block.');
+    if (selected.length === 0) return setError(t('sched.done.selectOne'));
     setSaving(true);
     setError(null);
     try {
@@ -94,17 +98,17 @@ export const MarkDoneSheet: React.FC<{
         doneBy,
         notes,
       });
-      onSaved(id, `${plan.name} logged for Block ${selected.join(', ')}`);
+      onSaved(id, t('sched.done.logged', { name: plan.name, blocks: selected.join(', ') }));
       onClose();
     } catch (e: any) {
-      setError(e?.message || 'Could not save. Check your connection and try again.');
+      setError(e?.message || t('sched.saveError'));
       setSaving(false);
     }
   };
 
   return (
     <Sheet
-      title="Mark as done"
+      title={t('sched.done.title')}
       subtitle={plan.name}
       onClose={onClose}
       footer={
@@ -115,13 +119,13 @@ export const MarkDoneSheet: React.FC<{
             disabled={saving}
             className="w-full min-h-12 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-sm font-bold"
           >
-            {saving ? 'Saving…' : `Save for ${selected.length} block${selected.length === 1 ? '' : 's'}`}
+            {saving ? t('sched.saving') : t(selected.length === 1 ? 'sched.done.save.one' : 'sched.done.save.other', { n: selected.length })}
           </button>
         </div>
       }
     >
       <div>
-        <span className={fieldLabel}>Blocks done</span>
+        <span className={fieldLabel}>{t('sched.done.blocksDone')}</span>
         <div className="flex flex-wrap gap-2">
           {task.blocks.map((b) => {
             const on = selected.includes(b.block);
@@ -135,7 +139,7 @@ export const MarkDoneSheet: React.FC<{
                   on ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-white border-slate-300 text-slate-700'
                 }`}
               >
-                {on && <Check className="inline w-4 h-4 mr-1 -mt-0.5" />}Block {b.block}
+                {on && <Check className="inline w-4 h-4 mr-1 -mt-0.5" />}{t('common.blockN', { n: b.block })}
               </button>
             );
           })}
@@ -143,31 +147,31 @@ export const MarkDoneSheet: React.FC<{
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className={fieldLabel} htmlFor="md-date">Date done</label>
+          <label className={fieldLabel} htmlFor="md-date">{t('sched.done.date')}</label>
           <input id="md-date" type="date" value={date} max={todayStr()} onChange={(e) => setDate(e.target.value)} className={fieldInput} />
         </div>
         <div>
-          <label className={fieldLabel} htmlFor="md-by">Done by</label>
-          <input id="md-by" value={doneBy} onChange={(e) => setDoneBy(e.target.value)} placeholder="Name (optional)" className={fieldInput} />
+          <label className={fieldLabel} htmlFor="md-by">{t('sched.done.by')}</label>
+          <input id="md-by" value={doneBy} onChange={(e) => setDoneBy(e.target.value)} placeholder={t('sched.done.byPh')} className={fieldInput} />
         </div>
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className={fieldLabel} htmlFor="md-product">Product used</label>
+          <label className={fieldLabel} htmlFor="md-product">{t('sched.done.product')}</label>
           <input id="md-product" value={product} onChange={(e) => setProduct(e.target.value)} className={fieldInput} />
         </div>
         <div>
-          <label className={fieldLabel} htmlFor="md-dose">Dose</label>
+          <label className={fieldLabel} htmlFor="md-dose">{t('sched.dose')}</label>
           <input id="md-dose" value={dose} onChange={(e) => setDose(e.target.value)} className={fieldInput} />
         </div>
       </div>
       <div>
-        <label className={fieldLabel} htmlFor="md-notes">Notes</label>
+        <label className={fieldLabel} htmlFor="md-notes">{t('common.notes')}</label>
         <textarea id="md-notes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} className={fieldInput} />
       </div>
       {plan.phiDays ? (
         <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-2.5">
-          Pre-harvest interval: {plan.phiDays} days. Do not harvest treated trees before then.
+          {t('sched.phi.noHarvest', { n: plan.phiDays })}
         </p>
       ) : null}
     </Sheet>
@@ -185,6 +189,7 @@ export const PlanEditorSheet: React.FC<{
   template?: PlanTemplate;
   onClose: () => void;
 }> = ({ plan, template, onClose }) => {
+  const { t } = useT();
   const { blocks } = useFarm();
   const base: Partial<TreatmentPlan> = plan || template || {};
   const [name, setName] = useState(base.name || '');
@@ -205,9 +210,9 @@ export const PlanEditorSheet: React.FC<{
 
   const save = async () => {
     const days = Number(everyDays);
-    if (!name.trim()) return setError('Give the routine a name.');
-    if (!Number.isFinite(days) || days < 1) return setError('"Repeat every" must be at least 1 day.');
-    if (!allBlocks && selBlocks.length === 0) return setError('Choose at least one block.');
+    if (!name.trim()) return setError(t('sched.ed.needName'));
+    if (!Number.isFinite(days) || days < 1) return setError(t('sched.ed.needDays'));
+    if (!allBlocks && selBlocks.length === 0) return setError(t('sched.ed.needBlock'));
     setSaving(true);
     setError(null);
     try {
@@ -230,15 +235,15 @@ export const PlanEditorSheet: React.FC<{
       });
       onClose();
     } catch (e: any) {
-      setError(e?.message || 'Could not save. Check your connection and try again.');
+      setError(e?.message || t('sched.saveError'));
       setSaving(false);
     }
   };
 
   return (
     <Sheet
-      title={plan ? 'Edit routine' : 'New routine'}
-      subtitle={template ? 'Starting point from a durian calendar. Adjust to your farm.' : undefined}
+      title={plan ? t('sched.editRoutine') : t('sched.new')}
+      subtitle={template ? t('sched.ed.templateHint') : undefined}
       onClose={onClose}
       footer={
         <div className="space-y-2">
@@ -248,42 +253,42 @@ export const PlanEditorSheet: React.FC<{
             disabled={saving}
             className="w-full min-h-12 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-sm font-bold"
           >
-            {saving ? 'Saving…' : 'Save routine'}
+            {saving ? t('sched.saving') : t('sched.ed.save')}
           </button>
         </div>
       }
     >
       <div>
-        <label className={fieldLabel} htmlFor="pe-name">Name</label>
-        <input id="pe-name" value={name} onChange={(e) => setName(e.target.value)} className={fieldInput} placeholder="e.g. Fruit-set potassium feed" />
+        <label className={fieldLabel} htmlFor="pe-name">{t('sched.ed.name')}</label>
+        <input id="pe-name" value={name} onChange={(e) => setName(e.target.value)} className={fieldInput} placeholder={t('sched.ed.namePh')} />
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className={fieldLabel} htmlFor="pe-type">Type</label>
+          <label className={fieldLabel} htmlFor="pe-type">{t('sched.ed.type')}</label>
           <select id="pe-type" value={type} onChange={(e) => setType(e.target.value as TreatmentType)} className={fieldInput}>
-            {Object.entries(TREATMENT_TYPE_LABELS).map(([k, v]) => (
-              <option key={k} value={k}>{v}</option>
+            {(['fertilizer', 'spray', 'pruning', 'irrigation', 'other'] as TreatmentType[]).map((k) => (
+              <option key={k} value={k}>{typeLabel(k)}</option>
             ))}
           </select>
         </div>
         <div>
-          <label className={fieldLabel} htmlFor="pe-every">Repeat every (days)</label>
+          <label className={fieldLabel} htmlFor="pe-every">{t('sched.ed.every')}</label>
           <input id="pe-every" type="number" inputMode="numeric" min={1} value={everyDays} onChange={(e) => setEveryDays(e.target.value)} className={fieldInput} />
         </div>
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className={fieldLabel} htmlFor="pe-product">Product</label>
+          <label className={fieldLabel} htmlFor="pe-product">{t('sched.ed.product')}</label>
           <input id="pe-product" value={product} onChange={(e) => setProduct(e.target.value)} className={fieldInput} />
         </div>
         <div>
-          <label className={fieldLabel} htmlFor="pe-dose">Dose</label>
+          <label className={fieldLabel} htmlFor="pe-dose">{t('sched.dose')}</label>
           <input id="pe-dose" value={dose} onChange={(e) => setDose(e.target.value)} className={fieldInput} />
         </div>
       </div>
 
       <div>
-        <span className={fieldLabel}>Applies to</span>
+        <span className={fieldLabel}>{t('sched.ed.appliesTo')}</span>
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
@@ -291,7 +296,7 @@ export const PlanEditorSheet: React.FC<{
             onClick={() => setAllBlocks(true)}
             className={`min-h-11 px-4 rounded-full border text-sm font-semibold ${allBlocks ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-white border-slate-300 text-slate-700'}`}
           >
-            All blocks
+            {t('common.allBlocks')}
           </button>
           {blocks.map((b) => {
             const on = !allBlocks && selBlocks.includes(b);
@@ -306,7 +311,7 @@ export const PlanEditorSheet: React.FC<{
                 }}
                 className={`min-h-11 px-4 rounded-full border text-sm font-semibold ${on ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-white border-slate-300 text-slate-700'}`}
               >
-                Block {b}
+                {t('common.blockN', { n: b })}
               </button>
             );
           })}
@@ -316,20 +321,20 @@ export const PlanEditorSheet: React.FC<{
       <div>
         <label className="flex items-center gap-2 text-sm font-semibold text-slate-800 min-h-11">
           <input type="checkbox" checked={seasonal} onChange={(e) => setSeasonal(e.target.checked)} className="w-5 h-5 accent-emerald-600" />
-          Only in a season
+          {t('sched.ed.season')}
         </label>
         {seasonal && (
           <div className="grid grid-cols-2 gap-3 mt-1">
             <div>
-              <label className={fieldLabel} htmlFor="pe-sm">From</label>
+              <label className={fieldLabel} htmlFor="pe-sm">{t('sched.ed.from')}</label>
               <select id="pe-sm" value={startMonth} onChange={(e) => setStartMonth(Number(e.target.value))} className={fieldInput}>
-                {MONTHS.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
+                {MONTH_NUMS.map((m) => <option key={m} value={m}>{monthShort(m)}</option>)}
               </select>
             </div>
             <div>
-              <label className={fieldLabel} htmlFor="pe-em">Until</label>
+              <label className={fieldLabel} htmlFor="pe-em">{t('sched.ed.until')}</label>
               <select id="pe-em" value={endMonth} onChange={(e) => setEndMonth(Number(e.target.value))} className={fieldInput}>
-                {MONTHS.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
+                {MONTH_NUMS.map((m) => <option key={m} value={m}>{monthShort(m)}</option>)}
               </select>
             </div>
           </div>
@@ -338,18 +343,18 @@ export const PlanEditorSheet: React.FC<{
 
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className={fieldLabel} htmlFor="pe-first">First due</label>
+          <label className={fieldLabel} htmlFor="pe-first">{t('sched.ed.firstDue')}</label>
           <input id="pe-first" type="date" value={firstDue} onChange={(e) => setFirstDue(e.target.value)} className={fieldInput} />
         </div>
         {type === 'spray' && (
           <div>
-            <label className={fieldLabel} htmlFor="pe-phi">Pre-harvest interval (days)</label>
+            <label className={fieldLabel} htmlFor="pe-phi">{t('sched.ed.phi')}</label>
             <input id="pe-phi" type="number" inputMode="numeric" min={0} value={phi} onChange={(e) => setPhi(e.target.value)} className={fieldInput} />
           </div>
         )}
       </div>
       <div>
-        <label className={fieldLabel} htmlFor="pe-notes">Notes</label>
+        <label className={fieldLabel} htmlFor="pe-notes">{t('common.notes')}</label>
         <textarea id="pe-notes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} className={fieldInput} />
       </div>
     </Sheet>

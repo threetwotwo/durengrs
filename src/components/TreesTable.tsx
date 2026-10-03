@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { useT } from '../i18n';
 import { useFarm, formatDateTime, formatDate, normalizeTimestamp, formatTimeAgo } from '../context/FarmContext';
 import { ConditionBadge } from './ConditionBadge';
 import { Link } from './Link';
@@ -12,16 +13,17 @@ import { Search, Download, ArrowUpDown, ArrowUp, ArrowDown, RotateCcw, TreeDecid
 const ROWS_PER_PAGE = 50;
 type SortField = keyof DurianTree;
 
-const CONDITION_CHIPS: Array<{ id: string; label: string; active: string; dot: string }> = [
-  { id: 'all', label: 'All', active: 'bg-slate-900 text-white border-slate-900', dot: '' },
-  { id: 'emergency', label: 'Emergency', active: 'bg-rose-600 text-white border-rose-600', dot: 'bg-rose-500' },
-  { id: 'minor', label: 'Minor', active: 'bg-amber-500 text-slate-900 border-amber-500', dot: 'bg-amber-400' },
-  { id: 'healthy', label: 'Healthy', active: 'bg-emerald-600 text-white border-emerald-600', dot: 'bg-emerald-500' },
-  { id: 'not_assessed', label: 'Not assessed', active: 'bg-slate-600 text-white border-slate-600', dot: 'bg-slate-300' },
+const CONDITION_CHIPS: Array<{ id: string; labelKey: string; active: string; dot: string }> = [
+  { id: 'all', labelKey: 'common.all', active: 'bg-slate-900 text-white border-slate-900', dot: '' },
+  { id: 'emergency', labelKey: 'cond.emergency', active: 'bg-rose-600 text-white border-rose-600', dot: 'bg-rose-500' },
+  { id: 'minor', labelKey: 'trees.chip.minor', active: 'bg-amber-500 text-slate-900 border-amber-500', dot: 'bg-amber-400' },
+  { id: 'healthy', labelKey: 'cond.healthy', active: 'bg-emerald-600 text-white border-emerald-600', dot: 'bg-emerald-500' },
+  { id: 'not_assessed', labelKey: 'cond.not_assessed', active: 'bg-slate-600 text-white border-slate-600', dot: 'bg-slate-300' },
 ];
 
 /** All filters, sorting and paging live in the URL, e.g. #/trees?block=A&condition=emergency&sort=lastReportAt */
 export const TreesTable: React.FC = () => {
+  const { t, locale } = useT();
   const { trees, variants, treatments } = useFarm();
   const [params, setParams] = useQueryParams();
 
@@ -107,11 +109,11 @@ export const TreesTable: React.FC = () => {
       if (valA === '' && valB !== '') return 1;
       if (valB === '' && valA !== '') return -1;
       if (typeof valA === 'number' && typeof valB === 'number') return sortAsc ? valA - valB : valB - valA;
-      const cmp = String(valA).localeCompare(String(valB), undefined, { numeric: true, sensitivity: 'base' });
+      const cmp = String(valA).localeCompare(String(valB), locale, { numeric: true, sensitivity: 'base' });
       return sortAsc ? cmp : -cmp;
     });
     return list;
-  }, [filteredTrees, sortField, sortAsc]);
+  }, [filteredTrees, sortField, sortAsc, locale]);
 
   const totalPages = Math.max(1, Math.ceil(sortedTrees.length / ROWS_PER_PAGE));
   const currentPage = Math.min(requestedPage, totalPages);
@@ -138,21 +140,21 @@ export const TreesTable: React.FC = () => {
     if (sortedTrees.length === 0) return;
 
     const headers = [
-      'Tree ID',
-      'Block',
-      'Variant Code',
-      'Variant Name',
-      'Condition',
-      'Condition Notes',
-      'Trunk Girth (cm)',
-      'Canopy Spread (cm)',
-      'Flower Clusters',
-      'Estimated Fruits',
-      'Supplier',
-      'Date Planted',
-      'General Notes',
-      'Last Report Timestamp',
-    ];
+      t('trees.csv.treeId'),
+      t('trees.csv.block'),
+      t('trees.csv.variantCode'),
+      t('trees.csv.variantName'),
+      t('trees.csv.condition'),
+      t('trees.csv.conditionNotes'),
+      t('field.trunk'),
+      t('field.canopy'),
+      t('field.clusters'),
+      t('field.fruits'),
+      t('trees.csv.supplier'),
+      t('trees.csv.datePlanted'),
+      t('trees.csv.notes'),
+      t('trees.csv.lastReport'),
+    ].map((h) => `"${h.replace(/"/g, '""')}"`);
 
     const rows = sortedTrees.map((tree) => {
       const variantName = variantLookup.get(tree.variant) || '';
@@ -211,16 +213,18 @@ export const TreesTable: React.FC = () => {
   return (
     <div className="space-y-4">
       <PageHeader
-        title="Trees"
+        title={t('trees.title')}
         description={
           <span className="tabular">
-            {activeFilterCount > 0 ? `${sortedTrees.length} of ${trees.length} trees match` : `${trees.length} trees in ${availableBlocks.length} blocks`}
+            {activeFilterCount > 0
+              ? t('trees.summary.filtered', { n: sortedTrees.length, total: trees.length })
+              : t('trees.summary.all', { total: trees.length, blocks: availableBlocks.length })}
           </span>
         }
         actions={
-          <button onClick={handleExportCSV} disabled={sortedTrees.length === 0} className={`${btnSecondary} disabled:opacity-50`} title="Download the trees shown as a CSV file">
+          <button onClick={handleExportCSV} disabled={sortedTrees.length === 0} className={`${btnSecondary} disabled:opacity-50`} title={t('trees.exportTitle')}>
             <Download className="w-4 h-4" />
-            <span className="hidden sm:inline">Export CSV</span>
+            <span className="hidden sm:inline">{t('trees.export')}</span>
           </button>
         }
       />
@@ -231,28 +235,28 @@ export const TreesTable: React.FC = () => {
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
             <input
               type="search"
-              placeholder="Search tree ID, e.g. A12"
+              placeholder={t('trees.searchPlaceholder')}
               value={search}
               onChange={(e) => setParams({ q: e.target.value, page: null })}
-              aria-label="Search tree ID"
+              aria-label={t('trees.searchLabel')}
               className={`${inputCls} pl-9`}
             />
           </div>
-          <select value={filterBlock} onChange={(e) => setParams({ block: e.target.value, page: null })} aria-label="Block" className={inputCls}>
-            <option value="all">All blocks</option>
+          <select value={filterBlock} onChange={(e) => setParams({ block: e.target.value, page: null })} aria-label={t('common.block')} className={inputCls}>
+            <option value="all">{t('common.allBlocks')}</option>
             {availableBlocks.map((b) => (
-              <option key={b} value={b}>Block {b}</option>
+              <option key={b} value={b}>{t('common.blockN', { n: b })}</option>
             ))}
           </select>
-          <select value={filterVariant} onChange={(e) => setParams({ variant: e.target.value, page: null })} aria-label="Variant" className={inputCls}>
-            <option value="all">All variants</option>
+          <select value={filterVariant} onChange={(e) => setParams({ variant: e.target.value, page: null })} aria-label={t('common.variant')} className={inputCls}>
+            <option value="all">{t('trees.allVariants')}</option>
             {variants.map((v) => (
               <option key={v.code} value={v.code}>{v.code} · {v.name}</option>
             ))}
           </select>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Condition">
+        <div className="flex flex-wrap items-center gap-2" role="group" aria-label={t('trees.col.condition')}>
           {CONDITION_CHIPS.map((chip) => {
             const on = filterCondition === chip.id;
             return (
@@ -265,7 +269,7 @@ export const TreesTable: React.FC = () => {
                 }`}
               >
                 {chip.dot && <span className={`w-2.5 h-2.5 rounded-full ${chip.dot}`} />}
-                {chip.label}
+                {t(chip.labelKey)}
                 <span className={`tabular text-xs ${on ? 'opacity-90' : 'text-slate-500'}`}>{conditionCounts[chip.id]}</span>
               </button>
             );
@@ -278,7 +282,7 @@ export const TreesTable: React.FC = () => {
             }`}
           >
             <Clock className="w-4 h-4" />
-            No report in 7+ days
+            {t('trees.filter.stale')}
           </button>
           <button
             onClick={() => setParams({ followup: followUpOnly ? null : '1', page: null })}
@@ -287,7 +291,7 @@ export const TreesTable: React.FC = () => {
               followUpOnly ? 'bg-rose-600 text-white border-rose-600' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
             }`}
           >
-            Overdue for a check
+            {t('trees.filter.followup')}
           </button>
           <button
             onClick={() => setParams({ untreated: untreatedOnly ? null : '1', page: null })}
@@ -296,12 +300,12 @@ export const TreesTable: React.FC = () => {
               untreatedOnly ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
             }`}
           >
-            Never treated
+            {t('trees.filter.untreated')}
           </button>
           {activeFilterCount > 0 && (
             <button onClick={resetFilters} className="min-h-11 px-3 rounded-full text-sm font-semibold text-rose-700 hover:bg-rose-50 inline-flex items-center gap-1.5 ml-auto">
               <RotateCcw className="w-4 h-4" />
-              Clear filters
+              {t('common.clear')}
             </button>
           )}
         </div>
@@ -310,17 +314,17 @@ export const TreesTable: React.FC = () => {
       {sortedTrees.length === 0 ? (
         <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
           <TreeDeciduous className="w-10 h-10 text-slate-400 mx-auto mb-3" />
-          <h2 className="text-sm font-bold text-slate-900">No trees match these filters</h2>
-          <p className="text-sm text-slate-600 mt-1">Try a different block, or clear the filters.</p>
+          <h2 className="text-sm font-bold text-slate-900">{t('trees.empty.title')}</h2>
+          <p className="text-sm text-slate-600 mt-1">{t('trees.empty.hint')}</p>
           <button onClick={resetFilters} className="mt-4 min-h-11 px-4 rounded-xl bg-slate-900 text-white text-sm font-semibold">
-            Clear filters
+            {t('common.clear')}
           </button>
         </div>
       ) : (
         <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
           <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2 text-sm text-slate-600">
             <span className="tabular">
-              {startRecord}–{endRecord} of {sortedTrees.length}
+              {t('trees.range', { start: startRecord, end: endRecord, total: sortedTrees.length })}
             </span>
             <div className="flex items-center gap-2">
               <button
@@ -329,7 +333,7 @@ export const TreesTable: React.FC = () => {
                 className="hidden md:inline-flex min-h-9 px-3 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 items-center gap-1.5 hover:bg-slate-50"
               >
                 <Columns3 className="w-4 h-4" />
-                {allColumns ? 'Show fewer columns' : 'Show all columns'}
+                {allColumns ? t('trees.cols.fewer') : t('trees.cols.all')}
               </button>
               {totalPages > 1 && <Pager page={currentPage} total={totalPages} onPage={setPage} />}
             </div>
@@ -352,7 +356,7 @@ export const TreesTable: React.FC = () => {
                       <ConditionBadge condition={tree.condition} size="sm" className="whitespace-nowrap shrink-0" />
                     </div>
                     <div className="flex items-center justify-between text-sm text-slate-600">
-                      <span>Block {tree.block || '—'}</span>
+                      <span>{t('common.blockN', { n: tree.block || '—' })}</span>
                       <span className="flex items-center gap-1 tabular"><Clock className="w-4 h-4 text-slate-400" />{formatTimeAgo(tree.lastReportAt)}</span>
                     </div>
                     {followUpOf(tree, normalizeTimestamp(tree.lastReportAt)).needs && (
@@ -360,7 +364,7 @@ export const TreesTable: React.FC = () => {
                     )}
                     {note(tree) && <p className="text-sm text-slate-700 line-clamp-2">{note(tree)}</p>}
                     {tree.estimatedFruitCount !== undefined && (
-                      <p className="text-xs text-slate-600">Est. fruits: <strong className="tabular text-slate-900">{tree.estimatedFruitCount}</strong></p>
+                      <p className="text-xs text-slate-600">{t('trees.estFruits')} <strong className="tabular text-slate-900">{tree.estimatedFruitCount}</strong></p>
                     )}
                   </Link>
                 </li>
@@ -373,23 +377,23 @@ export const TreesTable: React.FC = () => {
             <table className="w-full text-left text-sm border-collapse">
               <thead className="bg-slate-900">
                 <tr>
-                  <SortHeader field="id" label="Tree" className="min-w-[88px]" />
-                  <SortHeader field="variant" label="Variant" className="min-w-[150px]" />
-                  <SortHeader field="block" label="Block" />
-                  <SortHeader field="condition" label="Condition" className="min-w-[140px]" />
-                  <SortHeader field="estimatedFruitCount" label="Fruits" align="right" />
+                  <SortHeader field="id" label={t('common.tree')} className="min-w-[88px]" />
+                  <SortHeader field="variant" label={t('common.variant')} className="min-w-[150px]" />
+                  <SortHeader field="block" label={t('common.block')} />
+                  <SortHeader field="condition" label={t('trees.col.condition')} className="min-w-[140px]" />
+                  <SortHeader field="estimatedFruitCount" label={t('trees.col.fruits')} align="right" />
                   {allColumns && (
                     <>
-                      <SortHeader field="trunkSize" label="Girth cm" align="right" />
-                      <SortHeader field="canopySize" label="Canopy" align="right" />
-                      <SortHeader field="floweringClusters" label="Clusters" align="right" />
-                      <SortHeader field="supplier" label="Supplier" />
-                      <SortHeader field="datePlanted" label="Planted" />
+                      <SortHeader field="trunkSize" label={t('trees.col.girth')} align="right" />
+                      <SortHeader field="canopySize" label={t('trees.col.canopy')} align="right" />
+                      <SortHeader field="floweringClusters" label={t('trees.col.clusters')} align="right" />
+                      <SortHeader field="supplier" label={t('trees.col.supplier')} />
+                      <SortHeader field="datePlanted" label={t('trees.col.planted')} />
                     </>
                   )}
-                  <SortHeader field="lastReportAt" label="Last report" className="min-w-[120px]" />
-                  {allColumns && <th scope="col" className="px-3 text-xs uppercase tracking-wide font-semibold text-slate-200 min-w-[150px]">Last treated</th>}
-                  <th scope="col" className="px-3 text-xs uppercase tracking-wide font-semibold text-slate-200 min-w-[180px]">Notes</th>
+                  <SortHeader field="lastReportAt" label={t('field.lastReport')} className="min-w-[120px]" />
+                  {allColumns && <th scope="col" className="px-3 text-xs uppercase tracking-wide font-semibold text-slate-200 min-w-[150px]">{t('trees.col.lastTreated')}</th>}
+                  <th scope="col" className="px-3 text-xs uppercase tracking-wide font-semibold text-slate-200 min-w-[180px]">{t('common.notes')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -408,7 +412,7 @@ export const TreesTable: React.FC = () => {
                           {variantName && <span className="text-slate-600 truncate max-w-[110px]" title={variantName}>{variantName}</span>}
                         </span>
                       </td>
-                      <td className="py-3 px-3 text-slate-700 whitespace-nowrap">Block {tree.block || '—'}</td>
+                      <td className="py-3 px-3 text-slate-700 whitespace-nowrap">{t('common.blockN', { n: tree.block || '—' })}</td>
                       <td className="py-3 px-3"><ConditionBadge condition={tree.condition} size="sm" className="whitespace-nowrap" /></td>
                       <td className="py-3 px-3 text-right font-mono tabular font-bold text-emerald-800">{tree.estimatedFruitCount ?? '—'}</td>
                       {allColumns && (
@@ -423,7 +427,7 @@ export const TreesTable: React.FC = () => {
                       <td className={`py-3 px-3 whitespace-nowrap tabular ${followUpOf(tree, normalizeTimestamp(tree.lastReportAt)).needs ? 'text-rose-700 font-semibold' : isStale(tree) ? 'text-amber-700 font-medium' : 'text-slate-600'}`}>{formatTimeAgo(tree.lastReportAt)}</td>
                       {allColumns && (
                         <td className="py-3 px-3 whitespace-nowrap text-slate-600" title={lastTreatmentByBlock.get(tree.block)?.name}>
-                          {lastTreatmentByBlock.get(tree.block) ? formatShortDate(lastTreatmentByBlock.get(tree.block)!.date) : <span className="text-slate-400">Never</span>}
+                          {lastTreatmentByBlock.get(tree.block) ? formatShortDate(lastTreatmentByBlock.get(tree.block)!.date) : <span className="text-slate-400">{t('common.never')}</span>}
                         </td>
                       )}
                       <td className="py-3 px-3 max-w-[240px]">
@@ -447,14 +451,17 @@ export const TreesTable: React.FC = () => {
   );
 };
 
-const Pager: React.FC<{ page: number; total: number; onPage: (n: number) => void }> = ({ page, total, onPage }) => (
+const Pager: React.FC<{ page: number; total: number; onPage: (n: number) => void }> = ({ page, total, onPage }) => {
+  const { t } = useT();
+  return (
   <div className="flex items-center gap-1.5">
-    <button onClick={() => onPage(page - 1)} disabled={page <= 1} aria-label="Previous page" className="min-h-9 min-w-9 flex items-center justify-center rounded-lg border border-slate-300 bg-white hover:bg-slate-50 disabled:opacity-40">
+    <button onClick={() => onPage(page - 1)} disabled={page <= 1} aria-label={t('trees.pager.prev')} className="min-h-9 min-w-9 flex items-center justify-center rounded-lg border border-slate-300 bg-white hover:bg-slate-50 disabled:opacity-40">
       <ChevronLeft className="w-4 h-4" />
     </button>
-    <span className="px-2 text-sm font-medium text-slate-700 tabular">Page {page} of {total}</span>
-    <button onClick={() => onPage(page + 1)} disabled={page >= total} aria-label="Next page" className="min-h-9 min-w-9 flex items-center justify-center rounded-lg border border-slate-300 bg-white hover:bg-slate-50 disabled:opacity-40">
+    <span className="px-2 text-sm font-medium text-slate-700 tabular">{t('trees.pager.page', { page, total })}</span>
+    <button onClick={() => onPage(page + 1)} disabled={page >= total} aria-label={t('trees.pager.next')} className="min-h-9 min-w-9 flex items-center justify-center rounded-lg border border-slate-300 bg-white hover:bg-slate-50 disabled:opacity-40">
       <ChevronRight className="w-4 h-4" />
     </button>
   </div>
-);
+  );
+};

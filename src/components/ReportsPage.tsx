@@ -6,6 +6,7 @@ import { PageHeader, inputCls } from './PageHeader';
 import { ActivityView } from './ActivityView';
 import { Link } from './Link';
 import { useQueryParams } from '../lib/router';
+import { useT } from '../i18n';
 import { TreeReport } from '../types';
 import {
   db,
@@ -30,13 +31,14 @@ import {
 
 export const ReportsPage: React.FC = () => {
   const { trees, totalReportsCount } = useFarm();
+  const { t } = useT();
   const [params, setParams] = useQueryParams();
 
   const [reports, setReports] = useState<TreeReport[]>([]);
   const [pageLimit, setPageLimit] = useState(25);
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<boolean>(false);
   const [gallery, setGallery] = useState<{ items: GalleryItem[]; index: number } | null>(null);
 
   // Filters live in the URL: shareable, survive reload, Back works.
@@ -58,7 +60,7 @@ export const ReportsPage: React.FC = () => {
   // browser because "block + newest first" would need an extra Firestore index.
   useEffect(() => {
     setLoading(true);
-    setLoadError(null);
+    setLoadError(false);
     const q = query(collection(db, 'reports'), orderBy('createdAt', 'desc'), limit(pageLimit + 1));
     const unsub = onSnapshot(
       q,
@@ -70,7 +72,7 @@ export const ReportsPage: React.FC = () => {
       },
       (err) => {
         console.error('Failed to load reports:', err);
-        setLoadError('Could not load reports. Check your connection and try again.');
+        setLoadError(true);
         setLoading(false);
       }
     );
@@ -117,14 +119,14 @@ export const ReportsPage: React.FC = () => {
       {gallery && <PhotoLightbox items={gallery.items} index={gallery.index} onClose={() => setGallery(null)} />}
 
       <PageHeader
-        title="Reports"
-        description={showActivity ? 'Who is reporting, how often, and which blocks are being missed.' : `${totalReportsCount} field reports from the WhatsApp bot, newest first.`}
+        title={t('rep.title')}
+        description={showActivity ? t('rep.desc.activity') : t('rep.desc.feed', { n: totalReportsCount })}
       />
 
       <div role="tablist" className="inline-flex p-1 rounded-xl bg-slate-200/70 gap-1">
         {[
-          { id: 'feed', label: 'Feed', to: '/reports' },
-          { id: 'activity', label: 'Activity', to: '/reports?view=activity' },
+          { id: 'feed', label: t('rep.tab.feed'), to: '/reports' },
+          { id: 'activity', label: t('rep.tab.activity'), to: '/reports?view=activity' },
         ].map((tab) => {
           const on = (tab.id === 'activity') === showActivity;
           return (
@@ -151,23 +153,23 @@ export const ReportsPage: React.FC = () => {
             type="search"
             value={search}
             onChange={(e) => setParams({ q: e.target.value })}
-            placeholder="Search tree, phone or text…"
-            aria-label="Search reports"
+            placeholder={t('rep.search.placeholder')}
+            aria-label={t('rep.search.aria')}
             className={`${inputCls} pl-9`}
           />
         </div>
-        <select value={filterBlock} onChange={(e) => setParams({ block: e.target.value })} aria-label="Block" className={inputCls}>
-          <option value="all">All blocks</option>
+        <select value={filterBlock} onChange={(e) => setParams({ block: e.target.value })} aria-label={t('rep.filter.block')} className={inputCls}>
+          <option value="all">{t('common.allBlocks')}</option>
           {availableBlocks.map((b) => (
-            <option key={b} value={b}>Block {b}</option>
+            <option key={b} value={b}>{t('common.blockN', { n: b })}</option>
           ))}
         </select>
-        <select value={filterCondition} onChange={(e) => setParams({ condition: e.target.value })} aria-label="Condition" className={inputCls}>
-          <option value="all">All conditions</option>
-          <option value="healthy">Healthy</option>
-          <option value="minor">Minor</option>
-          <option value="emergency">Emergency</option>
-          <option value="not_assessed">Not assessed</option>
+        <select value={filterCondition} onChange={(e) => setParams({ condition: e.target.value })} aria-label={t('rep.filter.condition')} className={inputCls}>
+          <option value="all">{t('common.allConditions')}</option>
+          <option value="healthy">{t('cond.healthy')}</option>
+          <option value="minor">{t('rep.cond.minor')}</option>
+          <option value="emergency">{t('cond.emergency')}</option>
+          <option value="not_assessed">{t('cond.not_assessed')}</option>
         </select>
         <label className="min-h-11 px-3 inline-flex items-center gap-2 rounded-lg border border-slate-300 text-sm font-medium text-slate-800 cursor-pointer select-none">
           <input
@@ -176,19 +178,19 @@ export const ReportsPage: React.FC = () => {
             onChange={(e) => setParams({ changed: e.target.checked ? '1' : null })}
             className="w-4 h-4 accent-emerald-600"
           />
-          Status changed
+          {t('rep.filter.changed')}
         </label>
         {activeFilterCount > 0 && (
           <button onClick={handleResetFilters} className="min-h-11 px-3 rounded-lg text-sm font-semibold text-rose-700 hover:bg-rose-50 inline-flex items-center justify-center gap-1.5">
             <RotateCcw className="w-4 h-4" />
-            Clear ({activeFilterCount})
+            {t('rep.filter.clearN', { n: activeFilterCount })}
           </button>
         )}
       </div>
 
       {loadError && (
         <div role="alert" className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-sm text-rose-800">
-          {loadError}
+          {t('rep.error.load')}
         </div>
       )}
 
@@ -203,13 +205,13 @@ export const ReportsPage: React.FC = () => {
         ) : filteredReports.length === 0 ? (
           <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
             <ClipboardList className="w-10 h-10 text-slate-400 mx-auto mb-2" />
-            <p className="text-sm font-semibold text-slate-700">No inspection reports match your filter</p>
-            <p className="text-xs text-slate-500 mt-1">Try clearing or broadening your search options.</p>
+            <p className="text-sm font-semibold text-slate-700">{t('rep.empty.title')}</p>
+            <p className="text-xs text-slate-500 mt-1">{t('rep.empty.hint')}</p>
             <button
               onClick={handleResetFilters}
               className="mt-3 px-3 py-1.5 text-xs font-semibold bg-slate-900 text-white rounded-lg hover:bg-slate-800"
             >
-              Clear filters
+              {t('common.clear')}
             </button>
           </div>
         ) : (
@@ -238,10 +240,10 @@ export const ReportsPage: React.FC = () => {
               {loading ? (
                 <>
                   <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                  <span>Loading older reports...</span>
+                  <span>{t('rep.loadingOlder')}</span>
                 </>
               ) : (
-                <span>Load 25 More Reports</span>
+                <span>{t('rep.loadMore')}</span>
               )}
             </button>
           </div>

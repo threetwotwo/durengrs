@@ -1,5 +1,6 @@
 import React from 'react';
 import { navigate } from '../lib/router';
+import { translate as t } from '../i18n';
 
 /** Keeps a bug on one page from blanking the whole app. Resets when the page changes. */
 export class ErrorBoundary extends React.Component<
@@ -20,14 +21,14 @@ export class ErrorBoundary extends React.Component<
     if (!this.state.error) return this.props.children;
     return (
       <div role="alert" className="max-w-md mx-auto mt-16 p-6 bg-white rounded-xl border border-slate-200 text-center">
-        <h2 className="text-base font-bold text-slate-900">Something went wrong on this page</h2>
-        <p className="text-sm text-slate-600 mt-1">The rest of the app is fine. Your data was not changed.</p>
+        <h2 className="text-base font-bold text-slate-900">{t('err.title')}</h2>
+        <p className="text-sm text-slate-600 mt-1">{t('err.body')}</p>
         <div className="flex justify-center gap-2 mt-4">
           <button onClick={() => window.location.reload()} className="min-h-11 px-4 rounded-xl border border-slate-300 text-sm font-semibold">
-            Reload
+            {t('err.reload')}
           </button>
           <button onClick={() => navigate('/', { replace: true })} className="min-h-11 px-4 rounded-xl bg-emerald-600 text-white text-sm font-bold">
-            Go to dashboard
+            {t('err.home')}
           </button>
         </div>
       </div>

@@ -1,6 +1,7 @@
 import { deleteDoc, doc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { db } from './firebase';
 import { DurianTree, DurianVariant, TreeReport } from '../types';
+import { locale, translate } from '../i18n';
 import { addDays, diffDays, todayStr } from './treatments';
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -31,9 +32,9 @@ export function followUpOf(tree: DurianTree, lastReportMs: number, now = Date.no
 }
 
 export function waitingLabel(f: FollowUp): string {
-  if (f.waitingDays === null) return 'Never checked';
-  if (f.waitingDays < 1) return 'Checked today';
-  return `No check for ${f.waitingDays}d`;
+  if (f.waitingDays === null) return translate('ins.neverChecked');
+  if (f.waitingDays < 1) return translate('ins.checkedToday');
+  return translate('ins.noCheck', { n: f.waitingDays });
 }
 
 // ---------- harvest outlook ----------
@@ -113,7 +114,7 @@ export function fruitsByMonth(rows: HarvestRow[]): Array<{ month: string; label:
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([month, v]) => ({
       month,
-      label: new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)) - 1, 1).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' }),
+      label: new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)) - 1, 1).toLocaleDateString(locale(), { month: 'short', year: 'numeric' }),
       ...v,
     }));
 }
@@ -151,7 +152,7 @@ export function summariseActivity(reports: TreeReport[], trees: DurianTree[], da
     const ms = tsMs(r.createdAt);
     const d = localDate(ms);
     if (dayCounts.has(d)) dayCounts.set(d, (dayCounts.get(d) || 0) + 1);
-    const phone = r.workerPhone || 'Unknown';
+    const phone = r.workerPhone || translate('common.unknown');
     const w = workers.get(phone) || { reports: 0, trees: new Set<string>(), lastAt: 0 };
     w.reports++;
     w.trees.add(r.treeId);
@@ -172,7 +173,7 @@ export function summariseActivity(reports: TreeReport[], trees: DurianTree[], da
   return {
     perDay: Array.from(dayCounts.entries()).map(([date, count]) => ({
       date,
-      label: new Date(date + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }),
+      label: new Date(date + 'T00:00:00').toLocaleDateString(locale(), { day: 'numeric', month: 'short' }),
       count,
     })),
     perWorker: Array.from(workers.entries())
