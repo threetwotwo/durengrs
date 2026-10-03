@@ -12,6 +12,7 @@ const TreeDetailView = lazy(() => import('./components/TreeDetailView').then((m)
 const VariantsPage = lazy(() => import('./components/VariantsPage').then((m) => ({ default: m.VariantsPage })));
 const ReportsPage = lazy(() => import('./components/ReportsPage').then((m) => ({ default: m.ReportsPage })));
 const SchedulePage = lazy(() => import('./components/SchedulePage').then((m) => ({ default: m.SchedulePage })));
+const GuidePage = lazy(() => import('./components/GuidePage').then((m) => ({ default: m.GuidePage })));
 
 const AppContent: React.FC = () => {
   const { loading, error } = useFarm();
@@ -78,6 +79,7 @@ const AppContent: React.FC = () => {
                 ))}
               {route.tab === 'variants' && <VariantsPage />}
               {route.tab === 'reports' && <ReportsPage />}
+              {route.tab === 'guide' && <GuidePage />}
             </Suspense>
           </ErrorBoundary>
         )}

@@ -29,6 +29,7 @@ import {
   ExternalLink,
   AlertCircle,
 } from 'lucide-react';
+import { TreeGuideSection } from './GuideWidgets';
 
 interface TreeDetailViewProps {
   treeId: string;
@@ -457,6 +458,8 @@ export const TreeDetailView: React.FC<TreeDetailViewProps> = ({ treeId, onBack }
           )}
         </section>
       )}
+
+      {tree && <TreeGuideSection tree={tree} reports={treeReports} />}
 
       {/* Main Grid: Form Details (Left 7 cols) & Inspection History (Right 5 cols) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">

@@ -2,7 +2,7 @@ import React from 'react';
 import { useFarm, AppTab } from '../context/FarmContext';
 import { Link } from './Link';
 import { useT, type Lang } from '../i18n';
-import { LayoutDashboard, TableProperties, Sprout, ClipboardList, CalendarCheck } from 'lucide-react';
+import { LayoutDashboard, TableProperties, Sprout, ClipboardList, CalendarCheck, BookOpen } from 'lucide-react';
 
 /** Monogram "C" with a leaf at the open end. Calm and generic on purpose. */
 const BrandMark: React.FC<{ className?: string }> = ({ className }) => (
@@ -57,6 +57,7 @@ export function useNavItems(): NavItem[] {
           ? { text: unreadReportsCount > 99 ? '99+' : t('nav.badge.new', { n: unreadReportsCount }), tone: 'new' }
           : undefined,
     },
+    { id: 'guide', label: t('nav.guide'), icon: BookOpen },
   ];
 }
 
@@ -157,7 +158,7 @@ export const BottomNav: React.FC = () => {
       className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-slate-900 border-t border-slate-800 pb-[env(safe-area-inset-bottom)]"
       aria-label={t('nav.main')}
     >
-      <ul className="grid grid-cols-5">
+      <ul className="grid grid-cols-6">
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = activeTab === item.id;

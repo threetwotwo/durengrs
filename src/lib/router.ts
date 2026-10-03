@@ -9,16 +9,20 @@ import { useCallback, useSyncExternalStore } from 'react';
  *   #/trees/A12             tree detail
  *   #/variants
  *   #/reports?block=A&condition=minor&changed=1&q=...
+ *   #/guide                 research guide
+ *   #/guide/phytophthora    one guide topic
  *
  * Hash routing needs no server rewrites (works on AI Studio, Firebase Hosting, any static host),
  * gives working Back/Forward, shareable deep links, and survives reloads.
  */
 
-export type AppTab = 'dashboard' | 'schedule' | 'trees' | 'variants' | 'reports';
+export type AppTab = 'dashboard' | 'schedule' | 'trees' | 'variants' | 'reports' | 'guide';
 
 export interface Route {
   tab: AppTab;
   treeId: string | null;
+  /** Guide topic, e.g. "phytophthora" in #/guide/phytophthora. Validated by the Guide page. */
+  topicId: string | null;
   params: URLSearchParams;
   /** Path without query, e.g. "/trees/A12". */
   path: string;
@@ -28,7 +32,7 @@ export interface Route {
   known: boolean;
 }
 
-const TABS: AppTab[] = ['dashboard', 'schedule', 'trees', 'variants', 'reports'];
+const TABS: AppTab[] = ['dashboard', 'schedule', 'trees', 'variants', 'reports', 'guide'];
 
 function parseHash(hash: string): Route {
   const raw = hash.replace(/^#/, '') || '/';
@@ -39,6 +43,7 @@ function parseHash(hash: string): Route {
 
   let tab: AppTab = 'dashboard';
   let treeId: string | null = null;
+  let topicId: string | null = null;
   let known = true;
 
   if (segs.length === 0) {
@@ -46,11 +51,12 @@ function parseHash(hash: string): Route {
   } else if (TABS.includes(segs[0] as AppTab) && segs[0] !== 'dashboard') {
     tab = segs[0] as AppTab;
     if (tab === 'trees' && segs.length === 2) treeId = decodeURIComponent(segs[1]);
+    else if (tab === 'guide' && segs.length === 2) topicId = decodeURIComponent(segs[1]);
     else if (segs.length > 1) known = false;
   } else {
     known = false;
   }
-  return { tab, treeId, params, path, pageKey: `${tab}:${treeId ?? ''}`, known };
+  return { tab, treeId, topicId, params, path, pageKey: `${tab}:${treeId ?? topicId ?? ''}`, known };
 }
 
 // ---- store ----
@@ -180,4 +186,5 @@ export const TAB_TITLES: Record<AppTab, string> = {
   trees: 'nav.trees',
   variants: 'nav.variants',
   reports: 'nav.reports',
+  guide: 'nav.guide',
 };

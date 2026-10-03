@@ -11,6 +11,7 @@ import { TaskRow } from './TaskRow';
 import { MarkDoneSheet, UndoToast, undoLogged, useUndoToast } from './TreatmentSheets';
 import { ScheduleTask, relativeDue } from '../lib/treatments';
 import { useT } from '../i18n';
+import { DashboardSeasonCard } from './GuideWidgets';
 import { ReportPhoto, TreeCondition, TreeReport, DurianTree } from '../types';
 import {
   db,
@@ -417,6 +418,9 @@ export const Dashboard: React.FC = () => {
           )}
         </section>
       </div>
+
+      {/* Where each block is in its fruiting cycle, and what the Guide says to do now */}
+      <DashboardSeasonCard />
 
       {/* Orchard health: one stacked bar instead of five tiles */}
       <section className="bg-white rounded-xl border border-slate-200 shadow-xs p-4 space-y-3" aria-labelledby="oh-h">

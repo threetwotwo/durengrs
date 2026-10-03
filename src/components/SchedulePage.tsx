@@ -13,6 +13,7 @@ import {
   setPlanActive,
 } from '../lib/treatments';
 import { useT } from '../i18n';
+import { useQueryParams } from '../lib/router';
 import { TaskRow, TYPE_ICON } from './TaskRow';
 import { HarvestView } from './HarvestView';
 import { PageHeader, btnPrimary } from './PageHeader';
@@ -25,11 +26,15 @@ import {
 } from './TreatmentSheets';
 
 type View = 'agenda' | 'routines' | 'harvest' | 'history';
+const VIEWS: View[] = ['agenda', 'routines', 'harvest', 'history'];
 
 export const SchedulePage: React.FC = () => {
   const { t } = useT();
   const { plans, treatments, scheduleTasks, scheduleError } = useFarm();
-  const [view, setView] = useState<View>('agenda');
+  // In the URL (?view=harvest) so other pages, like the Guide, can link straight to a tab.
+  const [params, setParams] = useQueryParams();
+  const view: View = VIEWS.includes(params.get('view') as View) ? (params.get('view') as View) : 'agenda';
+  const setView = (v: View) => setParams({ view: v === 'agenda' ? null : v });
   const [doneTask, setDoneTask] = useState<ScheduleTask | null>(null);
   const [editor, setEditor] = useState<{ plan?: TreatmentPlan; template?: PlanTemplate } | null>(null);
   const { toast, show, clear } = useUndoToast();

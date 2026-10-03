@@ -34,6 +34,8 @@ export const TreesTable: React.FC = () => {
   const staleOnly = params.get('stale') === '1';
   const followUpOnly = params.get('followup') === '1';
   const untreatedOnly = params.get('untreated') === '1';
+  // Set by links from the Guide's farm check: trees missing measurements or a fruit estimate.
+  const missing = params.get('missing') === 'size' || params.get('missing') === 'fruit' ? params.get('missing') : null;
   const allColumns = params.get('cols') !== 'less'; // every column by default
   const sortField = (params.get('sort') || 'id') as SortField;
   const sortAsc = params.get('dir') !== 'desc';
@@ -72,9 +74,11 @@ export const TreesTable: React.FC = () => {
       if (staleOnly && !isStale(tree)) return false;
       if (followUpOnly && !followUpOf(tree, normalizeTimestamp(tree.lastReportAt)).needs) return false;
       if (untreatedOnly && lastTreatmentByBlock.has(tree.block)) return false;
+      if (missing === 'size' && tree.trunkSize !== undefined && tree.canopySize !== undefined && tree.canopySize !== '') return false;
+      if (missing === 'fruit' && tree.estimatedFruitCount !== undefined) return false;
       return true;
     });
-  }, [trees, search, filterBlock, filterVariant, staleOnly, followUpOnly, untreatedOnly, lastTreatmentByBlock]);
+  }, [trees, search, filterBlock, filterVariant, staleOnly, followUpOnly, untreatedOnly, missing, lastTreatmentByBlock]);
 
   const conditionCounts = useMemo(() => {
     const c: Record<string, number> = { all: baseFiltered.length, emergency: 0, minor: 0, healthy: 0, not_assessed: 0 };
@@ -131,9 +135,9 @@ export const TreesTable: React.FC = () => {
     else setParams({ sort: field === 'id' ? null : field, dir: null, page: null });
   };
   const resetFilters = () =>
-    setParams({ q: null, block: null, variant: null, condition: null, stale: null, followup: null, untreated: null, page: null });
+    setParams({ q: null, block: null, variant: null, condition: null, stale: null, followup: null, untreated: null, missing: null, page: null });
 
-  const activeFilterCount = [search, filterBlock !== 'all', filterVariant !== 'all', filterCondition !== 'all', staleOnly, followUpOnly, untreatedOnly].filter(Boolean).length;
+  const activeFilterCount = [search, filterBlock !== 'all', filterVariant !== 'all', filterCondition !== 'all', staleOnly, followUpOnly, untreatedOnly, missing].filter(Boolean).length;
 
   // CSV Export
   const handleExportCSV = () => {
@@ -302,6 +306,16 @@ export const TreesTable: React.FC = () => {
           >
             {t('trees.filter.untreated')}
           </button>
+          {missing && (
+            <button
+              onClick={() => setParams({ missing: null, page: null })}
+              aria-label={t('trees.filter.remove', { name: t(`trees.filter.missing.${missing}`) })}
+              className="min-h-11 px-3.5 rounded-full border text-sm font-semibold inline-flex items-center gap-2 bg-slate-900 text-white border-slate-900"
+            >
+              {t(`trees.filter.missing.${missing}`)}
+              <span aria-hidden="true">✕</span>
+            </button>
+          )}
           {activeFilterCount > 0 && (
             <button onClick={resetFilters} className="min-h-11 px-3 rounded-full text-sm font-semibold text-rose-700 hover:bg-rose-50 inline-flex items-center gap-1.5 ml-auto">
               <RotateCcw className="w-4 h-4" />

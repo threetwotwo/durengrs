@@ -8,6 +8,7 @@ A complete Durian Farm Monitoring & Inventory Management Web Application built w
 - **Field Inspection Reports**: Photographic reports, health condition tracking (Healthy, Minor, Emergency), and timeline audits.
 - **Analytics & Dashboard**: Yield estimations, condition distribution charts, block-by-block breakdowns, and urgent attention feeds.
 - **Data Export**: Full CSV export of tree inventory and report data.
+- **Research Guide**: Sourced best practices (climate, flowering, pollination, thinning, water, nutrition, pruning, Phytophthora, pests, harvest) applied to live farm data: each block's stage in its fruiting cycle with what to do now, a farm check that finds gaps in records and routines, and per-topic farm notes.
 
 ## Getting Started
 

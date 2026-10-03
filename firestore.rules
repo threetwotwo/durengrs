@@ -34,6 +34,11 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
+    // Farm notes per Guide topic (what this farm has learned), keyed by topic id
+    match /guideNotes/{topicId} {
+      allow read, write: if true;
+    }
+
     // One flowering date per block, used for the harvest outlook
     match /harvestCycles/{block} {
       allow read, write: if true;

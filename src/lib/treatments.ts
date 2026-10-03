@@ -214,16 +214,24 @@ function tpl(
   return o;
 }
 
-export const PLAN_TEMPLATES: PlanTemplate[] = [
-  tpl('leaf', { type: 'fertilizer', everyDays: 30, startMonth: 1, endMonth: 3 }, { name: true, product: true, dose: true, stage: true, notes: true }),
-  tpl('flowerSoil', { type: 'fertilizer', everyDays: 30, startMonth: 4, endMonth: 6 }, { name: true, product: true, stage: true, notes: true }),
-  tpl('flowerFoliar', { type: 'fertilizer', everyDays: 14, startMonth: 4, endMonth: 6 }, { name: true, product: true, dose: true, stage: true, notes: true }),
-  tpl('fruit', { type: 'fertilizer', everyDays: 35, startMonth: 7, endMonth: 9 }, { name: true, product: true, dose: true, stage: true, notes: true }),
-  tpl('post', { type: 'fertilizer', everyDays: 45, startMonth: 10, endMonth: 12 }, { name: true, product: true, stage: true, notes: true }),
-  tpl('fungicide', { type: 'spray', everyDays: 14 }, { name: true, product: true, notes: true }),
-  tpl('pest', { type: 'spray', everyDays: 21 }, { name: true, product: true, notes: true }),
-  tpl('prune', { type: 'pruning', everyDays: 365 }, { name: true, notes: true }),
-];
+/** Keyed so other pages (the Guide) can offer a specific template. */
+export const PLAN_TEMPLATE_BY_ID: Record<string, PlanTemplate> = {
+  leaf: tpl('leaf', { type: 'fertilizer', everyDays: 30, startMonth: 1, endMonth: 3 }, { name: true, product: true, dose: true, stage: true, notes: true }),
+  flowerSoil: tpl('flowerSoil', { type: 'fertilizer', everyDays: 30, startMonth: 4, endMonth: 6 }, { name: true, product: true, stage: true, notes: true }),
+  flowerFoliar: tpl('flowerFoliar', { type: 'fertilizer', everyDays: 14, startMonth: 4, endMonth: 6 }, { name: true, product: true, dose: true, stage: true, notes: true }),
+  fruit: tpl('fruit', { type: 'fertilizer', everyDays: 35, startMonth: 7, endMonth: 9 }, { name: true, product: true, dose: true, stage: true, notes: true }),
+  post: tpl('post', { type: 'fertilizer', everyDays: 45, startMonth: 10, endMonth: 12 }, { name: true, product: true, stage: true, notes: true }),
+  fungicide: tpl('fungicide', { type: 'spray', everyDays: 14 }, { name: true, product: true, notes: true }),
+  pest: tpl('pest', { type: 'spray', everyDays: 21 }, { name: true, product: true, notes: true }),
+  prune: tpl('prune', { type: 'pruning', everyDays: 365 }, { name: true, notes: true }),
+  // From the Guide research (see lib/guideContent.ts for sources).
+  phosphonate: tpl('phosphonate', { type: 'other', everyDays: 120 }, { name: true, product: true, dose: true, stage: true, notes: true }),
+  skirtPrune: tpl('skirtPrune', { type: 'pruning', everyDays: 180 }, { name: true, notes: true }),
+  leafSoil: tpl('leafSoil', { type: 'other', everyDays: 365 }, { name: true, product: true, stage: true, notes: true }),
+  dryIrrigation: tpl('dryIrrigation', { type: 'irrigation', everyDays: 7 }, { name: true, dose: true, notes: true }),
+};
+
+export const PLAN_TEMPLATES: PlanTemplate[] = Object.values(PLAN_TEMPLATE_BY_ID);
 
 // ---------- Firestore writes ----------
 
