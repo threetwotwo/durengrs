@@ -1,11 +1,40 @@
-<div align="center">
+# Cilowong Durian Farm Management
 
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+A complete Durian Farm Monitoring & Inventory Management Web Application built with React 19, TypeScript, Tailwind CSS, and Google Cloud Firestore.
 
-  <h1>Built with AI Studio</h2>
+## Features
+- **Tree Inventory Management**: Real-time tracking of trees, block locations, variants, trunk girth, canopy spread, cluster counts, fruit estimates, dates planted, suppliers, and notes.
+- **Variant Catalog**: Complete database of durian varieties (e.g. Musang King, Bawor, Super Tembaga, etc.) with botanical and harvest profiles.
+- **Field Inspection Reports**: Photographic reports, health condition tracking (Healthy, Minor, Emergency), and timeline audits.
+- **Analytics & Dashboard**: Yield estimations, condition distribution charts, block-by-block breakdowns, and urgent attention feeds.
+- **Data Export**: Full CSV export of tree inventory and report data.
 
-  <p>The fastest path from prompt to production with Gemini.</p>
+## Getting Started
 
-  <a href="https://aistudio.google.com/apps">Start building</a>
+### Prerequisites
+- Node.js 18+ or 20+
+- npm or bun
 
-</div>
+### Installation
+1. Extract the `.zip` archive to your desired directory.
+2. In terminal, navigate to the project directory:
+   ```bash
+   cd cilowong-durian-farm
+   ```
+3. Install dependencies:
+   ```bash
+   npm install
+   ```
+
+### Running Locally
+Start the development server:
+```bash
+npm run dev
+```
+Open [http://localhost:3000](http://localhost:3000) in your web browser.
+
+### Building for Production
+```bash
+npm run build
+npm run preview
+```

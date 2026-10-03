@@ -1,0 +1,145 @@
+{
+  "entities": {
+    "Variant": {
+      "title": "Variant",
+      "description": "Durian cultivar reference data defining variety characteristics and ripening schedules",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Full commercial or cultivar name"
+        },
+        "description": {
+          "type": "string",
+          "description": "Flesh texture, flavor profile, and eating quality"
+        },
+        "origin": {
+          "type": "string",
+          "description": "Geographical origin or region of cultivar"
+        },
+        "characteristics": {
+          "type": "string",
+          "description": "Botanical traits, canopy architecture, and disease tolerance"
+        },
+        "ripeningDays": {
+          "type": "number",
+          "description": "Typical ripening cycle in days from anthesis/bloom"
+        }
+      },
+      "required": ["name"]
+    },
+    "Tree": {
+      "title": "Tree",
+      "description": "Individual durian tree asset with location, health status, and growth metrics",
+      "type": "object",
+      "properties": {
+        "variant": {
+          "type": "string",
+          "description": "Cultivar code reference corresponding to variants/{code}"
+        },
+        "block": {
+          "type": "string",
+          "description": "Farm block designation (e.g. Block A, Block B)"
+        },
+        "condition": {
+          "type": "string",
+          "enum": ["healthy", "minor", "emergency"],
+          "description": "Current physiological and health condition rating"
+        },
+        "conditionNotes": {
+          "type": "string",
+          "description": "Observations on symptoms, pest presence, or leaf color"
+        },
+        "canopySize": {
+          "type": "string",
+          "description": "Canopy spread or diameter"
+        },
+        "trunkSize": {
+          "type": "number",
+          "description": "Trunk girth circumference in centimeters"
+        },
+        "floweringBranches": {
+          "type": "number",
+          "description": "Count of scaffold branches currently bearing flowers"
+        },
+        "floweringClusters": {
+          "type": "number",
+          "description": "Total count of flower clusters on the tree"
+        },
+        "estimatedFruitCount": {
+          "type": "number",
+          "description": "Estimated count of developing durian fruits on tree"
+        },
+        "notes": {
+          "type": "string",
+          "description": "General husbandry and maintenance notes"
+        },
+        "lastReportAt": {
+          "type": "string",
+          "description": "ISO timestamp of the most recent field worker report"
+        }
+      },
+      "required": ["variant", "block", "condition"]
+    },
+    "Report": {
+      "title": "Report",
+      "description": "Field worker inspection report with attached photos and condition change tracking",
+      "type": "object",
+      "properties": {
+        "treeId": {
+          "type": "string",
+          "description": "Identifier of the tree inspected"
+        },
+        "block": {
+          "type": "string",
+          "description": "Farm block location at inspection time"
+        },
+        "workerPhone": {
+          "type": "string",
+          "description": "Contact number of worker who completed inspection"
+        },
+        "description": {
+          "type": "string",
+          "description": "Field observations and interventions applied"
+        },
+        "photos": {
+          "type": "array",
+          "description": "List of inspection photo URLs and thumbnails"
+        },
+        "conditionBefore": {
+          "type": "string",
+          "enum": ["healthy", "minor", "emergency"],
+          "description": "Condition of tree prior to inspection"
+        },
+        "conditionAfter": {
+          "type": "string",
+          "enum": ["healthy", "minor", "emergency"],
+          "description": "Assessed condition following inspection"
+        },
+        "conditionChanged": {
+          "type": "boolean",
+          "description": "Whether this inspection changed the tree health classification"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Submission timestamp"
+        }
+      },
+      "required": ["treeId", "block"]
+    }
+  },
+  "firestore": {
+    "/variants/{code}": {
+      "schema": "Variant",
+      "description": "Reference catalog of durian cultivars"
+    },
+    "/trees/{treeId}": {
+      "schema": "Tree",
+      "description": "Orchard inventory of individual durian trees"
+    },
+    "/reports/{reportId}": {
+      "schema": "Report",
+      "description": "Read-only historical field worker inspection logs"
+    }
+  }
+}

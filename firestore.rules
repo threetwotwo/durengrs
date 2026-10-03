@@ -1,0 +1,34 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Farm cultivars catalog
+    match /variants/{code} {
+      allow read, write: if true;
+    }
+
+    // Orchard trees inventory
+    match /trees/{treeId} {
+      allow read, write: if true;
+    }
+
+    // Field inspection reports
+    match /reports/{reportId} {
+      allow read, write: if true;
+    }
+
+    // User access authorization list (for future Google Sign-In phase)
+    match /users/{email} {
+      allow read, write: if true;
+    }
+
+    // Connection test document
+    match /test/{docId} {
+      allow read, write: if true;
+    }
+
+    // Default deny for unmatched collections
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

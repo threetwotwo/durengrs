@@ -1,0 +1,12 @@
+{
+  "projectId": "duren-db",
+  "appId": "1:146300129823:web:c2a9458c7d606e4e5dbb2a",
+  "apiKey": "AIzaSyAIhWkJcnopRQOewJCDQN2AD7Y0arUFoPU",
+  "authDomain": "duren-db.firebaseapp.com",
+  "firestoreDatabaseId": "duren-db",
+  "storageBucket": "duren-db.firebasestorage.app",
+  "messagingSenderId": "146300129823",
+  "measurementId": "",
+  "oAuthClientId": "146300129823-f7hb22citp5gukap41m3tdks96ivnnen.apps.googleusercontent.com",
+  "recaptchaSiteKey": ""
+}
