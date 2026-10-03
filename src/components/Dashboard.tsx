@@ -692,36 +692,36 @@ export const Dashboard: React.FC = () => {
                       )}
                     </div>
 
-                    {/* 2. Header row: Tree A12 · MK */}
-                    <div>
-                      <h4 className="text-sm font-bold text-slate-900">Tree {report.treeId}</h4>
-                      <p className="text-xs text-slate-600 mt-0.5">
-                        {[tree?.variant, `Block ${report.block || tree?.block || '—'}`].filter(Boolean).join(' · ')}
-                      </p>
-                    </div>
+                    <div className="flex items-start gap-3">
+                      <div className="flex-1 min-w-0 space-y-2">
+                        <div>
+                          <h4 className="text-sm font-bold text-slate-900">Tree {report.treeId}</h4>
+                          <p className="text-xs text-slate-600 mt-0.5">
+                            {[tree?.variant, `Block ${report.block || tree?.block || '—'}`].filter(Boolean).join(' · ')}
+                          </p>
+                        </div>
 
-                    {/* Condition changed indicator if conditionChanged is true */}
-                    {report.conditionChanged && (
-                      <div className="p-2 rounded-lg bg-amber-50/80 border border-amber-200/60 flex items-center gap-1.5 text-xs text-amber-900 font-medium">
-                        <span>Condition changed:</span>
-                        <ConditionBadge condition={report.conditionBefore || 'not_assessed'} size="sm" />
-                        <span>→</span>
-                        <ConditionBadge condition={report.conditionAfter || 'minor'} size="sm" />
+                        {report.conditionChanged && report.conditionBefore && report.conditionBefore !== report.conditionAfter && (
+                          <p className="flex items-center gap-1.5 text-xs font-medium text-amber-900">
+                            Was <ConditionBadge condition={report.conditionBefore} size="sm" />
+                          </p>
+                        )}
+
+                        {report.description && /[\p{L}\p{N}]/u.test(report.description) && (
+                          <p className="text-xs text-slate-700 leading-relaxed line-clamp-3">{report.description}</p>
+                        )}
+
+                        {workerMasked && (
+                          <div className="flex items-center gap-1 text-xs text-slate-600 font-mono">
+                            <User className="w-3.5 h-3.5 text-slate-400" />
+                            <span>{workerMasked}</span>
+                          </div>
+                        )}
                       </div>
-                    )}
 
-                    {/* Description */}
-                    {report.description && /[\p{L}\p{N}]/u.test(report.description) && (
-                      <p className="text-xs text-slate-700 leading-relaxed bg-white p-2 rounded border border-slate-200/60 line-clamp-3">
-                        {report.description}
-                      </p>
-                    )}
-
-                    {/* Thumbnails (up to 3) + Worker */}
-                    <div className="flex items-center justify-between pt-1">
-                      {photos.length > 0 ? (
-                        <div className="flex items-center gap-2">
-                          {photos.slice(0, 3).map((photo, pIdx) => (
+                      {photos.length > 0 && (
+                        <div className="grid grid-cols-2 gap-1.5 shrink-0">
+                          {photos.slice(0, 4).map((photo, pIdx) => (
                             <DashboardReportThumb
                               key={pIdx}
                               photo={photo}
@@ -731,20 +731,6 @@ export const Dashboard: React.FC = () => {
                               onOpen={(url, caption) => setActivePhoto({ url, caption })}
                             />
                           ))}
-                          {photos.length > 3 && (
-                            <span className="text-xs text-slate-500 font-medium">
-                              +{photos.length - 3} more
-                            </span>
-                          )}
-                        </div>
-                      ) : (
-                        <div />
-                      )}
-
-                      {workerMasked && (
-                        <div className="flex items-center gap-1 text-xs text-slate-600 font-mono">
-                          <User className="w-3.5 h-3.5 text-slate-400" />
-                          <span>{workerMasked}</span>
                         </div>
                       )}
                     </div>

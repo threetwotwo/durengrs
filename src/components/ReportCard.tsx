@@ -22,7 +22,7 @@ const Thumb: React.FC<{
   onOpen: (url: string, caption: string) => void;
 }> = ({ photo, idx, total, big, caption, onOpen }) => {
   const [failed, setFailed] = useState(false);
-  const size = big ? 'w-28 h-28 sm:w-32 sm:h-32' : 'w-24 h-24';
+  const size = big ? 'w-32 h-32 sm:w-44 sm:h-44' : 'w-24 h-24';
   return (
     <button
       type="button"
@@ -75,6 +75,8 @@ export const ReportCard: React.FC<{
     >
       {emergency && <div className="h-1 bg-rose-500" aria-hidden />}
       <div className="p-4 space-y-3">
+       <div className="flex flex-col sm:flex-row sm:items-start gap-3 sm:gap-5">
+        <div className="flex-1 min-w-0 space-y-3">
         {/* Who + how */}
         <header className="flex items-start justify-between gap-3">
           <div className="min-w-0">
@@ -121,9 +123,11 @@ export const ReportCard: React.FC<{
           </p>
         )}
 
+        </div>
+
         {/* Evidence */}
         {photos.length > 0 && (
-          <div className="flex flex-wrap gap-2">
+          <div className={`flex flex-wrap gap-2 sm:shrink-0 ${photos.length > 1 ? 'sm:w-[200px] sm:justify-end' : 'sm:justify-end'}`}>
             {photos.map((p, i) => (
               <Thumb
                 key={i}
@@ -137,6 +141,8 @@ export const ReportCard: React.FC<{
             ))}
           </div>
         )}
+
+       </div>
 
         {/* Source */}
         {phone && (
