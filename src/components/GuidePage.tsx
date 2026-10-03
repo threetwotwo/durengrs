@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, BookOpen, ExternalLink, HelpCircle, Plus } from 'lucide-react';
+import { ArrowLeft, BookOpen, ChevronLeft, ChevronRight, ExternalLink, HelpCircle, Plus } from 'lucide-react';
 import { collection, doc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { formatDate, useFarm } from '../context/FarmContext';
@@ -273,10 +273,14 @@ const TopicView: React.FC<{ id: TopicId }> = ({ id }) => {
 
   return (
     <div className="space-y-4">
-      <Link to="/guide" className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-600 hover:text-slate-900 min-h-9">
-        <ArrowLeft className="w-4 h-4" />
-        {t('guide.back')}
-      </Link>
+      <div className="flex items-center justify-between gap-3">
+        <Link to="/guide" className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-600 hover:text-slate-900 min-h-9">
+          <ArrowLeft className="w-4 h-4" />
+          {t('guide.back')}
+        </Link>
+        <TopicStepper id={id} />
+      </div>
+      <TopicStrip id={id} />
       <header className="flex items-start gap-3">
         <Icon className="w-7 h-7 text-emerald-600 mt-0.5 shrink-0" />
         <div>
@@ -448,6 +452,8 @@ const TopicView: React.FC<{ id: TopicId }> = ({ id }) => {
         </div>
       </div>
 
+      <TopicPrevNext id={id} />
+
       {templates.sheet}
     </div>
   );
@@ -573,5 +579,128 @@ const FarmNotes: React.FC<{ topicId: TopicId; questions: string[] }> = ({ topicI
         </div>
       </div>
     </section>
+  );
+};
+
+// ---------- stepping between topics ----------
+
+/** Previous and next topic in TOPICS order, null at either end. */
+function neighbours(id: TopicId) {
+  const i = TOPICS.findIndex((x) => x.id === id);
+  return { index: i, prev: i > 0 ? TOPICS[i - 1] : null, next: i < TOPICS.length - 1 ? TOPICS[i + 1] : null };
+}
+
+const stepBtn =
+  'min-h-10 min-w-10 flex items-center justify-center rounded text-slate-600 hover:text-slate-900 hover:bg-white aria-disabled:opacity-30 aria-disabled:pointer-events-none transition-colors';
+
+/** ‹ 3 / 13 › like the tree stepper. Also steps with the ← and → keys (outside text fields). */
+const TopicStepper: React.FC<{ id: TopicId }> = ({ id }) => {
+  const { t, lang } = useT();
+  const { index, prev, next } = neighbours(id);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+      const el = e.target as HTMLElement | null;
+      if (el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName))) return;
+      const to = e.key === 'ArrowLeft' ? prev : e.key === 'ArrowRight' ? next : null;
+      if (!to) return;
+      e.preventDefault();
+      navigate(topicUrl(to.id), { replace: true });
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [prev, next]);
+
+  const btn = (to: (typeof TOPICS)[number] | null, label: string, Icon: typeof ChevronLeft) =>
+    to ? (
+      <Link to={topicUrl(to.id)} replace className={stepBtn} aria-label={`${label}: ${pick(to.title, lang)}`} title={pick(to.title, lang)}>
+        <Icon className="w-4 h-4" />
+      </Link>
+    ) : (
+      <span className={stepBtn} aria-disabled="true" aria-label={label}>
+        <Icon className="w-4 h-4" />
+      </span>
+    );
+
+  return (
+    <nav aria-label={t('guide.step.nav')} className="flex items-center border border-slate-200 rounded-lg p-0.5 bg-slate-50">
+      {btn(prev, t('guide.step.prev'), ChevronLeft)}
+      <span className="text-xs font-mono font-medium px-2 text-slate-700 select-none tabular">
+        {t('guide.step.of', { n: index + 1, total: TOPICS.length })}
+      </span>
+      {btn(next, t('guide.step.next'), ChevronRight)}
+    </nav>
+  );
+};
+
+/** Every topic in one scrollable row; the current one is highlighted and scrolled into view. */
+const TopicStrip: React.FC<{ id: TopicId }> = ({ id }) => {
+  const { t, lang } = useT();
+  const current = React.useRef<HTMLLIElement>(null);
+  useEffect(() => {
+    current.current?.scrollIntoView({ block: 'nearest', inline: 'center' });
+  }, [id]);
+  return (
+    <nav aria-label={t('guide.step.all')} className="-mx-4 px-4 sm:mx-0 sm:px-0 overflow-x-auto">
+      <ol className="flex gap-1.5 w-max pb-1">
+        {TOPICS.map((x, i) => {
+          const on = x.id === id;
+          const Icon = TOPIC_ICON[x.id];
+          return (
+            <li key={x.id} ref={on ? current : undefined}>
+              <Link
+                to={topicUrl(x.id)}
+                replace
+                aria-current={on ? 'page' : undefined}
+                className={`min-h-9 px-2.5 rounded-lg border text-xs font-semibold inline-flex items-center gap-1.5 whitespace-nowrap ${
+                  on ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-white border-slate-200 text-slate-700 hover:border-emerald-500'
+                }`}
+              >
+                <span className={`tabular ${on ? 'text-emerald-100' : 'text-slate-400'}`}>{i + 1}</span>
+                <Icon className="w-3.5 h-3.5" />
+                {pick(x.title, lang)}
+              </Link>
+            </li>
+          );
+        })}
+      </ol>
+    </nav>
+  );
+};
+
+/** Large previous / next links at the end of a topic, so reading can continue without scrolling back up. */
+const TopicPrevNext: React.FC<{ id: TopicId }> = ({ id }) => {
+  const { t, lang } = useT();
+  const { prev, next } = neighbours(id);
+  const card = 'flex-1 min-h-16 p-4 rounded-xl border border-slate-200 bg-white hover:border-emerald-500 flex items-center gap-3';
+  return (
+    <nav aria-label={t('guide.step.nav')} className="flex flex-col sm:flex-row gap-3">
+      {prev ? (
+        <Link to={topicUrl(prev.id)} replace className={card}>
+          <ChevronLeft className="w-5 h-5 text-slate-500 shrink-0" />
+          <span className="min-w-0">
+            <span className="block text-xs text-slate-500">{t('guide.step.prev')}</span>
+            <span className="block text-sm font-bold text-slate-900">{pick(prev.title, lang)}</span>
+          </span>
+        </Link>
+      ) : (
+        <span className="hidden sm:block flex-1" />
+      )}
+      {next ? (
+        <Link to={topicUrl(next.id)} replace className={`${card} justify-end text-right`}>
+          <span className="min-w-0">
+            <span className="block text-xs text-slate-500">{t('guide.step.next')}</span>
+            <span className="block text-sm font-bold text-slate-900">{pick(next.title, lang)}</span>
+          </span>
+          <ChevronRight className="w-5 h-5 text-slate-500 shrink-0" />
+        </Link>
+      ) : (
+        <Link to="/guide" className={`${card} justify-end text-right`}>
+          <span className="block text-sm font-bold text-slate-900">{t('guide.back')}</span>
+          <ChevronRight className="w-5 h-5 text-slate-500 shrink-0" />
+        </Link>
+      )}
+    </nav>
   );
 };

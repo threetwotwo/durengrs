@@ -7,6 +7,11 @@ export const guide: Bundle = {
     'guide.title': 'Panduan',
     'guide.desc': 'Kondisi ideal untuk buah, cara menjaganya, dan apa yang belum diketahui kebun ini.',
     'guide.back': 'Semua topik',
+    'guide.step.prev': 'Topik sebelumnya',
+    'guide.step.next': 'Topik berikutnya',
+    'guide.step.of': '{n} / {total}',
+    'guide.step.nav': 'Pindah topik',
+    'guide.step.all': 'Semua topik panduan',
 
     'guide.season.title': 'Musim ini per blok',
     'guide.season.help': 'Dihitung dari tanggal bunga mekar tiap blok (Jadwal → Panen).',
@@ -148,6 +153,11 @@ export const guide: Bundle = {
     'guide.title': 'Guide',
     'guide.desc': 'Ideal conditions for fruit, how to keep them, and what this farm does not know yet.',
     'guide.back': 'All topics',
+    'guide.step.prev': 'Previous topic',
+    'guide.step.next': 'Next topic',
+    'guide.step.of': '{n} / {total}',
+    'guide.step.nav': 'Move between topics',
+    'guide.step.all': 'All guide topics',
 
     'guide.season.title': 'This season by block',
     'guide.season.help': "Counted from each block's bloom date (Schedule → Harvest).",
