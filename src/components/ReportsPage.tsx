@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { useFarm, formatDateTime } from '../context/FarmContext';
+import { useFarm, formatDateWithAgo, formatDateTime } from '../context/FarmContext';
 import { ConditionBadge } from './ConditionBadge';
 import { PhotoLightbox } from './PhotoLightbox';
 import { ReportPhoto, TreeReport } from '../types';
@@ -22,7 +22,6 @@ import {
   ClipboardList,
   Search,
   User,
-  Calendar,
   Image as ImageIcon,
   ArrowRight,
   ExternalLink,
@@ -315,8 +314,7 @@ export const ReportsPage: React.FC = () => {
                 {/* 1. Report date on top of the report card */}
                 <div className="flex items-center justify-between text-xs text-slate-600 border-b border-slate-100 pb-2">
                   <div className="flex items-center gap-1.5 font-sans font-medium text-slate-700">
-                    <Calendar className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>{formatDateTime(report.createdAt)}</span>
+                    <span>{formatDateWithAgo(report.createdAt)}</span>
                   </div>
 
                   <div>

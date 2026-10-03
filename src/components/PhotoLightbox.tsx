@@ -2,12 +2,14 @@ import React, { useState } from 'react';
 import { X, ZoomIn, ZoomOut, Download, ExternalLink, Image as ImageIcon } from 'lucide-react';
 
 interface PhotoLightboxProps {
-  photoUrl: string | null;
+  photoUrl?: string | null;
+  imageUrl?: string | null;
   caption?: string;
   onClose: () => void;
 }
 
-export const PhotoLightbox: React.FC<PhotoLightboxProps> = ({ photoUrl, caption, onClose }) => {
+export const PhotoLightbox: React.FC<PhotoLightboxProps> = ({ photoUrl: photoUrlProp, imageUrl, caption, onClose }) => {
+  const photoUrl = photoUrlProp ?? imageUrl ?? null;
   const [scale, setScale] = useState(1);
   const [imgError, setImgError] = useState(false);
 

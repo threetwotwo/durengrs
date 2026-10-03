@@ -261,6 +261,21 @@ export function formatDateTime(val: any): string {
   });
 }
 
+// "02 Oct 2026 · 7h ago"
+export function formatDateWithAgo(val: any): string {
+  const ts = normalizeTimestamp(val);
+  if (!ts) return '—';
+  const date = new Date(ts).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  const mins = Math.max(0, Math.floor((Date.now() - ts) / 60000));
+  let ago: string;
+  if (mins < 1) ago = 'just now';
+  else if (mins < 60) ago = `${mins}m ago`;
+  else if (mins < 60 * 24) ago = `${Math.floor(mins / 60)}h ago`;
+  else if (mins < 60 * 24 * 30) ago = `${Math.floor(mins / 1440)}d ago`;
+  else ago = `${Math.floor(mins / 43200)}mo ago`;
+  return `${date} · ${ago}`;
+}
+
 export function formatDate(val: any): string {
   const ts = normalizeTimestamp(val);
   if (!ts) return '—';
