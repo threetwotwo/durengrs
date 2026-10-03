@@ -80,10 +80,14 @@ export async function deleteReport(reportId: string): Promise<DeleteReportResult
       // Only undo the condition if this report is what set it (it may have been edited by hand since).
       const tree = treeSnap.data();
       if (data.conditionChanged && tree.condition === data.conditionAfter) {
-        const restored = latest ? latest.data().conditionAfter : data.conditionBefore;
+        // The condition right before this report; older reports only as a fallback (a report that did
+        // not change the condition may have no conditionAfter).
+        const restored =
+          data.conditionBefore ||
+          (latest ? latest.data().conditionAfter || latest.data().conditionBefore : undefined);
         if (restored && restored !== tree.condition) {
           update.condition = restored;
-          update.conditionNotes = null; // that note was this report's description
+          update.conditionNotes = deleteField(); // that note was this report's description
         }
       }
       batch.update(treeRef, update);

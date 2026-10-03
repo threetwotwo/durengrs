@@ -1,8 +1,0 @@
-{
-  "name": "Cilowong Durian Farm Management",
-  "description": "Orchard tree inventory, condition monitoring, field reports with photo inspection, and variety reference management for Cilowong Durian Farm.",
-  "requestFramePermissions": [],
-  "majorCapabilities": [
-    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
-  ]
-}

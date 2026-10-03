@@ -16,15 +16,11 @@ A complete Durian Farm Monitoring & Inventory Management Web Application built w
 - npm or bun
 
 ### Installation
-1. Extract the `.zip` archive to your desired directory.
-2. In terminal, navigate to the project directory:
-   ```bash
-   cd cilowong-durian-farm
-   ```
-3. Install dependencies:
-   ```bash
-   npm install
-   ```
+```bash
+git clone https://github.com/threetwotwo/durengrs.git
+cd durengrs
+bun install   # or: npm install
+```
 
 ### Running Locally
 Start the development server:

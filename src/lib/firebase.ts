@@ -4,8 +4,7 @@ import {
   Firestore,
   doc,
   setDoc,
-  updateDoc,
-  addDoc,
+  writeBatch,
   deleteField,
   serverTimestamp,
   collection,
@@ -278,7 +277,9 @@ export async function saveTreeChanges(
   const hasCanopy = draftCanopy !== undefined && draftCanopy !== null && String(draftCanopy).trim() !== '';
   if (hasCanopy) {
     const trimmed = typeof draftCanopy === 'number' ? draftCanopy : String(draftCanopy).trim();
-    if (origCanopy !== trimmed) {
+    // Compare as text: the form always sends a string, while Firestore may hold a number (500 vs "500").
+    const origText = origCanopy !== undefined && origCanopy !== null ? String(origCanopy).trim() : '';
+    if (origText !== String(trimmed)) {
       changes.canopySize = { from: origCanopy ?? null, to: trimmed };
       payload.canopySize = trimmed;
     }
@@ -333,17 +334,16 @@ export async function saveTreeChanges(
   payload.dateUpdated = serverTimestamp();
 
   try {
-    const treeRef = doc(db, 'trees', treeId);
-    await updateDoc(treeRef, payload);
-
-    // Write audit record to treeEdits collection
-    const auditRef = collection(db, 'treeEdits');
-    await addDoc(auditRef, {
+    // Tree update and its audit record in one batch, so an edit is never saved without its log entry.
+    const batch = writeBatch(db);
+    batch.update(doc(db, 'trees', treeId), payload);
+    batch.set(doc(collection(db, 'treeEdits')), {
       treeId,
       changes,
       at: serverTimestamp(),
       source: 'webapp',
     });
+    await batch.commit();
 
     return true;
   } catch (error) {
