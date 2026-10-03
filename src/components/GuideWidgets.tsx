@@ -10,10 +10,12 @@ import {
   Droplets,
   Flower2,
   Leaf,
+  Microscope,
   Moon,
   NotebookPen,
   Scissors,
   ShieldAlert,
+  TreeDeciduous,
   TriangleAlert,
   Wheat,
 } from 'lucide-react';
@@ -43,6 +45,7 @@ import { PlanEditorSheet } from './TreatmentSheets';
 
 export const TOPIC_ICON: Record<TopicId, React.ComponentType<{ className?: string }>> = {
   site: CloudSun,
+  planting: TreeDeciduous,
   flowering: Flower2,
   pollination: Moon,
   fruit: Apple,
@@ -50,6 +53,7 @@ export const TOPIC_ICON: Record<TopicId, React.ComponentType<{ className?: strin
   nutrition: Leaf,
   canopy: Scissors,
   phytophthora: ShieldAlert,
+  diseases: Microscope,
   pests: Bug,
   harvest: Wheat,
   records: NotebookPen,

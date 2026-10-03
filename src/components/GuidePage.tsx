@@ -73,21 +73,22 @@ function useGuideNotes() {
 
 // ---------- overview ----------
 
-/** A short "ideal conditions" list drawn from the topics: [topic, index into its targets]. */
-const GLANCE: Array<[TopicId, number]> = [
-  ['site', 0],
-  ['site', 2],
-  ['site', 4],
-  ['flowering', 0],
-  ['water', 4],
-  ['pollination', 2],
-  ['fruit', 0],
-  ['fruit', 2],
-  ['nutrition', 0],
-  ['nutrition', 2],
-  ['canopy', 2],
-  ['phytophthora', 0],
-  ['harvest', 3],
+/** A short "ideal conditions" list drawn from the topics: [topic, English label of one of its targets]. */
+const GLANCE: Array<[TopicId, string]> = [
+  ['site', 'Temperature'],
+  ['site', 'Rainfall'],
+  ['site', 'Soil pH'],
+  ['planting', 'Spacing'],
+  ['flowering', 'Flower trigger'],
+  ['water', 'Standing water'],
+  ['pollination', 'Hand cross-pollination'],
+  ['fruit', 'Fruit per cluster'],
+  ['fruit', 'Leaves per fruit'],
+  ['nutrition', 'Leaf nitrogen (N)'],
+  ['nutrition', 'Leaf potassium (K)'],
+  ['canopy', 'Lowest branches'],
+  ['phytophthora', 'Phosphonate injection, recommended'],
+  ['harvest', 'Most reliable signs'],
 ];
 
 const Overview: React.FC = () => {
@@ -199,11 +200,11 @@ const Overview: React.FC = () => {
       <section className="bg-white rounded-xl border border-slate-200 overflow-hidden" aria-labelledby="g-glance">
         <h2 id="g-glance" className="p-4 border-b border-slate-200 text-base font-bold text-slate-900">{t('guide.glance.title')}</h2>
         <dl className="divide-y divide-slate-100">
-          {GLANCE.map(([topicId, i]) => {
-            const target = TOPIC_CONTENT[topicId].targets[i];
+          {GLANCE.map(([topicId, label]) => {
+            const target = TOPIC_CONTENT[topicId].targets.find((x) => x.label.en === label);
             if (!target) return null;
             return (
-              <div key={`${topicId}-${i}`} className="grid sm:grid-cols-[minmax(0,14rem)_1fr_auto] gap-x-4 gap-y-0.5 px-4 py-2.5 items-baseline">
+              <div key={`${topicId}-${label}`} className="grid sm:grid-cols-[minmax(0,14rem)_1fr_auto] gap-x-4 gap-y-0.5 px-4 py-2.5 items-baseline">
                 <dt className="text-sm font-semibold text-slate-800">{pick(target.label, lang)}</dt>
                 <dd className="text-sm text-slate-700">
                   {pick(target.value, lang)} <ConfidencePill c={target.confidence} />

@@ -21,6 +21,7 @@ export const pick = (l: L, lang: Lang) => l[lang];
 
 export type TopicId =
   | 'site'
+  | 'planting'
   | 'flowering'
   | 'pollination'
   | 'fruit'
@@ -28,6 +29,7 @@ export type TopicId =
   | 'nutrition'
   | 'canopy'
   | 'phytophthora'
+  | 'diseases'
   | 'pests'
   | 'harvest'
   | 'records';
@@ -36,7 +38,10 @@ export interface TopicMeta {
   id: TopicId;
   title: L;
   summary: L;
-  /** Lowercase words that link a note or report to this topic. Words of 3 letters or less match whole words only. */
+  /**
+   * Lowercase words that link a note or report to this topic. Words of 3 letters or less match whole words only.
+   * Indonesian prefixes can drop a stem's first letter (kuning -> menguning, pangkas -> memangkas), so list those forms too.
+   */
   keywords: string[];
 }
 
@@ -48,7 +53,16 @@ export const TOPICS: TopicMeta[] = [
       id: 'Suhu, hujan, pH dan drainase yang paling cocok untuk durian.',
       en: 'The temperature, rain, soil pH and drainage durian does best in.',
     },
-    keywords: ['tanah', 'genangan', 'tergenang', 'banjir', 'angin kencang', 'soil', 'waterlog', 'flood', 'wind'],
+    keywords: ['tanah', 'genang', 'banjir', 'angin kencang', 'soil', 'waterlog', 'flood', 'wind'],
+  },
+  {
+    id: 'planting',
+    title: { id: 'Penanaman & pohon muda', en: 'Planting & young trees' },
+    summary: {
+      id: 'Jarak tanam, lubang tanam, naungan, batang bawah, dan merawat pohon sebelum berbuah.',
+      en: 'Spacing, planting holes, shade, rootstocks, and caring for trees before they bear.',
+    },
+    keywords: ['bibit', 'sulam', 'tanam ulang', 'jarak tanam', 'okulasi', 'sambung', 'batang bawah', 'naungan', 'seedling', 'replant', 'graft', 'rootstock', 'spacing'],
   },
   {
     id: 'flowering',
@@ -57,7 +71,7 @@ export const TOPICS: TopicMeta[] = [
       id: 'Apa yang memicu bunga, tahap kuncup sampai mekar, dan kenapa bunga rontok.',
       en: 'What triggers flowers, bud stages to bloom, and why flowers drop.',
     },
-    keywords: ['bunga', 'kuncup', 'mata ketam', 'mekar', 'flower', 'bud', 'blossom', 'bloom'],
+    keywords: ['bunga', 'kuncup', 'mata ketam', 'mekar', 'flower', 'bud', 'buds', 'blossom', 'bloom'],
   },
   {
     id: 'pollination',
@@ -66,7 +80,7 @@ export const TOPICS: TopicMeta[] = [
       id: 'Kelelawar, penyerbukan silang dan penyerbukan tangan untuk menaikkan bakal buah.',
       en: 'Bats, cross-pollination and hand pollination to raise fruit set.',
     },
-    keywords: ['penyerbukan', 'serbuk sari', 'kelelawar', 'pollinat', 'pollen', 'bat', 'bats'],
+    keywords: ['serbuk sari', 'penyerbuk', 'serbuki', 'kelelawar', 'pollinat', 'pollen', 'bat', 'bats'],
   },
   {
     id: 'fruit',
@@ -75,7 +89,7 @@ export const TOPICS: TopicMeta[] = [
       id: 'Berapa buah yang dipertahankan, kapan menjarangkan, dan kenapa buah rontok.',
       en: 'How many fruit to keep, when to thin, and why fruit drops.',
     },
-    keywords: ['buah rontok', 'rontok', 'pentil', 'buah kecil', 'penjarangan', 'buah gugur', 'retak', 'fruit drop', 'fruitlet', 'thinning', 'small fruit', 'crack'],
+    keywords: ['buah rontok', 'rontok buah', 'buah gugur', 'pentil', 'buah kecil', 'penjarangan', 'jarangkan', 'retak', 'buah pecah', 'fruit drop', 'fruitlet', 'thinning', 'small fruit', 'crack'],
   },
   {
     id: 'water',
@@ -84,7 +98,7 @@ export const TOPICS: TopicMeta[] = [
       id: 'Kapan pohon perlu kering, kapan perlu air, dan bahaya tergenang.',
       en: 'When the tree needs a dry spell, when it needs water, and the danger of standing water.',
     },
-    keywords: ['kering', 'kekeringan', 'layu', 'siram', 'air', 'tergenang', 'genangan', 'drought', 'wilt', 'dry', 'irrigat', 'waterlog'],
+    keywords: ['kekeringan', 'kemarau', 'layu', 'siram', 'menyiram', 'air', 'genang', 'drought', 'wilt', 'dry', 'irrigat', 'waterlog'],
   },
   {
     id: 'nutrition',
@@ -93,7 +107,7 @@ export const TOPICS: TopicMeta[] = [
       id: 'Kadar hara daun yang ideal dan pupuk yang tepat untuk tiap tahap.',
       en: 'Ideal leaf nutrient levels and the right feed for each stage.',
     },
-    keywords: ['kuning', 'pucat', 'klorosis', 'defisiensi', 'kekurangan hara', 'pupuk', 'ujung daun', 'yellow', 'chlorosis', 'pale', 'deficien', 'fertili', 'tip burn'],
+    keywords: ['kuning', 'menguning', 'pucat', 'klorosis', 'defisiensi', 'kekurangan hara', 'pupuk', 'memupuk', 'ujung daun', 'boron', 'kalsium', 'yellow', 'chlorosis', 'pale', 'deficien', 'fertili', 'tip burn', 'calcium'],
   },
   {
     id: 'canopy',
@@ -102,7 +116,7 @@ export const TOPICS: TopicMeta[] = [
       id: 'Bentuk tajuk, cabang bawah, dan kapan memangkas.',
       en: 'Canopy shape, lower branches, and when to prune.',
     },
-    keywords: ['pangkas', 'cabang patah', 'dahan patah', 'tunas air', 'tajuk', 'prune', 'pruning', 'broken branch', 'water shoot', 'canopy'],
+    keywords: ['pangkas', 'memangkas', 'cabang patah', 'dahan patah', 'tunas air', 'tajuk', 'prune', 'pruning', 'broken branch', 'water shoot', 'canopy'],
   },
   {
     id: 'phytophthora',
@@ -114,13 +128,22 @@ export const TOPICS: TopicMeta[] = [
     keywords: ['kanker', 'getah', 'blendok', 'busuk', 'kulit batang', 'luka batang', 'phytophthora', 'fitoftora', 'canker', 'ooze', 'gummosis', 'rot', 'lesion'],
   },
   {
+    id: 'diseases',
+    title: { id: 'Penyakit lain', en: 'Other diseases' },
+    summary: {
+      id: 'Jamur upas, antraknosa, hawar dan bercak daun, busuk akar Pythium, bercak alga.',
+      en: 'Pink disease, anthracnose, leaf blight and spots, Pythium root rot, algal spot.',
+    },
+    keywords: ['jamur', 'upas', 'merah muda', 'antraknosa', 'bercak', 'hawar', 'embun jelaga', 'mati pucuk', 'mati ranting', 'lumut', 'pink', 'anthracnose', 'leaf spot', 'blight', 'sooty', 'dieback', 'fungus', 'algae', 'algal'],
+  },
+  {
     id: 'pests',
     title: { id: 'Hama', en: 'Pests' },
     summary: {
-      id: 'Penggerek buah dan biji, kutu loncat, dan cara membrongsong buah.',
-      en: 'Fruit and seed borers, psyllids, and bagging fruit.',
+      id: 'Penggerek buah, biji dan batang, kutu loncat, kutu putih, dan membrongsong buah.',
+      en: 'Fruit, seed and stem borers, psyllids, mealybugs, and bagging fruit.',
     },
-    keywords: ['ulat', 'penggerek', 'hama', 'kutu', 'serangga', 'kumbang', 'semut', 'lubang', 'tupai', 'borer', 'caterpillar', 'pest', 'mealybug', 'psyllid', 'insect', 'beetle', 'ant', 'ants', 'hole'],
+    keywords: ['ulat', 'gerek', 'hama', 'kutu', 'serangga', 'kumbang', 'semut', 'lubang', 'tupai', 'serbuk kayu', 'borer', 'caterpillar', 'pest', 'mealybug', 'psyllid', 'insect', 'beetle', 'ant', 'ants', 'hole', 'frass'],
   },
   {
     id: 'harvest',
@@ -129,7 +152,7 @@ export const TOPICS: TopicMeta[] = [
       id: 'Umur buah per varietas, tanda matang, dan menghindari daging basah.',
       en: 'Days to maturity per variety, ripeness signs, and avoiding wet core.',
     },
-    keywords: ['panen', 'matang', 'jatuh', 'harvest', 'ripe', 'maturity'],
+    keywords: ['panen', 'memanen', 'matang', 'daging basah', 'harvest', 'ripe', 'maturity', 'wet core'],
   },
   {
     id: 'records',
@@ -171,12 +194,15 @@ export type StageId = 'preflower' | 'bloom' | 'set' | 'thin' | 'grow' | 'mature'
 /** Used when no variant in a block has ripening days yet (middle of the published 90-150 day range). */
 export const DEFAULT_RIPENING_DAYS = 120;
 
-/** Day ranges after flowering. Thinning at 5-8 weeks after bloom; maturing = last month before harvest. */
+/**
+ * Day ranges after flowering. Thinning runs from week 4 to about day 60 (Thai practice: first round at 4-6 weeks,
+ * a second around day 45, the last near day 60); maturing = last month before harvest.
+ */
 export function stageOf(day: number, ripeMin: number, ripeMax: number): StageId {
   if (day < 0) return 'preflower';
   if (day <= 7) return 'bloom';
-  if (day <= 34) return 'set';
-  if (day <= 56) return 'thin';
+  if (day <= 27) return 'set';
+  if (day <= 60) return 'thin';
   if (day < ripeMin - 30) return 'grow';
   if (day < ripeMin - 7) return 'mature';
   if (day <= ripeMax + 14) return 'harvest';
@@ -257,7 +283,7 @@ export interface StageInfo {
 export const STAGES: Record<StageId, StageInfo> = {
   preflower: {
     title: { id: 'Menunggu bunga', en: 'Waiting for flowers' },
-    when: { id: 'Sebelum kuncup muncul', en: 'Before buds appear' },
+    when: { id: 'Sampai bunga mekar', en: 'Until flowers open' },
     actions: [
       {
         text: {
@@ -282,6 +308,13 @@ export const STAGES: Record<StageId, StageInfo> = {
       },
       {
         text: {
+          id: 'Saat kuncup selebar ±1 cm, petani Thailand menjarangkan kuncup bunga (berapa banyak tergantung varietas) agar buah lebih besar dan seragam.',
+          en: 'When buds are about 1 cm across, Thai growers thin the flower buds (how much depends on the variety) for bigger, more even fruit.',
+        },
+        topic: 'fruit',
+      },
+      {
+        text: {
           id: 'Saat bunga mekar, catat tanggalnya di Jadwal → Panen. Semua tahap berikutnya dihitung dari tanggal itu.',
           en: 'When flowers open, record the date in Schedule → Harvest. Every later stage is counted from it.',
         },
@@ -295,15 +328,15 @@ export const STAGES: Record<StageId, StageInfo> = {
     actions: [
       {
         text: {
-          id: 'Bunga mekar sekitar pukul 16.00 dan serbuk sari keluar sekitar 19.30: waktu terbaik untuk penyerbukan tangan.',
-          en: 'Flowers open around 4 pm and shed pollen around 7:30 pm: the best time to hand-pollinate.',
+          id: 'Putik terbuka sekitar pukul 16.00 dan serbuk sari keluar sekitar 19.30: mulai saat itu waktu terbaik untuk penyerbukan tangan.',
+          en: 'The stigma is exposed around 4 pm and pollen sheds around 7:30 pm: from then is the best time to hand-pollinate.',
         },
         topic: 'pollination',
       },
       {
         text: {
-          id: 'Pakai serbuk sari dari varietas lain; penyerbukan silang menaikkan bakal buah (76,6% vs 54,4% alami dalam satu studi).',
-          en: 'Use pollen from another variety; cross-pollination raises fruit set (76.6% vs 54.4% open in one study).',
+          id: 'Pakai serbuk sari dari varietas lain: 2 bulan setelah penyerbukan, 12,2% bunga yang diserbuki silang dengan tangan masih menjadi buah vs 5,1% secara alami (satu studi).',
+          en: 'Use pollen from another variety: 2 months after pollination, 12.2% of hand cross-pollinated flowers were still fruit vs 5.1% open-pollinated (one study).',
         },
         topic: 'pollination',
       },
@@ -323,6 +356,13 @@ export const STAGES: Record<StageId, StageInfo> = {
       },
       {
         text: {
+          id: 'Semprot daun boron + kalsium dari berbunga sampai bakal buah (praktik di Malaysia dan Thailand); boron beracun bila berlebihan, ikuti label.',
+          en: 'Foliar boron + calcium from bloom to fruit set (practice in Malaysia and Thailand); boron is toxic in excess, follow the label.',
+        },
+        topic: 'nutrition',
+      },
+      {
+        text: {
           id: 'Isi "Kelompok bunga" di data pohon; angka ini membantu menilai bakal buah nanti.',
           en: 'Fill in "Flower clusters" on the tree record; it helps judge fruit set later.',
         },
@@ -332,7 +372,7 @@ export const STAGES: Record<StageId, StageInfo> = {
   },
   set: {
     title: { id: 'Bakal buah', en: 'Fruit set' },
-    when: { id: 'Hari 8-34', en: 'Days 8-34' },
+    when: { id: 'Hari 8-27', en: 'Days 8-27' },
     actions: [
       {
         text: {
@@ -357,21 +397,21 @@ export const STAGES: Record<StageId, StageInfo> = {
       },
       {
         text: {
-          id: 'Semprot daun kalsium + boron membantu pembentukan buah dan mengurangi kelainan daging buah.',
-          en: 'Foliar calcium + boron supports fruit set and reduces flesh disorders.',
+          id: 'Penjarangan pertama bisa dimulai minggu ke-4: buang buah cacat dan bertangkai kecil lebih dulu.',
+          en: 'The first thinning can start in week 4: remove deformed fruit and fruit on thin stalks first.',
         },
-        topic: 'nutrition',
+        topic: 'fruit',
       },
     ],
   },
   thin: {
     title: { id: 'Penjarangan & brongsong', en: 'Thinning & bagging' },
-    when: { id: 'Hari 35-56 (minggu 5-8)', en: 'Days 35-56 (weeks 5-8)' },
+    when: { id: 'Hari 28-60 (minggu 4 sampai ±9)', en: 'Days 28-60 (week 4 to about 9)' },
     actions: [
       {
         text: {
-          id: 'Jarangkan ke 1 buah (paling banyak 2) per tangkai bunga; buang buah kecil dan tidak simetris.',
-          en: 'Thin to 1 fruit (at most 2) per cluster; remove small and lopsided fruit.',
+          id: 'Jarangkan bertahap (minggu 4-6, sekitar hari ke-45, terakhir sekitar hari ke-60) sampai 1 buah (paling banyak 2) per tangkai; buang buah kecil, cacat dan tidak simetris.',
+          en: 'Thin in rounds (weeks 4-6, around day 45, last around day 60) down to 1 fruit (at most 2) per cluster; remove small, deformed and lopsided fruit.',
         },
         topic: 'fruit',
       },
@@ -396,16 +436,23 @@ export const STAGES: Record<StageId, StageInfo> = {
         },
         topic: 'records',
       },
+      {
+        text: {
+          id: 'Uji Musang King (Vietnam): semprot daun kalsium nitrat 0,4% sekitar 40 hari setelah bakal buah dan magnesium sulfat 0,2% sekitar 50 hari menaikkan hasil 8-12% dan mengurangi kelainan daging buah.',
+          en: 'Musang King trial (Vietnam): foliar 0.4% calcium nitrate about 40 days after fruit set and 0.2% magnesium sulfate about 50 days raised yield 8-12% and reduced flesh disorders.',
+        },
+        topic: 'nutrition',
+      },
     ],
   },
   grow: {
     title: { id: 'Buah membesar', en: 'Fruit growing' },
-    when: { id: 'Minggu 8 sampai sebulan sebelum panen', en: 'Week 8 until a month before harvest' },
+    when: { id: 'Hari 61 sampai sebulan sebelum panen', en: 'Day 61 until a month before harvest' },
     actions: [
       {
         text: {
-          id: 'Pupuk kalium tinggi, nitrogen sedang; siram merata saat tidak hujan.',
-          en: 'Potassium-rich feed, moderate nitrogen; water evenly when it does not rain.',
+          id: 'Pupuk kalium tinggi, nitrogen sedang; siram merata saat tidak hujan. Buah tumbuh paling cepat sampai sekitar minggu ke-13.',
+          en: 'Potassium-rich feed, moderate nitrogen; water evenly when it does not rain. Fruit grows fastest until about week 13.',
         },
         topic: 'nutrition',
       },
@@ -476,6 +523,13 @@ export const STAGES: Record<StageId, StageInfo> = {
           en: 'Collect dropped fruit daily; never leave it on wet ground (Phytophthora fruit rot).',
         },
         topic: 'phytophthora',
+      },
+      {
+        text: {
+          id: 'Untuk disimpan: Musang King jatuh matang tetap layak jual sampai 2 minggu pada 7 °C; pada 10-13 °C muncul busuk jamur dalam 1-2 minggu (MARDI).',
+          en: 'For storage: mature-drop Musang King kept marketable quality up to 2 weeks at 7 °C; at 10-13 °C fungal rot appeared within 1-2 weeks (MARDI).',
+        },
+        topic: 'harvest',
       },
       {
         text: {
@@ -575,7 +629,10 @@ export interface FarmCheck {
 
 const planText = (p: TreatmentPlan) => `${p.name} ${p.product || ''} ${p.notes || ''} ${p.stage || ''}`.toLowerCase();
 const PHOSPHONATE_RE = /fosfonat|fosfit|phosphon|phosphit|phytophthora|fitoftora/;
-const POTASSIUM_RE = /kalium|potas|\bkcl\b|k2so4|kno3|\bzk\b|\bmop\b|\bsop\b/;
+// Not "SOP" (sulfate of potash): in Indonesian it usually means a standard procedure.
+const POTASSIUM_RE = /kalium|potas|\bkcl\b|k2so4|kno3|\bzk\b|\bmop\b/;
+const CALCIUM_BORON_RE = /boron|solubor|borat|borax|kalsium|calcium|ca\(no3\)2/;
+const MUSANG_KING_RE = /musang|\bmk\b|d197/i;
 const LEAF_TEST_RE = /analisis daun|analisa daun|uji daun|contoh daun|leaf analysis|leaf sampl|leaf test|uji tanah|ph tanah|soil test|soil ph/;
 
 /** Count text: uses the `.one` variant of the key when n is 1 ("1 tree", not "1 trees"). */
@@ -716,6 +773,21 @@ export function buildChecks({ trees, variants, plans, scheduleTasks, seasons, no
         }
   );
 
+  // 7b. Calcium + boron sprays around flowering and fruit set (fruit set, flesh disorders).
+  const hasCaB = active.some((p) => CALCIUM_BORON_RE.test(planText(p)));
+  checks.push(
+    hasCaB
+      ? { id: 'calciumBoron', topic: 'nutrition', status: 'ok', title: t('guide.chk.cab.ok') }
+      : {
+          id: 'calciumBoron',
+          topic: 'nutrition',
+          status: 'warn',
+          title: t('guide.chk.cab.warn'),
+          detail: t('guide.chk.cab.detail'),
+          action: { kind: 'template', templateId: 'flowerFoliar', label: t('guide.act.addRoutine') },
+        }
+  );
+
   // 8. Pruning.
   const hasPruning = active.some((p) => p.type === 'pruning');
   checks.push(
@@ -739,7 +811,18 @@ export function buildChecks({ trees, variants, plans, scheduleTasks, seasons, no
       topic: 'pollination',
       status: 'warn',
       title: tn('guide.chk.pollin.warn', single.length),
-      detail: t('guide.chk.pollin.detail', { blocks: listBlocks(single.map((s) => s.block)) }),
+      detail: [
+        t('guide.chk.pollin.detail', { blocks: listBlocks(single.map((s) => s.block)) }),
+        // Musang King has direct evidence: self-incompatible, best set when crossed with D24.
+        single.some((s) => {
+          const v = variants.find((x) => x.code === s.variants[0]);
+          return MUSANG_KING_RE.test(`${v?.name || ''} ${s.variants[0]}`);
+        })
+          ? t('guide.chk.pollin.mk')
+          : '',
+      ]
+        .filter(Boolean)
+        .join(' '),
       action: { kind: 'link', to: '/guide/pollination', label: t('guide.act.readTopic') },
     });
   }
@@ -830,12 +913,12 @@ export interface RipeningRef {
 
 export const RIPENING_REFS: RipeningRef[] = [
   {
-    match: /musang|\bmk\b|d197/i,
-    min: 118,
-    max: 135,
+    match: MUSANG_KING_RE,
+    min: 105,
+    max: 120,
     note: {
-      id: 'Rata-rata 118 hari (studi Univ. Brawijaya); 125-135 hari setelah mekar (studi Vietnam 2025).',
-      en: 'Average 118 days (Brawijaya Univ. study); 125-135 days after bloom (Vietnam study, 2025).',
+      id: 'MARDI: hanya buah yang dipetik 15 minggu (±105 hari) setelah mekar yang kadar bahan keringnya setara buah jatuh matang. Univ. Brawijaya: rata-rata 118 hari.',
+      en: 'MARDI: only fruit picked 15 weeks (~105 days) after bloom matched the dry matter of naturally dropped fruit. Brawijaya Univ.: 118 days on average.',
     },
   },
   {
