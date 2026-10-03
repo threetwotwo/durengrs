@@ -21,6 +21,11 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
+    // Audit log of tree edits (written by the webapp and the WhatsApp bot)
+    match /treeEdits/{id} {
+      allow read, write: if true;
+    }
+
     // Connection test document
     match /test/{docId} {
       allow read, write: if true;

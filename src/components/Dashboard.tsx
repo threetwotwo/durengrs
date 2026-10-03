@@ -646,7 +646,7 @@ export const Dashboard: React.FC = () => {
                     {report.conditionChanged && (
                       <div className="p-2 rounded-lg bg-amber-50/80 border border-amber-200/60 flex items-center gap-1.5 text-xs text-amber-900 font-medium">
                         <span>Condition changed:</span>
-                        <ConditionBadge condition={report.conditionBefore || 'healthy'} size="sm" />
+                        <ConditionBadge condition={report.conditionBefore || 'not_assessed'} size="sm" />
                         <span>→</span>
                         <ConditionBadge condition={report.conditionAfter || 'minor'} size="sm" />
                       </div>

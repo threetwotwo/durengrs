@@ -69,7 +69,7 @@ const AppContent: React.FC = () => {
 
       {/* Sleek Minimal Footer */}
       <footer className="bg-white border-t border-slate-200 py-3.5 text-xs text-slate-400">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-1 text-[11px]">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-1 text-xs">
           <span>Cilowong Durian Farm · Admin Management Console</span>
           <span className="text-slate-400">Connected to default Firestore</span>
         </div>

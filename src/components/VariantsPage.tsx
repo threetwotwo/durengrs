@@ -195,7 +195,7 @@ export const VariantsPage: React.FC = () => {
                         {variant.name}
                       </h3>
                       {variant.origin && (
-                        <p className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
+                        <p className="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
                           <MapPin className="w-3 h-3 text-slate-400" />
                           <span>{variant.origin}</span>
                         </p>
@@ -221,8 +221,8 @@ export const VariantsPage: React.FC = () => {
 
                 {/* Characteristics */}
                 {variant.characteristics && (
-                  <div className="text-[11px] text-slate-600 space-y-0.5">
-                    <span className="font-semibold text-slate-700 block text-[10px] uppercase tracking-wider">
+                  <div className="text-xs text-slate-600 space-y-0.5">
+                    <span className="font-semibold text-slate-700 block text-xs uppercase tracking-wider">
                       Botanical Traits:
                     </span>
                     <p className="line-clamp-2">{variant.characteristics}</p>
@@ -233,15 +233,15 @@ export const VariantsPage: React.FC = () => {
               {/* Footer: Ripening days & Tree count badge */}
               <div className="pt-4 mt-3 border-t border-slate-100 flex items-center justify-between text-xs">
                 {variant.ripeningDays ? (
-                  <span className="flex items-center gap-1 text-slate-500 text-[11px] font-mono">
+                  <span className="flex items-center gap-1 text-slate-500 text-xs font-mono">
                     <Calendar className="w-3 h-3 text-slate-400" />
                     ~{variant.ripeningDays} days ripening
                   </span>
                 ) : (
-                  <span className="text-slate-400 text-[11px]">Ripening cycle: TBD</span>
+                  <span className="text-slate-400 text-xs">Ripening cycle: TBD</span>
                 )}
 
-                <span className="text-[11px] font-medium text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                <span className="text-xs font-medium text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
                   {treeCount} {treeCount === 1 ? 'tree' : 'trees'} in orchard
                 </span>
               </div>
@@ -290,7 +290,7 @@ export const VariantsPage: React.FC = () => {
                     required
                     className="w-full text-xs p-2.5 border border-slate-300 rounded-md focus:ring-2 focus:ring-emerald-500 font-mono font-bold uppercase disabled:bg-slate-100 disabled:text-slate-500"
                   />
-                  <p className="text-[10px] text-slate-400 mt-0.5">
+                  <p className="text-xs text-slate-400 mt-0.5">
                     Document ID in <code className="text-slate-600">variants/&#123;code&#125;</code>
                   </p>
                 </div>
