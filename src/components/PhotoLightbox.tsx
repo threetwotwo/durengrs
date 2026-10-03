@@ -6,8 +6,9 @@ import { useT, translate } from '../i18n';
 
 export interface GalleryItem {
   url: string;
-  /** Smaller copy shown instantly while the full photo loads. */
-  preview?: string;
+  /** 900px copy and 320px thumbnail: shown first (blurred thumb, then medium) while the full photo loads. */
+  medium?: string;
+  thumb?: string;
   caption?: string;
 }
 
@@ -15,10 +16,14 @@ export interface GalleryItem {
 export function photoItems(photos: ReportPhoto[], treeId: string, date: any): GalleryItem[] {
   return photos.map((p, i) => ({
     url: p.url,
-    preview: p.medium || p.thumb,
+    medium: p.medium,
+    thumb: p.thumb,
     caption: translate('photo.caption', { id: treeId, i: i + 1, n: photos.length, date: formatDateTime(date) }),
   }));
 }
+
+/** Smallest to largest, without duplicates: thumb -> medium -> full. */
+const ladder = (it: GalleryItem) => [it.thumb, it.medium, it.url].filter((u, k, a): u is string => !!u && a.indexOf(u) === k);
 
 interface PhotoLightboxProps {
   items: GalleryItem[];
@@ -32,7 +37,8 @@ export const PhotoLightbox: React.FC<PhotoLightboxProps> = ({ items, index = 0, 
   const [i, setI] = useState(Math.min(Math.max(index, 0), Math.max(items.length - 1, 0)));
   const [scale, setScale] = useState(1);
   const [failed, setFailed] = useState<Record<number, boolean>>({});
-  const [fullLoaded, setFullLoaded] = useState<Record<number, boolean>>({});
+  // Which sizes have finished loading, per photo: key `${index}:${src}`.
+  const [loaded, setLoaded] = useState<Record<string, boolean>>({});
   const touchX = useRef<number | null>(null);
   const count = items.length;
 
@@ -120,25 +126,43 @@ export const PhotoLightbox: React.FC<PhotoLightboxProps> = ({ items, index = 0, 
             </a>
           </div>
         ) : (
-          <img
-            key={i}
-            // show the already-cached medium copy right away, swap to the full photo once it has loaded
-            src={fullLoaded[i] || !item.preview ? item.url : item.preview}
-            alt={item.caption || t('photo.inspection')}
-            onError={() => setFailed((f) => ({ ...f, [i]: true }))}
-            style={{ transform: `scale(${scale})`, transition: 'transform 0.2s ease-out' }}
-            className="max-h-full max-w-full object-contain rounded-md shadow-2xl select-none"
-            draggable={false}
-          />
-        )}
-        {item.preview && !fullLoaded[i] && !failed[i] && (
-          <img
-            src={item.url}
-            alt=""
-            className="hidden"
-            onLoad={() => setFullLoaded((f) => ({ ...f, [i]: true }))}
-            onError={() => setFullLoaded((f) => ({ ...f, [i]: true }))}
-          />
+          (() => {
+            const steps = ladder(item);
+            // best size that has already loaded; before any has, show the smallest one (blurred)
+            let shown = 0;
+            steps.forEach((u, k) => {
+              if (loaded[`${i}:${u}`]) shown = k;
+            });
+            const blurred = steps.length > 1 && shown === 0 && steps[0] !== item.url;
+            return (
+              <>
+                <img
+                  key={`${i}:${steps[shown]}`}
+                  src={steps[shown]}
+                  alt={item.caption || t('photo.inspection')}
+                  onLoad={() => setLoaded((l) => ({ ...l, [`${i}:${steps[shown]}`]: true }))}
+                  onError={() => {
+                    if (shown === steps.length - 1) setFailed((f) => ({ ...f, [i]: true }));
+                  }}
+                  style={{ transform: `scale(${scale})`, transition: 'transform 0.2s ease-out' }}
+                  className={`max-h-full max-w-full object-contain rounded-md shadow-2xl select-none ${blurred ? 'blur-md' : ''}`}
+                  draggable={false}
+                />
+                {/* load the bigger sizes in the background; swap in as each one arrives */}
+                {steps.map((u) =>
+                  loaded[`${i}:${u}`] ? null : (
+                    <img
+                      key={u}
+                      src={u}
+                      alt=""
+                      className="hidden"
+                      onLoad={() => setLoaded((l) => ({ ...l, [`${i}:${u}`]: true }))}
+                    />
+                  )
+                )}
+              </>
+            );
+          })()
         )}
 
         {count > 1 && (
@@ -151,8 +175,8 @@ export const PhotoLightbox: React.FC<PhotoLightboxProps> = ({ items, index = 0, 
       {/* preload the neighbours so stepping feels instant */}
       {count > 1 && (
         <div className="hidden" aria-hidden>
-          <img src={items[(i + 1) % count].preview || items[(i + 1) % count].url} alt="" />
-          <img src={items[(i - 1 + count) % count].preview || items[(i - 1 + count) % count].url} alt="" />
+          <img src={items[(i + 1) % count].medium || items[(i + 1) % count].url} alt="" />
+          <img src={items[(i - 1 + count) % count].medium || items[(i - 1 + count) % count].url} alt="" />
         </div>
       )}
 

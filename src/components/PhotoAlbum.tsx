@@ -32,7 +32,7 @@ const Tile: React.FC<{
       type="button"
       onClick={() => onOpen(index)}
       aria-label={t('photo.openNth', { i: index + 1, n: total })}
-      className={`relative overflow-hidden bg-slate-200 group focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-emerald-600 ${ready ? '' : 'animate-pulse'} ${className}`}
+      className={`relative overflow-hidden bg-slate-200 group focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-emerald-600 ${className}`}
     >
       {failed ? (
         <span className="absolute inset-0 flex flex-col items-center justify-center text-slate-500 text-xs">
@@ -48,7 +48,7 @@ const Tile: React.FC<{
               aria-hidden
               decoding="async"
               referrerPolicy="no-referrer"
-              className={`absolute inset-0 w-full h-full object-cover scale-110 blur-lg transition-opacity duration-300 ${ready ? 'opacity-0' : 'opacity-100'}`}
+              className={`absolute inset-0 w-full h-full object-cover scale-110 blur-lg ${ready ? 'opacity-0' : 'opacity-100'}`}
             />
           )}
           <img
@@ -61,7 +61,7 @@ const Tile: React.FC<{
             referrerPolicy="no-referrer"
             onLoad={() => setReady(true)}
             onError={() => setFailed(true)}
-            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 group-hover:scale-[1.03] ${ready ? 'opacity-100' : 'opacity-0'}`}
+            className={`absolute inset-0 w-full h-full object-cover ${ready ? 'opacity-100' : 'opacity-0'}`}
           />
         </>
       )}
