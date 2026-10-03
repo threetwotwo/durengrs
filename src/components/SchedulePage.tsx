@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { AlertTriangle, CalendarCheck, History, ListChecks, Pause, Pencil, Play, Plus, Trash2 } from 'lucide-react';
+import { AlertTriangle, Wheat, CalendarCheck, History, ListChecks, Pause, Pencil, Play, Plus, Trash2 } from 'lucide-react';
 import { useFarm } from '../context/FarmContext';
 import {
   PLAN_TEMPLATES,
@@ -13,6 +13,7 @@ import {
   setPlanActive,
 } from '../lib/treatments';
 import { TaskRow, TYPE_ICON } from './TaskRow';
+import { HarvestView } from './HarvestView';
 import { PageHeader, btnPrimary } from './PageHeader';
 import {
   MarkDoneSheet,
@@ -22,7 +23,7 @@ import {
   useUndoToast,
 } from './TreatmentSheets';
 
-type View = 'agenda' | 'routines' | 'history';
+type View = 'agenda' | 'routines' | 'harvest' | 'history';
 
 export const SchedulePage: React.FC = () => {
   const { plans, treatments, scheduleTasks, scheduleError } = useFarm();
@@ -55,6 +56,7 @@ export const SchedulePage: React.FC = () => {
   const tabs: Array<{ id: View; label: string; icon: React.ComponentType<{ className?: string }> }> = [
     { id: 'agenda', label: 'Agenda', icon: CalendarCheck },
     { id: 'routines', label: `Routines (${plans.length})`, icon: ListChecks },
+    { id: 'harvest', label: 'Harvest', icon: Wheat },
     { id: 'history', label: 'History', icon: History },
   ];
 
@@ -62,7 +64,7 @@ export const SchedulePage: React.FC = () => {
     <div className="space-y-4">
       <PageHeader
         title="Schedule"
-        description="Fertilizer, sprays and other routine work, and when each is due."
+        description="Routine work, when each is due, and when to expect harvest."
         actions={
           <button onClick={() => setEditor({})} className={btnPrimary}>
             <Plus className="w-4 h-4" />
@@ -78,7 +80,7 @@ export const SchedulePage: React.FC = () => {
         </div>
       )}
 
-      <div role="tablist" className="inline-flex p-1 rounded-xl bg-slate-200/70 gap-1">
+      <div role="tablist" className="flex max-w-full overflow-x-auto p-1 rounded-xl bg-slate-200/70 gap-1 w-fit">
         {tabs.map((t) => {
           const Icon = t.icon;
           return (
@@ -87,7 +89,7 @@ export const SchedulePage: React.FC = () => {
               role="tab"
               aria-selected={view === t.id}
               onClick={() => setView(t.id)}
-              className={`min-h-10 px-3.5 rounded-lg text-sm font-semibold flex items-center gap-1.5 ${
+              className={`min-h-10 px-3.5 rounded-lg text-sm font-semibold flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
                 view === t.id ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
@@ -165,6 +167,8 @@ export const SchedulePage: React.FC = () => {
           </details>
         </div>
       )}
+
+      {view === 'harvest' && <HarvestView />}
 
       {view === 'history' && (
         <div className="bg-white rounded-xl border border-slate-200 divide-y divide-slate-100">

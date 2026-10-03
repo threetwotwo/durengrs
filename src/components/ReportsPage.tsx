@@ -4,6 +4,8 @@ import { ConditionBadge } from './ConditionBadge';
 import { ReportDate } from './ReportDate';
 import { PhotoLightbox } from './PhotoLightbox';
 import { PageHeader, inputCls } from './PageHeader';
+import { ActivityView } from './ActivityView';
+import { Link } from './Link';
 import { navigate, treeUrl, useQueryParams } from '../lib/router';
 import { ReportPhoto, TreeReport } from '../types';
 import {
@@ -90,6 +92,7 @@ export const ReportsPage: React.FC = () => {
   const filterBlock = params.get('block') || 'all';
   const filterCondition = params.get('condition') || 'all';
   const onlyChanged = params.get('changed') === '1';
+  const showActivity = params.get('view') === 'activity';
 
   const availableBlocks = useMemo(() => {
     const set = new Set<string>();
@@ -180,9 +183,32 @@ export const ReportsPage: React.FC = () => {
 
       <PageHeader
         title="Reports"
-        description={`${totalReportsCount} field reports from the WhatsApp bot, newest first.`}
+        description={showActivity ? 'Who is reporting, how often, and which blocks are being missed.' : `${totalReportsCount} field reports from the WhatsApp bot, newest first.`}
       />
 
+      <div role="tablist" className="inline-flex p-1 rounded-xl bg-slate-200/70 gap-1">
+        {[
+          { id: 'feed', label: 'Feed', to: '/reports' },
+          { id: 'activity', label: 'Activity', to: '/reports?view=activity' },
+        ].map((tab) => {
+          const on = (tab.id === 'activity') === showActivity;
+          return (
+            <Link
+              key={tab.id}
+              to={tab.to}
+              replace
+              role="tab"
+              aria-selected={on}
+              className={`min-h-10 px-4 rounded-lg text-sm font-semibold inline-flex items-center ${on ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
+            >
+              {tab.label}
+            </Link>
+          );
+        })}
+      </div>
+
+      {showActivity ? <ActivityView /> : (
+      <>
       <div className="bg-white p-3 sm:p-4 rounded-xl border border-slate-200 shadow-xs grid grid-cols-2 lg:grid-cols-[1fr_auto_auto_auto_auto] gap-2.5 items-center">
         <div className="relative col-span-2 lg:col-span-1">
           <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -361,6 +387,8 @@ export const ReportsPage: React.FC = () => {
           </div>
         )}
       </div>
+      </>
+      )}
     </div>
   );
 };

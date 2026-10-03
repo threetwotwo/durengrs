@@ -4,6 +4,8 @@ import { ConditionBadge } from './ConditionBadge';
 import { Link } from './Link';
 import { PageHeader, btnSecondary, inputCls } from './PageHeader';
 import { navigate, treeUrl, useQueryParams } from '../lib/router';
+import { followUpOf, waitingLabel } from '../lib/insights';
+import { formatShortDate } from '../lib/treatments';
 import { DurianTree } from '../types';
 import { Search, Download, ArrowUpDown, ArrowUp, ArrowDown, RotateCcw, TreeDeciduous, Clock, ChevronLeft, ChevronRight, Columns3 } from 'lucide-react';
 
@@ -20,7 +22,7 @@ const CONDITION_CHIPS: Array<{ id: string; label: string; active: string; dot: s
 
 /** All filters, sorting and paging live in the URL, e.g. #/trees?block=A&condition=emergency&sort=lastReportAt */
 export const TreesTable: React.FC = () => {
-  const { trees, variants } = useFarm();
+  const { trees, variants, treatments } = useFarm();
   const [params, setParams] = useQueryParams();
 
   const search = params.get('q') || '';
@@ -28,7 +30,9 @@ export const TreesTable: React.FC = () => {
   const filterVariant = params.get('variant') || 'all';
   const filterCondition = params.get('condition') || 'all';
   const staleOnly = params.get('stale') === '1';
-  const allColumns = params.get('cols') === 'all';
+  const followUpOnly = params.get('followup') === '1';
+  const untreatedOnly = params.get('untreated') === '1';
+  const allColumns = params.get('cols') !== 'less'; // every column by default
   const sortField = (params.get('sort') || 'id') as SortField;
   const sortAsc = params.get('dir') !== 'desc';
   const requestedPage = Math.max(1, Number(params.get('page')) || 1);
@@ -38,6 +42,18 @@ export const TreesTable: React.FC = () => {
     [trees]
   );
   const variantLookup = useMemo(() => new Map(variants.map((v) => [v.code, v.name])), [variants]);
+
+  // Latest treatment per block (treatments are logged per block).
+  const lastTreatmentByBlock = useMemo(() => {
+    const map = new Map<string, { date: string; name: string }>();
+    for (const x of treatments) {
+      for (const b of x.blocks || []) {
+        const prev = map.get(b);
+        if (!prev || x.date > prev.date) map.set(b, { date: x.date, name: x.planName });
+      }
+    }
+    return map;
+  }, [treatments]);
 
   const isStale = (tree: DurianTree) => {
     const rep = normalizeTimestamp(tree.lastReportAt);
@@ -52,9 +68,11 @@ export const TreesTable: React.FC = () => {
       if (filterBlock !== 'all' && tree.block !== filterBlock) return false;
       if (filterVariant !== 'all' && tree.variant !== filterVariant) return false;
       if (staleOnly && !isStale(tree)) return false;
+      if (followUpOnly && !followUpOf(tree, normalizeTimestamp(tree.lastReportAt)).needs) return false;
+      if (untreatedOnly && lastTreatmentByBlock.has(tree.block)) return false;
       return true;
     });
-  }, [trees, search, filterBlock, filterVariant, staleOnly]);
+  }, [trees, search, filterBlock, filterVariant, staleOnly, followUpOnly, untreatedOnly, lastTreatmentByBlock]);
 
   const conditionCounts = useMemo(() => {
     const c: Record<string, number> = { all: baseFiltered.length, emergency: 0, minor: 0, healthy: 0, not_assessed: 0 };
@@ -111,9 +129,9 @@ export const TreesTable: React.FC = () => {
     else setParams({ sort: field === 'id' ? null : field, dir: null, page: null });
   };
   const resetFilters = () =>
-    setParams({ q: null, block: null, variant: null, condition: null, stale: null, page: null });
+    setParams({ q: null, block: null, variant: null, condition: null, stale: null, followup: null, untreated: null, page: null });
 
-  const activeFilterCount = [search, filterBlock !== 'all', filterVariant !== 'all', filterCondition !== 'all', staleOnly].filter(Boolean).length;
+  const activeFilterCount = [search, filterBlock !== 'all', filterVariant !== 'all', filterCondition !== 'all', staleOnly, followUpOnly, untreatedOnly].filter(Boolean).length;
 
   // CSV Export
   const handleExportCSV = () => {
@@ -262,6 +280,24 @@ export const TreesTable: React.FC = () => {
             <Clock className="w-4 h-4" />
             No report in 7+ days
           </button>
+          <button
+            onClick={() => setParams({ followup: followUpOnly ? null : '1', page: null })}
+            aria-pressed={followUpOnly}
+            className={`min-h-11 px-3.5 rounded-full border text-sm font-semibold inline-flex items-center gap-2 transition-colors ${
+              followUpOnly ? 'bg-rose-600 text-white border-rose-600' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+            }`}
+          >
+            Overdue for a check
+          </button>
+          <button
+            onClick={() => setParams({ untreated: untreatedOnly ? null : '1', page: null })}
+            aria-pressed={untreatedOnly}
+            className={`min-h-11 px-3.5 rounded-full border text-sm font-semibold inline-flex items-center gap-2 transition-colors ${
+              untreatedOnly ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+            }`}
+          >
+            Never treated
+          </button>
           {activeFilterCount > 0 && (
             <button onClick={resetFilters} className="min-h-11 px-3 rounded-full text-sm font-semibold text-rose-700 hover:bg-rose-50 inline-flex items-center gap-1.5 ml-auto">
               <RotateCcw className="w-4 h-4" />
@@ -288,12 +324,12 @@ export const TreesTable: React.FC = () => {
             </span>
             <div className="flex items-center gap-2">
               <button
-                onClick={() => setParams({ cols: allColumns ? null : 'all' })}
+                onClick={() => setParams({ cols: allColumns ? 'less' : null })}
                 aria-pressed={allColumns}
                 className="hidden md:inline-flex min-h-9 px-3 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 items-center gap-1.5 hover:bg-slate-50"
               >
                 <Columns3 className="w-4 h-4" />
-                {allColumns ? 'Fewer columns' : 'More columns'}
+                {allColumns ? 'Show fewer columns' : 'Show all columns'}
               </button>
               {totalPages > 1 && <Pager page={currentPage} total={totalPages} onPage={setPage} />}
             </div>
@@ -319,6 +355,9 @@ export const TreesTable: React.FC = () => {
                       <span>Block {tree.block || '—'}</span>
                       <span className="flex items-center gap-1 tabular"><Clock className="w-4 h-4 text-slate-400" />{formatTimeAgo(tree.lastReportAt)}</span>
                     </div>
+                    {followUpOf(tree, normalizeTimestamp(tree.lastReportAt)).needs && (
+                      <p className="text-xs font-semibold text-rose-700">{waitingLabel(followUpOf(tree, normalizeTimestamp(tree.lastReportAt)))}</p>
+                    )}
                     {note(tree) && <p className="text-sm text-slate-700 line-clamp-2">{note(tree)}</p>}
                     {tree.estimatedFruitCount !== undefined && (
                       <p className="text-xs text-slate-600">Est. fruits: <strong className="tabular text-slate-900">{tree.estimatedFruitCount}</strong></p>
@@ -349,6 +388,7 @@ export const TreesTable: React.FC = () => {
                     </>
                   )}
                   <SortHeader field="lastReportAt" label="Last report" className="min-w-[120px]" />
+                  {allColumns && <th scope="col" className="px-3 text-xs uppercase tracking-wide font-semibold text-slate-200 min-w-[150px]">Last treated</th>}
                   <th scope="col" className="px-3 text-xs uppercase tracking-wide font-semibold text-slate-200 min-w-[180px]">Notes</th>
                 </tr>
               </thead>
@@ -380,7 +420,12 @@ export const TreesTable: React.FC = () => {
                           <td className="py-3 px-3 text-slate-600 whitespace-nowrap">{formatDate(tree.datePlanted)}</td>
                         </>
                       )}
-                      <td className={`py-3 px-3 whitespace-nowrap tabular ${isStale(tree) ? 'text-amber-700 font-medium' : 'text-slate-600'}`}>{formatTimeAgo(tree.lastReportAt)}</td>
+                      <td className={`py-3 px-3 whitespace-nowrap tabular ${followUpOf(tree, normalizeTimestamp(tree.lastReportAt)).needs ? 'text-rose-700 font-semibold' : isStale(tree) ? 'text-amber-700 font-medium' : 'text-slate-600'}`}>{formatTimeAgo(tree.lastReportAt)}</td>
+                      {allColumns && (
+                        <td className="py-3 px-3 whitespace-nowrap text-slate-600" title={lastTreatmentByBlock.get(tree.block)?.name}>
+                          {lastTreatmentByBlock.get(tree.block) ? formatShortDate(lastTreatmentByBlock.get(tree.block)!.date) : <span className="text-slate-400">Never</span>}
+                        </td>
+                      )}
                       <td className="py-3 px-3 max-w-[240px]">
                         {note(tree) ? <span title={note(tree)} className="block truncate text-slate-700">{note(tree)}</span> : <span className="text-slate-400">—</span>}
                       </td>

@@ -31,18 +31,27 @@ function groupByDue(rows: BlockDue[]) {
   return Array.from(map.values());
 }
 
+const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
 export const TaskRow: React.FC<{
   task: ScheduleTask;
   onDone: (task: ScheduleTask) => void;
   compact?: boolean;
 }> = ({ task, onDone, compact }) => {
-  const Icon = TYPE_ICON[task.plan.type];
-  const detail = [task.plan.product, task.plan.dose].filter(Boolean).join(' · ');
-  const showBlocks = compact ? task.blocks.filter((b) => b.days <= 7) : task.blocks;
-  const blocksToShow = showBlocks.length ? showBlocks : task.blocks.slice(0, 1);
+  const { plan } = task;
+  const Icon = TYPE_ICON[plan.type];
+  const detail = [plan.product, plan.dose].filter(Boolean).join(' · ');
+  const lastDone = task.blocks.reduce<string | undefined>((m, b) => (b.lastDone && (!m || b.lastDone > m) ? b.lastDone : m), undefined);
+  const cadence = [
+    `Every ${plan.everyDays} day${plan.everyDays === 1 ? '' : 's'}`,
+    plan.startMonth && plan.endMonth ? `${MONTH_SHORT[plan.startMonth - 1]}–${MONTH_SHORT[plan.endMonth - 1]}` : null,
+    plan.stage || null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
 
   return (
-    <div className="flex items-start gap-3 p-3.5">
+    <div className={`flex items-start gap-3 ${compact ? 'p-3' : 'p-3.5'}`}>
       <span
         className={`mt-0.5 w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
           task.status === 'overdue' ? 'bg-rose-50 text-rose-600' : task.status === 'soon' ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-600'
@@ -50,29 +59,33 @@ export const TaskRow: React.FC<{
       >
         <Icon className="w-5 h-5" />
       </span>
-      <div className="min-w-0 flex-1">
+      <div className="min-w-0 flex-1 space-y-1">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-          <h3 className="text-sm font-semibold text-slate-900">{task.plan.name}</h3>
+          <h3 className="text-sm font-semibold text-slate-900">{plan.name}</h3>
           <DuePill task={task} />
         </div>
-        {!compact && detail && <p className="text-xs text-slate-600 mt-0.5">{detail}</p>}
-        <div className="flex flex-wrap gap-1.5 mt-1.5">
-          {groupByDue(blocksToShow).map((g) => (
+        {detail && <p className="text-sm text-slate-700">{detail}</p>}
+        <p className="text-xs text-slate-600">
+          {cadence}
+          {' · '}
+          {lastDone ? `Last done ${formatShortDate(lastDone)}` : 'Never done yet'}
+        </p>
+        <div className="flex flex-wrap gap-1.5 pt-0.5">
+          {groupByDue(task.blocks).map((g) => (
             <span
               key={g.due}
               title={g.blocks.map((b) => `${b.block}: ${b.lastDone ? `last done ${formatShortDate(b.lastDone)}` : 'never done'}`).join('\n')}
               className={`px-2 py-0.5 rounded-md text-xs font-medium border ${
-                g.days < 0 ? 'bg-rose-50 border-rose-200 text-rose-700' : 'bg-slate-50 border-slate-200 text-slate-700'
+                g.days < 0 ? 'bg-rose-50 border-rose-200 text-rose-700' : g.days <= 7 ? 'bg-amber-50 border-amber-200 text-amber-800' : 'bg-slate-50 border-slate-200 text-slate-700'
               }`}
             >
               {g.blocks.length > 1 ? 'Blocks' : 'Block'} {g.blocks.map((b) => b.block).join(', ')}
-              {!compact && <span className="text-slate-500"> · {g.days < 0 ? `${-g.days}d late` : g.days === 0 ? 'today' : formatShortDate(g.due)}</span>}
+              <span className="opacity-80"> · {g.days < 0 ? `${-g.days}d late` : g.days === 0 ? 'today' : formatShortDate(g.due)}</span>
             </span>
           ))}
         </div>
-        {!compact && task.plan.phiDays ? (
-          <p className="text-xs text-amber-800 mt-1.5">Pre-harvest interval: {task.plan.phiDays} days</p>
-        ) : null}
+        {plan.notes && <p className="text-xs text-slate-600 line-clamp-2">{plan.notes}</p>}
+        {plan.phiDays ? <p className="text-xs text-amber-800">Pre-harvest interval: {plan.phiDays} days. Check before harvesting.</p> : null}
       </div>
       <button
         onClick={() => onDone(task)}

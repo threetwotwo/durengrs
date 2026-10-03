@@ -10,6 +10,7 @@ import {
   handleFirestoreError,
   OperationType,
 } from '../lib/firebase';
+import { HarvestCycle } from '../lib/insights';
 import { TreatmentPlan, Treatment, ScheduleTask, computeTasks } from '../lib/treatments';
 
 import { AppTab, useRoute } from '../lib/router';
@@ -18,6 +19,7 @@ export type { AppTab };
 interface FarmContextType {
   blocks: string[];
   plans: TreatmentPlan[];
+  harvestCycles: HarvestCycle[];
   treatments: Treatment[];
   scheduleTasks: ScheduleTask[];
   /** Set when Firestore refuses the treatments collections (rules not published yet). */
@@ -84,6 +86,7 @@ export const FarmProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Treatment routines and the log of what was applied. Both are small collections.
   const [plans, setPlans] = useState<TreatmentPlan[]>([]);
   const [treatments, setTreatments] = useState<Treatment[]>([]);
+  const [harvestCycles, setHarvestCycles] = useState<HarvestCycle[]>([]);
   const [scheduleError, setScheduleError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -108,7 +111,13 @@ export const FarmProvider: React.FC<{ children: React.ReactNode }> = ({ children
       (snap) => setTreatments(snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }) as Treatment)),
       onErr
     );
+    const unsubCycles = onSnapshot(
+      collection(db, 'harvestCycles'),
+      (snap) => setHarvestCycles(snap.docs.map((d) => ({ block: d.id, ...(d.data() as any) }) as HarvestCycle)),
+      onErr
+    );
     return () => {
+      unsubCycles();
       unsubPlans();
       unsubTreatments();
     };
@@ -286,6 +295,7 @@ export const FarmProvider: React.FC<{ children: React.ReactNode }> = ({ children
         unreadReportsCount,
         blocks,
         plans,
+        harvestCycles,
         treatments,
         scheduleTasks,
         scheduleError,

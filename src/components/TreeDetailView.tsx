@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { useFarm, formatDateTime, formatDate } from '../context/FarmContext';
+import { useFarm, formatDateTime, formatDate, normalizeTimestamp } from '../context/FarmContext';
 import { DurianTree, TreeCondition, ReportPhoto, TreeReport } from '../types';
 import { ConditionBadge } from './ConditionBadge';
 import { ReportDate } from './ReportDate';
 import { navigate, setNavigationBlocker, treeUrl, treesUrl } from '../lib/router';
-import { formatShortDate } from '../lib/treatments';
+import { formatShortDate, toDateStr } from '../lib/treatments';
 import { PhotoLightbox } from './PhotoLightbox';
 import {
   db,
@@ -214,6 +214,29 @@ export const TreeDetailView: React.FC<TreeDetailViewProps> = ({ treeId, onBack }
   // Prev/next replace the history entry, so Back returns to the list instead of walking through trees.
   const safeNavigate = useCallback((action: () => void) => action(), []);
 
+  // Oldest first. Each report may carry several photos; use the small thumb when the bot stored one.
+  const historyPhotos = treeReports
+    .slice()
+    .reverse()
+    .flatMap((r) =>
+      (r.photos || []).map((ph) => ({
+        id: r.id,
+        url: ph.url,
+        thumb: ph.thumb || ph.url,
+        at: r.createdAt,
+        date: toDateStr(new Date(normalizeTimestamp(r.createdAt) || Date.now())),
+      }))
+    );
+  const conditionChanges = treeReports
+    .slice()
+    .reverse()
+    .filter((r) => r.conditionChanged && r.conditionAfter)
+    .map((r) => ({
+      id: r.id,
+      after: r.conditionAfter as string,
+      date: toDateStr(new Date(normalizeTimestamp(r.createdAt) || Date.now())),
+    }));
+
   if (!tree && trees.length > 0) {
     return (
       <div className="bg-white rounded-xl p-8 text-center border border-slate-200 shadow-xs">
@@ -394,6 +417,41 @@ export const TreeDetailView: React.FC<TreeDetailViewProps> = ({ treeId, onBack }
         <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 text-xs rounded-xl">
           {saveError}
         </div>
+      )}
+
+      {/* History: condition changes and photos, oldest to newest, so progress or decline is easy to see */}
+      {(historyPhotos.length > 0 || conditionChanges.length > 0) && (
+        <section className="bg-white rounded-xl border border-slate-200 shadow-xs p-4 space-y-3" aria-labelledby="hist-h">
+          <h2 id="hist-h" className="text-sm font-bold text-slate-900">History</h2>
+          {conditionChanges.length > 0 && (
+            <ol className="flex flex-wrap items-center gap-x-2 gap-y-2">
+              {conditionChanges.map((c, i) => (
+                <li key={c.id} className="flex items-center gap-2">
+                  {i > 0 && <span className="text-slate-300" aria-hidden="true">→</span>}
+                  <span className="flex flex-col items-start">
+                    <ConditionBadge condition={c.after} size="sm" />
+                    <span className="text-xs text-slate-600 mt-0.5 tabular">{formatShortDate(c.date)}</span>
+                  </span>
+                </li>
+              ))}
+            </ol>
+          )}
+          {historyPhotos.length > 0 && (
+            <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+              {historyPhotos.map((ph, i) => (
+                <button
+                  key={`${ph.id}-${i}`}
+                  onClick={() => setActivePhoto({ url: ph.url, caption: `Tree ${treeId} · ${formatDateTime(ph.at)}` })}
+                  className="shrink-0 w-[88px] text-left group"
+                  aria-label={`Photo from ${formatShortDate(ph.date)}`}
+                >
+                  <img src={ph.thumb} alt="" loading="lazy" decoding="async" width="88" height="88" className="w-[88px] h-[88px] object-cover rounded-lg border border-slate-200 group-hover:ring-2 group-hover:ring-emerald-500" />
+                  <span className="block text-xs text-slate-600 mt-1 tabular">{formatShortDate(ph.date)}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </section>
       )}
 
       {/* Main Grid: Form Details (Left 7 cols) & Inspection History (Right 5 cols) */}

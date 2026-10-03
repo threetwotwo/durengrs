@@ -4,6 +4,7 @@ import { ConditionBadge } from './ConditionBadge';
 import { ReportDate } from './ReportDate';
 import { Link } from './Link';
 import { navigate, treeUrl, treesUrl } from '../lib/router';
+import { followUpOf, waitingLabel } from '../lib/insights';
 import { PhotoLightbox } from './PhotoLightbox';
 import { TaskRow } from './TaskRow';
 import { MarkDoneSheet, UndoToast, undoLogged, useUndoToast } from './TreatmentSheets';
@@ -164,12 +165,21 @@ export const Dashboard: React.FC = () => {
   const greeting = hour < 11 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
   const todayLabel = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
 
-  // Needs Attention trees: emergency first, then minor
-  const attentionTrees = useMemo(() => {
-    const emergency = trees.filter((t) => t.condition === 'emergency');
-    const minor = trees.filter((t) => t.condition === 'minor');
-    return [...emergency, ...minor];
+  // Needs attention: trees overdue for a re-check come first (emergency before minor, longest wait first).
+  const attentionItems = useMemo(() => {
+    const now = Date.now();
+    const items = trees
+      .filter((t) => t.condition === 'emergency' || t.condition === 'minor')
+      .map((tree) => ({ tree, fu: followUpOf(tree, normalizeTimestamp(tree.lastReportAt), now) }));
+    items.sort((a, b) => {
+      if (a.fu.needs !== b.fu.needs) return a.fu.needs ? -1 : 1;
+      if (a.tree.condition !== b.tree.condition) return a.tree.condition === 'emergency' ? -1 : 1;
+      return (b.fu.waitingDays ?? 9999) - (a.fu.waitingDays ?? 9999);
+    });
+    return items;
   }, [trees]);
+  const attentionTrees = attentionItems.map((i) => i.tree);
+  const followUpCount = attentionItems.filter((i) => i.fu.needs).length;
 
   // Per-block breakdown, sorted A to E by default
   const blockStats = useMemo(() => {
@@ -347,15 +357,20 @@ export const Dashboard: React.FC = () => {
           <div className="p-4 border-b border-slate-200 flex items-center justify-between gap-2">
             <h2 id="att-h" className="text-sm font-bold text-slate-900">
               Needs attention <span className="text-slate-500 font-medium tabular">({attentionTrees.length})</span>
+              {followUpCount > 0 && (
+                <span className="ml-2 px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200 text-xs font-semibold">
+                  {followUpCount} overdue for a check
+                </span>
+              )}
             </h2>
             {attentionTrees.length > 6 && (
               <button
                 onClick={() => {
-                  navigate(treesUrl({ condition: counts.emergency > 0 ? 'emergency' : 'minor' }));
+                  navigate(followUpCount > 0 ? treesUrl({ followup: '1' }) : treesUrl({ condition: counts.emergency > 0 ? 'emergency' : 'minor' }));
                 }}
                 className="text-xs font-semibold text-emerald-700 hover:text-emerald-800 flex items-center gap-1 min-h-8"
               >
-                View all {attentionTrees.length}
+                View all {followUpCount > 0 ? followUpCount : attentionTrees.length}
                 <ArrowRight className="w-3.5 h-3.5" />
               </button>
             )}
@@ -368,7 +383,7 @@ export const Dashboard: React.FC = () => {
             </div>
           ) : (
             <div className="divide-y divide-slate-100">
-              {attentionTrees.slice(0, 6).map((tree) => (
+              {attentionItems.slice(0, 6).map(({ tree, fu }) => (
                 <button
                   key={tree.id}
                   onClick={() => handleInspectTree(tree.id)}
@@ -385,9 +400,11 @@ export const Dashboard: React.FC = () => {
                       </span>
                     </span>
                   </span>
-                  <span className="flex items-center gap-2 shrink-0">
+                  <span className="flex flex-col items-end gap-1 shrink-0">
                     <ConditionBadge condition={tree.condition} size="sm" />
-                    <span className="hidden sm:inline text-xs text-slate-500 tabular w-20 text-right">{formatTimeAgo(tree.lastReportAt)}</span>
+                    <span className={`text-xs tabular ${fu.needs ? 'text-rose-700 font-semibold' : 'text-slate-500'}`}>
+                      {waitingLabel(fu)}
+                    </span>
                   </span>
                 </button>
               ))}
