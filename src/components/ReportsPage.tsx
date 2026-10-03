@@ -3,6 +3,8 @@ import { useFarm, formatDateTime } from '../context/FarmContext';
 import { ConditionBadge } from './ConditionBadge';
 import { ReportDate } from './ReportDate';
 import { PhotoLightbox } from './PhotoLightbox';
+import { PageHeader, inputCls } from './PageHeader';
+import { navigate, treeUrl, useQueryParams } from '../lib/router';
 import { ReportPhoto, TreeReport } from '../types';
 import {
   db,
@@ -16,7 +18,6 @@ import {
   orderBy,
   limit,
   where,
-  getDocs,
   onSnapshot,
 } from 'firebase/firestore';
 import {
@@ -74,21 +75,22 @@ const ReportThumbnail: React.FC<{
 };
 
 export const ReportsPage: React.FC = () => {
-  const { trees, variants, setSelectedTreeId, setActiveTab, totalReportsCount, refreshReportsCount } = useFarm();
+  const { trees, totalReportsCount } = useFarm();
+  const [params, setParams] = useQueryParams();
 
   const [reports, setReports] = useState<TreeReport[]>([]);
   const [pageLimit, setPageLimit] = useState(25);
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(true);
-
-  // Filters
-  const [search, setSearch] = useState('');
-  const [filterBlock, setFilterBlock] = useState('all');
-  const [filterCondition, setFilterCondition] = useState('all');
-  const [onlyChanged, setOnlyChanged] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [activePhoto, setActivePhoto] = useState<{ url: string; caption?: string } | null>(null);
 
-  // Available blocks from trees
+  // Filters live in the URL: shareable, survive reload, Back works.
+  const search = params.get('q') || '';
+  const filterBlock = params.get('block') || 'all';
+  const filterCondition = params.get('condition') || 'all';
+  const onlyChanged = params.get('changed') === '1';
+
   const availableBlocks = useMemo(() => {
     const set = new Set<string>();
     trees.forEach((t) => {
@@ -97,49 +99,28 @@ export const ReportsPage: React.FC = () => {
     return Array.from(set).sort();
   }, [trees]);
 
-  // Load reports 25 at a time (Requirement 7)
-  const loadReports = useCallback(async () => {
-    setLoading(true);
-    try {
-      let q;
-      if (filterBlock !== 'all') {
-        q = query(
-          collection(db, 'reports'),
-          where('block', '==', filterBlock),
-          orderBy('createdAt', 'desc'),
-          limit(pageLimit + 1)
-        );
-      } else {
-        q = query(
-          collection(db, 'reports'),
-          orderBy('createdAt', 'desc'),
-          limit(pageLimit + 1)
-        );
-      }
-
-      const snapshot = await getDocs(q);
-      const docs = snapshot.docs.map(parseReportDoc);
-
-      if (docs.length > pageLimit) {
-        setHasMore(true);
-        setReports(docs.slice(0, pageLimit));
-      } else {
-        setHasMore(false);
-        setReports(docs);
-      }
-    } catch (err: any) {
-      console.error('Failed to load reports:', err);
-      try {
-        handleFirestoreError(err, OperationType.LIST, 'reports');
-      } catch {}
-    } finally {
-      setLoading(false);
-    }
-  }, [filterBlock, pageLimit]);
-
+  // Live feed: new WhatsApp reports appear without a reload. The block filter is applied in the
+  // browser because "block + newest first" would need an extra Firestore index.
   useEffect(() => {
-    loadReports();
-  }, [loadReports]);
+    setLoading(true);
+    setLoadError(null);
+    const q = query(collection(db, 'reports'), orderBy('createdAt', 'desc'), limit(pageLimit + 1));
+    const unsub = onSnapshot(
+      q,
+      (snapshot) => {
+        const docs = snapshot.docs.map(parseReportDoc);
+        setHasMore(docs.length > pageLimit);
+        setReports(docs.slice(0, pageLimit));
+        setLoading(false);
+      },
+      (err) => {
+        console.error('Failed to load reports:', err);
+        setLoadError('Could not load reports. Check your connection and try again.');
+        setLoading(false);
+      }
+    );
+    return () => unsub();
+  }, [pageLimit]);
 
   // Filtered reports
   const filteredReports = useMemo(() => {
@@ -160,26 +141,22 @@ export const ReportsPage: React.FC = () => {
         if (filterCondition === 'not_assessed' && after !== 'not_assessed' && after !== '') return false;
       }
 
+      if (filterBlock !== 'all' && (rep.block || trees.find((x) => x.id === rep.treeId)?.block) !== filterBlock) {
+        return false;
+      }
+
       if (onlyChanged && !rep.conditionChanged) {
         return false;
       }
 
       return true;
     });
-  }, [reports, search, filterCondition, onlyChanged]);
+  }, [reports, search, filterCondition, filterBlock, onlyChanged, trees]);
 
-  const handleInspectTree = (treeId: string) => {
-    setSelectedTreeId(treeId);
-    setActiveTab('trees');
-  };
+  const handleInspectTree = (treeId: string) => navigate(treeUrl(treeId));
 
-  const handleResetFilters = () => {
-    setSearch('');
-    setFilterBlock('all');
-    setFilterCondition('all');
-    setOnlyChanged(false);
-    setPageLimit(25);
-  };
+  const handleResetFilters = () => setParams({ q: null, block: null, condition: null, changed: null });
+  const activeFilterCount = [search, filterBlock !== 'all', filterCondition !== 'all', onlyChanged].filter(Boolean).length;
 
   const maskPhone = (phone?: string): string => {
     if (!phone) return '';
@@ -201,85 +178,58 @@ export const ReportsPage: React.FC = () => {
         />
       )}
 
-      {/* Header & Controls */}
-      <div className="bg-white p-4 sm:p-5 rounded-xl border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
-        <div>
-          <h1 className="text-base font-bold text-slate-900 flex items-center gap-2">
-            <ClipboardList className="w-5 h-5 text-emerald-600" />
-            <span>Inspection Reports ({totalReportsCount})</span>
-          </h1>
-          <p className="text-xs text-slate-600 mt-0.5">
-            Paginated feed (25 at a time) of orchard inspection reports
-          </p>
+      <PageHeader
+        title="Reports"
+        description={`${totalReportsCount} field reports from the WhatsApp bot, newest first.`}
+      />
+
+      <div className="bg-white p-3 sm:p-4 rounded-xl border border-slate-200 shadow-xs grid grid-cols-2 lg:grid-cols-[1fr_auto_auto_auto_auto] gap-2.5 items-center">
+        <div className="relative col-span-2 lg:col-span-1">
+          <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setParams({ q: e.target.value })}
+            placeholder="Search tree, phone or text…"
+            aria-label="Search reports"
+            className={`${inputCls} pl-9`}
+          />
         </div>
-
-        {/* Filter & Search Bar */}
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Search */}
-          <div className="relative">
-            <Search className="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-2.5" />
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search tree ID, phone..."
-              className="text-xs pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none w-48 sm:w-56 placeholder:text-slate-500"
-            />
-          </div>
-
-          {/* Block filter */}
-          <select
-            value={filterBlock}
-            onChange={(e) => {
-              setFilterBlock(e.target.value);
-              setPageLimit(25);
-            }}
-            className="text-xs py-1.5 px-2.5 bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:outline-none"
-          >
-            <option value="all">All Blocks</option>
-            {availableBlocks.map((b) => (
-              <option key={b} value={b}>
-                Block {b}
-              </option>
-            ))}
-          </select>
-
-          {/* Condition filter */}
-          <select
-            value={filterCondition}
-            onChange={(e) => setFilterCondition(e.target.value)}
-            className="text-xs py-1.5 px-2.5 bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:outline-none"
-          >
-            <option value="all">All Conditions</option>
-            <option value="healthy">Healthy</option>
-            <option value="minor">Minor Issue</option>
-            <option value="emergency">Emergency</option>
-            <option value="not_assessed">Not assessed</option>
-          </select>
-
-          {/* Condition changed toggle */}
-          <label className="flex items-center gap-1.5 text-xs text-slate-700 font-medium px-2 py-1 bg-slate-50 rounded-lg border border-slate-200 cursor-pointer hover:bg-slate-100 select-none">
-            <input
-              type="checkbox"
-              checked={onlyChanged}
-              onChange={(e) => setOnlyChanged(e.target.checked)}
-              className="rounded text-emerald-600 focus:ring-emerald-500 w-3.5 h-3.5"
-            />
-            <span>Status changes only</span>
-          </label>
-
-          {(search !== '' || filterBlock !== 'all' || filterCondition !== 'all' || onlyChanged) && (
-            <button
-              onClick={handleResetFilters}
-              className="text-xs text-rose-700 hover:text-rose-800 font-semibold flex items-center gap-1 px-2 py-1 rounded bg-rose-50"
-              title="Reset filters"
-            >
-              <RotateCcw className="w-3.5 h-3.5" />
-              <span>Reset</span>
-            </button>
-          )}
-        </div>
+        <select value={filterBlock} onChange={(e) => setParams({ block: e.target.value })} aria-label="Block" className={inputCls}>
+          <option value="all">All blocks</option>
+          {availableBlocks.map((b) => (
+            <option key={b} value={b}>Block {b}</option>
+          ))}
+        </select>
+        <select value={filterCondition} onChange={(e) => setParams({ condition: e.target.value })} aria-label="Condition" className={inputCls}>
+          <option value="all">All conditions</option>
+          <option value="healthy">Healthy</option>
+          <option value="minor">Minor</option>
+          <option value="emergency">Emergency</option>
+          <option value="not_assessed">Not assessed</option>
+        </select>
+        <label className="min-h-11 px-3 inline-flex items-center gap-2 rounded-lg border border-slate-300 text-sm font-medium text-slate-800 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={onlyChanged}
+            onChange={(e) => setParams({ changed: e.target.checked ? '1' : null })}
+            className="w-4 h-4 accent-emerald-600"
+          />
+          Status changed
+        </label>
+        {activeFilterCount > 0 && (
+          <button onClick={handleResetFilters} className="min-h-11 px-3 rounded-lg text-sm font-semibold text-rose-700 hover:bg-rose-50 inline-flex items-center justify-center gap-1.5">
+            <RotateCcw className="w-4 h-4" />
+            Clear ({activeFilterCount})
+          </button>
+        )}
       </div>
+
+      {loadError && (
+        <div role="alert" className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-sm text-rose-800">
+          {loadError}
+        </div>
+      )}
 
       {/* Reports List */}
       <div className="space-y-3.5">

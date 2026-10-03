@@ -12,7 +12,8 @@ import {
 } from '../lib/firebase';
 import { TreatmentPlan, Treatment, ScheduleTask, computeTasks } from '../lib/treatments';
 
-export type AppTab = 'dashboard' | 'schedule' | 'trees' | 'variants' | 'reports';
+import { AppTab, useRoute } from '../lib/router';
+export type { AppTab };
 
 interface FarmContextType {
   blocks: string[];
@@ -29,18 +30,9 @@ interface FarmContextType {
   loading: boolean;
   currentProjectId: string;
   error: string | null;
-  selectedTreeId: string | null;
-  setSelectedTreeId: (id: string | null) => void;
   activeTab: AppTab;
-  setActiveTab: (tab: AppTab) => void;
   updateTree: (originalTree: DurianTree, updatedFields: Partial<DurianTree>) => Promise<boolean>;
   saveVariant: (variant: DurianVariant) => Promise<void>;
-  filterBlock: string;
-  setFilterBlock: (block: string) => void;
-  filterCondition: string;
-  setFilterCondition: (cond: string) => void;
-  quickFilter: string;
-  setQuickFilter: (filter: string) => void;
   totalFruits: number;
 }
 
@@ -52,11 +44,7 @@ export const FarmProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [totalReportsCount, setTotalReportsCount] = useState<number>(0);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedTreeId, setSelectedTreeId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<AppTab>('dashboard');
-  const [filterBlock, setFilterBlock] = useState<string>('all');
-  const [filterCondition, setFilterCondition] = useState<string>('all');
-  const [quickFilter, setQuickFilter] = useState<string>('all');
+  const activeTab = useRoute().tab; // the URL decides; see lib/router.ts
 
   // Unread = reports newer than the last time this browser opened the Reports tab.
   // One live query that only returns new docs, so it costs almost nothing.
@@ -207,7 +195,7 @@ export const FarmProvider: React.FC<{ children: React.ReactNode }> = ({ children
         },
         (err) => {
           console.error('Firestore trees error:', err);
-          setError(`Firestore error reading 'trees': ${err.message}`);
+          setError(`Could not load trees (${err.message})`);
           setLoading(false);
           try {
             handleFirestoreError(err, OperationType.LIST, 'trees');
@@ -304,18 +292,9 @@ export const FarmProvider: React.FC<{ children: React.ReactNode }> = ({ children
         loading,
         currentProjectId: activeProjectId,
         error,
-        selectedTreeId,
-        setSelectedTreeId,
         activeTab,
-        setActiveTab,
         updateTree,
         saveVariant,
-        filterBlock,
-        setFilterBlock,
-        filterCondition,
-        setFilterCondition,
-        quickFilter,
-        setQuickFilter,
         totalFruits,
       }}
     >

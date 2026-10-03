@@ -3,6 +3,7 @@ import { useFarm, formatDateTime, formatDate } from '../context/FarmContext';
 import { DurianTree, TreeCondition, ReportPhoto, TreeReport } from '../types';
 import { ConditionBadge } from './ConditionBadge';
 import { ReportDate } from './ReportDate';
+import { navigate, setNavigationBlocker, treeUrl, treesUrl } from '../lib/router';
 import { formatShortDate } from '../lib/treatments';
 import { PhotoLightbox } from './PhotoLightbox';
 import {
@@ -76,7 +77,7 @@ const ThumbnailItem: React.FC<{
 };
 
 export const TreeDetailView: React.FC<TreeDetailViewProps> = ({ treeId, onBack }) => {
-  const { trees, variants, updateTree, setSelectedTreeId, treatments } = useFarm();
+  const { trees, variants, updateTree, treatments } = useFarm();
 
   const tree = trees.find((t) => t.id === treeId);
   const blockTreatments = treatments.filter((x) => tree?.block && x.blocks?.includes(tree.block)).slice(0, 5);
@@ -201,17 +202,17 @@ export const TreeDetailView: React.FC<TreeDetailViewProps> = ({ treeId, onBack }
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [hasUnsavedChanges]);
 
-  // Guard navigation when unsaved changes exist
-  const safeNavigate = useCallback(
-    (action: () => void) => {
-      if (hasUnsavedChanges) {
-        const confirmed = window.confirm('You have unsaved changes on this tree. Are you sure you want to discard them?');
-        if (!confirmed) return;
-      }
-      action();
-    },
-    [hasUnsavedChanges]
-  );
+  // Guard every way of leaving (tabs, Back button, prev/next, links) while there are unsaved edits.
+  useEffect(() => {
+    if (!hasUnsavedChanges) return;
+    setNavigationBlocker(() =>
+      window.confirm('You have unsaved changes on this tree. Discard them?')
+    );
+    return () => setNavigationBlocker(null);
+  }, [hasUnsavedChanges]);
+
+  // Prev/next replace the history entry, so Back returns to the list instead of walking through trees.
+  const safeNavigate = useCallback((action: () => void) => action(), []);
 
   if (!tree && trees.length > 0) {
     return (
@@ -221,7 +222,7 @@ export const TreeDetailView: React.FC<TreeDetailViewProps> = ({ treeId, onBack }
           onClick={onBack}
           className="mt-3 px-4 py-1.5 text-xs font-semibold bg-slate-900 text-white rounded-lg hover:bg-slate-800"
         >
-          Return to Inventory
+          Back to trees
         </button>
       </div>
     );
@@ -290,12 +291,13 @@ export const TreeDetailView: React.FC<TreeDetailViewProps> = ({ treeId, onBack }
   return (
     <div className="space-y-5">
       {/* Top Header Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white px-4 sm:px-5 py-3.5 rounded-xl border border-slate-200 shadow-xs">
+      <div className="sticky top-14 z-20 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white px-4 sm:px-5 py-3 rounded-xl border border-slate-200 shadow-xs">
         <div className="flex items-center gap-3">
           <button
             onClick={() => safeNavigate(onBack)}
-            className="p-1.5 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors"
-            title="Back to trees"
+            className="min-h-11 min-w-11 flex items-center justify-center rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors"
+            title="Back"
+            aria-label="Back"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
@@ -318,9 +320,9 @@ export const TreeDetailView: React.FC<TreeDetailViewProps> = ({ treeId, onBack }
           {/* Tree Stepper */}
           <div className="flex items-center border border-slate-200 rounded-lg p-0.5 bg-slate-50">
             <button
-              onClick={() => prevTree && safeNavigate(() => setSelectedTreeId(prevTree.id))}
+              onClick={() => prevTree && navigate(treeUrl(prevTree.id), { replace: true })}
               disabled={!prevTree}
-              className="p-1.5 rounded text-slate-600 hover:text-slate-900 hover:bg-white disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+              className="min-h-10 min-w-10 flex items-center justify-center rounded text-slate-600 hover:text-slate-900 hover:bg-white disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
               title={prevTree ? `Previous: Tree ${prevTree.id}` : 'First tree'}
             >
               <ChevronLeft className="w-4 h-4" />
@@ -329,9 +331,9 @@ export const TreeDetailView: React.FC<TreeDetailViewProps> = ({ treeId, onBack }
               {currentIndex + 1} / {trees.length}
             </span>
             <button
-              onClick={() => nextTree && safeNavigate(() => setSelectedTreeId(nextTree.id))}
+              onClick={() => nextTree && navigate(treeUrl(nextTree.id), { replace: true })}
               disabled={!nextTree}
-              className="p-1.5 rounded text-slate-600 hover:text-slate-900 hover:bg-white disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+              className="min-h-10 min-w-10 flex items-center justify-center rounded text-slate-600 hover:text-slate-900 hover:bg-white disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
               title={nextTree ? `Next: Tree ${nextTree.id}` : 'Last tree'}
             >
               <ChevronRight className="w-4 h-4" />
@@ -342,7 +344,7 @@ export const TreeDetailView: React.FC<TreeDetailViewProps> = ({ treeId, onBack }
           <button
             onClick={() => handleSave()}
             disabled={!hasUnsavedChanges || isSaving}
-            className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all shadow-xs ${
+            className={`inline-flex items-center gap-2 px-4 min-h-11 rounded-lg text-sm font-semibold transition-all shadow-xs ${
               hasUnsavedChanges
                 ? 'bg-emerald-600 hover:bg-emerald-700 text-white ring-2 ring-emerald-500/20'
                 : 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed'
@@ -394,27 +396,6 @@ export const TreeDetailView: React.FC<TreeDetailViewProps> = ({ treeId, onBack }
         </div>
       )}
 
-      {/* Routine work applied to this tree's block */}
-      {blockTreatments.length > 0 && (
-        <section className="bg-white rounded-xl border border-slate-200 shadow-xs p-4" aria-labelledby="tr-h">
-          <h2 id="tr-h" className="text-sm font-bold text-slate-900 mb-2">
-            Recent treatments <span className="text-slate-500 font-medium">· Block {tree?.block}</span>
-          </h2>
-          <ul className="divide-y divide-slate-100">
-            {blockTreatments.map((x) => (
-              <li key={x.id} className="py-2 flex flex-wrap items-baseline gap-x-3 text-sm">
-                <span className="font-semibold text-slate-900">{x.planName}</span>
-                <span className="text-xs text-slate-600">
-                  {formatShortDate(x.date)}
-                  {x.product ? ` · ${x.product}` : ''}
-                  {x.dose ? ` · ${x.dose}` : ''}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
       {/* Main Grid: Form Details (Left 7 cols) & Inspection History (Right 5 cols) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left Column: Form Details */}
@@ -422,7 +403,7 @@ export const TreeDetailView: React.FC<TreeDetailViewProps> = ({ treeId, onBack }
           <div className="border-b border-slate-200 pb-3">
             <h2 className="text-sm font-bold text-slate-900">Tree Profile & Measurements</h2>
             <p className="text-xs text-slate-600 mt-0.5">
-              Editable orchard records. Empty numeric inputs remove the field in database.
+              Edit this tree's details. Clearing a measurement removes it.
             </p>
           </div>
 
@@ -469,7 +450,7 @@ export const TreeDetailView: React.FC<TreeDetailViewProps> = ({ treeId, onBack }
                 value={formData.conditionNotes}
                 onChange={(e) => setFormData({ ...formData, conditionNotes: e.target.value })}
                 placeholder="e.g. Stem borer detected, treated with organic copper spray"
-                className="w-full text-xs p-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none placeholder:text-slate-500"
+                className="w-full min-h-11 text-sm px-3 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none placeholder:text-slate-500"
               />
             </div>
 
@@ -484,7 +465,7 @@ export const TreeDetailView: React.FC<TreeDetailViewProps> = ({ treeId, onBack }
                   value={formData.block}
                   onChange={(e) => setFormData({ ...formData, block: e.target.value })}
                   placeholder="e.g. A, B, C"
-                  className="w-full text-xs p-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                  className="w-full min-h-11 text-sm px-3 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                 />
               </div>
 
@@ -495,7 +476,7 @@ export const TreeDetailView: React.FC<TreeDetailViewProps> = ({ treeId, onBack }
                 <select
                   value={formData.variant}
                   onChange={(e) => setFormData({ ...formData, variant: e.target.value })}
-                  className="w-full text-xs p-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                  className="w-full min-h-11 text-sm px-3 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                 >
                   <option value="">Select Variant...</option>
                   {variants.map((v) => (
@@ -518,7 +499,7 @@ export const TreeDetailView: React.FC<TreeDetailViewProps> = ({ treeId, onBack }
                   value={formData.supplier}
                   onChange={(e) => setFormData({ ...formData, supplier: e.target.value })}
                   placeholder="e.g. Aziz"
-                  className="w-full text-xs p-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none placeholder:text-slate-500"
+                  className="w-full min-h-11 text-sm px-3 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none placeholder:text-slate-500"
                 />
               </div>
 
@@ -549,7 +530,7 @@ export const TreeDetailView: React.FC<TreeDetailViewProps> = ({ treeId, onBack }
                     value={formData.trunkSize}
                     onChange={(e) => setFormData({ ...formData, trunkSize: e.target.value })}
                     placeholder="—"
-                    className="w-full text-xs p-2 bg-white border border-slate-300 rounded-lg font-mono tabular-nums placeholder:text-slate-400"
+                    className="w-full min-h-11 text-sm px-3 py-2 bg-white border border-slate-300 rounded-lg font-mono tabular-nums placeholder:text-slate-400"
                   />
                 </div>
 
@@ -562,7 +543,7 @@ export const TreeDetailView: React.FC<TreeDetailViewProps> = ({ treeId, onBack }
                     value={formData.canopySize}
                     onChange={(e) => setFormData({ ...formData, canopySize: e.target.value })}
                     placeholder="—"
-                    className="w-full text-xs p-2 bg-white border border-slate-300 rounded-lg font-mono tabular-nums placeholder:text-slate-400"
+                    className="w-full min-h-11 text-sm px-3 py-2 bg-white border border-slate-300 rounded-lg font-mono tabular-nums placeholder:text-slate-400"
                   />
                 </div>
 
@@ -575,7 +556,7 @@ export const TreeDetailView: React.FC<TreeDetailViewProps> = ({ treeId, onBack }
                     value={formData.floweringClusters}
                     onChange={(e) => setFormData({ ...formData, floweringClusters: e.target.value })}
                     placeholder="—"
-                    className="w-full text-xs p-2 bg-white border border-slate-300 rounded-lg font-mono tabular-nums placeholder:text-slate-400"
+                    className="w-full min-h-11 text-sm px-3 py-2 bg-white border border-slate-300 rounded-lg font-mono tabular-nums placeholder:text-slate-400"
                   />
                 </div>
 
@@ -588,7 +569,7 @@ export const TreeDetailView: React.FC<TreeDetailViewProps> = ({ treeId, onBack }
                     value={formData.estimatedFruitCount}
                     onChange={(e) => setFormData({ ...formData, estimatedFruitCount: e.target.value })}
                     placeholder="—"
-                    className="w-full text-xs p-2 bg-emerald-50/50 border border-emerald-300 rounded-lg font-mono tabular-nums font-bold text-emerald-800 focus:bg-white placeholder:text-slate-400"
+                    className="w-full min-h-11 text-sm px-3 py-2 bg-emerald-50/50 border border-emerald-300 rounded-lg font-mono tabular-nums font-bold text-emerald-800 focus:bg-white placeholder:text-slate-400"
                   />
                 </div>
               </div>
@@ -604,7 +585,7 @@ export const TreeDetailView: React.FC<TreeDetailViewProps> = ({ treeId, onBack }
                 value={formData.notes}
                 onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                 placeholder="Field observations, soil treatment, pruning notes..."
-                className="w-full text-xs p-2.5 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none placeholder:text-slate-500"
+                className="w-full min-h-11 text-sm px-3 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none placeholder:text-slate-500"
               />
             </div>
           </form>
@@ -742,6 +723,27 @@ export const TreeDetailView: React.FC<TreeDetailViewProps> = ({ treeId, onBack }
           </div>
         </div>
       </div>
+
+      {/* Routine work applied to this tree's block */}
+      {blockTreatments.length > 0 && (
+        <section className="bg-white rounded-xl border border-slate-200 shadow-xs p-4" aria-labelledby="tr-h">
+          <h2 id="tr-h" className="text-sm font-bold text-slate-900 mb-2">
+            Recent treatments <span className="text-slate-500 font-medium">· Block {tree?.block}</span>
+          </h2>
+          <ul className="divide-y divide-slate-100">
+            {blockTreatments.map((x) => (
+              <li key={x.id} className="py-2 flex flex-wrap items-baseline gap-x-3 text-sm">
+                <span className="font-semibold text-slate-900">{x.planName}</span>
+                <span className="text-xs text-slate-600">
+                  {formatShortDate(x.date)}
+                  {x.product ? ` · ${x.product}` : ''}
+                  {x.dose ? ` · ${x.dose}` : ''}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {/* Lightbox Modal */}
       {activePhoto && (

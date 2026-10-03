@@ -1,5 +1,6 @@
 import React from 'react';
 import { useFarm, AppTab } from '../context/FarmContext';
+import { Link } from './Link';
 import { LayoutDashboard, TableProperties, Sprout, ClipboardList, CalendarCheck } from 'lucide-react';
 
 /** Monogram "C" with a leaf at the open end. Calm and generic on purpose. */
@@ -57,16 +58,18 @@ export function useNavItems(): NavItem[] {
   ];
 }
 
+const tabPath = (id: AppTab) => (id === 'dashboard' ? '/' : `/${id}`);
+
 export const Header: React.FC = () => {
-  const { activeTab, setActiveTab, trees, blocks } = useFarm();
+  const { activeTab, trees, blocks } = useFarm();
   const navItems = useNavItems();
 
   return (
     <header className="sticky top-0 z-30 bg-slate-900 text-white border-b border-slate-800">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-14">
-          <button
-            onClick={() => setActiveTab('dashboard')}
+          <Link
+            to="/"
             className="flex items-center gap-3 text-left rounded-lg focus-visible:outline-2 focus-visible:outline-emerald-400"
             aria-label="Cilowong Durian Estate, go to dashboard"
           >
@@ -77,7 +80,7 @@ export const Header: React.FC = () => {
                 Durian Estate{trees.length > 0 ? ` · ${trees.length} trees · ${blocks.length} blocks` : ''}
               </span>
             </span>
-          </button>
+          </Link>
 
           {/* Desktop navigation. On phones the bottom tab bar is used instead. */}
           <nav className="hidden md:flex items-center gap-1" aria-label="Main">
@@ -85,9 +88,9 @@ export const Header: React.FC = () => {
               const Icon = item.icon;
               const isActive = activeTab === item.id;
               return (
-                <button
+                <Link
                   key={item.id}
-                  onClick={() => setActiveTab(item.id)}
+                  to={tabPath(item.id)}
                   aria-current={isActive ? 'page' : undefined}
                   className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold transition-colors ${
                     isActive ? 'bg-slate-800 text-emerald-400' : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
@@ -100,7 +103,7 @@ export const Header: React.FC = () => {
                       {item.badge.text}
                     </span>
                   )}
-                </button>
+                </Link>
               );
             })}
           </nav>
@@ -112,7 +115,7 @@ export const Header: React.FC = () => {
 
 /** Fixed bottom tab bar for phones: thumb reach, labels always visible. */
 export const BottomNav: React.FC = () => {
-  const { activeTab, setActiveTab } = useFarm();
+  const { activeTab } = useFarm();
   const navItems = useNavItems();
 
   return (
@@ -126,8 +129,8 @@ export const BottomNav: React.FC = () => {
           const isActive = activeTab === item.id;
           return (
             <li key={item.id}>
-              <button
-                onClick={() => setActiveTab(item.id)}
+              <Link
+                to={tabPath(item.id)}
                 aria-current={isActive ? 'page' : undefined}
                 className={`relative w-full min-h-14 flex flex-col items-center justify-center gap-0.5 text-xs font-semibold ${
                   isActive ? 'text-emerald-400' : 'text-slate-400'
@@ -145,7 +148,7 @@ export const BottomNav: React.FC = () => {
                   )}
                 </span>
                 <span>{item.label}</span>
-              </button>
+              </Link>
             </li>
           );
         })}

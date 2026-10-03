@@ -1,6 +1,9 @@
 import React, { useState, useMemo } from 'react';
 import { useFarm } from '../context/FarmContext';
 import { DurianVariant } from '../types';
+import { PageHeader, btnPrimary, inputCls } from './PageHeader';
+import { Link } from './Link';
+import { treesUrl } from '../lib/router';
 import {
   Sprout,
   Plus,
@@ -16,7 +19,7 @@ import {
 } from 'lucide-react';
 
 export const VariantsPage: React.FC = () => {
-  const { variants, trees, saveVariant, setActiveTab, setFilterBlock, setFilterCondition } = useFarm();
+  const { variants, trees, saveVariant } = useFarm();
 
   const [search, setSearch] = useState('');
   const [modalMode, setModalMode] = useState<'create' | 'edit' | null>(null);
@@ -40,6 +43,17 @@ export const VariantsPage: React.FC = () => {
     trees.forEach((t) => {
       const v = t.variant;
       map.set(v, (map.get(v) || 0) + 1);
+    });
+    return map;
+  }, [trees]);
+
+  const healthByVariant = useMemo(() => {
+    const map = new Map<string, { healthy: number; minor: number; emergency: number; not_assessed: number }>();
+    trees.forEach((tr) => {
+      const m = map.get(tr.variant) || { healthy: 0, minor: 0, emergency: 0, not_assessed: 0 };
+      const c = tr.condition === 'healthy' || tr.condition === 'minor' || tr.condition === 'emergency' ? tr.condition : 'not_assessed';
+      m[c]++;
+      map.set(tr.variant, m);
     });
     return map;
   }, [trees]);
@@ -111,8 +125,8 @@ export const VariantsPage: React.FC = () => {
 
       setSuccessToast(
         modalMode === 'create'
-          ? `Variant "${cleanCode}" added successfully to variants/${cleanCode}!`
-          : `Variant "${cleanCode}" updated successfully!`
+          ? `Variant "${cleanCode}" added.`
+          : `Variant "${cleanCode}" updated.`
       );
       setTimeout(() => setSuccessToast(null), 3000);
       closeModal();
@@ -125,29 +139,16 @@ export const VariantsPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Top Banner */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-xl border border-slate-200 shadow-xs">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-            <Sprout className="w-5 h-5 text-emerald-600" />
-            Variant Catalog & Reference Data
-          </h1>
-          <p className="text-xs text-slate-500 mt-1">
-            Manage durian varieties, taste profiles, ripening schedules, and botanical traits (stored in{' '}
-            <code className="bg-slate-100 px-1 py-0.5 rounded text-slate-700">variants/&#123;code&#125;</code>)
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <button
-            onClick={openCreateModal}
-            className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg shadow-xs transition-colors"
-          >
+      <PageHeader
+        title="Variants"
+        description="Durian varieties on the farm, how many trees each has and how healthy they are."
+        actions={
+          <button onClick={openCreateModal} className={btnPrimary}>
             <Plus className="w-4 h-4" />
-            <span>Add New Variant</span>
+            Add variant
           </button>
-        </div>
-      </div>
+        }
+      />
 
       {successToast && (
         <div className="p-3 bg-emerald-100 border border-emerald-300 text-emerald-900 text-xs rounded-lg flex items-center gap-2 font-medium">
@@ -156,27 +157,26 @@ export const VariantsPage: React.FC = () => {
         </div>
       )}
 
-      {/* Search Bar */}
-      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex items-center gap-3">
+      <div className="flex items-center gap-3">
         <div className="relative flex-1">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+          <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
-            type="text"
+            type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search variants by code, name, origin, or profile..."
-            className="w-full text-xs pl-9 pr-3 py-2 bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+            placeholder="Search by code, name or origin…"
+            aria-label="Search variants"
+            className={`${inputCls} pl-9`}
           />
         </div>
-        <span className="text-xs text-slate-500 whitespace-nowrap">
-          {filteredVariants.length} variants
-        </span>
+        <span className="text-sm text-slate-600 whitespace-nowrap tabular">{filteredVariants.length} variants</span>
       </div>
 
       {/* Variant Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {filteredVariants.map((variant) => {
           const treeCount = treeCountMap.get(variant.code) || 0;
+          const health = healthByVariant.get(variant.code) || { healthy: 0, minor: 0, emergency: 0, not_assessed: 0 };
 
           return (
             <div
@@ -205,8 +205,9 @@ export const VariantsPage: React.FC = () => {
 
                   <button
                     onClick={() => openEditModal(variant)}
-                    className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-700 hover:bg-emerald-50 transition-colors"
-                    title="Edit variant details"
+                    className="min-h-11 min-w-11 -m-2 flex items-center justify-center rounded-lg text-slate-500 hover:text-emerald-700 hover:bg-emerald-50 transition-colors"
+                    title="Edit variant"
+                    aria-label={`Edit ${variant.name}`}
                   >
                     <Edit2 className="w-3.5 h-3.5" />
                   </button>
@@ -223,27 +224,51 @@ export const VariantsPage: React.FC = () => {
                 {variant.characteristics && (
                   <div className="text-xs text-slate-600 space-y-0.5">
                     <span className="font-semibold text-slate-700 block text-xs uppercase tracking-wider">
-                      Botanical Traits:
+                      Traits
                     </span>
                     <p className="line-clamp-2">{variant.characteristics}</p>
                   </div>
                 )}
               </div>
 
-              {/* Footer: Ripening days & Tree count badge */}
-              <div className="pt-4 mt-3 border-t border-slate-100 flex items-center justify-between text-xs">
-                {variant.ripeningDays ? (
-                  <span className="flex items-center gap-1 text-slate-500 text-xs font-mono">
-                    <Calendar className="w-3 h-3 text-slate-400" />
-                    ~{variant.ripeningDays} days ripening
-                  </span>
-                ) : (
-                  <span className="text-slate-400 text-xs">Ripening cycle: TBD</span>
+              {/* Health mix + link to the trees of this variant */}
+              <div className="pt-4 mt-3 border-t border-slate-100 space-y-2.5">
+                {treeCount > 0 && (
+                  <div
+                    className="flex h-2 rounded-full overflow-hidden bg-slate-100"
+                    role="img"
+                    aria-label={`Healthy ${health.healthy}, minor ${health.minor}, emergency ${health.emergency}, not assessed ${health.not_assessed}`}
+                  >
+                    {[
+                      { n: health.healthy, c: 'bg-emerald-500' },
+                      { n: health.minor, c: 'bg-amber-400' },
+                      { n: health.emergency, c: 'bg-rose-500' },
+                      { n: health.not_assessed, c: 'bg-slate-300' },
+                    ].map((s, i) => (s.n > 0 ? <div key={i} className={s.c} style={{ width: `${(s.n / treeCount) * 100}%` }} /> : null))}
+                  </div>
                 )}
-
-                <span className="text-xs font-medium text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                  {treeCount} {treeCount === 1 ? 'tree' : 'trees'} in orchard
-                </span>
+                <div className="flex items-center justify-between gap-2 text-sm">
+                  <Link to={treesUrl({ variant: variant.code })} className="font-semibold text-emerald-700 hover:text-emerald-800 hover:underline">
+                    {treeCount} {treeCount === 1 ? 'tree' : 'trees'}
+                  </Link>
+                  <span className="text-xs text-slate-600 tabular">
+                    {health.emergency > 0 && <span className="text-rose-700 font-semibold">{health.emergency} emergency · </span>}
+                    {health.minor > 0 && <span className="text-amber-700 font-semibold">{health.minor} minor · </span>}
+                    {health.healthy} healthy
+                  </span>
+                </div>
+                <div className="text-xs">
+                  {variant.ripeningDays ? (
+                    <span className="flex items-center gap-1 text-slate-600 tabular">
+                      <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                      About {variant.ripeningDays} days from flowering to ripe
+                    </span>
+                  ) : (
+                    <button onClick={() => openEditModal(variant)} className="text-slate-500 hover:text-emerald-700 underline decoration-dotted min-h-8">
+                      Add ripening time
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           );

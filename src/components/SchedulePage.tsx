@@ -13,6 +13,7 @@ import {
   setPlanActive,
 } from '../lib/treatments';
 import { TaskRow, TYPE_ICON } from './TaskRow';
+import { PageHeader, btnPrimary } from './PageHeader';
 import {
   MarkDoneSheet,
   PlanEditorSheet,
@@ -59,19 +60,16 @@ export const SchedulePage: React.FC = () => {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900">Schedule</h1>
-          <p className="text-sm text-slate-600">Fertilizer, sprays and other routine work, and when each is due.</p>
-        </div>
-        <button
-          onClick={() => setEditor({})}
-          className="min-h-11 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold flex items-center gap-2"
-        >
-          <Plus className="w-4 h-4" />
-          New routine
-        </button>
-      </div>
+      <PageHeader
+        title="Schedule"
+        description="Fertilizer, sprays and other routine work, and when each is due."
+        actions={
+          <button onClick={() => setEditor({})} className={btnPrimary}>
+            <Plus className="w-4 h-4" />
+            New routine
+          </button>
+        }
+      />
 
       {scheduleError && (
         <div role="alert" className="flex items-start gap-2 p-3 rounded-xl bg-amber-50 border border-amber-200 text-sm text-amber-900">

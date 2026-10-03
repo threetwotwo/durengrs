@@ -1,31 +1,50 @@
-import React, { lazy, Suspense } from 'react';
+import React, { lazy, Suspense, useEffect, useRef } from 'react';
 import { FarmProvider, useFarm } from './context/FarmContext';
 import { Header, BottomNav } from './components/Header';
 import { Dashboard } from './components/Dashboard';
+import { ErrorBoundary } from './components/ErrorBoundary';
+import { TAB_TITLES, goBack, navigate, useRoute } from './lib/router';
+import { AlertCircle, RefreshCw } from 'lucide-react';
+
 const TreesTable = lazy(() => import('./components/TreesTable').then((m) => ({ default: m.TreesTable })));
 const TreeDetailView = lazy(() => import('./components/TreeDetailView').then((m) => ({ default: m.TreeDetailView })));
 const VariantsPage = lazy(() => import('./components/VariantsPage').then((m) => ({ default: m.VariantsPage })));
 const ReportsPage = lazy(() => import('./components/ReportsPage').then((m) => ({ default: m.ReportsPage })));
 const SchedulePage = lazy(() => import('./components/SchedulePage').then((m) => ({ default: m.SchedulePage })));
-import { AlertCircle, RefreshCw } from 'lucide-react';
 
 const AppContent: React.FC = () => {
-  const {
-    activeTab,
-    selectedTreeId,
-    setSelectedTreeId,
-    loading,
-    error,
-  } = useFarm();
+  const { loading, error } = useFarm();
+  const route = useRoute();
+  const mainRef = useRef<HTMLElement>(null);
+
+  // Unknown URL -> dashboard (replace, so Back does not bounce through the bad URL).
+  useEffect(() => {
+    if (!route.known) navigate('/', { replace: true });
+  }, [route.known, route.path]);
+
+  // New page: scroll to top, update the tab title, move keyboard/screen-reader focus to the content.
+  useEffect(() => {
+    window.scrollTo(0, 0);
+    document.title = `${route.treeId ? `Tree ${route.treeId}` : TAB_TITLES[route.tab]} · Cilowong`;
+    mainRef.current?.focus({ preventScroll: true });
+  }, [route.pageKey]);
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-100 text-slate-900 font-sans">
-      {/* Top Header */}
+      <a
+        href="#main"
+        onClick={(e) => {
+          e.preventDefault();
+          mainRef.current?.focus();
+        }}
+        className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:m-2 focus:px-3 focus:py-2 focus:rounded-lg focus:bg-white focus:text-slate-900"
+      >
+        Skip to content
+      </a>
       <Header />
 
-      {/* Error alert if any */}
       {error && (
-        <div className="bg-rose-600 text-white px-4 py-2 text-xs font-medium flex items-center justify-between">
+        <div role="alert" className="bg-rose-600 text-white px-4 py-2 text-sm font-medium">
           <div className="flex items-center gap-2 max-w-7xl mx-auto w-full">
             <AlertCircle className="w-4 h-4 shrink-0" />
             <span>{error}</span>
@@ -33,53 +52,39 @@ const AppContent: React.FC = () => {
         </div>
       )}
 
-      {/* Main View Area */}
-      <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-5 pb-24 md:pb-5">
+      <main
+        id="main"
+        ref={mainRef}
+        tabIndex={-1}
+        className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-5 pb-24 md:pb-5 outline-none"
+      >
         {loading ? (
-          <div className="flex flex-col items-center justify-center min-h-[50vh] space-y-2.5">
+          <div className="flex flex-col items-center justify-center min-h-[50vh] space-y-2.5" role="status">
             <RefreshCw className="w-7 h-7 text-emerald-600 animate-spin" />
-            <p className="text-xs font-medium text-slate-500">
-              Loading orchard records...
-            </p>
+            <p className="text-sm font-medium text-slate-600">Loading orchard records…</p>
           </div>
         ) : (
-          <>
-            {activeTab === 'dashboard' && <Dashboard />}
-
+          <ErrorBoundary resetKey={route.pageKey}>
             <Suspense fallback={<div className="h-64 rounded-xl bg-white border border-slate-200 animate-pulse" />}>
-            {activeTab === 'schedule' && <SchedulePage />}
-
-            {activeTab === 'trees' && (
-              <>
-                {selectedTreeId ? (
-                  <TreeDetailView
-                    treeId={selectedTreeId}
-                    onBack={() => setSelectedTreeId(null)}
-                  />
+              {route.tab === 'dashboard' && <Dashboard />}
+              {route.tab === 'schedule' && <SchedulePage />}
+              {route.tab === 'trees' &&
+                (route.treeId ? (
+                  <TreeDetailView key={route.treeId} treeId={route.treeId} onBack={() => goBack('/trees')} />
                 ) : (
-                  <TreesTable
-                    onSelectTree={(id) => setSelectedTreeId(id)}
-                  />
-                )}
-              </>
-            )}
-
-            {activeTab === 'variants' && <VariantsPage />}
-
-            {activeTab === 'reports' && <ReportsPage />}
+                  <TreesTable />
+                ))}
+              {route.tab === 'variants' && <VariantsPage />}
+              {route.tab === 'reports' && <ReportsPage />}
             </Suspense>
-          </>
+          </ErrorBoundary>
         )}
       </main>
 
       <BottomNav />
 
-      {/* Sleek Minimal Footer */}
-      <footer className="hidden md:block bg-white border-t border-slate-200 py-3.5 text-xs text-slate-400">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-1 text-xs">
-          <span>Cilowong Durian Farm · Admin Management Console</span>
-          <span className="text-slate-400">Connected to default Firestore</span>
-        </div>
+      <footer className="hidden md:block bg-white border-t border-slate-200 py-3 text-xs text-slate-500">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">Cilowong Durian Estate</div>
       </footer>
     </div>
   );

@@ -2,6 +2,8 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useFarm, formatDateTime, formatTimeAgo, normalizeTimestamp } from '../context/FarmContext';
 import { ConditionBadge } from './ConditionBadge';
 import { ReportDate } from './ReportDate';
+import { Link } from './Link';
+import { navigate, treeUrl, treesUrl } from '../lib/router';
 import { PhotoLightbox } from './PhotoLightbox';
 import { TaskRow } from './TaskRow';
 import { MarkDoneSheet, UndoToast, undoLogged, useUndoToast } from './TreatmentSheets';
@@ -79,11 +81,6 @@ export const Dashboard: React.FC = () => {
     totalFruits,
     totalReportsCount,
     loading: treesLoading,
-    setActiveTab,
-    setSelectedTreeId,
-    setFilterBlock,
-    setFilterCondition,
-    setQuickFilter,
     plans,
     scheduleTasks,
   } = useFarm();
@@ -221,19 +218,15 @@ export const Dashboard: React.FC = () => {
   };
 
   const handleInspectTree = (treeId: string) => {
-    setSelectedTreeId(treeId);
+    navigate(treeUrl(treeId));
   };
 
   const handleConditionTileClick = (cond: string) => {
-    setFilterCondition(cond);
-    setQuickFilter(cond);
-    setActiveTab('trees');
+    navigate(treesUrl({ condition: cond }));
   };
 
   const handleNoReportClick = () => {
-    setQuickFilter('no_report_7d');
-    setFilterCondition('all');
-    setActiveTab('trees');
+    navigate('/reports');
   };
 
   const maskPhone = (phone?: string): string => {
@@ -330,7 +323,7 @@ export const Dashboard: React.FC = () => {
         </button>
 
         <button
-          onClick={() => setActiveTab('schedule')}
+          onClick={() => navigate('/schedule')}
           className={`text-left p-4 rounded-xl border bg-white shadow-xs hover:shadow-sm transition-shadow focus-visible:outline-2 focus-visible:outline-emerald-500 ${
             overdueCount > 0 ? 'border-rose-300' : 'border-slate-200'
           }`}
@@ -358,8 +351,7 @@ export const Dashboard: React.FC = () => {
             {attentionTrees.length > 6 && (
               <button
                 onClick={() => {
-                  setQuickFilter(counts.emergency > 0 ? 'emergency' : 'minor');
-                  setActiveTab('trees');
+                  navigate(treesUrl({ condition: counts.emergency > 0 ? 'emergency' : 'minor' }));
                 }}
                 className="text-xs font-semibold text-emerald-700 hover:text-emerald-800 flex items-center gap-1 min-h-8"
               >
@@ -407,7 +399,7 @@ export const Dashboard: React.FC = () => {
           <div className="p-4 border-b border-slate-200 flex items-center justify-between gap-2">
             <h2 id="wk-h" className="text-sm font-bold text-slate-900">Routine work</h2>
             <button
-              onClick={() => setActiveTab('schedule')}
+              onClick={() => navigate('/schedule')}
               className="text-xs font-semibold text-emerald-700 hover:text-emerald-800 flex items-center gap-1 min-h-8"
             >
               Open schedule
@@ -420,7 +412,7 @@ export const Dashboard: React.FC = () => {
               <p className="text-sm font-semibold text-slate-800">No routines yet</p>
               <p className="text-xs text-slate-600 mt-0.5 mb-3">Track fertilizer and spray rounds and see what is due.</p>
               <button
-                onClick={() => setActiveTab('schedule')}
+                onClick={() => navigate('/schedule')}
                 className="min-h-11 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold"
               >
                 Set up routines
@@ -442,7 +434,7 @@ export const Dashboard: React.FC = () => {
                 <TaskRow key={t.plan.id} task={t} compact onDone={setDoneTask} />
               ))}
               {dueSoon.length > 5 && (
-                <button onClick={() => setActiveTab('schedule')} className="w-full p-3 text-xs font-semibold text-emerald-700 hover:bg-slate-50 min-h-11">
+                <button onClick={() => navigate('/schedule')} className="w-full p-3 text-xs font-semibold text-emerald-700 hover:bg-slate-50 min-h-11">
                   {dueSoon.length - 5} more in schedule
                 </button>
               )}
@@ -598,13 +590,14 @@ export const Dashboard: React.FC = () => {
                   <tr
                     key={row.block}
                     onClick={() => {
-                      setFilterBlock(row.block);
-                      setActiveTab('trees');
+                      navigate(treesUrl({ block: row.block }));
                     }}
                     className="hover:bg-slate-50/80 transition-colors cursor-pointer"
                   >
                     <td className="py-2.5 px-3.5 font-bold text-slate-900 font-sans">
-                      Block {row.block}
+                      <Link to={treesUrl({ block: row.block })} className="hover:underline" onClick={(e) => e.stopPropagation()}>
+                        Block {row.block}
+                      </Link>
                     </td>
                     <td className="py-2.5 px-3 text-right font-mono tabular-nums font-semibold text-slate-800">
                       {row.total}
@@ -636,10 +629,10 @@ export const Dashboard: React.FC = () => {
           <div className="flex items-center justify-between pb-3 border-b border-slate-200">
             <div>
               <h2 className="text-sm font-bold text-slate-900">Latest Field Reports</h2>
-              <span className="text-xs text-slate-600 font-medium">Live WhatsApp bot stream</span>
+              <span className="text-xs text-slate-600 font-medium">Live from WhatsApp</span>
             </div>
             <button
-              onClick={() => setActiveTab('reports')}
+              onClick={() => navigate('/reports')}
               className="text-xs font-semibold text-emerald-700 hover:text-emerald-800 flex items-center gap-1 transition-colors"
             >
               <span>All Reports ({totalReportsCount})</span>

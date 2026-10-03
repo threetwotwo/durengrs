@@ -97,7 +97,7 @@ export const MarkDoneSheet: React.FC<{
       onSaved(id, `${plan.name} logged for Block ${selected.join(', ')}`);
       onClose();
     } catch (e: any) {
-      setError(e?.message || 'Could not save. Check your connection and the Firestore rules.');
+      setError(e?.message || 'Could not save. Check your connection and try again.');
       setSaving(false);
     }
   };
@@ -230,7 +230,7 @@ export const PlanEditorSheet: React.FC<{
       });
       onClose();
     } catch (e: any) {
-      setError(e?.message || 'Could not save. Check the Firestore rules.');
+      setError(e?.message || 'Could not save. Check your connection and try again.');
       setSaving(false);
     }
   };
