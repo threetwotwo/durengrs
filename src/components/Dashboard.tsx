@@ -5,6 +5,7 @@ import { ReportDate } from './ReportDate';
 import { Link } from './Link';
 import { navigate, treeUrl, treesUrl } from '../lib/router';
 import { followUpOf, waitingLabel } from '../lib/insights';
+import { PhotoAlbum } from './PhotoAlbum';
 import { PhotoLightbox, photoItems, type GalleryItem } from './PhotoLightbox';
 import { TaskRow } from './TaskRow';
 import { MarkDoneSheet, UndoToast, undoLogged, useUndoToast } from './TreatmentSheets';
@@ -33,47 +34,6 @@ import {
   Image as ImageIcon,
   ExternalLink,
 } from 'lucide-react';
-
-const DashboardReportThumb: React.FC<{
-  photo: ReportPhoto;
-  idx: number;
-  reportDate: any;
-  treeId: string;
-  onOpen: (url: string, caption: string) => void;
-}> = ({ photo, idx, reportDate, treeId, onOpen }) => {
-  const [loadFailed, setLoadFailed] = useState(false);
-  const src = photo.thumb || photo.url;
-  const caption = `Tree ${treeId} · Photo ${idx + 1} (${formatDateTime(reportDate)})`;
-
-  return (
-    <div
-      onClick={(e) => {
-        e.stopPropagation();
-        onOpen(photo.url, caption);
-      }}
-      className="relative w-14 h-14 rounded-lg overflow-hidden border border-slate-200 bg-slate-100 cursor-pointer group hover:ring-2 hover:ring-emerald-500 transition-all shadow-2xs shrink-0 flex items-center justify-center"
-    >
-      {!loadFailed ? (
-        <img
-          src={src}
-          alt={`Photo ${idx + 1}`}
-          loading="lazy"
-          decoding="async"
-          width="56"
-          height="56"
-          referrerPolicy="no-referrer"
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
-          onError={() => setLoadFailed(true)}
-        />
-      ) : (
-        <ImageIcon className="w-4 h-4 text-slate-400" />
-      )}
-      <div className="absolute inset-0 bg-slate-950/20 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-white">
-        <ExternalLink className="w-3.5 h-3.5" />
-      </div>
-    </div>
-  );
-};
 
 export const Dashboard: React.FC = () => {
   const {
@@ -674,57 +634,40 @@ export const Dashboard: React.FC = () => {
                   <div
                     key={report.id}
                     onClick={() => handleInspectTree(report.treeId)}
-                    className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/50 hover:bg-slate-50 hover:border-slate-300 transition-all cursor-pointer space-y-2.5"
+                    className="rounded-xl border border-slate-200 bg-white hover:border-slate-300 hover:shadow-xs transition-all cursor-pointer overflow-hidden"
                   >
-                    {/* 1. Report date on top of report card */}
-                    <div className="flex items-center justify-between text-xs text-slate-600 border-b border-slate-200/70 pb-1.5">
-                      <div className="flex items-center gap-1.5 font-sans font-medium text-slate-700">
+                    {photos.length > 0 && (
+                      <div onClick={(e) => e.stopPropagation()}>
+                        <PhotoAlbum
+                          photos={photos}
+                          onOpen={(i) => setGallery({ items: photoItems(photos, report.treeId, report.createdAt), index: i })}
+                          className="aspect-[2/1] w-full"
+                        />
+                      </div>
+                    )}
+                    <div className="p-3.5 space-y-2">
+                      <div className="flex items-center justify-between gap-2">
                         <ReportDate value={report.createdAt} />
+                        {report.conditionAfter && <ConditionBadge condition={report.conditionAfter} size="sm" />}
                       </div>
-                      {report.conditionAfter && (
-                        <ConditionBadge condition={report.conditionAfter} size="sm" />
+                      <div className="flex items-baseline justify-between gap-2">
+                        <h4 className="text-sm font-bold text-slate-900">Tree {report.treeId}</h4>
+                        <span className="text-xs text-slate-600">
+                          {[tree?.variant, `Block ${report.block || tree?.block || '—'}`].filter(Boolean).join(' · ')}
+                        </span>
+                      </div>
+                      {report.conditionChanged && report.conditionBefore && report.conditionBefore !== report.conditionAfter && (
+                        <p className="flex items-center gap-1.5 text-xs font-medium text-amber-900">
+                          Was <ConditionBadge condition={report.conditionBefore} size="sm" />
+                        </p>
                       )}
-                    </div>
-
-                    <div className="flex items-start gap-3">
-                      <div className="flex-1 min-w-0 space-y-2">
-                        <div>
-                          <h4 className="text-sm font-bold text-slate-900">Tree {report.treeId}</h4>
-                          <p className="text-xs text-slate-600 mt-0.5">
-                            {[tree?.variant, `Block ${report.block || tree?.block || '—'}`].filter(Boolean).join(' · ')}
-                          </p>
-                        </div>
-
-                        {report.conditionChanged && report.conditionBefore && report.conditionBefore !== report.conditionAfter && (
-                          <p className="flex items-center gap-1.5 text-xs font-medium text-amber-900">
-                            Was <ConditionBadge condition={report.conditionBefore} size="sm" />
-                          </p>
-                        )}
-
-                        {report.description && /[\p{L}\p{N}]/u.test(report.description) && (
-                          <p className="text-xs text-slate-700 leading-relaxed line-clamp-3">{report.description}</p>
-                        )}
-
-                        {workerMasked && (
-                          <div className="flex items-center gap-1 text-xs text-slate-600 font-mono">
-                            <User className="w-3.5 h-3.5 text-slate-400" />
-                            <span>{workerMasked}</span>
-                          </div>
-                        )}
-                      </div>
-
-                      {photos.length > 0 && (
-                        <div className="grid grid-cols-2 gap-1.5 shrink-0">
-                          {photos.slice(0, 4).map((photo, pIdx) => (
-                            <DashboardReportThumb
-                              key={pIdx}
-                              photo={photo}
-                              idx={pIdx}
-                              reportDate={report.createdAt}
-                              treeId={report.treeId}
-                              onOpen={() => setGallery({ items: photoItems(photos, report.treeId, report.createdAt), index: pIdx })}
-                            />
-                          ))}
+                      {report.description && /[\p{L}\p{N}]/u.test(report.description) && (
+                        <p className="text-xs text-slate-700 leading-relaxed line-clamp-3">{report.description}</p>
+                      )}
+                      {workerMasked && (
+                        <div className="flex items-center gap-1 text-xs text-slate-500 font-mono">
+                          <User className="w-3.5 h-3.5 text-slate-400" />
+                          <span>{workerMasked}</span>
                         </div>
                       )}
                     </div>
