@@ -11,8 +11,11 @@ const Tile: React.FC<{
   onOpen: (index: number) => void;
 }> = ({ photo, index, total, className = '', more, onOpen }) => {
   const [failed, setFailed] = useState(false);
-  // Tiles are large, so use the full compressed photo; the small thumb is only a fallback.
-  const [src, setSrc] = useState(photo.url);
+  const [fullReady, setFullReady] = useState(false);
+  const [fullFailed, setFullFailed] = useState(false);
+  // Show the small thumbnail straight away, then fade the full photo in over it once it has loaded.
+  const base = photo.thumb || photo.url;
+  const hasThumb = !!photo.thumb && photo.thumb !== photo.url;
   return (
     <button
       type="button"
@@ -26,18 +29,29 @@ const Tile: React.FC<{
           Photo {index + 1}
         </span>
       ) : (
-        <img
-          src={src}
-          alt=""
-          loading="lazy"
-          decoding="async"
-          referrerPolicy="no-referrer"
-          onError={() => {
-            if (photo.thumb && src !== photo.thumb) setSrc(photo.thumb);
-            else setFailed(true);
-          }}
-          className="absolute inset-0 w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-300"
-        />
+        <>
+          <img
+            src={base}
+            alt=""
+            loading="lazy"
+            decoding="async"
+            referrerPolicy="no-referrer"
+            onError={() => setFailed(true)}
+            className="absolute inset-0 w-full h-full object-cover"
+          />
+          {hasThumb && !fullFailed && (
+            <img
+              src={photo.url}
+              alt=""
+              loading="lazy"
+              decoding="async"
+              referrerPolicy="no-referrer"
+              onLoad={() => setFullReady(true)}
+              onError={() => setFullFailed(true)}
+              className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 group-hover:scale-[1.03] ${fullReady ? 'opacity-100' : 'opacity-0'}`}
+            />
+          )}
+        </>
       )}
       {more ? (
         <span className="absolute inset-0 bg-slate-950/55 text-white text-2xl font-bold flex items-center justify-center">

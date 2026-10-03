@@ -641,7 +641,7 @@ export const Dashboard: React.FC = () => {
                         <PhotoAlbum
                           photos={photos}
                           onOpen={(i) => setGallery({ items: photoItems(photos, report.treeId, report.createdAt), index: i })}
-                          className="aspect-[2/1] w-full"
+                          className="aspect-[4/3] w-full"
                         />
                       </div>
                     )}

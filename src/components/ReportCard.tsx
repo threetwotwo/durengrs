@@ -43,7 +43,7 @@ export const ReportCard: React.FC<{
           <PhotoAlbum
             photos={photos}
             onOpen={(i) => onOpenPhoto(photoItems(photos, report.treeId, report.createdAt), i)}
-            className="aspect-[4/3] md:aspect-auto md:order-last md:w-[46%] md:shrink-0 md:min-h-[260px]"
+            className="aspect-[4/5] sm:aspect-square md:aspect-auto md:order-last md:w-[46%] md:shrink-0 md:min-h-[340px]"
           />
         )}
         <div className="flex-1 min-w-0 p-4 flex flex-col gap-3">
