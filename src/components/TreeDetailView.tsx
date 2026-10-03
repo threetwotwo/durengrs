@@ -3,6 +3,7 @@ import { useFarm, formatDateTime, formatDate } from '../context/FarmContext';
 import { DurianTree, TreeCondition, ReportPhoto, TreeReport } from '../types';
 import { ConditionBadge } from './ConditionBadge';
 import { ReportDate } from './ReportDate';
+import { formatShortDate } from '../lib/treatments';
 import { PhotoLightbox } from './PhotoLightbox';
 import {
   db,
@@ -75,9 +76,10 @@ const ThumbnailItem: React.FC<{
 };
 
 export const TreeDetailView: React.FC<TreeDetailViewProps> = ({ treeId, onBack }) => {
-  const { trees, variants, updateTree, setSelectedTreeId } = useFarm();
+  const { trees, variants, updateTree, setSelectedTreeId, treatments } = useFarm();
 
   const tree = trees.find((t) => t.id === treeId);
+  const blockTreatments = treatments.filter((x) => tree?.block && x.blocks?.includes(tree.block)).slice(0, 5);
 
   // Stepper: Previous / Next tree in current inventory
   const currentIndex = trees.findIndex((t) => t.id === treeId);
@@ -390,6 +392,27 @@ export const TreeDetailView: React.FC<TreeDetailViewProps> = ({ treeId, onBack }
         <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 text-xs rounded-xl">
           {saveError}
         </div>
+      )}
+
+      {/* Routine work applied to this tree's block */}
+      {blockTreatments.length > 0 && (
+        <section className="bg-white rounded-xl border border-slate-200 shadow-xs p-4" aria-labelledby="tr-h">
+          <h2 id="tr-h" className="text-sm font-bold text-slate-900 mb-2">
+            Recent treatments <span className="text-slate-500 font-medium">· Block {tree?.block}</span>
+          </h2>
+          <ul className="divide-y divide-slate-100">
+            {blockTreatments.map((x) => (
+              <li key={x.id} className="py-2 flex flex-wrap items-baseline gap-x-3 text-sm">
+                <span className="font-semibold text-slate-900">{x.planName}</span>
+                <span className="text-xs text-slate-600">
+                  {formatShortDate(x.date)}
+                  {x.product ? ` · ${x.product}` : ''}
+                  {x.dose ? ` · ${x.dose}` : ''}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
 
       {/* Main Grid: Form Details (Left 7 cols) & Inspection History (Right 5 cols) */}

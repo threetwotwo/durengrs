@@ -26,6 +26,14 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
+    // Recurring routines (fertilizer, sprays, pruning) and the log of what was applied
+    match /treatmentPlans/{id} {
+      allow read, write: if true;
+    }
+    match /treatments/{id} {
+      allow read, write: if true;
+    }
+
     // Connection test document
     match /test/{docId} {
       allow read, write: if true;

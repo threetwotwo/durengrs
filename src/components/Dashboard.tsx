@@ -3,6 +3,9 @@ import { useFarm, formatDateTime, formatTimeAgo, normalizeTimestamp } from '../c
 import { ConditionBadge } from './ConditionBadge';
 import { ReportDate } from './ReportDate';
 import { PhotoLightbox } from './PhotoLightbox';
+import { TaskRow } from './TaskRow';
+import { MarkDoneSheet, UndoToast, undoLogged, useUndoToast } from './TreatmentSheets';
+import { ScheduleTask, relativeDue } from '../lib/treatments';
 import { ReportPhoto, TreeCondition, TreeReport, DurianTree } from '../types';
 import {
   db,
@@ -22,6 +25,7 @@ import {
   ArrowUpDown,
   User,
   Calendar,
+  CalendarCheck,
   Layers,
   Image as ImageIcon,
   ExternalLink,
@@ -80,7 +84,11 @@ export const Dashboard: React.FC = () => {
     setFilterBlock,
     setFilterCondition,
     setQuickFilter,
+    plans,
+    scheduleTasks,
   } = useFarm();
+  const [doneTask, setDoneTask] = useState<ScheduleTask | null>(null);
+  const { toast, show: showToast, clear: clearToast } = useUndoToast();
 
   const [latestReports, setLatestReports] = useState<TreeReport[]>([]);
   const [reportsLoading, setReportsLoading] = useState(true);
@@ -118,6 +126,7 @@ export const Dashboard: React.FC = () => {
     let emergency = 0;
     let notAssessed = 0;
     let noReport7d = 0;
+    let reportedToday = 0;
 
     const sevenDaysAgoMs = Date.now() - 7 * 24 * 60 * 60 * 1000;
 
@@ -131,6 +140,7 @@ export const Dashboard: React.FC = () => {
       if (!repTime || repTime < sevenDaysAgoMs) {
         noReport7d++;
       }
+      if (repTime && repTime > Date.now() - 24 * 60 * 60 * 1000) reportedToday++;
     });
 
     const total = trees.length;
@@ -140,6 +150,8 @@ export const Dashboard: React.FC = () => {
       emergency,
       notAssessed,
       noReport7d,
+      reportedToday,
+      reported7d: total - noReport7d,
       total,
       healthyPct: total ? Math.round((healthy / total) * 100) : 0,
       minorPct: total ? Math.round((minor / total) * 100) : 0,
@@ -147,6 +159,13 @@ export const Dashboard: React.FC = () => {
       notAssessedPct: total ? Math.round((notAssessed / total) * 100) : 0,
     };
   }, [trees]);
+
+  const dueSoon = useMemo(() => scheduleTasks.filter((x) => x.status !== 'upcoming'), [scheduleTasks]);
+  const overdueCount = useMemo(() => scheduleTasks.filter((x) => x.status === 'overdue').length, [scheduleTasks]);
+  const nextTask = scheduleTasks.find((x) => x.status === 'upcoming');
+  const hour = new Date().getHours();
+  const greeting = hour < 11 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+  const todayLabel = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
 
   // Needs Attention trees: emergency first, then minor
   const attentionTrees = useMemo(() => {
@@ -253,209 +272,241 @@ export const Dashboard: React.FC = () => {
         />
       )}
 
-      {/* Top Stat Tiles: 6 columns */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5">
-        {/* Total Trees */}
-        <div
-          onClick={() => {
-            setFilterCondition('all');
-            setQuickFilter('all');
-            setActiveTab('trees');
-          }}
-          className="bg-white rounded-xl p-4 border border-slate-200 shadow-xs hover:border-slate-300 transition-all cursor-pointer group"
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Total Trees</span>
-            <div className="p-1.5 rounded-lg bg-slate-100 text-slate-700 group-hover:bg-slate-200 transition-colors">
-              <TreeDeciduous className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-2xl font-bold tracking-tight text-slate-900 font-sans">
-              {counts.total}
-            </span>
-            <span className="text-xs text-slate-600 font-medium">trees</span>
-          </div>
-          <div className="mt-1 text-xs text-emerald-700 font-medium flex items-center gap-1">
-            <span>View inventory</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-          </div>
-        </div>
-
-        {/* Healthy */}
-        <div
-          onClick={() => handleConditionTileClick('healthy')}
-          className="bg-white rounded-xl p-4 border border-slate-200 shadow-xs hover:border-emerald-300 transition-all cursor-pointer group"
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Healthy</span>
-            <div className="p-1.5 rounded-lg bg-emerald-100 text-emerald-700 group-hover:bg-emerald-200 transition-colors">
-              <Check className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-2xl font-bold tracking-tight text-emerald-700 font-sans">
-              {counts.healthy}
-            </span>
-            <span className="text-xs text-slate-600 font-medium">({counts.healthyPct}%)</span>
-          </div>
-          <div className="mt-1 text-xs text-slate-600 font-medium">Optimal health</div>
-        </div>
-
-        {/* Minor Issues */}
-        <div
-          onClick={() => handleConditionTileClick('minor')}
-          className="bg-white rounded-xl p-4 border border-slate-200 shadow-xs hover:border-amber-300 transition-all cursor-pointer group"
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Minor</span>
-            <div className="p-1.5 rounded-lg bg-amber-100 text-amber-700 group-hover:bg-amber-200 transition-colors">
-              <AlertTriangle className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-2xl font-bold tracking-tight text-amber-700 font-sans">
-              {counts.minor}
-            </span>
-            <span className="text-xs text-slate-600 font-medium">({counts.minorPct}%)</span>
-          </div>
-          <div className="mt-1 text-xs text-slate-600 font-medium">Observation needed</div>
-        </div>
-
-        {/* Emergency */}
-        <div
-          onClick={() => handleConditionTileClick('emergency')}
-          className="bg-white rounded-xl p-4 border border-slate-200 shadow-xs hover:border-rose-300 transition-all cursor-pointer group"
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Emergency</span>
-            <div className="p-1.5 rounded-lg bg-rose-100 text-rose-700 group-hover:bg-rose-200 transition-colors">
-              <AlertOctagon className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-2xl font-bold tracking-tight text-rose-700 font-sans">
-              {counts.emergency}
-            </span>
-            <span className="text-xs text-slate-600 font-medium">({counts.emergencyPct}%)</span>
-          </div>
-          <div className="mt-1 text-xs text-rose-700 font-medium">Urgent attention</div>
-        </div>
-
-        {/* Not Assessed */}
-        <div
-          onClick={() => handleConditionTileClick('not_assessed')}
-          className="bg-white rounded-xl p-4 border border-slate-200 shadow-xs hover:border-slate-300 transition-all cursor-pointer group"
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Not Assessed</span>
-            <div className="p-1.5 rounded-lg bg-slate-100 text-slate-600 group-hover:bg-slate-200 transition-colors">
-              <Minus className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-2xl font-bold tracking-tight text-slate-700 font-sans">
-              {counts.notAssessed}
-            </span>
-            <span className="text-xs text-slate-600 font-medium">({counts.notAssessedPct}%)</span>
-          </div>
-          <div className="mt-1 text-xs text-slate-600 font-medium">Awaiting inspection</div>
-        </div>
-
-        {/* No Report in 7+ Days */}
-        <div
-          onClick={handleNoReportClick}
-          className="bg-white rounded-xl p-4 border border-slate-200 shadow-xs hover:border-amber-300 transition-all cursor-pointer group"
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-600 uppercase tracking-wide">No Report 7d+</span>
-            <div className="p-1.5 rounded-lg bg-amber-50 text-amber-700 group-hover:bg-amber-100 transition-colors">
-              <Clock className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-2xl font-bold tracking-tight text-slate-900 font-sans">
-              {counts.noReport7d}
-            </span>
-            <span className="text-xs text-slate-600 font-medium">trees</span>
-          </div>
-          <div className="mt-1 text-xs text-amber-700 font-medium flex items-center gap-1">
-            <span>Filter trees</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-          </div>
+      {/* Today strip: the question this screen answers */}
+      <div className="flex flex-wrap items-end justify-between gap-2">
+        <div>
+          <h1 className="text-xl font-bold text-slate-900">{greeting}</h1>
+          <p className="text-sm text-slate-600">
+            {todayLabel} ·{' '}
+            {counts.emergency + overdueCount === 0
+              ? 'Nothing urgent right now.'
+              : `${counts.emergency + overdueCount} item${counts.emergency + overdueCount === 1 ? '' : 's'} need attention.`}
+          </p>
         </div>
       </div>
 
-      {/* Needs Attention Card (Requirement 12) */}
-      {attentionTrees.length > 0 && (
-        <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
-          <div className="p-4 sm:p-5 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2 bg-slate-50/50">
-            <div className="flex items-center gap-2">
-              <div className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse" />
-              <h2 className="text-sm font-bold text-slate-900">Needs Attention ({attentionTrees.length})</h2>
-              <span className="text-xs text-slate-600 font-medium hidden sm:inline">
-                Emergency & minor condition trees requiring follow-up
-              </span>
+      {/* 4 KPI tiles. Hue is reserved for status. */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <button
+          onClick={() => handleConditionTileClick('emergency')}
+          className={`text-left p-4 rounded-xl border bg-white shadow-xs hover:shadow-sm transition-shadow focus-visible:outline-2 focus-visible:outline-emerald-500 ${
+            counts.emergency > 0 ? 'border-rose-300' : 'border-slate-200'
+          }`}
+        >
+          <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-600">
+            <AlertOctagon className={`w-4 h-4 ${counts.emergency > 0 ? 'text-rose-600' : 'text-slate-400'}`} />
+            Emergency
+          </span>
+          <span className={`block mt-2 text-3xl font-bold tabular ${counts.emergency > 0 ? 'text-rose-700' : 'text-slate-900'}`}>
+            {counts.emergency}
+          </span>
+          <span className="block text-xs text-slate-600 mt-0.5">{counts.emergency === 0 ? 'None, good' : 'trees need urgent care'}</span>
+        </button>
+
+        <button
+          onClick={() => handleConditionTileClick('minor')}
+          className="text-left p-4 rounded-xl border border-slate-200 bg-white shadow-xs hover:shadow-sm transition-shadow focus-visible:outline-2 focus-visible:outline-emerald-500"
+        >
+          <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-600">
+            <AlertTriangle className={`w-4 h-4 ${counts.minor > 0 ? 'text-amber-600' : 'text-slate-400'}`} />
+            Watch list
+          </span>
+          <span className="block mt-2 text-3xl font-bold tabular text-slate-900">{counts.minor}</span>
+          <span className="block text-xs text-slate-600 mt-0.5">trees with minor issues</span>
+        </button>
+
+        <button
+          onClick={handleNoReportClick}
+          className="text-left p-4 rounded-xl border border-slate-200 bg-white shadow-xs hover:shadow-sm transition-shadow focus-visible:outline-2 focus-visible:outline-emerald-500"
+        >
+          <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-600">
+            <Clock className="w-4 h-4 text-slate-400" />
+            Reported today
+          </span>
+          <span className="block mt-2 text-3xl font-bold tabular text-slate-900">{counts.reportedToday}</span>
+          <span className="block text-xs text-slate-600 mt-0.5 tabular">
+            {counts.reported7d} of {counts.total} in 7 days
+          </span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('schedule')}
+          className={`text-left p-4 rounded-xl border bg-white shadow-xs hover:shadow-sm transition-shadow focus-visible:outline-2 focus-visible:outline-emerald-500 ${
+            overdueCount > 0 ? 'border-rose-300' : 'border-slate-200'
+          }`}
+        >
+          <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-600">
+            <CalendarCheck className={`w-4 h-4 ${overdueCount > 0 ? 'text-rose-600' : 'text-slate-400'}`} />
+            Routine work due
+          </span>
+          <span className={`block mt-2 text-3xl font-bold tabular ${overdueCount > 0 ? 'text-rose-700' : 'text-slate-900'}`}>
+            {dueSoon.length}
+          </span>
+          <span className="block text-xs text-slate-600 mt-0.5 tabular">
+            {overdueCount > 0 ? `${overdueCount} overdue` : 'in the next 7 days'}
+          </span>
+        </button>
+      </div>
+
+      {/* Attention (trees) + Routine work (schedule) */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+        <section className="lg:col-span-7 bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden" aria-labelledby="att-h">
+          <div className="p-4 border-b border-slate-200 flex items-center justify-between gap-2">
+            <h2 id="att-h" className="text-sm font-bold text-slate-900">
+              Needs attention <span className="text-slate-500 font-medium tabular">({attentionTrees.length})</span>
+            </h2>
+            {attentionTrees.length > 6 && (
+              <button
+                onClick={() => {
+                  setQuickFilter(counts.emergency > 0 ? 'emergency' : 'minor');
+                  setActiveTab('trees');
+                }}
+                className="text-xs font-semibold text-emerald-700 hover:text-emerald-800 flex items-center gap-1 min-h-8"
+              >
+                View all {attentionTrees.length}
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+          {attentionTrees.length === 0 ? (
+            <div className="p-8 text-center">
+              <Check className="w-8 h-8 text-emerald-500 mx-auto mb-2" />
+              <p className="text-sm font-semibold text-slate-800">All clear</p>
+              <p className="text-xs text-slate-600 mt-0.5">No trees are marked emergency or minor.</p>
             </div>
+          ) : (
+            <div className="divide-y divide-slate-100">
+              {attentionTrees.slice(0, 6).map((tree) => (
+                <button
+                  key={tree.id}
+                  onClick={() => handleInspectTree(tree.id)}
+                  className="w-full text-left p-3.5 min-h-14 hover:bg-slate-50 flex items-center justify-between gap-3"
+                >
+                  <span className="flex items-center gap-3 min-w-0">
+                    <span className="text-sm font-bold font-mono text-slate-900 bg-slate-100 px-2 py-1 rounded shrink-0 min-w-12 text-center">{tree.id}</span>
+                    <span className="min-w-0">
+                      <span className="block text-sm font-semibold text-slate-900">
+                        {tree.variant} · Block {tree.block || '—'}
+                      </span>
+                      <span className="block text-xs text-slate-600 truncate">
+                        {tree.conditionNotes || tree.notes || 'No issue notes'}
+                      </span>
+                    </span>
+                  </span>
+                  <span className="flex items-center gap-2 shrink-0">
+                    <ConditionBadge condition={tree.condition} size="sm" />
+                    <span className="hidden sm:inline text-xs text-slate-500 tabular w-20 text-right">{formatTimeAgo(tree.lastReportAt)}</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section className="lg:col-span-5 bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden" aria-labelledby="wk-h">
+          <div className="p-4 border-b border-slate-200 flex items-center justify-between gap-2">
+            <h2 id="wk-h" className="text-sm font-bold text-slate-900">Routine work</h2>
             <button
-              onClick={() => {
-                setQuickFilter('emergency');
-                setActiveTab('trees');
-              }}
-              className="text-xs font-semibold text-emerald-700 hover:text-emerald-800 flex items-center gap-1"
+              onClick={() => setActiveTab('schedule')}
+              className="text-xs font-semibold text-emerald-700 hover:text-emerald-800 flex items-center gap-1 min-h-8"
             >
-              <span>View in Table</span>
+              Open schedule
               <ArrowRight className="w-3.5 h-3.5" />
             </button>
           </div>
+          {plans.length === 0 ? (
+            <div className="p-6 text-center">
+              <CalendarCheck className="w-8 h-8 text-slate-400 mx-auto mb-2" />
+              <p className="text-sm font-semibold text-slate-800">No routines yet</p>
+              <p className="text-xs text-slate-600 mt-0.5 mb-3">Track fertilizer and spray rounds and see what is due.</p>
+              <button
+                onClick={() => setActiveTab('schedule')}
+                className="min-h-11 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold"
+              >
+                Set up routines
+              </button>
+            </div>
+          ) : dueSoon.length === 0 ? (
+            <div className="p-6 text-center">
+              <Check className="w-8 h-8 text-emerald-500 mx-auto mb-2" />
+              <p className="text-sm font-semibold text-slate-800">Nothing due this week</p>
+              {nextTask && (
+                <p className="text-xs text-slate-600 mt-0.5">
+                  Next: {nextTask.plan.name} · {relativeDue(nextTask.days).toLowerCase()}
+                </p>
+              )}
+            </div>
+          ) : (
+            <div className="divide-y divide-slate-100">
+              {dueSoon.slice(0, 5).map((t) => (
+                <TaskRow key={t.plan.id} task={t} compact onDone={setDoneTask} />
+              ))}
+              {dueSoon.length > 5 && (
+                <button onClick={() => setActiveTab('schedule')} className="w-full p-3 text-xs font-semibold text-emerald-700 hover:bg-slate-50 min-h-11">
+                  {dueSoon.length - 5} more in schedule
+                </button>
+              )}
+            </div>
+          )}
+        </section>
+      </div>
 
-          <div className="divide-y divide-slate-100 max-h-72 overflow-y-auto">
-            {attentionTrees.map((tree) => {
-              const variantObj = variants.find((v) => v.code === tree.variant);
-              const variantName = variantObj?.name || tree.variant || '—';
-              const lastReportText = formatTimeAgo(tree.lastReportAt);
-
-              return (
-                <div
-                  key={tree.id}
-                  onClick={() => handleInspectTree(tree.id)}
-                  className="p-3.5 hover:bg-slate-50 transition-colors cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-2"
-                >
-                  <div className="flex items-center gap-3">
-                    <span className="text-xs font-bold font-mono text-slate-900 bg-slate-100 px-2 py-1 rounded">
-                      {tree.id}
-                    </span>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-semibold text-slate-900">
-                          {tree.variant} · {variantName}
-                        </span>
-                        <span className="text-xs text-slate-600">Block {tree.block || '—'}</span>
-                      </div>
-                      {tree.conditionNotes ? (
-                        <p className="text-xs text-slate-600 mt-0.5 line-clamp-1">{tree.conditionNotes}</p>
-                      ) : tree.notes ? (
-                        <p className="text-xs text-slate-600 mt-0.5 line-clamp-1">{tree.notes}</p>
-                      ) : (
-                        <p className="text-xs text-slate-400 italic mt-0.5">No specific issue notes</p>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3 self-end sm:self-center shrink-0">
-                    <ConditionBadge condition={tree.condition} size="sm" />
-                    <span className="text-xs text-slate-600 font-sans flex items-center gap-1 min-w-[90px] justify-end">
-                      <Clock className="w-3.5 h-3.5 text-slate-400" />
-                      {lastReportText}
-                    </span>
-                    <ArrowRight className="w-4 h-4 text-slate-400" />
-                  </div>
-                </div>
-              );
-            })}
+      {/* Orchard health: one stacked bar instead of five tiles */}
+      <section className="bg-white rounded-xl border border-slate-200 shadow-xs p-4 space-y-3" aria-labelledby="oh-h">
+        <div className="flex items-baseline justify-between gap-2">
+          <h2 id="oh-h" className="text-sm font-bold text-slate-900">Orchard health</h2>
+          <span className="text-xs text-slate-600 tabular">{counts.total} trees</span>
+        </div>
+        <div className="flex h-3 rounded-full overflow-hidden bg-slate-100" role="img" aria-label={`Healthy ${counts.healthy}, minor ${counts.minor}, emergency ${counts.emergency}, not assessed ${counts.notAssessed}`}>
+          {[
+            { n: counts.healthy, cls: 'bg-emerald-500' },
+            { n: counts.minor, cls: 'bg-amber-400' },
+            { n: counts.emergency, cls: 'bg-rose-500' },
+            { n: counts.notAssessed, cls: 'bg-slate-300' },
+          ].map((s, i) =>
+            s.n > 0 ? <div key={i} className={s.cls} style={{ width: `${(s.n / Math.max(counts.total, 1)) * 100}%` }} /> : null
+          )}
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          {[
+            { key: 'healthy', label: 'Healthy', n: counts.healthy, dot: 'bg-emerald-500' },
+            { key: 'minor', label: 'Minor', n: counts.minor, dot: 'bg-amber-400' },
+            { key: 'emergency', label: 'Emergency', n: counts.emergency, dot: 'bg-rose-500' },
+            { key: 'not_assessed', label: 'Not assessed', n: counts.notAssessed, dot: 'bg-slate-300' },
+          ].map((s) => (
+            <button
+              key={s.key}
+              onClick={() => handleConditionTileClick(s.key)}
+              className="flex items-center gap-2 min-h-11 px-2 rounded-lg hover:bg-slate-50 text-left"
+            >
+              <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${s.dot}`} />
+              <span className="text-sm text-slate-700">{s.label}</span>
+              <span className="ml-auto text-sm font-semibold text-slate-900 tabular">{s.n}</span>
+              <span className="text-xs text-slate-500 tabular w-9 text-right">
+                {counts.total ? Math.round((s.n / counts.total) * 100) : 0}%
+              </span>
+            </button>
+          ))}
+        </div>
+        <div>
+          <div className="flex justify-between text-xs text-slate-600 mb-1">
+            <span>Reporting coverage (last 7 days)</span>
+            <span className="tabular">{counts.reported7d} of {counts.total}</span>
+          </div>
+          <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
+            <div className="h-full bg-slate-700" style={{ width: `${counts.total ? (counts.reported7d / counts.total) * 100 : 0}%` }} />
           </div>
         </div>
+      </section>
+
+      {doneTask && (
+        <MarkDoneSheet
+          task={doneTask}
+          onClose={() => setDoneTask(null)}
+          onSaved={(id, message) => showToast({ message, undo: () => undoLogged(id) })}
+        />
       )}
+      <UndoToast toast={toast} onClear={clearToast} />
 
       {/* Main Grid: Block Breakdown (Left 7 cols) & Latest Field Reports (Right 5 cols) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">

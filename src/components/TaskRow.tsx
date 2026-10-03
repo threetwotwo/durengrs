@@ -1,0 +1,86 @@
+import React from 'react';
+import { Leaf, SprayCan, Scissors, Droplets, Wrench, Check } from 'lucide-react';
+import { BlockDue, ScheduleTask, TreatmentType, formatShortDate, relativeDue } from '../lib/treatments';
+
+export const TYPE_ICON: Record<TreatmentType, React.ComponentType<{ className?: string }>> = {
+  fertilizer: Leaf,
+  spray: SprayCan,
+  pruning: Scissors,
+  irrigation: Droplets,
+  other: Wrench,
+};
+
+export const DuePill: React.FC<{ task: ScheduleTask }> = ({ task }) => {
+  const cls =
+    task.status === 'overdue'
+      ? 'bg-rose-50 text-rose-700 border-rose-200'
+      : task.status === 'soon'
+      ? 'bg-amber-50 text-amber-800 border-amber-200'
+      : 'bg-slate-100 text-slate-600 border-slate-200';
+  const text = task.status === 'upcoming' ? `Due ${formatShortDate(task.nextDue)}` : relativeDue(task.days);
+  return <span className={`px-2 py-0.5 rounded-full border text-xs font-semibold whitespace-nowrap ${cls}`}>{text}</span>;
+};
+
+function groupByDue(rows: BlockDue[]) {
+  const map = new Map<string, { due: string; days: number; blocks: BlockDue[] }>();
+  for (const r of rows) {
+    const g = map.get(r.due) || { due: r.due, days: r.days, blocks: [] };
+    g.blocks.push(r);
+    map.set(r.due, g);
+  }
+  return Array.from(map.values());
+}
+
+export const TaskRow: React.FC<{
+  task: ScheduleTask;
+  onDone: (task: ScheduleTask) => void;
+  compact?: boolean;
+}> = ({ task, onDone, compact }) => {
+  const Icon = TYPE_ICON[task.plan.type];
+  const detail = [task.plan.product, task.plan.dose].filter(Boolean).join(' · ');
+  const showBlocks = compact ? task.blocks.filter((b) => b.days <= 7) : task.blocks;
+  const blocksToShow = showBlocks.length ? showBlocks : task.blocks.slice(0, 1);
+
+  return (
+    <div className="flex items-start gap-3 p-3.5">
+      <span
+        className={`mt-0.5 w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
+          task.status === 'overdue' ? 'bg-rose-50 text-rose-600' : task.status === 'soon' ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-600'
+        }`}
+      >
+        <Icon className="w-5 h-5" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <h3 className="text-sm font-semibold text-slate-900">{task.plan.name}</h3>
+          <DuePill task={task} />
+        </div>
+        {!compact && detail && <p className="text-xs text-slate-600 mt-0.5">{detail}</p>}
+        <div className="flex flex-wrap gap-1.5 mt-1.5">
+          {groupByDue(blocksToShow).map((g) => (
+            <span
+              key={g.due}
+              title={g.blocks.map((b) => `${b.block}: ${b.lastDone ? `last done ${formatShortDate(b.lastDone)}` : 'never done'}`).join('\n')}
+              className={`px-2 py-0.5 rounded-md text-xs font-medium border ${
+                g.days < 0 ? 'bg-rose-50 border-rose-200 text-rose-700' : 'bg-slate-50 border-slate-200 text-slate-700'
+              }`}
+            >
+              {g.blocks.length > 1 ? 'Blocks' : 'Block'} {g.blocks.map((b) => b.block).join(', ')}
+              {!compact && <span className="text-slate-500"> · {g.days < 0 ? `${-g.days}d late` : g.days === 0 ? 'today' : formatShortDate(g.due)}</span>}
+            </span>
+          ))}
+        </div>
+        {!compact && task.plan.phiDays ? (
+          <p className="text-xs text-amber-800 mt-1.5">Pre-harvest interval: {task.plan.phiDays} days</p>
+        ) : null}
+      </div>
+      <button
+        onClick={() => onDone(task)}
+        className="shrink-0 min-h-11 px-3 rounded-lg border border-emerald-600 text-emerald-700 hover:bg-emerald-600 hover:text-white text-sm font-semibold flex items-center gap-1.5 transition-colors"
+      >
+        <Check className="w-4 h-4" />
+        Done
+      </button>
+    </div>
+  );
+};

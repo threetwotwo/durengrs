@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useMemo, useState, useCallback } from 'react';
 import { collection, onSnapshot, query, where, orderBy, limit, Timestamp } from 'firebase/firestore';
 import { DurianTree, DurianVariant, TreeReport, TreeCondition } from '../types';
 import {
@@ -10,8 +10,17 @@ import {
   handleFirestoreError,
   OperationType,
 } from '../lib/firebase';
+import { TreatmentPlan, Treatment, ScheduleTask, computeTasks } from '../lib/treatments';
+
+export type AppTab = 'dashboard' | 'schedule' | 'trees' | 'variants' | 'reports';
 
 interface FarmContextType {
+  blocks: string[];
+  plans: TreatmentPlan[];
+  treatments: Treatment[];
+  scheduleTasks: ScheduleTask[];
+  /** Set when Firestore refuses the treatments collections (rules not published yet). */
+  scheduleError: string | null;
   trees: DurianTree[];
   variants: DurianVariant[];
   totalReportsCount: number;
@@ -22,8 +31,8 @@ interface FarmContextType {
   error: string | null;
   selectedTreeId: string | null;
   setSelectedTreeId: (id: string | null) => void;
-  activeTab: 'dashboard' | 'trees' | 'variants' | 'reports';
-  setActiveTab: (tab: 'dashboard' | 'trees' | 'variants' | 'reports') => void;
+  activeTab: AppTab;
+  setActiveTab: (tab: AppTab) => void;
   updateTree: (originalTree: DurianTree, updatedFields: Partial<DurianTree>) => Promise<boolean>;
   saveVariant: (variant: DurianVariant) => Promise<void>;
   filterBlock: string;
@@ -44,7 +53,7 @@ export const FarmProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedTreeId, setSelectedTreeId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'trees' | 'variants' | 'reports'>('dashboard');
+  const [activeTab, setActiveTab] = useState<AppTab>('dashboard');
   const [filterBlock, setFilterBlock] = useState<string>('all');
   const [filterCondition, setFilterCondition] = useState<string>('all');
   const [quickFilter, setQuickFilter] = useState<string>('all');
@@ -83,6 +92,48 @@ export const FarmProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try { localStorage.setItem(SEEN_KEY, String(now)); } catch {}
     setLastSeenAt(now);
   }, [activeTab]);
+
+  // Treatment routines and the log of what was applied. Both are small collections.
+  const [plans, setPlans] = useState<TreatmentPlan[]>([]);
+  const [treatments, setTreatments] = useState<Treatment[]>([]);
+  const [scheduleError, setScheduleError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const onErr = (err: any) => {
+      console.error('Schedule listener failed:', err);
+      setScheduleError(
+        err?.code === 'permission-denied'
+          ? 'Firestore rules do not allow treatmentPlans / treatments yet. Publish the updated firestore.rules.'
+          : String(err?.message || err)
+      );
+    };
+    const unsubPlans = onSnapshot(
+      collection(db, 'treatmentPlans'),
+      (snap) => {
+        setScheduleError(null);
+        setPlans(snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }) as TreatmentPlan));
+      },
+      onErr
+    );
+    const unsubTreatments = onSnapshot(
+      query(collection(db, 'treatments'), orderBy('date', 'desc'), limit(500)),
+      (snap) => setTreatments(snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }) as Treatment)),
+      onErr
+    );
+    return () => {
+      unsubPlans();
+      unsubTreatments();
+    };
+  }, []);
+
+  const blocks = useMemo(
+    () => Array.from(new Set(trees.map((t) => t.block).filter(Boolean))).sort(),
+    [trees]
+  );
+  const scheduleTasks = useMemo(
+    () => computeTasks(plans, treatments, blocks),
+    [plans, treatments, blocks]
+  );
 
   const refreshReportsCount = useCallback(async () => {
     try {
@@ -245,6 +296,11 @@ export const FarmProvider: React.FC<{ children: React.ReactNode }> = ({ children
         totalReportsCount,
         refreshReportsCount,
         unreadReportsCount,
+        blocks,
+        plans,
+        treatments,
+        scheduleTasks,
+        scheduleError,
         loading,
         currentProjectId: activeProjectId,
         error,
