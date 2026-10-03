@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { useFarm, formatDateWithAgo, formatDateTime } from '../context/FarmContext';
+import { useFarm, formatDateTime } from '../context/FarmContext';
 import { ConditionBadge } from './ConditionBadge';
+import { ReportDate } from './ReportDate';
 import { PhotoLightbox } from './PhotoLightbox';
 import { ReportPhoto, TreeReport } from '../types';
 import {
@@ -314,7 +315,7 @@ export const ReportsPage: React.FC = () => {
                 {/* 1. Report date on top of the report card */}
                 <div className="flex items-center justify-between text-xs text-slate-600 border-b border-slate-100 pb-2">
                   <div className="flex items-center gap-1.5 font-sans font-medium text-slate-700">
-                    <span>{formatDateWithAgo(report.createdAt)}</span>
+                    <ReportDate value={report.createdAt} />
                   </div>
 
                   <div>

@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { useFarm, formatDateWithAgo, formatDateTime, formatTimeAgo, normalizeTimestamp } from '../context/FarmContext';
+import { useFarm, formatDateTime, formatTimeAgo, normalizeTimestamp } from '../context/FarmContext';
 import { ConditionBadge } from './ConditionBadge';
+import { ReportDate } from './ReportDate';
 import { PhotoLightbox } from './PhotoLightbox';
 import { ReportPhoto, TreeCondition, TreeReport, DurianTree } from '../types';
 import {
@@ -623,7 +624,7 @@ export const Dashboard: React.FC = () => {
                     {/* 1. Report date on top of report card */}
                     <div className="flex items-center justify-between text-xs text-slate-600 border-b border-slate-200/70 pb-1.5">
                       <div className="flex items-center gap-1.5 font-sans font-medium text-slate-700">
-                        <span>{formatDateWithAgo(report.createdAt)}</span>
+                        <ReportDate value={report.createdAt} />
                       </div>
                       {report.conditionAfter && (
                         <ConditionBadge condition={report.conditionAfter} size="sm" />

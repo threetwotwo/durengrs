@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import { collection, onSnapshot } from 'firebase/firestore';
+import { collection, onSnapshot, query, where, orderBy, limit, Timestamp } from 'firebase/firestore';
 import { DurianTree, DurianVariant, TreeReport, TreeCondition } from '../types';
 import {
   db,
@@ -16,6 +16,7 @@ interface FarmContextType {
   variants: DurianVariant[];
   totalReportsCount: number;
   refreshReportsCount: () => Promise<void>;
+  unreadReportsCount: number;
   loading: boolean;
   currentProjectId: string;
   error: string | null;
@@ -47,6 +48,41 @@ export const FarmProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [filterBlock, setFilterBlock] = useState<string>('all');
   const [filterCondition, setFilterCondition] = useState<string>('all');
   const [quickFilter, setQuickFilter] = useState<string>('all');
+
+  // Unread = reports newer than the last time this browser opened the Reports tab.
+  // One live query that only returns new docs, so it costs almost nothing.
+  const SEEN_KEY = 'reportsLastSeenAt';
+  const [lastSeenAt, setLastSeenAt] = useState<number>(() => {
+    try {
+      const saved = Number(localStorage.getItem(SEEN_KEY));
+      if (saved > 0) return saved;
+      localStorage.setItem(SEEN_KEY, String(Date.now())); // first visit: nothing is "new"
+    } catch {}
+    return Date.now();
+  });
+  const [unreadReportsCount, setUnreadReportsCount] = useState<number>(0);
+
+  useEffect(() => {
+    const q = query(
+      collection(db, 'reports'),
+      where('createdAt', '>', Timestamp.fromMillis(lastSeenAt)),
+      orderBy('createdAt', 'desc'),
+      limit(100)
+    );
+    const unsub = onSnapshot(
+      q,
+      (snap) => setUnreadReportsCount(snap.size),
+      (err) => console.error('Unread reports listener failed:', err)
+    );
+    return () => unsub();
+  }, [lastSeenAt]);
+
+  useEffect(() => {
+    if (activeTab !== 'reports') return;
+    const now = Date.now();
+    try { localStorage.setItem(SEEN_KEY, String(now)); } catch {}
+    setLastSeenAt(now);
+  }, [activeTab]);
 
   const refreshReportsCount = useCallback(async () => {
     try {
@@ -208,6 +244,7 @@ export const FarmProvider: React.FC<{ children: React.ReactNode }> = ({ children
         variants,
         totalReportsCount,
         refreshReportsCount,
+        unreadReportsCount,
         loading,
         currentProjectId: activeProjectId,
         error,
@@ -259,21 +296,6 @@ export function formatDateTime(val: any): string {
     hour: '2-digit',
     minute: '2-digit',
   });
-}
-
-// "02 Oct 2026 · 7h ago"
-export function formatDateWithAgo(val: any): string {
-  const ts = normalizeTimestamp(val);
-  if (!ts) return '—';
-  const date = new Date(ts).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-  const mins = Math.max(0, Math.floor((Date.now() - ts) / 60000));
-  let ago: string;
-  if (mins < 1) ago = 'just now';
-  else if (mins < 60) ago = `${mins}m ago`;
-  else if (mins < 60 * 24) ago = `${Math.floor(mins / 60)}h ago`;
-  else if (mins < 60 * 24 * 30) ago = `${Math.floor(mins / 1440)}d ago`;
-  else ago = `${Math.floor(mins / 43200)}mo ago`;
-  return `${date} · ${ago}`;
 }
 
 export function formatDate(val: any): string {

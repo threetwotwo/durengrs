@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { useFarm, formatDateWithAgo, formatDateTime, formatDate } from '../context/FarmContext';
+import { useFarm, formatDateTime, formatDate } from '../context/FarmContext';
 import { DurianTree, TreeCondition, ReportPhoto, TreeReport } from '../types';
 import { ConditionBadge } from './ConditionBadge';
+import { ReportDate } from './ReportDate';
 import { PhotoLightbox } from './PhotoLightbox';
 import {
   db,
@@ -642,7 +643,7 @@ export const TreeDetailView: React.FC<TreeDetailViewProps> = ({ treeId, onBack }
                       {/* 1. Report date on top of the card - aligns with timeline node */}
                       <div className="flex items-center justify-between text-xs text-slate-700 font-sans h-5 mb-2 pl-0.5">
                         <div className="flex items-center gap-1.5 font-semibold text-slate-800">
-                          <span>{formatDateWithAgo(report.createdAt)}</span>
+                          <ReportDate value={report.createdAt} />
                         </div>
 
                         {report.conditionAfter && (

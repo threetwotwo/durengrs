@@ -245,7 +245,7 @@ export async function saveTreeChanges(
     const originalVal = originalTree[field];
     const draftVal = draft[field];
 
-    const hasNewVal = draftVal !== undefined && draftVal !== null && draftVal !== '' && !isNaN(Number(draftVal));
+    const hasNewVal = draftVal !== undefined && draftVal !== null && String(draftVal) !== '' && !isNaN(Number(draftVal));
     const normalizedNew = hasNewVal ? Number(draftVal) : undefined;
 
     if (normalizedNew !== undefined) {

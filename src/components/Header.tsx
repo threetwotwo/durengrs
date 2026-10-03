@@ -25,7 +25,7 @@ interface NavItem {
 }
 
 export const Header: React.FC = () => {
-  const { activeTab, setActiveTab, totalReportsCount } = useFarm();
+  const { activeTab, setActiveTab, unreadReportsCount } = useFarm();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const navItems: NavItem[] = [
@@ -41,7 +41,7 @@ export const Header: React.FC = () => {
       id: 'reports',
       label: 'Reports',
       icon: ClipboardList,
-      badge: totalReportsCount > 0 ? `${totalReportsCount}` : undefined,
+      badge: unreadReportsCount > 0 ? (unreadReportsCount > 99 ? '99+' : `${unreadReportsCount} new`) : undefined,
     },
   ];
 
@@ -87,7 +87,7 @@ export const Header: React.FC = () => {
                   <Icon className="w-4 h-4" />
                   <span>{item.label}</span>
                   {item.badge && (
-                    <span className="ml-1 px-2 py-0.5 rounded-full text-xs font-medium bg-slate-800 text-slate-300 border border-slate-700">
+                    <span className="ml-1 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-500 text-white border border-emerald-400 font-semibold">
                       {item.badge}
                     </span>
                   )}
@@ -133,7 +133,7 @@ export const Header: React.FC = () => {
                   <span>{item.label}</span>
                 </div>
                 {item.badge && (
-                  <span className="px-2 py-0.5 text-xs font-medium rounded bg-slate-800 text-slate-300 border border-slate-700">
+                  <span className="px-2 py-0.5 text-xs font-medium rounded bg-emerald-500 text-white border border-emerald-400 font-semibold">
                     {item.badge}
                   </span>
                 )}
