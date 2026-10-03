@@ -688,10 +688,33 @@ export function buildChecks({ trees, variants, plans, scheduleTasks, seasons, no
           status: 'gap',
           title: tn('guide.chk.ripening.gap', noRipening.length),
           detail: t('guide.chk.ripening.detail', { names: noRipening.map((v) => v.name).join(', '), d: DEFAULT_RIPENING_DAYS }),
-          action: { kind: 'link', to: '/variants', label: t('guide.act.openVariants') },
+          action: {
+            kind: 'link',
+            // One missing: open that variant's form directly.
+            to: noRipening.length === 1 ? `/variants?edit=${encodeURIComponent(noRipening[0].code)}` : '/variants',
+            label: t('guide.act.openVariants'),
+          },
         }
       : { id: 'ripening', topic: 'harvest', status: 'ok', title: t('guide.chk.ripening.ok') }
   );
+
+  // 2b. Trees whose variant code has no variants/{code} record: no ripening days, harvest date or stage for them.
+  const knownCodes = new Set(variants.map((v) => v.code));
+  const unknownCodes = Array.from(new Set(trees.map((x) => x.variant).filter((c) => c && !knownCodes.has(c)))).sort();
+  if (unknownCodes.length) {
+    checks.push({
+      id: 'unknownVariants',
+      topic: 'records',
+      status: 'gap',
+      title: tn('guide.chk.unknownVar.gap', unknownCodes.length),
+      detail: t('guide.chk.unknownVar.detail', { codes: unknownCodes.join(', ') }),
+      action: {
+        kind: 'link',
+        to: unknownCodes.length === 1 ? `/variants?new=${encodeURIComponent(unknownCodes[0])}` : '/variants',
+        label: t('guide.act.openVariants'),
+      },
+    });
+  }
 
   // 3. Overdue routine work.
   const overdue = scheduleTasks.filter((x) => x.status === 'overdue');

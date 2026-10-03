@@ -366,9 +366,12 @@ export async function saveVariantToFirestore(variant: DurianVariant): Promise<vo
       origin: variant.origin || '',
       characteristics: variant.characteristics || '',
     };
-    if (variant.ripeningDays !== undefined && variant.ripeningDays !== null && variant.ripeningDays !== '') {
-      dataToSave.ripeningDays = Number(variant.ripeningDays) || variant.ripeningDays;
-    }
+    // Cleared field = remove it (merge would otherwise keep the old value). Never store text.
+    const days = Number(variant.ripeningDays);
+    dataToSave.ripeningDays =
+      variant.ripeningDays !== undefined && variant.ripeningDays !== null && variant.ripeningDays !== '' && Number.isFinite(days)
+        ? days
+        : deleteField();
     await setDoc(docRef, dataToSave, { merge: true });
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);

@@ -8,6 +8,8 @@ export interface DurianVariant {
   characteristics?: string;
   ripeningDays?: number | string;
   createdAt?: string;
+  /** The document has no name; `name` then shows the description or code, and must not be saved back as the name. */
+  nameMissing?: boolean;
 }
 
 export interface DurianTree {

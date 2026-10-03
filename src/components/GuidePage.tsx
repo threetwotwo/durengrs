@@ -472,7 +472,9 @@ const TopicView: React.FC<{ id: TopicId }> = ({ id }) => {
             const outside = ref && days !== null && (days < ref.min - 5 || days > ref.max + 5);
             return (
               <li key={v.code} className="text-sm">
-                <span className="font-semibold text-slate-900">{v.name}</span>{' '}
+                <Link to={`/variants?edit=${encodeURIComponent(v.code)}`} className="font-semibold text-slate-900 hover:text-emerald-700 hover:underline">
+                  {v.name}
+                </Link>{' '}
                 <span className="text-xs text-slate-500 font-mono">{v.code}</span>
                 <span className="block text-xs text-slate-700">
                   {days !== null ? t('guide.varieties.yours', { d: days }) : t('guide.varieties.notSet')}

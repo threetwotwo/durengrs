@@ -229,6 +229,7 @@ export const FarmProvider: React.FC<{ children: React.ReactNode }> = ({ children
               origin: data.origin || '',
               characteristics: data.characteristics || '',
               ripeningDays: data.ripeningDays,
+              nameMissing: !data.name,
             };
           });
           list.sort((a, b) => a.name.localeCompare(b.name));
@@ -277,10 +278,10 @@ export const FarmProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const idx = prev.findIndex((v) => v.code === variant.code);
       if (idx >= 0) {
         const next = [...prev];
-        next[idx] = variant;
+        next[idx] = { ...variant, nameMissing: false };
         return next;
       }
-      return [variant, ...prev];
+      return [{ ...variant, nameMissing: false }, ...prev];
     });
   };
 

@@ -1,10 +1,20 @@
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useFarm } from '../context/FarmContext';
 import { DurianVariant } from '../types';
 import { PageHeader, btnPrimary, inputCls } from './PageHeader';
 import { Link } from './Link';
-import { treesUrl } from '../lib/router';
+import { treesUrl, useQueryParams } from '../lib/router';
 import { useT } from '../i18n';
+import { pick, ripeningRefFor } from '../lib/guide';
+import { addDays, diffDays, formatShortDate, todayStr } from '../lib/treatments';
+import {
+  RIPENING_MAX,
+  RIPENING_MIN,
+  normalizeCode,
+  ripeningOutsideRef,
+  unknownVariantCodes,
+  validateVariant,
+} from '../lib/variants';
 import {
   Sprout,
   Plus,
@@ -13,19 +23,24 @@ import {
   Check,
   X,
   RefreshCw,
-  Info,
   Calendar,
   MapPin,
-  FileText,
+  AlertTriangle,
+  Moon,
+  Wheat,
+  BookOpen,
 } from 'lucide-react';
 
+const fieldCls =
+  'w-full text-sm p-2.5 border rounded-md focus:ring-2 focus:ring-emerald-500 aria-[invalid=true]:border-rose-500 aria-[invalid=true]:bg-rose-50/40';
+
 export const VariantsPage: React.FC = () => {
-  const { variants, trees, saveVariant } = useFarm();
-  const { t } = useT();
+  const { variants, trees, harvestCycles, saveVariant } = useFarm();
+  const { t, lang } = useT();
+  const [params, setParams] = useQueryParams();
 
   const [search, setSearch] = useState('');
   const [modalMode, setModalMode] = useState<'create' | 'edit' | null>(null);
-  const [selectedVariant, setSelectedVariant] = useState<DurianVariant | null>(null);
 
   // Form state
   const [code, setCode] = useState('');
@@ -33,7 +48,8 @@ export const VariantsPage: React.FC = () => {
   const [origin, setOrigin] = useState('');
   const [description, setDescription] = useState('');
   const [characteristics, setCharacteristics] = useState('');
-  const [ripeningDays, setRipeningDays] = useState<string | number>('');
+  const [ripeningDays, setRipeningDays] = useState('');
+  const [submitted, setSubmitted] = useState(false);
 
   const [isSaving, setIsSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -60,6 +76,20 @@ export const VariantsPage: React.FC = () => {
     return map;
   }, [trees]);
 
+  // Which varieties grow in which block: for harvest dates and single-variety (pollination) warnings.
+  const variantsByBlock = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    for (const tr of trees) {
+      if (!tr.block || !tr.variant) continue;
+      const s = map.get(tr.block) || new Set<string>();
+      s.add(tr.variant);
+      map.set(tr.block, s);
+    }
+    return map;
+  }, [trees]);
+
+  const unknown = useMemo(() => unknownVariantCodes(trees, variants), [trees, variants]);
+
   const filteredVariants = useMemo(() => {
     if (!search.trim()) return variants;
     const q = search.toLowerCase();
@@ -72,44 +102,79 @@ export const VariantsPage: React.FC = () => {
     );
   }, [variants, search]);
 
-  const openCreateModal = () => {
+  const openCreateModal = (prefillCode = '') => {
     setModalMode('create');
-    setSelectedVariant(null);
-    setCode('');
+    setCode(prefillCode);
     setName('');
     setOrigin('');
     setDescription('');
     setCharacteristics('');
     setRipeningDays('');
     setFormError(null);
+    setSubmitted(false);
   };
 
   const openEditModal = (variant: DurianVariant) => {
     setModalMode('edit');
-    setSelectedVariant(variant);
     setCode(variant.code);
-    setName(variant.name);
+    // A nameless document shows its description as the name; never save that back as the name.
+    setName(variant.nameMissing ? '' : variant.name);
     setOrigin(variant.origin || '');
     setDescription(variant.description || '');
     setCharacteristics(variant.characteristics || '');
-    setRipeningDays(variant.ripeningDays || '');
+    setRipeningDays(variant.ripeningDays !== undefined && variant.ripeningDays !== null ? String(variant.ripeningDays) : '');
     setFormError(null);
+    setSubmitted(false);
   };
+
+  // Deep links from the Guide: ?edit=MK opens that variant, ?new=XY starts a new one with that code.
+  const editParam = params.get('edit');
+  const newParam = params.get('new');
+  useEffect(() => {
+    if (editParam) {
+      const v = variants.find((x) => x.code === editParam);
+      if (v) openEditModal(v);
+    } else if (newParam) {
+      openCreateModal(newParam);
+    }
+    // variants: wait until they are loaded before opening an edit link
+  }, [editParam, newParam, variants.length > 0]);
 
   const closeModal = () => {
     setModalMode(null);
-    setSelectedVariant(null);
     setFormError(null);
+    if (editParam || newParam) setParams({ edit: null, new: null });
   };
+
+  useEffect(() => {
+    if (!modalMode) return;
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && !isSaving && closeModal();
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [modalMode, isSaving, editParam, newParam]);
+
+  const validation = useMemo(
+    () => validateVariant({ code, name, ripeningDays }, variants, modalMode === 'edit' ? 'edit' : 'create'),
+    [code, name, ripeningDays, variants, modalMode]
+  );
+  const showError = (field: 'code' | 'name' | 'ripeningDays') => {
+    const key = validation.errors[field];
+    // Show as soon as something was typed, or after a save attempt.
+    const touched = field === 'code' ? code : field === 'name' ? name : ripeningDays;
+    return key && (submitted || touched.trim() !== '') ? t(key, { min: RIPENING_MIN, max: RIPENING_MAX }) : null;
+  };
+  const formRef = ripeningRefFor({ code: normalizeCode(code), name } as DurianVariant);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!code.trim() || !name.trim()) {
-      setFormError(t('var.error.required'));
+    setSubmitted(true);
+    if (Object.keys(validation.errors).length > 0) {
+      setFormError(t('var.v.fix'));
       return;
     }
 
-    const cleanCode = code.trim().toUpperCase();
+    // Edit keeps the stored code exactly (it is the document ID trees point to).
+    const cleanCode = modalMode === 'edit' ? code : normalizeCode(code);
     setIsSaving(true);
     setFormError(null);
 
@@ -120,7 +185,7 @@ export const VariantsPage: React.FC = () => {
         origin: origin.trim(),
         description: description.trim(),
         characteristics: characteristics.trim(),
-        ripeningDays: ripeningDays ? Number(ripeningDays) : undefined,
+        ripeningDays: ripeningDays.trim() ? Number(ripeningDays) : undefined,
       };
 
       await saveVariant(variantData);
@@ -139,13 +204,15 @@ export const VariantsPage: React.FC = () => {
     }
   };
 
+  const today = todayStr();
+
   return (
     <div className="space-y-6">
       <PageHeader
         title={t('var.title')}
         description={t('var.desc')}
         actions={
-          <button onClick={openCreateModal} className={btnPrimary}>
+          <button onClick={() => openCreateModal()} className={btnPrimary}>
             <Plus className="w-4 h-4" />
             {t('var.add')}
           </button>
@@ -153,10 +220,38 @@ export const VariantsPage: React.FC = () => {
       />
 
       {successToast && (
-        <div className="p-3 bg-emerald-100 border border-emerald-300 text-emerald-900 text-xs rounded-lg flex items-center gap-2 font-medium">
+        <div role="status" className="p-3 bg-emerald-100 border border-emerald-300 text-emerald-900 text-xs rounded-lg flex items-center gap-2 font-medium">
           <Check className="w-4 h-4 text-emerald-700 shrink-0" />
           <span>{successToast}</span>
         </div>
+      )}
+
+      {/* Codes on trees with no variant record: those trees get no ripening days, harvest date or Guide stage. */}
+      {unknown.length > 0 && (
+        <section role="alert" className="p-4 rounded-xl bg-amber-50 border border-amber-200 space-y-2">
+          <h2 className="text-sm font-bold text-amber-950 flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-amber-600" />
+            {t('var.unknown.title')}
+          </h2>
+          <p className="text-sm text-amber-900">{t('var.unknown.body')}</p>
+          <ul className="flex flex-wrap gap-2">
+            {unknown.map((u) => (
+              <li key={u.code} className="flex items-center gap-2 bg-white rounded-lg border border-amber-200 pl-3 pr-1 py-1">
+                <span className="font-mono font-bold text-sm text-slate-900">{u.code}</span>
+                <Link to={treesUrl({ variant: u.code })} className="text-xs text-slate-600 hover:underline">
+                  {t(u.trees === 1 ? 'var.trees.one' : 'var.trees.other', { n: u.trees })}
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => openCreateModal(u.code)}
+                  className="min-h-9 px-3 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold"
+                >
+                  {t('var.unknown.add', { code: u.code })}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
 
       <div className="flex items-center gap-3">
@@ -179,6 +274,23 @@ export const VariantsPage: React.FC = () => {
         {filteredVariants.map((variant) => {
           const treeCount = treeCountMap.get(variant.code) || 0;
           const health = healthByVariant.get(variant.code) || { healthy: 0, minor: 0, emergency: 0, not_assessed: 0 };
+          const ref = ripeningRefFor(variant);
+          const outside = ripeningOutsideRef(variant);
+          const days = Number(variant.ripeningDays) > 0 ? Number(variant.ripeningDays) : null;
+
+          // Expected harvest per block that grows this variety and has a bloom date (recent or upcoming only).
+          const harvests = days
+            ? harvestCycles
+                .filter((c) => variantsByBlock.get(c.block)?.has(variant.code))
+                .map((c) => ({ block: c.block, date: addDays(c.floweredOn, days) }))
+                .filter((h) => diffDays(h.date, today) >= -14)
+                .sort((a, b) => a.date.localeCompare(b.date))
+            : [];
+          // Blocks where this is the only variety: no pollinator variety nearby.
+          const soloBlocks = Array.from(variantsByBlock.entries())
+            .filter(([, set]) => set.size === 1 && set.has(variant.code))
+            .map(([b]) => b)
+            .sort();
 
           return (
             <div
@@ -195,6 +307,7 @@ export const VariantsPage: React.FC = () => {
                     <div>
                       <h3 className="text-sm font-bold text-slate-900 leading-tight">
                         {variant.name}
+                        {variant.nameMissing && <span className="ml-1.5 text-xs font-semibold text-amber-700">· {t('var.noName')}</span>}
                       </h3>
                       {variant.origin && (
                         <p className="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
@@ -259,16 +372,47 @@ export const VariantsPage: React.FC = () => {
                     {t('var.n.healthy', { n: health.healthy })}
                   </span>
                 </div>
-                <div className="text-xs">
-                  {variant.ripeningDays ? (
+                <div className="text-xs space-y-1">
+                  {days ? (
                     <span className="flex items-center gap-1 text-slate-600 tabular">
                       <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                      {t('var.ripening', { n: variant.ripeningDays })}
+                      {t('var.ripening', { n: days })}
                     </span>
                   ) : (
                     <button onClick={() => openEditModal(variant)} className="text-slate-500 hover:text-emerald-700 underline decoration-dotted min-h-8">
                       {t('var.addRipening')}
+                      {ref ? ` · ${t('var.ref', { min: ref.min, max: ref.max })}` : ''}
                     </button>
+                  )}
+                  {outside && (
+                    <Link to="/guide/harvest" className="flex items-start gap-1 text-amber-800 hover:underline">
+                      <AlertTriangle className="w-3.5 h-3.5 mt-px shrink-0" />
+                      {t('var.g.outside', { min: outside.min, max: outside.max })}
+                    </Link>
+                  )}
+                  {harvests.length > 0 && (
+                    <Link to="/schedule?view=harvest" className="flex items-start gap-1 text-slate-700 hover:underline tabular">
+                      <Wheat className="w-3.5 h-3.5 mt-px shrink-0 text-slate-400" />
+                      <span>
+                        {t('var.g.harvest')}:{' '}
+                        {harvests
+                          .slice(0, 3)
+                          .map((h) => t('var.g.harvestRow', { block: h.block, date: formatShortDate(h.date) }))
+                          .join(', ')}
+                      </span>
+                    </Link>
+                  )}
+                  {soloBlocks.length > 0 && (
+                    <Link to="/guide/pollination" className="flex items-start gap-1 text-slate-700 hover:underline">
+                      <Moon className="w-3.5 h-3.5 mt-px shrink-0 text-slate-400" />
+                      {t('var.g.single', { blocks: soloBlocks.map((b) => t('common.blockN', { n: b })).join(', ') })}
+                    </Link>
+                  )}
+                  {ref && (
+                    <p className="flex items-start gap-1 text-slate-500">
+                      <BookOpen className="w-3.5 h-3.5 mt-px shrink-0 text-slate-400" />
+                      <span>{pick(ref.note, lang)}</span>
+                    </p>
                   )}
                 </div>
               </div>
@@ -280,115 +424,155 @@ export const VariantsPage: React.FC = () => {
       {/* Add / Edit Variant Modal */}
       {modalMode && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs">
-          <div className="bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-lg overflow-hidden">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="var-modal-h"
+            className="bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-lg max-h-[calc(100vh-2rem)] overflow-y-auto"
+          >
             <div className="flex items-center justify-between px-6 py-4 bg-slate-900 text-white">
               <div className="flex items-center gap-2">
                 <Sprout className="w-5 h-5 text-emerald-400" />
-                <h2 className="text-base font-bold">
+                <h2 id="var-modal-h" className="text-base font-bold">
                   {modalMode === 'create' ? t('var.modal.create') : t('var.modal.edit', { code })}
                 </h2>
               </div>
               <button
                 onClick={closeModal}
                 aria-label={t('common.close')}
-                className="p-1 rounded-md text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+                className="min-h-11 min-w-11 flex items-center justify-center rounded-md text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="p-6 space-y-4">
+            <form onSubmit={handleSubmit} noValidate className="p-6 space-y-4">
               {formError && (
-                <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 text-xs rounded-md">
+                <div role="alert" className="p-3 bg-rose-50 border border-rose-200 text-rose-800 text-xs rounded-md">
                   {formError}
                 </div>
               )}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1">
+                  <label htmlFor="vf-code" className="block text-xs font-medium text-slate-700 mb-1">
                     {t('var.f.code')} <span className="text-rose-500">*</span>
                   </label>
                   <input
+                    id="vf-code"
                     type="text"
                     value={code}
-                    onChange={(e) => setCode(e.target.value)}
+                    onChange={(e) => setCode(e.target.value.toUpperCase())}
                     placeholder={t('var.f.code.ph')}
                     disabled={modalMode === 'edit'}
-                    required
-                    className="w-full text-xs p-2.5 border border-slate-300 rounded-md focus:ring-2 focus:ring-emerald-500 font-mono font-bold uppercase disabled:bg-slate-100 disabled:text-slate-500"
+                    maxLength={10}
+                    autoComplete="off"
+                    aria-invalid={Boolean(showError('code'))}
+                    aria-describedby="vf-code-msg"
+                    className={`${fieldCls} border-slate-300 font-mono font-bold uppercase disabled:bg-slate-100 disabled:text-slate-500`}
                   />
-                  <p className="text-xs text-slate-400 mt-0.5">
-                    {t('var.f.code.hint')} <code className="text-slate-600">variants/&#123;code&#125;</code>
+                  <p id="vf-code-msg" className={`text-xs mt-0.5 ${showError('code') ? 'text-rose-700' : 'text-slate-500'}`}>
+                    {showError('code') || (modalMode === 'edit' ? t('var.f.code.locked') : t('var.f.code.rules'))}
                   </p>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1">
+                  <label htmlFor="vf-name" className="block text-xs font-medium text-slate-700 mb-1">
                     {t('var.f.name')} <span className="text-rose-500">*</span>
                   </label>
                   <input
+                    id="vf-name"
                     type="text"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     placeholder={t('var.f.name.ph')}
-                    required
-                    className="w-full text-xs p-2.5 border border-slate-300 rounded-md focus:ring-2 focus:ring-emerald-500 font-medium"
+                    maxLength={60}
+                    aria-invalid={Boolean(submitted && validation.errors.name)}
+                    aria-describedby="vf-name-msg"
+                    className={`${fieldCls} border-slate-300 font-medium`}
                   />
+                  <p id="vf-name-msg" className="text-xs mt-0.5">
+                    {submitted && validation.errors.name ? (
+                      <span className="text-rose-700">{t(validation.errors.name)}</span>
+                    ) : validation.warnings.name ? (
+                      <span className="text-amber-800">{t(validation.warnings.name.key, validation.warnings.name.vars)}</span>
+                    ) : null}
+                  </p>
                 </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1">
+                  <label htmlFor="vf-origin" className="block text-xs font-medium text-slate-700 mb-1">
                     {t('var.f.origin')}
                   </label>
                   <input
+                    id="vf-origin"
                     type="text"
                     value={origin}
                     onChange={(e) => setOrigin(e.target.value)}
                     placeholder={t('var.f.origin.ph')}
-                    className="w-full text-xs p-2.5 border border-slate-300 rounded-md focus:ring-2 focus:ring-emerald-500"
+                    className={`${fieldCls} border-slate-300`}
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1">
+                  <label htmlFor="vf-ripening" className="block text-xs font-medium text-slate-700 mb-1">
                     {t('var.f.ripening')}
                   </label>
                   <input
+                    id="vf-ripening"
                     type="number"
+                    inputMode="numeric"
+                    min={RIPENING_MIN}
+                    max={RIPENING_MAX}
+                    step={1}
                     value={ripeningDays}
                     onChange={(e) => setRipeningDays(e.target.value)}
-                    placeholder={t('var.f.ripening.ph')}
-                    className="w-full text-xs p-2.5 border border-slate-300 rounded-md focus:ring-2 focus:ring-emerald-500 font-mono"
+                    placeholder={formRef ? String(formRef.min) : t('var.f.ripening.ph')}
+                    aria-invalid={Boolean(showError('ripeningDays'))}
+                    aria-describedby="vf-ripening-msg"
+                    className={`${fieldCls} border-slate-300 font-mono`}
                   />
+                  <p id="vf-ripening-msg" className="text-xs mt-0.5 space-y-0.5">
+                    {showError('ripeningDays') ? (
+                      <span className="block text-rose-700">{showError('ripeningDays')}</span>
+                    ) : validation.warnings.ripeningDays ? (
+                      <span className="block text-amber-800">{t(validation.warnings.ripeningDays.key, validation.warnings.ripeningDays.vars)}</span>
+                    ) : null}
+                    <span className="block text-slate-500">
+                      {formRef ? t('var.ref', { min: formRef.min, max: formRef.max }) : t('var.ref.none')}{' '}
+                      <Link to="/guide/harvest" className="text-emerald-700 font-semibold">{t('var.ref.guide')} →</Link>
+                    </span>
+                  </p>
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">
+                <label htmlFor="vf-desc" className="block text-xs font-medium text-slate-700 mb-1">
                   {t('var.f.desc')}
                 </label>
                 <textarea
+                  id="vf-desc"
                   rows={2}
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder={t('var.f.desc.ph')}
-                  className="w-full text-xs p-2.5 border border-slate-300 rounded-md focus:ring-2 focus:ring-emerald-500"
+                  className={`${fieldCls} border-slate-300`}
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">
+                <label htmlFor="vf-traits" className="block text-xs font-medium text-slate-700 mb-1">
                   {t('var.f.traits')}
                 </label>
                 <textarea
+                  id="vf-traits"
                   rows={2}
                   value={characteristics}
                   onChange={(e) => setCharacteristics(e.target.value)}
                   placeholder={t('var.f.traits.ph')}
-                  className="w-full text-xs p-2.5 border border-slate-300 rounded-md focus:ring-2 focus:ring-emerald-500"
+                  className={`${fieldCls} border-slate-300`}
                 />
               </div>
 
@@ -396,14 +580,14 @@ export const VariantsPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={closeModal}
-                  className="px-4 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100 rounded-md transition-colors"
+                  className="min-h-11 px-4 text-sm font-medium text-slate-700 hover:bg-slate-100 rounded-md transition-colors"
                 >
                   {t('common.cancel')}
                 </button>
                 <button
                   type="submit"
                   disabled={isSaving}
-                  className="px-5 py-2 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-md shadow-xs disabled:opacity-50 transition-colors flex items-center gap-1.5"
+                  className="min-h-11 px-5 text-sm font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-md shadow-xs disabled:opacity-50 transition-colors flex items-center gap-1.5"
                 >
                   {isSaving ? (
                     <>
