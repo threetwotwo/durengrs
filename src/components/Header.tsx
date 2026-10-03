@@ -1,15 +1,21 @@
 import React, { useState } from 'react';
 import { useFarm } from '../context/FarmContext';
 import {
-  TreeDeciduous,
   LayoutDashboard,
   TableProperties,
   Sprout,
   ClipboardList,
   Menu,
   X,
-  Download,
 } from 'lucide-react';
+
+const DurianIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true">
+    <path d="M12 3.2c0-.9.4-1.5 1.1-1.9" />
+    <path d="M12 3.2c-4.6 0-8 3.6-8 8.3 0 4.7 3.4 9 8 9s8-4.3 8-9c0-4.7-3.4-8.3-8-8.3Z" />
+    <path d="M7.5 8.2 6 7M16.5 8.2 18 7M12 6.5V5M5.5 12.5H4M18.5 12.5H20M8 16.5l-1 1.2M16 16.5l1 1.2M12 12v-2M9 12.5 8.2 11M15 12.5l.8-1.5" />
+  </svg>
+);
 
 interface NavItem {
   id: 'dashboard' | 'trees' | 'variants' | 'reports';
@@ -50,7 +56,7 @@ export const Header: React.FC = () => {
               className="flex items-center gap-2.5 text-left focus:outline-none"
             >
               <div className="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center text-white shadow-xs">
-                <TreeDeciduous className="w-4 h-4" />
+                <DurianIcon className="w-5 h-5" />
               </div>
               <div>
                 <span className="text-base font-bold tracking-tight text-white block leading-tight">
@@ -89,19 +95,6 @@ export const Header: React.FC = () => {
               );
             })}
           </nav>
-
-          {/* Desktop Right Actions: Export .ZIP */}
-          <div className="hidden md:flex items-center gap-2">
-            <a
-              href="/cilowong-durian-farm.zip"
-              download="cilowong-durian-farm.zip"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600/20 hover:bg-emerald-600 text-emerald-300 hover:text-white border border-emerald-500/30 transition-all shadow-xs"
-              title="Download project source code as .zip"
-            >
-              <Download className="w-4 h-4" />
-              <span>Export .ZIP</span>
-            </a>
-          </div>
 
           {/* Mobile hamburger */}
           <div className="flex md:hidden items-center gap-2">
@@ -147,17 +140,6 @@ export const Header: React.FC = () => {
               </button>
             );
           })}
-
-          <div className="pt-2 border-t border-slate-800">
-            <a
-              href="/cilowong-durian-farm.zip"
-              download="cilowong-durian-farm.zip"
-              className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white"
-            >
-              <Download className="w-4 h-4" />
-              <span>Download Project .ZIP</span>
-            </a>
-          </div>
         </div>
       )}
     </header>
