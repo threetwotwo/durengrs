@@ -5,7 +5,7 @@ import { ReportDate } from './ReportDate';
 import { Link } from './Link';
 import { navigate, treeUrl, treesUrl } from '../lib/router';
 import { followUpOf, waitingLabel } from '../lib/insights';
-import { PhotoLightbox } from './PhotoLightbox';
+import { PhotoLightbox, photoItems, type GalleryItem } from './PhotoLightbox';
 import { TaskRow } from './TaskRow';
 import { MarkDoneSheet, UndoToast, undoLogged, useUndoToast } from './TreatmentSheets';
 import { ScheduleTask, relativeDue } from '../lib/treatments';
@@ -92,7 +92,7 @@ export const Dashboard: React.FC = () => {
   const [reportsLoading, setReportsLoading] = useState(true);
   const [blockSortField, setBlockSortField] = useState<'block' | 'healthy' | 'minor' | 'emergency' | 'not_assessed' | 'total' | 'fruits'>('block');
   const [blockSortAsc, setBlockSortAsc] = useState(true);
-  const [activePhoto, setActivePhoto] = useState<{ url: string; caption?: string } | null>(null);
+  const [gallery, setGallery] = useState<{ items: GalleryItem[]; index: number } | null>(null);
 
   // Targeted live subscription for ONLY the latest 8 reports
   useEffect(() => {
@@ -267,13 +267,7 @@ export const Dashboard: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Lightbox Modal */}
-      {activePhoto && (
-        <PhotoLightbox
-          imageUrl={activePhoto.url}
-          caption={activePhoto.caption}
-          onClose={() => setActivePhoto(null)}
-        />
-      )}
+      {gallery && <PhotoLightbox items={gallery.items} index={gallery.index} onClose={() => setGallery(null)} />}
 
       {/* Today strip: the question this screen answers */}
       <div className="flex flex-wrap items-end justify-between gap-2">
@@ -728,7 +722,7 @@ export const Dashboard: React.FC = () => {
                               idx={pIdx}
                               reportDate={report.createdAt}
                               treeId={report.treeId}
-                              onOpen={(url, caption) => setActivePhoto({ url, caption })}
+                              onOpen={() => setGallery({ items: photoItems(photos, report.treeId, report.createdAt), index: pIdx })}
                             />
                           ))}
                         </div>

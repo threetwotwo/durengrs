@@ -3,9 +3,9 @@ import { ArrowRight, Image as ImageIcon, User, ArrowRightLeft } from 'lucide-rea
 import { ConditionBadge } from './ConditionBadge';
 import { ReportDate } from './ReportDate';
 import { Link } from './Link';
-import { formatDateTime } from '../context/FarmContext';
 import { treeUrl } from '../lib/router';
 import { maskPhone } from '../lib/insights';
+import { photoItems, type GalleryItem } from './PhotoLightbox';
 import type { DurianTree, ReportPhoto, TreeReport } from '../types';
 
 /** True when the note has no letters or digits (e.g. only "🙏😎"). */
@@ -18,15 +18,14 @@ const Thumb: React.FC<{
   idx: number;
   total: number;
   big: boolean;
-  caption: string;
-  onOpen: (url: string, caption: string) => void;
-}> = ({ photo, idx, total, big, caption, onOpen }) => {
+  onOpen: () => void;
+}> = ({ photo, idx, total, big, onOpen }) => {
   const [failed, setFailed] = useState(false);
   const size = big ? 'w-32 h-32 sm:w-44 sm:h-44' : 'w-24 h-24';
   return (
     <button
       type="button"
-      onClick={() => onOpen(photo.url, caption)}
+      onClick={onOpen}
       aria-label={`Open photo ${idx + 1} of ${total}`}
       className={`relative ${size} rounded-lg overflow-hidden border border-slate-200 bg-slate-100 shrink-0 focus-visible:outline-2 focus-visible:outline-emerald-600 hover:ring-2 hover:ring-emerald-500 transition`}
     >
@@ -57,7 +56,7 @@ const Thumb: React.FC<{
 export const ReportCard: React.FC<{
   report: TreeReport;
   tree?: DurianTree;
-  onOpenPhoto: (url: string, caption: string) => void;
+  onOpenPhoto: (items: GalleryItem[], index: number) => void;
   /** Hide the "reports from this worker" link where it would not make sense. */
   workerHref?: string;
 }> = ({ report, tree, onOpenPhoto, workerHref }) => {
@@ -135,8 +134,7 @@ export const ReportCard: React.FC<{
                 idx={i}
                 total={photos.length}
                 big={photos.length === 1}
-                caption={`Tree ${report.treeId} · Photo ${i + 1} of ${photos.length} (${formatDateTime(report.createdAt)})`}
-                onOpen={onOpenPhoto}
+                onOpen={() => onOpenPhoto(photoItems(photos, report.treeId, report.createdAt), i)}
               />
             ))}
           </div>

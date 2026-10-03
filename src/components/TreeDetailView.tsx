@@ -5,7 +5,7 @@ import { ConditionBadge } from './ConditionBadge';
 import { ReportDate } from './ReportDate';
 import { navigate, setNavigationBlocker, treeUrl, treesUrl } from '../lib/router';
 import { formatShortDate, toDateStr } from '../lib/treatments';
-import { PhotoLightbox } from './PhotoLightbox';
+import { PhotoLightbox, photoItems, type GalleryItem } from './PhotoLightbox';
 import {
   db,
   parseReportDoc,
@@ -115,7 +115,7 @@ export const TreeDetailView: React.FC<TreeDetailViewProps> = ({ treeId, onBack }
   const [saveError, setSaveError] = useState<string | null>(null);
 
   // Lightbox
-  const [activePhoto, setActivePhoto] = useState<{ url: string; caption: string } | null>(null);
+  const [gallery, setGallery] = useState<{ items: GalleryItem[]; index: number } | null>(null);
 
   // Sync tree data into form state
   useEffect(() => {
@@ -441,7 +441,7 @@ export const TreeDetailView: React.FC<TreeDetailViewProps> = ({ treeId, onBack }
               {historyPhotos.map((ph, i) => (
                 <button
                   key={`${ph.id}-${i}`}
-                  onClick={() => setActivePhoto({ url: ph.url, caption: `Tree ${treeId} · ${formatDateTime(ph.at)}` })}
+                  onClick={() => setGallery({ items: historyPhotos.map((h) => ({ url: h.url, caption: `Tree ${treeId} · ${formatDateTime(h.at)}` })), index: i })}
                   className="shrink-0 w-[88px] text-left group"
                   aria-label={`Photo from ${formatShortDate(ph.date)}`}
                 >
@@ -754,7 +754,7 @@ export const TreeDetailView: React.FC<TreeDetailViewProps> = ({ treeId, onBack }
                                   idx={pIdx}
                                   reportDate={report.createdAt}
                                   treeId={treeId}
-                                  onOpen={(url, caption) => setActivePhoto({ url, caption })}
+                                  onOpen={() => setGallery({ items: photoItems(photos, treeId, report.createdAt), index: pIdx })}
                                 />
                               ))}
                             </div>
@@ -804,13 +804,7 @@ export const TreeDetailView: React.FC<TreeDetailViewProps> = ({ treeId, onBack }
       )}
 
       {/* Lightbox Modal */}
-      {activePhoto && (
-        <PhotoLightbox
-          imageUrl={activePhoto.url}
-          caption={activePhoto.caption}
-          onClose={() => setActivePhoto(null)}
-        />
-      )}
+      {gallery && <PhotoLightbox items={gallery.items} index={gallery.index} onClose={() => setGallery(null)} />}
     </div>
   );
 };

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useFarm } from '../context/FarmContext';
 import { ReportCard } from './ReportCard';
-import { PhotoLightbox } from './PhotoLightbox';
+import { PhotoLightbox, type GalleryItem } from './PhotoLightbox';
 import { PageHeader, inputCls } from './PageHeader';
 import { ActivityView } from './ActivityView';
 import { Link } from './Link';
@@ -37,7 +37,7 @@ export const ReportsPage: React.FC = () => {
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [activePhoto, setActivePhoto] = useState<{ url: string; caption?: string } | null>(null);
+  const [gallery, setGallery] = useState<{ items: GalleryItem[]; index: number } | null>(null);
 
   // Filters live in the URL: shareable, survive reload, Back works.
   const search = params.get('q') || '';
@@ -114,13 +114,7 @@ export const ReportsPage: React.FC = () => {
   return (
     <div className="space-y-4">
       {/* Lightbox Modal */}
-      {activePhoto && (
-        <PhotoLightbox
-          imageUrl={activePhoto.url}
-          caption={activePhoto.caption}
-          onClose={() => setActivePhoto(null)}
-        />
-      )}
+      {gallery && <PhotoLightbox items={gallery.items} index={gallery.index} onClose={() => setGallery(null)} />}
 
       <PageHeader
         title="Reports"
@@ -226,7 +220,7 @@ export const ReportsPage: React.FC = () => {
                 key={report.id}
                 report={report}
                 tree={trees.find((t) => t.id === report.treeId)}
-                onOpenPhoto={(url, caption) => setActivePhoto({ url, caption })}
+                onOpenPhoto={(items, index) => setGallery({ items, index })}
                 workerHref={last4 && search !== last4 ? `/reports?q=${last4}` : undefined}
               />
             );
