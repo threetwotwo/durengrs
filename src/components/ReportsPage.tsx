@@ -1,13 +1,12 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { useFarm, formatDateTime } from '../context/FarmContext';
-import { ConditionBadge } from './ConditionBadge';
-import { ReportDate } from './ReportDate';
+import { useFarm } from '../context/FarmContext';
+import { ReportCard } from './ReportCard';
 import { PhotoLightbox } from './PhotoLightbox';
 import { PageHeader, inputCls } from './PageHeader';
 import { ActivityView } from './ActivityView';
 import { Link } from './Link';
-import { navigate, treeUrl, useQueryParams } from '../lib/router';
-import { ReportPhoto, TreeReport } from '../types';
+import { useQueryParams } from '../lib/router';
+import { TreeReport } from '../types';
 import {
   db,
   parseReportDoc,
@@ -25,56 +24,9 @@ import {
 import {
   ClipboardList,
   Search,
-  User,
-  Image as ImageIcon,
-  ArrowRight,
-  ExternalLink,
   RotateCcw,
   RefreshCw,
-  Filter,
 } from 'lucide-react';
-
-const ReportThumbnail: React.FC<{
-  photo: ReportPhoto;
-  idx: number;
-  reportDate: any;
-  treeId: string;
-  onOpen: (url: string, caption: string) => void;
-}> = ({ photo, idx, reportDate, treeId, onOpen }) => {
-  const [loadFailed, setLoadFailed] = useState(false);
-  const src = photo.thumb || photo.url;
-  const caption = `Tree ${treeId} · Photo ${idx + 1} (${formatDateTime(reportDate)})`;
-
-  return (
-    <div
-      onClick={() => onOpen(photo.url, caption)}
-      className="relative w-20 h-20 rounded-lg overflow-hidden border border-slate-200 bg-slate-100 cursor-pointer group hover:ring-2 hover:ring-emerald-500 transition-all shadow-xs shrink-0 flex items-center justify-center"
-    >
-      {!loadFailed ? (
-        <img
-          src={src}
-          alt={`Photo ${idx + 1}`}
-          loading="lazy"
-          decoding="async"
-          width="80"
-          height="80"
-          referrerPolicy="no-referrer"
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
-          onError={() => setLoadFailed(true)}
-        />
-      ) : (
-        <div className="w-full h-full flex flex-col items-center justify-center p-1 text-center text-slate-500 bg-slate-50">
-          <ImageIcon className="w-4 h-4 mb-0.5 text-slate-400" />
-          <span className="text-xs font-semibold">Photo {idx + 1}</span>
-        </div>
-      )}
-
-      <div className="absolute inset-0 bg-slate-950/30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-white">
-        <ExternalLink className="w-4 h-4" />
-      </div>
-    </div>
-  );
-};
 
 export const ReportsPage: React.FC = () => {
   const { trees, totalReportsCount } = useFarm();
@@ -156,19 +108,8 @@ export const ReportsPage: React.FC = () => {
     });
   }, [reports, search, filterCondition, filterBlock, onlyChanged, trees]);
 
-  const handleInspectTree = (treeId: string) => navigate(treeUrl(treeId));
-
   const handleResetFilters = () => setParams({ q: null, block: null, condition: null, changed: null });
   const activeFilterCount = [search, filterBlock !== 'all', filterCondition !== 'all', onlyChanged].filter(Boolean).length;
-
-  const maskPhone = (phone?: string): string => {
-    if (!phone) return '';
-    const digits = phone.replace(/\D/g, '');
-    if (digits.length >= 4) {
-      return `••••${digits.slice(-4)}`;
-    }
-    return phone;
-  };
 
   return (
     <div className="space-y-4">
@@ -279,90 +220,15 @@ export const ReportsPage: React.FC = () => {
           </div>
         ) : (
           filteredReports.map((report) => {
-            const photos = report.photos || [];
-            const tree = trees.find((t) => t.id === report.treeId);
-            const workerMasked = maskPhone(report.workerPhone);
-
+            const last4 = (report.workerPhone || '').replace(/\D/g, '').slice(-4);
             return (
-              <div
+              <ReportCard
                 key={report.id}
-                className="bg-white rounded-xl border border-slate-200 p-4 shadow-xs space-y-3 hover:border-slate-300 transition-colors"
-              >
-                {/* 1. Report date on top of the report card */}
-                <div className="flex items-center justify-between text-xs text-slate-600 border-b border-slate-100 pb-2">
-                  <div className="flex items-center gap-1.5 font-sans font-medium text-slate-700">
-                    <ReportDate value={report.createdAt} />
-                  </div>
-
-                  <div>
-                    {report.conditionAfter && (
-                      <ConditionBadge condition={report.conditionAfter} size="sm" />
-                    )}
-                  </div>
-                </div>
-
-                {/* 2. Header row: Tree A12 · MK */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                  <div>
-                    <button
-                      onClick={() => handleInspectTree(report.treeId)}
-                      className="text-sm font-bold font-mono text-emerald-800 hover:text-emerald-600 hover:underline flex items-center gap-1.5"
-                    >
-                      <span>Tree {report.treeId} · {tree?.variant || 'MK'}</span>
-                      <ArrowRight className="w-4 h-4 opacity-60" />
-                    </button>
-                    {/* 3. Subheading: Block name */}
-                    <p className="text-xs text-slate-600 font-medium mt-0.5 font-sans">
-                      Block {report.block || tree?.block || '—'}
-                    </p>
-                  </div>
-
-                  {workerMasked && (
-                    <div className="flex items-center gap-1.5 text-xs text-slate-600 font-mono self-start sm:self-auto">
-                      <User className="w-3.5 h-3.5 text-slate-400" />
-                      <span>{workerMasked}</span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Condition changed banner */}
-                {report.conditionChanged && (
-                  <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200 flex items-center gap-1.5 text-xs text-amber-900 font-medium">
-                    <span>Condition changed:</span>
-                    <ConditionBadge condition={report.conditionBefore || 'not_assessed'} size="sm" />
-                    <span>→</span>
-                    <ConditionBadge condition={report.conditionAfter || 'minor'} size="sm" />
-                  </div>
-                )}
-
-                {/* Description */}
-                {report.description && (
-                  <p className="text-xs text-slate-700 leading-relaxed bg-slate-50 p-2.5 rounded-lg border border-slate-100">
-                    {report.description}
-                  </p>
-                )}
-
-                {/* Photo Gallery (fixed w-20 h-20, loading lazy) */}
-                {photos.length > 0 && (
-                  <div className="pt-1">
-                    <span className="text-xs font-semibold text-slate-600 block mb-2">
-                      Inspection Photos ({photos.length})
-                    </span>
-                    <div className="flex flex-wrap gap-2.5">
-                      {photos.map((photo, pIdx) => (
-                        <ReportThumbnail
-                          key={pIdx}
-                          photo={photo}
-                          idx={pIdx}
-                          reportDate={report.createdAt}
-                          treeId={report.treeId}
-                          onOpen={(url, caption) => setActivePhoto({ url, caption })}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
+                report={report}
+                tree={trees.find((t) => t.id === report.treeId)}
+                onOpenPhoto={(url, caption) => setActivePhoto({ url, caption })}
+                workerHref={last4 && search !== last4 ? `/reports?q=${last4}` : undefined}
+              />
             );
           })
         )}

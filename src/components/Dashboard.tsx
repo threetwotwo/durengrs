@@ -694,12 +694,9 @@ export const Dashboard: React.FC = () => {
 
                     {/* 2. Header row: Tree A12 · MK */}
                     <div>
-                      <h4 className="text-xs font-bold font-mono text-slate-900">
-                        Tree {report.treeId} · {tree?.variant || 'MK'}
-                      </h4>
-                      {/* 3. Subheading: Block name */}
+                      <h4 className="text-sm font-bold text-slate-900">Tree {report.treeId}</h4>
                       <p className="text-xs text-slate-600 mt-0.5">
-                        Block {report.block || tree?.block || '—'}
+                        {[tree?.variant, `Block ${report.block || tree?.block || '—'}`].filter(Boolean).join(' · ')}
                       </p>
                     </div>
 
@@ -714,8 +711,8 @@ export const Dashboard: React.FC = () => {
                     )}
 
                     {/* Description */}
-                    {report.description && (
-                      <p className="text-xs text-slate-700 leading-relaxed bg-white p-2 rounded border border-slate-200/60">
+                    {report.description && /[\p{L}\p{N}]/u.test(report.description) && (
+                      <p className="text-xs text-slate-700 leading-relaxed bg-white p-2 rounded border border-slate-200/60 line-clamp-3">
                         {report.description}
                       </p>
                     )}
