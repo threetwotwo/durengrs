@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowRight, Image as ImageIcon, User, ArrowRightLeft } from 'lucide-react';
+import { ArrowRight, Trash2, User, ArrowRightLeft } from 'lucide-react';
 import { ConditionBadge } from './ConditionBadge';
 import { ReportDate } from './ReportDate';
 import { Link } from './Link';
@@ -27,7 +27,9 @@ export const ReportCard: React.FC<{
   workerHref?: string;
   /** First cards on screen: load photos immediately. */
   eager?: boolean;
-}> = ({ report, tree, onOpenPhoto, workerHref, eager }) => {
+  /** Shows a delete button; the parent confirms and deletes. */
+  onDelete?: (report: TreeReport) => void;
+}> = ({ report, tree, onOpenPhoto, workerHref, eager, onDelete }) => {
   const { t } = useT();
   const photos = report.photos || [];
   const block = report.block || tree?.block;
@@ -98,17 +100,31 @@ export const ReportCard: React.FC<{
           </p>
         )}
 
-        {/* Source */}
-        {phone && (
+        {/* Source + actions */}
+        {(phone || onDelete) && (
           <footer className="mt-auto pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2 text-xs text-slate-600">
-            <span className="inline-flex items-center gap-1.5">
-              <User className="w-3.5 h-3.5 text-slate-400" aria-hidden />
-              {t('rep.reportedBy')} <span className="font-mono">{phone}</span>
+            <span className="inline-flex flex-wrap items-center gap-x-3 gap-y-1">
+              {phone && (
+                <span className="inline-flex items-center gap-1.5">
+                  <User className="w-3.5 h-3.5 text-slate-400" aria-hidden />
+                  {t('rep.reportedBy')} <span className="font-mono">{phone}</span>
+                </span>
+              )}
+              {workerHref && (
+                <Link to={workerHref} replace className="font-semibold text-emerald-700 hover:underline min-h-8 inline-flex items-center">
+                  {t('rep.allFromWorker')}
+                </Link>
+              )}
             </span>
-            {workerHref && (
-              <Link to={workerHref} replace className="font-semibold text-emerald-700 hover:underline min-h-8 inline-flex items-center">
-                {t('rep.allFromWorker')}
-              </Link>
+            {onDelete && (
+              <button
+                type="button"
+                onClick={() => onDelete(report)}
+                className="min-h-10 px-2.5 -mr-2 rounded-lg inline-flex items-center gap-1.5 font-semibold text-slate-500 hover:text-rose-700 hover:bg-rose-50"
+              >
+                <Trash2 className="w-4 h-4" aria-hidden />
+                {t('rep.del.button')}
+              </button>
             )}
           </footer>
         )}

@@ -1,0 +1,12 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Report photos are uploaded by the WhatsApp bot (Admin SDK, not affected by these rules).
+    // The webapp only needs to read them (links carry a token) and delete them with a report.
+    // No auth yet by the owner's choice: tighten this together with firestore.rules when sign-in is added.
+    match /report-photos/{allPaths=**} {
+      allow read: if true;
+      allow delete: if true;
+    }
+  }
+}

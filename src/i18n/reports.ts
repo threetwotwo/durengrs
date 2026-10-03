@@ -2,6 +2,15 @@ import type { Bundle } from './index';
 
 export const reports: Bundle = {
   id: {
+    'rep.del.button': 'Hapus',
+    'rep.del.title': 'Hapus laporan ini?',
+    'rep.del.subtitle': 'Pohon {id} · {date}',
+    'rep.del.body': 'Laporan ini dan {n} foto akan dihapus permanen dari database dan penyimpanan. Tindakan ini tidak bisa dibatalkan.',
+    'rep.del.revert': 'Kondisi pohon yang diubah laporan ini akan dikembalikan ke kondisi sebelumnya.',
+    'rep.del.confirm': 'Hapus laporan',
+    'rep.del.deleting': 'Menghapus…',
+    'rep.del.failed': 'Laporan tidak dapat dihapus. Periksa koneksi lalu coba lagi.',
+    'rep.del.partial': 'Laporan sudah dihapus, tetapi {n} dari {total} file foto belum terhapus. Periksa aturan Storage di Firebase (lihat storage.rules).',
     // ReportsPage
     'rep.title': 'Laporan',
     'rep.desc.activity': 'Siapa yang melapor, seberapa sering, dan blok mana yang terlewat.',
@@ -71,6 +80,15 @@ export const reports: Bundle = {
     'photo.openNth': 'Buka foto {i} dari {n}',
   },
   en: {
+    'rep.del.button': 'Delete',
+    'rep.del.title': 'Delete this report?',
+    'rep.del.subtitle': 'Tree {id} · {date}',
+    'rep.del.body': 'This report and its {n} photo(s) will be permanently deleted from the database and storage. This cannot be undone.',
+    'rep.del.revert': "The tree's condition set by this report will be changed back to what it was before.",
+    'rep.del.confirm': 'Delete report',
+    'rep.del.deleting': 'Deleting…',
+    'rep.del.failed': 'Could not delete the report. Check your connection and try again.',
+    'rep.del.partial': 'The report was deleted, but {n} of {total} photo files could not be removed. Check the Firebase Storage rules (see storage.rules).',
     'rep.title': 'Reports',
     'rep.desc.activity': 'Who is reporting, how often, and which blocks are being missed.',
     'rep.desc.feed': '{n} field reports from the WhatsApp bot, newest first.',

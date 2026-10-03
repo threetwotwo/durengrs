@@ -18,6 +18,7 @@ import {
   DocumentSnapshot,
   startAfter,
 } from 'firebase/firestore';
+import { getStorage, FirebaseStorage } from 'firebase/storage';
 import { DurianTree, DurianVariant, ReportPhoto, TreeCondition, TreeReport } from '../types';
 import rawConfig from '../../firebase-applet-config.json';
 
@@ -71,6 +72,11 @@ export const app: FirebaseApp =
 
 // Connect to default Firestore database
 export const db: Firestore = getFirestore(app);
+
+/** Cloud Storage (report photos). */
+export const storage: FirebaseStorage = getStorage(app);
+// Give up quickly on a bad connection instead of retrying for 2 minutes with a spinner on screen.
+storage.maxOperationRetryTime = 15000;
 
 export const activeProjectId = rawConfig.projectId || 'duren-db';
 

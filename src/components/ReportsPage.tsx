@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { useFarm } from '../context/FarmContext';
+import { useFarm, formatDate } from '../context/FarmContext';
 import { ReportCard } from './ReportCard';
+import { Sheet } from './Sheet';
+import { deleteReport } from '../lib/reportAdmin';
 import { PhotoLightbox, type GalleryItem } from './PhotoLightbox';
 import { PageHeader, inputCls } from './PageHeader';
 import { ActivityView } from './ActivityView';
@@ -32,6 +34,40 @@ import {
 export const ReportsPage: React.FC = () => {
   const { trees, totalReportsCount } = useFarm();
   const { t } = useT();
+  const { refreshReportsCount } = useFarm();
+
+  // Delete flow: confirm in a dialog, then remove the report, its photo files and fix the tree.
+  const [toDelete, setToDelete] = useState<TreeReport | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleteWarn, setDeleteWarn] = useState<string | null>(null);
+
+  const closeDelete = () => {
+    if (deleting) return;
+    setToDelete(null);
+    setDeleteError(null);
+    setDeleteWarn(null);
+  };
+  const confirmDelete = async () => {
+    if (!toDelete) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      const res = await deleteReport(toDelete.id);
+      refreshReportsCount();
+      if (res.filesFailed > 0) {
+        // The report is gone; some photo files could not be removed (usually Storage rules).
+        setDeleteWarn(t('rep.del.partial', { n: res.filesFailed, total: res.filesTotal }));
+      } else {
+        setToDelete(null);
+      }
+    } catch (e) {
+      console.error('Delete report failed:', e);
+      setDeleteError(t('rep.del.failed'));
+    } finally {
+      setDeleting(false);
+    }
+  };
   const [params, setParams] = useQueryParams();
 
   const [reports, setReports] = useState<TreeReport[]>([]);
@@ -117,6 +153,52 @@ export const ReportsPage: React.FC = () => {
     <div className="space-y-4">
       {/* Lightbox Modal */}
       {gallery && <PhotoLightbox items={gallery.items} index={gallery.index} onClose={() => setGallery(null)} />}
+
+      {toDelete && (
+        <Sheet
+          title={t('rep.del.title')}
+          subtitle={t('rep.del.subtitle', { id: toDelete.treeId, date: formatDate(toDelete.createdAt) })}
+          onClose={closeDelete}
+          footer={
+            deleteWarn ? (
+              <button type="button" onClick={closeDelete} className="w-full min-h-11 rounded-xl bg-slate-900 text-white text-sm font-bold">
+                {t('common.close')}
+              </button>
+            ) : (
+              <div className="flex gap-2">
+                <button type="button" onClick={closeDelete} disabled={deleting} className="flex-1 min-h-11 rounded-xl bg-white border border-slate-300 text-slate-800 text-sm font-semibold">
+                  {t('common.cancel')}
+                </button>
+                <button
+                  type="button"
+                  onClick={confirmDelete}
+                  disabled={deleting}
+                  className="flex-1 min-h-11 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-sm font-bold disabled:opacity-60 inline-flex items-center justify-center gap-2"
+                >
+                  {deleting && <RefreshCw className="w-4 h-4 animate-spin" aria-hidden />}
+                  {deleting ? t('rep.del.deleting') : t('rep.del.confirm')}
+                </button>
+              </div>
+            )
+          }
+        >
+          {deleteWarn ? (
+            <p role="status" className="text-sm text-amber-900 bg-amber-50 border border-amber-200 rounded-lg p-3">{deleteWarn}</p>
+          ) : (
+            <>
+              <p className="text-sm text-slate-700">
+                {t('rep.del.body', { n: toDelete.photos?.length || 0 })}
+              </p>
+              {toDelete.conditionChanged && (
+                <p className="text-sm text-slate-700">{t('rep.del.revert')}</p>
+              )}
+              {deleteError && (
+                <p role="alert" className="text-sm text-rose-800 bg-rose-50 border border-rose-200 rounded-lg p-3">{deleteError}</p>
+              )}
+            </>
+          )}
+        </Sheet>
+      )}
 
       <PageHeader
         title={t('rep.title')}
@@ -222,6 +304,7 @@ export const ReportsPage: React.FC = () => {
                 key={report.id}
                 report={report}
                 eager={idx < 2}
+                onDelete={(r) => setToDelete(r)}
                 tree={trees.find((t) => t.id === report.treeId)}
                 onOpenPhoto={(items, index) => setGallery({ items, index })}
                 workerHref={last4 && search !== last4 ? `/reports?q=${last4}` : undefined}
