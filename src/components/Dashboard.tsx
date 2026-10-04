@@ -295,7 +295,7 @@ export const Dashboard: React.FC = () => {
           ) : (
             <div className="divide-y divide-slate-100">
               {dueSoon.slice(0, 5).map((task) => (
-                <TaskRow key={task.plan.id} task={task} compact onDone={setDoneTask} />
+                <TaskRow key={task.plan.id} task={task} compact onDone={setDoneTask} seasons={seasons} />
               ))}
               {dueSoon.length > 5 && (
                 <Link to="/schedule" className="block w-full p-3 text-center text-xs font-semibold text-emerald-700 hover:bg-slate-50 min-h-11">

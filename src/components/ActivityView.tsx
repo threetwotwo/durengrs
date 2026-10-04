@@ -6,15 +6,16 @@ import { useFarm } from '../context/FarmContext';
 import { summariseActivity, maskPhone } from '../lib/insights';
 import { Link } from './Link';
 import { treesUrl } from '../lib/router';
-import { formatTimeAgo } from '../context/FarmContext';
+import { formatTimeAgo, normalizeTimestamp } from '../context/FarmContext';
 import { useT } from '../i18n';
+import { TOPICS, TopicId, pick, topicsForText } from '../lib/guide';
 
 const PERIODS = [7, 14, 30] as const;
 
 /** Who is reporting, how often, and which blocks nobody has looked at. */
 export const ActivityView: React.FC = () => {
   const { trees } = useFarm();
-  const { t } = useT();
+  const { t, lang } = useT();
   const [reports, setReports] = useState<TreeReport[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<boolean>(false);
@@ -46,6 +47,18 @@ export const ActivityView: React.FC = () => {
   const maxDay = Math.max(1, ...summary.perDay.map((d) => d.count));
   const treesVisited = summary.perBlock.reduce((n, b) => n + b.reported, 0);
   const treesTotal = summary.perBlock.reduce((n, b) => n + b.total, 0);
+  // What workers wrote about in this period, grouped by Guide topic.
+  const topicCounts = useMemo(() => {
+    const since = Date.now() - period * 24 * 60 * 60 * 1000;
+    const counts = new Map<TopicId, number>();
+    for (const r of reports) {
+      if (normalizeTimestamp(r.createdAt) < since) continue;
+      for (const id of topicsForText(r.description)) counts.set(id, (counts.get(id) || 0) + 1);
+    }
+    return TOPICS.filter((tp) => counts.has(tp.id))
+      .map((tp) => ({ topic: tp, n: counts.get(tp.id)! }))
+      .sort((a, b) => b.n - a.n);
+  }, [reports, period]);
 
   if (loading) return <div className="h-64 rounded-xl bg-white border border-slate-200 animate-pulse" />;
   if (error) return <div role="alert" className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-sm text-rose-800">{t('act.error')}</div>;
@@ -151,8 +164,35 @@ export const ActivityView: React.FC = () => {
             );
           })}
           <p className="text-xs text-slate-500">{t('act.blockHint')}</p>
+          <p className="text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded-lg p-2.5">
+            {t('act.guideTarget')}{' '}
+            <Link to="/guide/phytophthora" className="font-semibold text-emerald-700 hover:text-emerald-800 underline underline-offset-2">
+              {pick(TOPICS.find((tp) => tp.id === 'phytophthora')!.title, lang)}
+            </Link>
+          </p>
         </section>
       </div>
+
+      <section className="bg-white rounded-xl border border-slate-200 p-4 space-y-2" aria-labelledby="act-topics">
+        <h2 id="act-topics" className="text-sm font-bold text-slate-900">{t('act.topics')}</h2>
+        {topicCounts.length === 0 ? (
+          <p className="text-sm text-slate-600">{t('act.topics.none')}</p>
+        ) : (
+          <ul className="flex flex-wrap gap-2">
+            {topicCounts.map(({ topic, n }) => (
+              <li key={topic.id}>
+                <Link
+                  to={`/reports?topic=${topic.id}`}
+                  className="min-h-10 px-3 rounded-full border border-slate-300 bg-white hover:bg-slate-50 text-sm font-medium text-slate-800 inline-flex items-center gap-1.5"
+                >
+                  {pick(topic.title, lang)} <span className="tabular font-bold text-slate-900">{n}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+        <p className="text-xs text-slate-500">{t('act.topics.hint')}</p>
+      </section>
     </div>
   );
 };

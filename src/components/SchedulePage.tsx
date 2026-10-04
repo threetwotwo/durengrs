@@ -1,10 +1,11 @@
 import React, { useMemo, useState } from 'react';
-import { AlertTriangle, Wheat, CalendarCheck, History, ListChecks, Pause, Pencil, Play, Plus, Trash2 } from 'lucide-react';
+import { AlertTriangle, Wheat, CalendarCheck, History, ListChecks, Pause, Pencil, Play, Plus, Sprout, Trash2 } from 'lucide-react';
 import { useFarm } from '../context/FarmContext';
 import {
   PLAN_TEMPLATES,
   PlanTemplate,
   ScheduleTask,
+  Treatment,
   TreatmentPlan,
   formatShortDate,
   removePlan,
@@ -14,6 +15,11 @@ import {
 } from '../lib/treatments';
 import { useT } from '../i18n';
 import { useQueryParams } from '../lib/router';
+import { blockSeasons } from '../lib/guide';
+import { SEASON_TASKS } from '../lib/fieldInsights';
+import { SeasonTaskDone, unmarkSeasonTask } from '../lib/fieldData';
+import { taskTitle } from './FieldRecords';
+import { Link } from './Link';
 import { TaskRow, TYPE_ICON } from './TaskRow';
 import { HarvestView } from './HarvestView';
 import { PageHeader, btnPrimary } from './PageHeader';
@@ -25,12 +31,16 @@ import {
   useUndoToast,
 } from './TreatmentSheets';
 
+const HISTORY_LIMIT = 100;
+type HistoryRow = { kind: 'treatment'; date: string; entry: Treatment } | { kind: 'season'; date: string; entry: SeasonTaskDone };
+
 type View = 'agenda' | 'routines' | 'harvest' | 'history';
 const VIEWS: View[] = ['agenda', 'routines', 'harvest', 'history'];
 
 export const SchedulePage: React.FC = () => {
-  const { t } = useT();
-  const { plans, treatments, scheduleTasks, scheduleError } = useFarm();
+  const { t, lang } = useT();
+  const { plans, treatments, scheduleTasks, scheduleError, trees, variants, harvestCycles, seasonTasksDone } = useFarm();
+  const seasons = useMemo(() => blockSeasons(trees, variants, harvestCycles), [trees, variants, harvestCycles]);
   // In the URL (?view=harvest) so other pages, like the Guide, can link straight to a tab.
   const [params, setParams] = useQueryParams();
   const view: View = VIEWS.includes(params.get('view') as View) ? (params.get('view') as View) : 'agenda';
@@ -39,6 +49,18 @@ export const SchedulePage: React.FC = () => {
   const [editor, setEditor] = useState<{ plan?: TreatmentPlan; template?: PlanTemplate } | null>(null);
   const { toast, show, clear } = useUndoToast();
 
+  // Routines and one-off season tasks (thinning, bagging...) in one list, newest first.
+  const history = useMemo<HistoryRow[]>(
+    () =>
+      [
+        ...treatments.map((entry) => ({ kind: 'treatment' as const, date: entry.date, entry })),
+        ...seasonTasksDone.map((entry) => ({ kind: 'season' as const, date: entry.date, entry })),
+      ]
+        .sort((a, b) => b.date.localeCompare(a.date))
+        .slice(0, HISTORY_LIMIT),
+    [treatments, seasonTasksDone]
+  );
+
   const groups = useMemo(() => {
     const overdue = scheduleTasks.filter((t) => t.status === 'overdue');
     const week = scheduleTasks.filter((t) => t.status === 'soon');
@@ -46,7 +68,8 @@ export const SchedulePage: React.FC = () => {
     return { overdue, week, later };
   }, [scheduleTasks]);
 
-  const Section: React.FC<{ title: string; tone?: string; tasks: ScheduleTask[] }> = ({ title, tone, tasks }) =>
+  // A plain render function, not a component defined in render: that would remount every row on each update.
+  const section = (title: string, tasks: ScheduleTask[], tone?: string) =>
     tasks.length === 0 ? null : (
       <section className="bg-white rounded-xl border border-slate-200 overflow-hidden">
         <h2 className={`px-4 py-2.5 text-xs font-bold uppercase tracking-wide border-b border-slate-200 ${tone || 'text-slate-600 bg-slate-50'}`}>
@@ -54,7 +77,7 @@ export const SchedulePage: React.FC = () => {
         </h2>
         <div className="divide-y divide-slate-100">
           {tasks.map((t) => (
-            <TaskRow key={t.plan.id} task={t} onDone={setDoneTask} />
+            <TaskRow key={t.plan.id} task={t} onDone={setDoneTask} seasons={seasons} />
           ))}
         </div>
       </section>
@@ -117,9 +140,9 @@ export const SchedulePage: React.FC = () => {
             </div>
           ) : (
             <>
-              <Section title={t('sched.group.overdue')} tone="text-rose-700 bg-rose-50" tasks={groups.overdue} />
-              <Section title={t('sched.group.week')} tone="text-amber-800 bg-amber-50" tasks={groups.week} />
-              <Section title={t('sched.group.later')} tasks={groups.later} />
+              {section(t('sched.group.overdue'), groups.overdue, 'text-rose-700 bg-rose-50')}
+              {section(t('sched.group.week'), groups.week, 'text-amber-800 bg-amber-50')}
+              {section(t('sched.group.later'), groups.later)}
               {groups.overdue.length + groups.week.length + groups.later.length === 0 && (
                 <div className="p-8 text-center bg-white rounded-xl border border-slate-200 text-sm text-slate-600">
                   {t('sched.nothing60')}
@@ -179,10 +202,35 @@ export const SchedulePage: React.FC = () => {
 
       {view === 'history' && (
         <div className="bg-white rounded-xl border border-slate-200 divide-y divide-slate-100">
-          {treatments.length === 0 ? (
+          {history.length === 0 ? (
             <p className="p-8 text-center text-sm text-slate-600">{t('sched.noHistory')}</p>
           ) : (
-            treatments.slice(0, 100).map((tr) => {
+            history.map((h) => {
+              if (h.kind === 'season') {
+                const st = h.entry;
+                return (
+                  <div key={'s' + st.id} className="flex items-start gap-3 p-3.5">
+                    <Sprout className="w-5 h-5 text-emerald-600 mt-0.5 shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <h3 className="text-sm font-semibold text-slate-900">{taskTitle(st.task, lang)}</h3>
+                      <p className="text-xs text-slate-600">
+                        {formatShortDate(st.date)} · {t('common.blockN', { n: st.block })} ·{' '}
+                        <Link to={`/guide/${SEASON_TASKS[st.task].topic}`} className="font-semibold text-emerald-700 hover:text-emerald-800">
+                          {t('sched.hist.seasonTask')}
+                        </Link>
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => window.confirm(t('sched.confirmRemove')) && unmarkSeasonTask(st.block, st.season, st.task)}
+                      className="p-2.5 rounded-lg text-slate-500 hover:bg-slate-100"
+                      aria-label={t('sched.removeEntry')}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                );
+              }
+              const tr = h.entry;
               const Icon = TYPE_ICON[tr.type] || TYPE_ICON.other;
               return (
                 <div key={tr.id} className="flex items-start gap-3 p-3.5">
@@ -207,6 +255,9 @@ export const SchedulePage: React.FC = () => {
                 </div>
               );
             })
+          )}
+          {treatments.length + seasonTasksDone.length > HISTORY_LIMIT && (
+            <p className="p-3 text-center text-xs text-slate-500">{t('sched.hist.limit', { n: HISTORY_LIMIT })}</p>
           )}
         </div>
       )}

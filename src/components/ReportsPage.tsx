@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useFarm, formatDate } from '../context/FarmContext';
 import { ReportCard } from './ReportCard';
 import { Sheet } from './Sheet';
@@ -10,20 +10,9 @@ import { Link } from './Link';
 import { useQueryParams } from '../lib/router';
 import { useT } from '../i18n';
 import { TreeReport } from '../types';
-import {
-  db,
-  parseReportDoc,
-  handleFirestoreError,
-  OperationType,
-} from '../lib/firebase';
-import {
-  collection,
-  query,
-  orderBy,
-  limit,
-  where,
-  onSnapshot,
-} from 'firebase/firestore';
+import { db, parseReportDoc } from '../lib/firebase';
+import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
+import { TOPICS, TopicId, isTopicId, pick, topicsForText } from '../lib/guide';
 import {
   ClipboardList,
   Search,
@@ -32,9 +21,9 @@ import {
 } from 'lucide-react';
 
 export const ReportsPage: React.FC = () => {
-  const { trees, totalReportsCount } = useFarm();
-  const { t } = useT();
-  const { refreshReportsCount } = useFarm();
+  const { trees, totalReportsCount, refreshReportsCount } = useFarm();
+  const { t, lang } = useT();
+  const treeById = useMemo(() => new Map(trees.map((x) => [x.id, x])), [trees]);
 
   // Delete flow: confirm in a dialog, then remove the report, its photo files and fix the tree.
   const [toDelete, setToDelete] = useState<TreeReport | null>(null);
@@ -82,6 +71,8 @@ export const ReportsPage: React.FC = () => {
   const filterBlock = params.get('block') || 'all';
   const filterCondition = params.get('condition') || 'all';
   const onlyChanged = params.get('changed') === '1';
+  const topicParam = params.get('topic');
+  const filterTopic: TopicId | null = isTopicId(topicParam) ? topicParam : null;
   const showActivity = params.get('view') === 'activity';
 
   const availableBlocks = useMemo(() => {
@@ -115,9 +106,19 @@ export const ReportsPage: React.FC = () => {
     return () => unsub();
   }, [pageLimit]);
 
+  // Guide topics each loaded report talks about, and how many reports mention each (for the topic filter).
+  const reportTopics = useMemo(() => new Map(reports.map((r) => [r.id, topicsForText(r.description)])), [reports]);
+  const topicCounts = useMemo(() => {
+    const counts = new Map<TopicId, number>();
+    reportTopics.forEach((ids) => ids.forEach((id) => counts.set(id, (counts.get(id) || 0) + 1)));
+    return counts;
+  }, [reportTopics]);
+
   // Filtered reports
   const filteredReports = useMemo(() => {
     return reports.filter((rep) => {
+      if (filterTopic && !reportTopics.get(rep.id)?.includes(filterTopic)) return false;
+
       if (search.trim()) {
         const q = search.trim().toLowerCase();
         const matchesTree = rep.treeId.toLowerCase().includes(q);
@@ -134,7 +135,7 @@ export const ReportsPage: React.FC = () => {
         if (filterCondition === 'not_assessed' && after !== 'not_assessed' && after !== '') return false;
       }
 
-      if (filterBlock !== 'all' && (rep.block || trees.find((x) => x.id === rep.treeId)?.block) !== filterBlock) {
+      if (filterBlock !== 'all' && (rep.block || treeById.get(rep.treeId)?.block) !== filterBlock) {
         return false;
       }
 
@@ -144,10 +145,12 @@ export const ReportsPage: React.FC = () => {
 
       return true;
     });
-  }, [reports, search, filterCondition, filterBlock, onlyChanged, trees]);
+  }, [reports, reportTopics, search, filterCondition, filterBlock, onlyChanged, filterTopic, treeById]);
 
-  const handleResetFilters = () => setParams({ q: null, block: null, condition: null, changed: null });
-  const activeFilterCount = [search, filterBlock !== 'all', filterCondition !== 'all', onlyChanged].filter(Boolean).length;
+  const handleResetFilters = () => setParams({ q: null, block: null, condition: null, changed: null, topic: null });
+  const activeFilterCount = [search, filterBlock !== 'all', filterCondition !== 'all', onlyChanged, filterTopic].filter(Boolean).length;
+  // Filters run on the reports loaded so far (newest first), so say so while older ones exist.
+  const partialSearch = activeFilterCount > 0 && hasMore;
 
   return (
     <div className="space-y-4">
@@ -228,7 +231,7 @@ export const ReportsPage: React.FC = () => {
 
       {showActivity ? <ActivityView /> : (
       <>
-      <div className="bg-white p-3 sm:p-4 rounded-xl border border-slate-200 shadow-xs grid grid-cols-2 lg:grid-cols-[1fr_auto_auto_auto_auto] gap-2.5 items-center">
+      <div className="bg-white p-3 sm:p-4 rounded-xl border border-slate-200 shadow-xs grid grid-cols-2 lg:grid-cols-[1fr_auto_auto_auto_auto_auto] gap-2.5 items-center">
         <div className="relative col-span-2 lg:col-span-1">
           <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
@@ -253,6 +256,19 @@ export const ReportsPage: React.FC = () => {
           <option value="emergency">{t('cond.emergency')}</option>
           <option value="not_assessed">{t('cond.not_assessed')}</option>
         </select>
+        <select
+          value={filterTopic || 'all'}
+          onChange={(e) => setParams({ topic: e.target.value === 'all' ? null : e.target.value })}
+          aria-label={t('rep.filter.topic')}
+          className={inputCls}
+        >
+          <option value="all">{t('rep.filter.allTopics')}</option>
+          {TOPICS.filter((tp) => topicCounts.has(tp.id) || tp.id === filterTopic).map((tp) => (
+            <option key={tp.id} value={tp.id}>
+              {pick(tp.title, lang)} ({topicCounts.get(tp.id) || 0})
+            </option>
+          ))}
+        </select>
         <label className="min-h-11 px-3 inline-flex items-center gap-2 rounded-lg border border-slate-300 text-sm font-medium text-slate-800 cursor-pointer select-none">
           <input
             type="checkbox"
@@ -276,6 +292,21 @@ export const ReportsPage: React.FC = () => {
         </div>
       )}
 
+      {filterTopic && (
+        <p className="text-sm text-slate-700">
+          {t('rep.topic.note')}{' '}
+          <Link to={`/guide/${filterTopic}`} className="font-semibold text-emerald-700 hover:text-emerald-800 underline underline-offset-2">
+            {t('rep.topic.read', { topic: pick(TOPICS.find((tp) => tp.id === filterTopic)!.title, lang) })}
+          </Link>
+        </p>
+      )}
+
+      {partialSearch && (
+        <p role="status" className="text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
+          {t('rep.partial', { n: reports.length })}
+        </p>
+      )}
+
       {/* Reports List */}
       <div className="space-y-3.5">
         {loading && reports.length === 0 ? (
@@ -287,14 +318,16 @@ export const ReportsPage: React.FC = () => {
         ) : filteredReports.length === 0 ? (
           <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
             <ClipboardList className="w-10 h-10 text-slate-400 mx-auto mb-2" />
-            <p className="text-sm font-semibold text-slate-700">{t('rep.empty.title')}</p>
-            <p className="text-xs text-slate-500 mt-1">{t('rep.empty.hint')}</p>
-            <button
-              onClick={handleResetFilters}
-              className="mt-3 px-3 py-1.5 text-xs font-semibold bg-slate-900 text-white rounded-lg hover:bg-slate-800"
-            >
-              {t('common.clear')}
-            </button>
+            <p className="text-sm font-semibold text-slate-700">{activeFilterCount > 0 ? t('rep.empty.title') : t('rep.empty.none')}</p>
+            {activeFilterCount > 0 && <p className="text-xs text-slate-500 mt-1">{t(partialSearch ? 'rep.empty.partial' : 'rep.empty.hint', { n: reports.length })}</p>}
+            {activeFilterCount > 0 && (
+              <button
+                onClick={handleResetFilters}
+                className="mt-3 min-h-10 px-3 text-xs font-semibold bg-slate-900 text-white rounded-lg hover:bg-slate-800"
+              >
+                {t('common.clear')}
+              </button>
+            )}
           </div>
         ) : (
           filteredReports.map((report, idx) => {
@@ -305,7 +338,7 @@ export const ReportsPage: React.FC = () => {
                 report={report}
                 eager={idx < 2}
                 onDelete={(r) => setToDelete(r)}
-                tree={trees.find((t) => t.id === report.treeId)}
+                tree={treeById.get(report.treeId)}
                 onOpenPhoto={(items, index) => setGallery({ items, index })}
                 workerHref={last4 && search !== last4 ? `/reports?q=${last4}` : undefined}
               />
@@ -327,7 +360,7 @@ export const ReportsPage: React.FC = () => {
                   <span>{t('rep.loadingOlder')}</span>
                 </>
               ) : (
-                <span>{t('rep.loadMore')}</span>
+                <span>{partialSearch ? t('rep.loadMoreSearch') : t('rep.loadMore')}</span>
               )}
             </button>
           </div>

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Check, Undo2 } from 'lucide-react';
 import { Sheet, fieldInput, fieldLabel } from './Sheet';
 import { useFarm } from '../context/FarmContext';
@@ -15,6 +15,8 @@ import {
   typeLabel,
 } from '../lib/treatments';
 import { useT } from '../i18n';
+import { blockSeasons, planGuidance } from '../lib/guide';
+import { PlanAdviceList } from './TaskRow';
 
 const MONTH_NUMS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
 
@@ -66,11 +68,17 @@ export const MarkDoneSheet: React.FC<{
   onClose: () => void;
   onSaved: (id: string, message: string) => void;
 }> = ({ task, onClose, onSaved }) => {
-  const { t } = useT();
+  const { t, lang } = useT();
+  const { trees, variants, harvestCycles } = useFarm();
   const { plan } = task;
   const [date, setDate] = useState(todayStr());
   const [selected, setSelected] = useState<string[]>(
     task.dueBlocks.length ? task.dueBlocks : task.blocks.map((b) => b.block)
+  );
+  // The Guide's view of this routine for the blocks being marked, so a stage conflict is seen before the work is logged.
+  const advice = useMemo(
+    () => planGuidance(plan, blockSeasons(trees, variants, harvestCycles), selected).filter((a) => a.level === 'warn'),
+    [plan, trees, variants, harvestCycles, selected, lang]
   );
   const [product, setProduct] = useState(plan.product || '');
   const [dose, setDose] = useState(plan.dose || '');
@@ -84,6 +92,7 @@ export const MarkDoneSheet: React.FC<{
 
   const save = async () => {
     if (selected.length === 0) return setError(t('sched.done.selectOne'));
+    if (!date || date > todayStr()) return setError(t('sched.done.badDate'));
     setSaving(true);
     setError(null);
     try {
@@ -145,6 +154,11 @@ export const MarkDoneSheet: React.FC<{
           })}
         </div>
       </div>
+      {advice.length > 0 && (
+        <div className="p-3 rounded-lg bg-amber-50 border border-amber-200">
+          <PlanAdviceList advice={advice} />
+        </div>
+      )}
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className={fieldLabel} htmlFor="md-date">{t('sched.done.date')}</label>

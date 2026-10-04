@@ -212,6 +212,24 @@ The Dashboard is now arranged around **what needs doing today to keep the trees 
 
 ---
 
+## Schedule and Reports audit
+
+Both tabs now check the work against the Guide, so a routine done at the wrong stage, or a problem workers keep
+reporting, is visible where the team already looks.
+
+| # | Finding | Change |
+|---|---|---|
+| S1 | Routines follow calendar months from a Malaysian template, not the trees' real stage | Each routine on the agenda (and the Dashboard) is checked against its blocks' bloom stage: **high-nitrogen feed while fruit grows**, **insecticide on open flowers** and **a pre-harvest interval that runs past harvest** show an amber warning with a Guide link; potassium during fruit growth and phosphonate after harvest show "good timing" |
+| S2 | The same warnings were not shown when logging the work | **Mark as done** shows them for the blocks being marked, before saving; a future or empty date is refused |
+| S3 | Clearing a bloom date field (even by accident while retyping) deleted the block's season | The field ignores an empty value; an **×** button with a confirmation clears it. Each block shows its **day and stage** under the date, linking to the Guide; future dates are refused |
+| S4 | History showed routines only | Season tasks (thinning, bagging, Ca + Mg spray, tying) appear in the same list, with undo |
+| S5 | The agenda remounted every row on each update | Rows render directly (smoother on slow phones) |
+| R1 | No way to find reports about one problem | **Guide topic filter** (e.g. Canker & rot, Pests) with counts; each report shows the topics its note mentions, linking to the Guide |
+| R2 | Filters silently searched only the newest 25 reports | A notice says how many were searched; the button becomes **Search 25 older reports** |
+| R3 | Every report looked up its tree in the full list | One lookup table; unused code removed. An empty farm says "No reports yet" instead of "nothing matches your filter" |
+| R4 | Activity had no target to compare against | Block coverage shows the Guide's target (every trunk weekly in wet weather, at least monthly when dry); a **What workers reported** list counts Guide topics in the period, each opening the filtered reports |
+| R5 | Guide topics didn't lead back to the field | Each topic page links to **worker reports about this topic** and lists active routines that clash with the current stage |
+
 ## What's already in good shape
 
 - **Navigation:** pages have shareable links, Back works, and filters stay in the address bar.

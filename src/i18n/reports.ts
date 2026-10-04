@@ -29,6 +29,14 @@ export const reports: Bundle = {
     'rep.empty.hint': 'Coba hapus filter atau perluas pencarian Anda.',
     'rep.loadingOlder': 'Memuat laporan lama...',
     'rep.loadMore': 'Muat 25 laporan lagi',
+    'rep.loadMoreSearch': 'Cari di 25 laporan lebih lama',
+    'rep.filter.topic': 'Topik Panduan',
+    'rep.filter.allTopics': 'Semua topik',
+    'rep.topic.note': 'Laporan yang catatannya menyebut topik ini.',
+    'rep.topic.read': 'Baca Panduan: {topic}',
+    'rep.partial': 'Filter hanya mencari {n} laporan terbaru yang sudah dimuat. Muat lebih banyak di bawah untuk mencari lebih jauh.',
+    'rep.empty.partial': 'Belum ada di {n} laporan terbaru. Muat laporan lebih lama di bawah, atau hapus filter.',
+    'rep.empty.none': 'Belum ada laporan.',
 
     // ReportCard
     'rep.treeN': 'Pohon {id}',
@@ -63,6 +71,10 @@ export const reports: Bundle = {
     'act.blockCoverage': 'Cakupan blok',
     'act.blockOf': '{reported} dari {total} pohon',
     'act.blockHint': 'Ketuk blok untuk melihat pohon yang belum dilaporkan minggu ini.',
+    'act.guideTarget': 'Target Panduan: periksa batang setiap pohon tiap minggu saat musim hujan (bercak basah atau getah merah = Phytophthora), minimal sebulan sekali saat kemarau.',
+    'act.topics': 'Yang dilaporkan pekerja',
+    'act.topics.none': 'Belum ada catatan yang menyebut topik Panduan pada periode ini.',
+    'act.topics.hint': 'Dari kata-kata di catatan laporan. Ketuk topik untuk melihat laporannya.',
 
     // PhotoLightbox / PhotoAlbum
     'photo.caption': 'Pohon {id} · Foto {i} dari {n} ({date})',
@@ -106,6 +118,14 @@ export const reports: Bundle = {
     'rep.empty.hint': 'Try clearing or broadening your search options.',
     'rep.loadingOlder': 'Loading older reports...',
     'rep.loadMore': 'Load 25 More Reports',
+    'rep.loadMoreSearch': 'Search 25 older reports',
+    'rep.filter.topic': 'Guide topic',
+    'rep.filter.allTopics': 'All topics',
+    'rep.topic.note': 'Reports whose note mentions this topic.',
+    'rep.topic.read': 'Read the Guide: {topic}',
+    'rep.partial': 'Filters only search the newest {n} reports loaded. Load more below to search further back.',
+    'rep.empty.partial': 'None in the newest {n} reports. Load older reports below, or clear the filters.',
+    'rep.empty.none': 'No reports yet.',
 
     'rep.treeN': 'Tree {id}',
     'rep.unknownLocation': 'Unknown location',
@@ -138,6 +158,10 @@ export const reports: Bundle = {
     'act.blockCoverage': 'Block coverage',
     'act.blockOf': '{reported} of {total} trees',
     'act.blockHint': 'Tap a block to see the trees nobody has reported on this week.',
+    'act.guideTarget': 'Guide target: check every tree\'s trunk weekly in wet weather (wet patches or red ooze = Phytophthora), at least monthly when it is dry.',
+    'act.topics': 'What workers reported',
+    'act.topics.none': 'No report notes mention a Guide topic in this period.',
+    'act.topics.hint': 'From the words in report notes. Tap a topic to see its reports.',
 
     'photo.caption': 'Tree {id} · Photo {i} of {n} ({date})',
     'photo.viewer': 'Photo viewer',

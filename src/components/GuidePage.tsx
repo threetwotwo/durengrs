@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, BookOpen, ChevronLeft, ChevronRight, ExternalLink, HelpCircle, Plus } from 'lucide-react';
+import { ArrowLeft, ArrowRight, BookOpen, ChevronLeft, ChevronRight, ExternalLink, HelpCircle, Plus } from 'lucide-react';
 import { collection, doc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { formatDate, useFarm } from '../context/FarmContext';
 import { navigate, useRoute } from '../lib/router';
 import { translate, useT } from '../i18n';
 import {
+  planGuidance,
   STAGES,
   TOPICS,
   TOPIC_BY_ID,
@@ -23,6 +24,7 @@ import { ConditionBadge } from './ConditionBadge';
 import { LabResults, WeeklyReview } from './FieldRecords';
 import { actualRipening } from '../lib/fieldInsights';
 import { Link } from './Link';
+import { PlanAdviceList } from './TaskRow';
 import { PageHeader, btnPrimary, inputCls } from './PageHeader';
 import {
   CheckRow,
@@ -280,6 +282,15 @@ const TopicView: React.FC<{ id: TopicId }> = ({ id }) => {
   }, [seasons, id]);
 
   const topicChecks = checks.filter((c) => c.topic === id);
+  // Active routines that clash with (or fit) the blocks' current stage, for this topic.
+  const planAdvice = useMemo(
+    () =>
+      plans
+        .filter((p) => p.active)
+        .map((plan) => ({ plan, advice: planGuidance(plan, seasons).filter((a) => a.topic === id && a.level === 'warn') }))
+        .filter((x) => x.advice.length > 0),
+    [plans, seasons, id, lang]
+  );
   const mentioned = mentions.get(id) || [];
   const conditionRank: Record<string, number> = { emergency: 0, minor: 1, not_assessed: 2, healthy: 3 };
   const mentionedSorted = [...mentioned].sort((a, b) => (conditionRank[a.condition] ?? 9) - (conditionRank[b.condition] ?? 9));
@@ -358,7 +369,7 @@ const TopicView: React.FC<{ id: TopicId }> = ({ id }) => {
         <div className="lg:col-span-5 space-y-4">
           <section className="bg-white rounded-xl border border-slate-200 overflow-hidden" aria-labelledby="t-farm">
             <h2 id="t-farm" className={`${h2} p-4 pb-0`}>{t('guide.farm.title')}</h2>
-            {topicChecks.length === 0 && mentioned.length === 0 && id !== 'harvest' && id !== 'fruit' ? (
+            {topicChecks.length === 0 && mentioned.length === 0 && planAdvice.length === 0 && id !== 'harvest' && id !== 'fruit' ? (
               <p className="p-4 text-sm text-slate-600">{t('guide.farm.allGood')}</p>
             ) : (
               <ul className="divide-y divide-slate-100">
@@ -366,6 +377,17 @@ const TopicView: React.FC<{ id: TopicId }> = ({ id }) => {
                   <CheckRow key={c.id} check={c} onTemplate={templates.open} hideLinkTo={topicUrl(id)} />
                 ))}
               </ul>
+            )}
+            {planAdvice.length > 0 && (
+              <div className="p-4 border-t border-slate-100 space-y-2">
+                <h3 className="text-xs font-bold uppercase tracking-wide text-slate-500">{t('guide.farm.routines')}</h3>
+                {planAdvice.map(({ plan, advice }) => (
+                  <div key={plan.id}>
+                    <Link to="/schedule" className="text-sm font-semibold text-slate-900 hover:text-emerald-700">{plan.name}</Link>
+                    <PlanAdviceList advice={advice} hideTopic />
+                  </div>
+                ))}
+              </div>
             )}
             {id === 'harvest' && <VarietyRipening />}
             {id === 'fruit' && <HeavyTrees />}
@@ -386,6 +408,13 @@ const TopicView: React.FC<{ id: TopicId }> = ({ id }) => {
                 </ul>
               </div>
             )}
+            <Link
+              to={`/reports?topic=${id}`}
+              className="flex items-center justify-between gap-2 px-4 py-3 border-t border-slate-100 text-sm font-semibold text-emerald-700 hover:bg-emerald-50/50"
+            >
+              {t('guide.farm.reports')}
+              <ArrowRight className="w-4 h-4" />
+            </Link>
           </section>
 
           {content.templates && content.templates.length > 0 && (

@@ -2,7 +2,7 @@ import { getLang, translate, type Lang } from '../i18n';
 import { DurianTree, DurianVariant } from '../types';
 import { normalizeTimestamp } from '../context/FarmContext';
 import { HarvestCycle, followUpOf } from './insights';
-import { ScheduleTask, TreatmentPlan, addDays, diffDays, todayStr } from './treatments';
+import { ScheduleTask, TreatmentPlan, addDays, diffDays, formatShortDate, todayStr } from './treatments';
 import type { Harvest, LabResult, RainDay, SeasonTaskDone, SeasonTaskId } from './fieldData';
 import { LAB_RANGES, SEASON_TASKS, blockTasks, labLevel, latestLabByBlock, rainBetween, rainSummary } from './fieldInsights';
 
@@ -1057,6 +1057,67 @@ export function buildChecks({
 
   const order: Record<CheckStatus, number> = { gap: 0, warn: 1, ok: 2 };
   return checks.sort((a, b) => order[a.status] - order[b.status]);
+}
+
+// ---------- routines vs the season stage ----------
+
+export interface PlanAdvice {
+  level: 'warn' | 'ok';
+  text: string;
+  topic: TopicId;
+  blocks: string[];
+}
+
+const HIGH_N_RE = /nitrogen tinggi|n tinggi|high.nitrogen|high n\b|\burea\b|\bza\b|amonium sulfat|ammonium sulphate|ammonium sulfate/;
+const INSECT_RE = /insektisida|insecticide|hama|\bpest|penggerek|borer|kutu|thrips|trips|ulat|wereng|tungau|mite/;
+
+function templateNames(id: string): string[] {
+  return (['id', 'en'] as Lang[]).map((l) => translate(`sched.tpl.${id}.name`, undefined, l).toLowerCase());
+}
+
+/** What kind of care a routine is, from its template name or its words. */
+export function planKinds(plan: TreatmentPlan): Set<'highN' | 'insecticide' | 'potassium' | 'phosphonate'> {
+  const text = planText(plan);
+  const name = plan.name.trim().toLowerCase();
+  const fromTpl = (id: string) => templateNames(id).includes(name);
+  const kinds = new Set<'highN' | 'insecticide' | 'potassium' | 'phosphonate'>();
+  if (plan.type === 'fertilizer' && (fromTpl('leaf') || fromTpl('post') || HIGH_N_RE.test(text))) kinds.add('highN');
+  if (plan.type === 'spray' && (fromTpl('pest') || INSECT_RE.test(text)) && !/fungisida|fungicide/.test(name)) kinds.add('insecticide');
+  if (plan.type === 'fertilizer' && !kinds.has('highN') && (fromTpl('fruit') || POTASSIUM_RE.test(text))) kinds.add('potassium');
+  if (fromTpl('phosphonate') || PHOSPHONATE_RE.test(text)) kinds.add('phosphonate');
+  return kinds;
+}
+
+/**
+ * Checks a routine against where its blocks are in the fruiting cycle (from the bloom dates), so the calendar months
+ * of a template never override the trees' real stage. `blocks` limits the check (e.g. the blocks being marked done).
+ */
+export function planGuidance(plan: TreatmentPlan, seasons: BlockSeason[], blocks?: string[], today = todayStr()): PlanAdvice[] {
+  const t = translate;
+  const scope = blocks ?? (plan.allBlocks ? seasons.map((s) => s.block) : plan.blocks);
+  const live = seasons.filter((s) => scope.includes(s.block) && s.floweredOn && !s.outdated && s.day !== undefined);
+  if (!live.length) return [];
+  const kinds = planKinds(plan);
+  const inStage = (...stages: StageId[]) => live.filter((s) => stages.includes(s.stage)).map((s) => s.block);
+  const out: PlanAdvice[] = [];
+  const add = (level: PlanAdvice['level'], key: string, topic: TopicId, bs: string[], vars: Record<string, string | number> = {}) => {
+    if (bs.length) out.push({ level, topic, blocks: bs, text: t(key, { blocks: listBlocks(bs), ...vars }) });
+  };
+
+  if (kinds.has('highN')) add('warn', 'guide.plan.highN', 'nutrition', inStage('set', 'thin', 'grow', 'mature'));
+  if (kinds.has('insecticide')) add('warn', 'guide.plan.bloomSpray', 'pollination', inStage('bloom'));
+  if (plan.type === 'spray' && plan.phiDays) {
+    const late = live.filter(
+      (s) => s.harvestFrom && s.harvestTo && s.harvestTo >= today && diffDays(s.harvestFrom, today) < plan.phiDays! && s.stage !== 'preflower'
+    );
+    if (late.length) {
+      const first = late.map((s) => s.harvestFrom!).sort()[0];
+      add('warn', 'guide.plan.phi', 'pests', late.map((s) => s.block), { n: plan.phiDays, date: formatShortDate(first) });
+    }
+  }
+  if (kinds.has('potassium')) add('ok', 'guide.plan.potassium', 'nutrition', inStage('thin', 'grow'));
+  if (kinds.has('phosphonate')) add('ok', 'guide.plan.phosphonate', 'phytophthora', inStage('recovery'));
+  return out;
 }
 
 // ---------- variety references ----------

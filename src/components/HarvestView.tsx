@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, X } from 'lucide-react';
 import { useFarm } from '../context/FarmContext';
 import { buildHarvestRows, fruitsByMonth, saveHarvestCycle } from '../lib/insights';
 import { formatShortDate, todayStr } from '../lib/treatments';
@@ -7,10 +7,11 @@ import { useT } from '../i18n';
 import { Link } from './Link';
 import { inputCls } from './PageHeader';
 import { HarvestLog } from './FieldRecords';
+import { STAGES, blockSeasons, pick } from '../lib/guide';
 
 /** When will each block ripen, and roughly how much fruit to expect each month. */
 export const HarvestView: React.FC = () => {
-  const { t, locale } = useT();
+  const { t, locale, lang } = useT();
   const { trees, variants, harvestCycles, blocks, scheduleError } = useFarm();
   const [saving, setSaving] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -19,13 +20,20 @@ export const HarvestView: React.FC = () => {
   const months = useMemo(() => fruitsByMonth(rows), [rows, locale]);
   const maxFruits = Math.max(1, ...months.map((m) => m.fruits));
   const cycleByBlock = new Map(harvestCycles.map((c) => [c.block, c.floweredOn]));
+  const seasonByBlock = useMemo(
+    () => new Map(blockSeasons(trees, variants, harvestCycles).map((s) => [s.block, s])),
+    [trees, variants, harvestCycles]
+  );
   const missingRipening = Array.from(new Set(rows.filter((r) => !r.ripeningDays).map((r) => r.variantName)));
 
-  const setDate = async (block: string, value: string) => {
+  const setDate = async (block: string, value: string | null) => {
+    // A date field reports '' while it is being retyped: only the clear button removes a date.
+    if (value === '') return;
+    if (value && value > todayStr()) return setError(t('sched.hv.future'));
     setSaving(block);
     setError(null);
     try {
-      await saveHarvestCycle(block, value || null);
+      await saveHarvestCycle(block, value);
     } catch (e: any) {
       setError(t('sched.hv.saveError'));
     } finally {
@@ -50,20 +58,43 @@ export const HarvestView: React.FC = () => {
           </p>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {blocks.map((b) => (
-            <div key={b}>
-              <label htmlFor={`fl-${b}`} className="block text-xs font-semibold text-slate-700 mb-1">{t('common.blockN', { n: b })}</label>
-              <input
-                id={`fl-${b}`}
-                type="date"
-                max={todayStr()}
-                value={cycleByBlock.get(b) || ''}
-                onChange={(e) => setDate(b, e.target.value)}
-                disabled={saving === b}
-                className={inputCls}
-              />
-            </div>
-          ))}
+          {blocks.map((b) => {
+            const season = seasonByBlock.get(b);
+            const value = cycleByBlock.get(b) || '';
+            return (
+              <div key={b}>
+                <label htmlFor={`fl-${b}`} className="block text-xs font-semibold text-slate-700 mb-1">{t('common.blockN', { n: b })}</label>
+                <div className="flex items-center gap-1">
+                  <input
+                    id={`fl-${b}`}
+                    type="date"
+                    max={todayStr()}
+                    value={value}
+                    onChange={(e) => setDate(b, e.target.value)}
+                    disabled={saving === b}
+                    className={`${inputCls} min-w-0 flex-1`}
+                  />
+                  {value && (
+                    <button
+                      type="button"
+                      onClick={() => window.confirm(t('sched.hv.confirmClear', { block: b })) && setDate(b, null)}
+                      disabled={saving === b}
+                      className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 shrink-0"
+                      aria-label={t('sched.hv.clear', { block: b })}
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+                {season?.floweredOn && season.day !== undefined && !season.outdated && (
+                  <Link to="/guide" className="block mt-1 text-xs text-emerald-700 hover:text-emerald-800">
+                    {t('sched.hv.stage', { n: season.day, stage: pick(STAGES[season.stage].title, lang) })}
+                  </Link>
+                )}
+                {season?.outdated && <p className="mt-1 text-xs text-amber-800">{t('sched.hv.old')}</p>}
+              </div>
+            );
+          })}
         </div>
         {missingRipening.length > 0 && (
           <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-2.5">

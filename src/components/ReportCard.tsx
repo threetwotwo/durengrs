@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { ArrowRight, Trash2, User, ArrowRightLeft } from 'lucide-react';
+import React, { useMemo } from 'react';
+import { ArrowRight, BookOpen, Trash2, User, ArrowRightLeft } from 'lucide-react';
 import { ConditionBadge } from './ConditionBadge';
 import { ReportDate } from './ReportDate';
 import { Link } from './Link';
@@ -8,7 +8,8 @@ import { maskPhone } from '../lib/insights';
 import { useT } from '../i18n';
 import { photoItems, type GalleryItem } from './PhotoLightbox';
 import { PhotoAlbum } from './PhotoAlbum';
-import type { DurianTree, ReportPhoto, TreeReport } from '../types';
+import { TOPIC_BY_ID, pick, topicsForText } from '../lib/guide';
+import type { DurianTree, TreeReport } from '../types';
 
 /** True when the note has no letters or digits (e.g. only "🙏😎"). */
 function hasWords(text?: string): boolean {
@@ -30,8 +31,10 @@ export const ReportCard: React.FC<{
   /** Shows a delete button; the parent confirms and deletes. */
   onDelete?: (report: TreeReport) => void;
 }> = ({ report, tree, onOpenPhoto, workerHref, eager, onDelete }) => {
-  const { t } = useT();
+  const { t, lang } = useT();
   const photos = report.photos || [];
+  // What the Guide says about what the worker described (e.g. "getah" -> Canker & rot); the two best matches.
+  const topics = useMemo(() => topicsForText(report.description).slice(0, 2), [report.description]);
   const block = report.block || tree?.block;
   const worded = hasWords(report.description);
   const reaction = !worded && report.description?.trim() ? report.description.trim() : '';
@@ -98,6 +101,21 @@ export const ReportCard: React.FC<{
               t('rep.noNote.dot')
             )}
           </p>
+        )}
+
+        {topics.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            {topics.map((id) => (
+              <Link
+                key={id}
+                to={`/guide/${id}`}
+                className="min-h-8 px-2.5 rounded-full border border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 text-xs font-semibold inline-flex items-center gap-1"
+              >
+                <BookOpen className="w-3.5 h-3.5" aria-hidden />
+                {pick(TOPIC_BY_ID.get(id)!.title, lang)}
+              </Link>
+            ))}
+          </div>
         )}
 
         {/* Source + actions */}

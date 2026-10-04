@@ -1,7 +1,9 @@
 import React from 'react';
-import { Leaf, SprayCan, Scissors, Droplets, Wrench, Check } from 'lucide-react';
+import { Leaf, SprayCan, Scissors, Droplets, Wrench, Check, TriangleAlert, CircleCheck } from 'lucide-react';
 import { BlockDue, ScheduleTask, TreatmentType, formatShortDate, monthShort, relativeDue } from '../lib/treatments';
+import { BlockSeason, PlanAdvice, TOPIC_BY_ID, pick, planGuidance } from '../lib/guide';
 import { useT } from '../i18n';
+import { Link } from './Link';
 
 export const TYPE_ICON: Record<TreatmentType, React.ComponentType<{ className?: string }>> = {
   fertilizer: Leaf,
@@ -23,6 +25,33 @@ export const DuePill: React.FC<{ task: ScheduleTask }> = ({ task }) => {
   return <span className={`px-2 py-0.5 rounded-full border text-xs font-semibold whitespace-nowrap ${cls}`}>{text}</span>;
 };
 
+/** The Guide's verdict on a routine for the blocks' current stage, each line linking to its topic. */
+export const PlanAdviceList: React.FC<{ advice: PlanAdvice[]; hideTopic?: boolean }> = ({ advice, hideTopic }) => {
+  const { lang } = useT();
+  if (!advice.length) return null;
+  return (
+    <ul className="space-y-1">
+      {advice.map((a) => {
+        const Icon = a.level === 'warn' ? TriangleAlert : CircleCheck;
+        const topic = TOPIC_BY_ID.get(a.topic);
+        return (
+          <li key={a.text} className={`flex items-start gap-1.5 text-xs ${a.level === 'warn' ? 'text-amber-800' : 'text-emerald-800'}`}>
+            <Icon className="w-3.5 h-3.5 mt-px shrink-0" />
+            <span>
+              {a.text}{' '}
+              {topic && !hideTopic && (
+                <Link to={`/guide/${a.topic}`} className="font-semibold underline underline-offset-2 whitespace-nowrap">
+                  {pick(topic.title, lang)}
+                </Link>
+              )}
+            </span>
+          </li>
+        );
+      })}
+    </ul>
+  );
+};
+
 function groupByDue(rows: BlockDue[]) {
   const map = new Map<string, { due: string; days: number; blocks: BlockDue[] }>();
   for (const r of rows) {
@@ -37,9 +66,16 @@ export const TaskRow: React.FC<{
   task: ScheduleTask;
   onDone: (task: ScheduleTask) => void;
   compact?: boolean;
-}> = ({ task, onDone, compact }) => {
-  const { t } = useT();
+  /** Block seasons from the bloom dates; when given, the row shows the Guide's advice for the current stage. */
+  seasons?: BlockSeason[];
+}> = ({ task, onDone, compact, seasons }) => {
+  const { t, lang } = useT();
   const { plan } = task;
+  const advice = React.useMemo(
+    () => (seasons ? planGuidance(plan, seasons, task.blocks.map((b) => b.block)) : []),
+    // lang: advice text is translated when built
+    [plan, seasons, task.blocks, lang]
+  );
   const Icon = TYPE_ICON[plan.type];
   const detail = [plan.product, plan.dose].filter(Boolean).join(' · ');
   const lastDone = task.blocks.reduce<string | undefined>((m, b) => (b.lastDone && (!m || b.lastDone > m) ? b.lastDone : m), undefined);
@@ -86,7 +122,8 @@ export const TaskRow: React.FC<{
           ))}
         </div>
         {plan.notes && <p className="text-xs text-slate-600 line-clamp-2">{plan.notes}</p>}
-        {plan.phiDays ? <p className="text-xs text-amber-800">{t('sched.phi.check', { n: plan.phiDays })}</p> : null}
+        {plan.phiDays && !advice.some((a) => a.topic === 'pests') ? <p className="text-xs text-amber-800">{t('sched.phi.check', { n: plan.phiDays })}</p> : null}
+        <PlanAdviceList advice={advice} />
       </div>
       <button
         onClick={() => onDone(task)}
