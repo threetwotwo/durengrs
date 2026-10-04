@@ -21,8 +21,8 @@ import { Check, AlertTriangle, AlertOctagon, ArrowRight, ArrowUpDown, Calendar, 
 
 /**
  * Daily view: what needs doing today to keep the trees in ideal condition.
+ *   0. Harvest (top): farm funnel, trees to count or pick, next windows
  *   1. Today: re-checks overdue, trees not inspected in 7 days, rain recorded, Guide farm check (Guide on)
- *   2. Harvest: farm funnel (clusters → fruit → graded harvest), next windows, trees to count or pick
  *   3. Trees needing attention (with the Guide topic their notes point to, Guide on) + routine work
  *   4. This season per block (Guide stages, one-tap bloom dates and season tasks; Guide on)
  *   5. Blocks (health, stage, harvest window, fruit, inspection coverage) + rain
@@ -166,11 +166,14 @@ export const Dashboard: React.FC = () => {
         </p>
       )}
 
+      {/* Harvest first: the farm's crop from flowers to graded fruit, and what to count or pick today. */}
+      <HarvestHomeCard />
+
       {/* Today: what still needs doing, not repeats of the lists below (those show the trees and routines). */}
       <div className={`grid grid-cols-2 gap-3 ${guideOn ? 'lg:grid-cols-4' : 'lg:grid-cols-3'}`}>
         <Link to={treesUrl({ followup: '1' })} className={`${tile} ${followUpCount > 0 ? 'border-rose-300' : 'border-slate-200'}`}>
-          <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-600">
-            <AlertOctagon className={`w-4 h-4 ${followUpCount > 0 ? 'text-rose-600' : 'text-slate-400'}`} />
+          <span className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-slate-700">
+            <AlertOctagon className={`w-5 h-5 ${followUpCount > 0 ? 'text-rose-600' : 'text-slate-400'}`} />
             {t('dash.today.recheck')}
           </span>
           <span className={`block mt-2 text-3xl font-bold tabular ${followUpCount > 0 ? 'text-rose-700' : 'text-slate-900'}`}>{followUpCount}</span>
@@ -178,8 +181,8 @@ export const Dashboard: React.FC = () => {
         </Link>
 
         <Link to={treesUrl({ stale: '1' })} className={`${tile} ${notSeen > 0 ? 'border-amber-300' : 'border-slate-200'}`}>
-          <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-600">
-            <AlertTriangle className={`w-4 h-4 ${notSeen > 0 ? 'text-amber-600' : 'text-slate-400'}`} />
+          <span className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-slate-700">
+            <AlertTriangle className={`w-5 h-5 ${notSeen > 0 ? 'text-amber-600' : 'text-slate-400'}`} />
             {t('dash.today.unseen')}
           </span>
           <span className="block mt-2 text-3xl font-bold tabular text-slate-900">{notSeen}</span>
@@ -189,10 +192,10 @@ export const Dashboard: React.FC = () => {
         <button
           type="button"
           onClick={() => document.getElementById('rain-h')?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
-          className={`${tile} ${rainToday ? 'border-slate-200' : 'border-amber-300'} ${guideOn ? '' : 'col-span-2 lg:col-span-1'}`}
+          className={`${tile} w-full flex flex-col items-start justify-start ${rainToday ? 'border-slate-200' : 'border-amber-300'} ${guideOn ? '' : 'col-span-2 lg:col-span-1'}`}
         >
-          <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-600">
-            <CloudRain className={`w-4 h-4 ${rainToday ? 'text-slate-400' : 'text-amber-600'}`} />
+          <span className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-slate-700">
+            <CloudRain className={`w-5 h-5 ${rainToday ? 'text-slate-400' : 'text-amber-600'}`} />
             {t('dash.today.rain')}
           </span>
           <span className="block mt-2 text-3xl font-bold tabular text-slate-900">{rainToday ? `${rainToday.rainMm} mm` : '—'}</span>
@@ -203,8 +206,8 @@ export const Dashboard: React.FC = () => {
         {guideOn && (
         <div className={`${tile} ${checkGaps > 0 ? 'border-rose-300' : 'border-slate-200'}`}>
           <Link to="/guide" className="block">
-            <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-600">
-              <ClipboardCheck className={`w-4 h-4 ${checkGaps > 0 ? 'text-rose-600' : 'text-slate-400'}`} />
+            <span className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-slate-700">
+              <ClipboardCheck className={`w-5 h-5 ${checkGaps > 0 ? 'text-rose-600' : 'text-slate-400'}`} />
               {t('dash.kpi.check')}
             </span>
             <span className={`block mt-2 text-3xl font-bold tabular ${checkGaps > 0 ? 'text-rose-700' : 'text-slate-900'}`}>{checkGaps}</span>
@@ -217,14 +220,12 @@ export const Dashboard: React.FC = () => {
         )}
       </div>
 
-      {/* Harvest: the farm's crop from flowers to graded fruit, and what to count or pick today. */}
-      <HarvestHomeCard />
 
       {/* Attention (trees) + Routine work (schedule) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
         <section className="lg:col-span-7 bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden" aria-labelledby="att-h">
           <div className="p-4 border-b border-slate-200 flex items-center justify-between gap-2">
-            <h2 id="att-h" className="text-sm font-bold text-slate-900">
+            <h2 id="att-h" className="text-base font-bold text-slate-900">
               {t('dash.att.title')} <span className="text-slate-500 font-medium tabular">({attentionItems.length})</span>
               {followUpCount > 0 && (
                 <span className="ml-2 px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200 text-xs font-semibold">
@@ -283,7 +284,7 @@ export const Dashboard: React.FC = () => {
 
         <section className="lg:col-span-5 bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden" aria-labelledby="wk-h">
           <div className="p-4 border-b border-slate-200 flex items-center justify-between gap-2">
-            <h2 id="wk-h" className="text-sm font-bold text-slate-900">{t('dash.wk.title')}</h2>
+            <h2 id="wk-h" className="text-base font-bold text-slate-900">{t('dash.wk.title')}</h2>
             <Link to="/schedule" className="text-xs font-semibold text-emerald-700 hover:text-emerald-800 flex items-center gap-1 min-h-8">
               {t('dash.wk.open')}
               <ArrowRight className="w-3.5 h-3.5" />
@@ -334,7 +335,7 @@ export const Dashboard: React.FC = () => {
         <section className="lg:col-span-8 bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden" aria-labelledby="blk-h">
           <div className="p-4 border-b border-slate-200 flex flex-wrap items-baseline justify-between gap-2">
             <div>
-              <h2 id="blk-h" className="text-sm font-bold text-slate-900">{t('dash.blocks.title')}</h2>
+              <h2 id="blk-h" className="text-base font-bold text-slate-900">{t('dash.blocks.title')}</h2>
               <p className="text-xs text-slate-600 mt-0.5">{t('dash.blocks.sub')}</p>
             </div>
             <span className="text-xs text-slate-600 tabular">
@@ -431,7 +432,7 @@ export const Dashboard: React.FC = () => {
       <section className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden" aria-labelledby="rep-h">
         <div className="p-4 border-b border-slate-200 flex items-center justify-between gap-2">
           <div>
-            <h2 id="rep-h" className="text-sm font-bold text-slate-900">{t('dash.latest.title')}</h2>
+            <h2 id="rep-h" className="text-base font-bold text-slate-900">{t('dash.latest.title')}</h2>
             <span className="text-xs text-slate-600">{t('dash.latest.live')}</span>
           </div>
           <Link to="/reports" className="text-xs font-semibold text-emerald-700 hover:text-emerald-800 flex items-center gap-1">

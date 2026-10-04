@@ -81,7 +81,7 @@ export const GuideToggle: React.FC = () => {
       }`}
     >
       <BookOpen className="w-4 h-4" />
-      <span className="hidden sm:inline">{t('guideMode.label')}</span>
+      <span className="hidden xl:inline">{t('guideMode.label')}</span>
       <span className={`w-7 h-4 rounded-full relative ${on ? 'bg-emerald-300/60' : 'bg-slate-600'}`} aria-hidden>
         <span className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all ${on ? 'left-3.5' : 'left-0.5'}`} />
       </span>
@@ -132,15 +132,15 @@ export const Header: React.FC = () => {
             <BrandMark className="w-9 h-9 shrink-0" />
             <span className="leading-tight">
               <span className="block font-display text-lg font-bold tracking-tight text-white">Cilowong</span>
-              <span className="block text-xs text-slate-400 tabular">
+              <span className="block text-xs text-slate-400 tabular whitespace-nowrap">
                 {trees.length > 0 ? t('brand.subCounts', { trees: trees.length, blocks: blocks.length }) : t('brand.sub')}
               </span>
             </span>
           </Link>
 
           {/* Desktop navigation. On phones the bottom tab bar is used instead. */}
-          <div className="hidden md:flex items-center gap-3">
-          <nav className="flex items-center gap-1" aria-label={t('nav.main')}>
+          <div className="hidden md:flex items-center gap-2 xl:gap-3">
+          <nav className="flex items-center gap-0.5 xl:gap-1" aria-label={t('nav.main')}>
             {navItems.map((item) => {
               const Icon = item.icon;
               const isActive = activeTab === item.id;
@@ -149,14 +149,17 @@ export const Header: React.FC = () => {
                   key={item.id}
                   to={tabPath(item.id)}
                   aria-current={isActive ? 'page' : undefined}
-                  className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold transition-colors ${
+                  title={item.label}
+                  aria-label={item.badge ? `${item.label}, ${item.badge.text}` : item.label}
+                  className={`flex items-center gap-2 px-2.5 xl:px-3 py-2 rounded-lg text-sm font-semibold whitespace-nowrap transition-colors ${
                     isActive ? 'bg-slate-800 text-emerald-400' : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
                   }`}
                 >
                   <Icon className="w-4 h-4" />
-                  <span>{item.label}</span>
+                  {/* Labels from xl up; icons alone (with a tooltip) between md and xl so the bar never wraps. */}
+                  <span className="hidden xl:inline">{item.label}</span>
                   {item.badge && (
-                    <span className={`ml-0.5 px-2 py-0.5 rounded-full text-xs font-semibold ${toneClass[item.badge.tone]}`}>
+                    <span className={`ml-0.5 px-2 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap ${toneClass[item.badge.tone]}`}>
                       {item.badge.text}
                     </span>
                   )}

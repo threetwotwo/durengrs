@@ -151,8 +151,8 @@ export const RainCard: React.FC<{ className?: string }> = ({ className = '' }) =
   return (
     <section className={`bg-white rounded-xl border border-slate-200 shadow-xs p-4 space-y-3 ${className}`} aria-labelledby="rain-h">
       <div className="flex items-center justify-between gap-2">
-        <h2 id="rain-h" className="text-sm font-bold text-slate-900 flex items-center gap-2">
-          <CloudRain className="w-4 h-4 text-sky-600" />
+        <h2 id="rain-h" className="text-base font-bold text-slate-900 flex items-center gap-2">
+          <CloudRain className="w-5 h-5 text-sky-600" />
           {t('rec.rain.title')}
         </h2>
         {guideOn && <Link to="/guide/water" className="text-xs font-semibold text-emerald-700">{t('rec.why')} →</Link>}

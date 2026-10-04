@@ -516,8 +516,8 @@ export const HarvestHomeCard: React.FC = () => {
   return (
     <section className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden" aria-labelledby="hh-h">
       <div className="px-4 py-3 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2">
-        <h2 id="hh-h" className="text-sm font-bold text-slate-900 flex items-center gap-2">
-          <Wheat className="w-4 h-4 text-emerald-600" />
+        <h2 id="hh-h" className="text-lg font-bold text-slate-900 flex items-center gap-2">
+          <Wheat className="w-6 h-6 text-emerald-600" />
           {t('hh.title')}
         </h2>
         <div className="flex flex-wrap items-center gap-2">
