@@ -15,7 +15,7 @@ const SchedulePage = lazy(() => import('./components/SchedulePage').then((m) => 
 const GuidePage = lazy(() => import('./components/GuidePage').then((m) => ({ default: m.GuidePage })));
 
 const AppContent: React.FC = () => {
-  const { loading, error } = useFarm();
+  const { loading, error, slowConnection } = useFarm();
   const { t, lang } = useT();
   const route = useRoute();
   const mainRef = useRef<HTMLElement>(null);
@@ -65,6 +65,7 @@ const AppContent: React.FC = () => {
           <div className="flex flex-col items-center justify-center min-h-[50vh] space-y-2.5" role="status">
             <RefreshCw className="w-7 h-7 text-emerald-600 animate-spin" />
             <p className="text-sm font-medium text-slate-600">{t('app.loading')}</p>
+            {slowConnection && <p className="text-sm text-amber-800 max-w-xs text-center">{t('app.slow')}</p>}
           </div>
         ) : (
           <ErrorBoundary key={lang} resetKey={route.pageKey}>

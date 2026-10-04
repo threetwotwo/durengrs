@@ -1,8 +1,10 @@
-import { translate, type Lang } from '../i18n';
+import { getLang, translate, type Lang } from '../i18n';
 import { DurianTree, DurianVariant } from '../types';
 import { normalizeTimestamp } from '../context/FarmContext';
 import { HarvestCycle, followUpOf } from './insights';
 import { ScheduleTask, TreatmentPlan, addDays, diffDays, todayStr } from './treatments';
+import type { Harvest, LabResult, RainDay, SeasonTaskDone, SeasonTaskId } from './fieldData';
+import { LAB_RANGES, SEASON_TASKS, blockTasks, labLevel, latestLabByBlock, rainBetween, rainSummary } from './fieldInsights';
 
 /**
  * Guide engine: the research in guideContent.ts applied to this farm's live data.
@@ -62,7 +64,7 @@ export const TOPICS: TopicMeta[] = [
       id: 'Jarak tanam, lubang tanam, naungan, batang bawah, dan merawat pohon sebelum berbuah.',
       en: 'Spacing, planting holes, shade, rootstocks, and caring for trees before they bear.',
     },
-    keywords: ['bibit', 'sulam', 'tanam ulang', 'jarak tanam', 'okulasi', 'sambung', 'batang bawah', 'naungan', 'seedling', 'replant', 'graft', 'rootstock', 'spacing'],
+    keywords: ['bibit', 'sulam', 'tanam ulang', 'jarak tanam', 'okulasi', 'sambung', 'naungan', 'seedling', 'replant', 'graft', 'rootstock', 'spacing'],
   },
   {
     id: 'flowering',
@@ -271,6 +273,8 @@ export function blockSeasons(
 export interface StageAction {
   text: L;
   topic: TopicId;
+  /** One-off season work that can be marked done per block (see fieldInsights SEASON_TASKS). */
+  task?: SeasonTaskId;
 }
 
 export interface StageInfo {
@@ -332,6 +336,7 @@ export const STAGES: Record<StageId, StageInfo> = {
           en: 'The stigma is exposed around 4 pm and pollen sheds around 7:30 pm: from then is the best time to hand-pollinate.',
         },
         topic: 'pollination',
+        task: 'hand_pollination',
       },
       {
         text: {
@@ -414,6 +419,7 @@ export const STAGES: Record<StageId, StageInfo> = {
           en: 'Thin in rounds (weeks 4-6, around day 45, last around day 60) down to 1 fruit (at most 2) per cluster; remove small, deformed and lopsided fruit.',
         },
         topic: 'fruit',
+        task: 'fruit_thinning',
       },
       {
         text: {
@@ -428,6 +434,7 @@ export const STAGES: Record<StageId, StageInfo> = {
           en: 'Bag fruit about a month after set, by week 6 at the latest, to keep out fruit and seed borers.',
         },
         topic: 'pests',
+        task: 'bagging',
       },
       {
         text: {
@@ -442,6 +449,7 @@ export const STAGES: Record<StageId, StageInfo> = {
           en: 'Musang King trial (Vietnam): foliar 0.4% calcium nitrate about 40 days after fruit set and 0.2% magnesium sulfate about 50 days raised yield 8-12% and reduced flesh disorders.',
         },
         topic: 'nutrition',
+        task: 'ca_mg_spray',
       },
     ],
   },
@@ -469,6 +477,7 @@ export const STAGES: Record<StageId, StageInfo> = {
           en: 'Tie fruit stalks to branches so wind does not snap them and fruit does not hit the ground.',
         },
         topic: 'harvest',
+        task: 'fruit_tying',
       },
       {
         text: {
@@ -647,11 +656,26 @@ export interface CheckInput {
   plans: TreatmentPlan[];
   scheduleTasks: ScheduleTask[];
   seasons: BlockSeason[];
+  harvests?: Harvest[];
+  seasonTasksDone?: SeasonTaskDone[];
+  rain?: RainDay[];
+  labResults?: LabResult[];
   now?: number;
 }
 
 /** Best practice vs what this farm records and schedules. Most urgent first. */
-export function buildChecks({ trees, variants, plans, scheduleTasks, seasons, now = Date.now() }: CheckInput): FarmCheck[] {
+export function buildChecks({
+  trees,
+  variants,
+  plans,
+  scheduleTasks,
+  seasons,
+  harvests = [],
+  seasonTasksDone = [],
+  rain = [],
+  labResults = [],
+  now = Date.now(),
+}: CheckInput): FarmCheck[] {
   const t = translate;
   const checks: FarmCheck[] = [];
   const active = plans.filter((p) => p.active);
@@ -781,11 +805,27 @@ export function buildChecks({ trees, variants, plans, scheduleTasks, seasons, no
     checks.push({ id: 'fertilizer', topic: 'nutrition', status: 'ok', title: tn('guide.chk.fert.ok', fert.length) });
   }
 
-  // 7. Measure instead of guess: yearly leaf + soil analysis.
+  // 7. Measure instead of guess: yearly leaf + soil analysis. A result from the last 13 months counts most.
   const hasLeafTest = active.some((p) => LEAF_TEST_RE.test(planText(p)));
+  const today = todayStr();
+  const latestLab = latestLabByBlock(labResults);
+  const recentLab = Array.from(latestLab.values()).filter((r) => diffDays(today, r.date) <= 400);
   checks.push(
-    hasLeafTest
-      ? { id: 'leafTest', topic: 'nutrition', status: 'ok', title: t('guide.chk.leaf.ok') }
+    recentLab.length
+      ? {
+          id: 'leafTest',
+          topic: 'nutrition',
+          status: 'ok',
+          title: t('guide.chk.lab.ok', { date: recentLab.map((r) => r.date).sort().reverse()[0] }),
+        }
+      : hasLeafTest
+      ? {
+          id: 'leafTest',
+          topic: 'nutrition',
+          status: labResults.length ? 'warn' : 'ok',
+          title: labResults.length ? t('guide.chk.lab.old') : t('guide.chk.leaf.ok'),
+          action: { kind: 'link', to: '/guide/nutrition', label: t('guide.act.enterLab') },
+        }
       : {
           id: 'leafTest',
           topic: 'nutrition',
@@ -795,6 +835,27 @@ export function buildChecks({ trees, variants, plans, scheduleTasks, seasons, no
           action: { kind: 'template', templateId: 'leafSoil', label: t('guide.act.addRoutine') },
         }
   );
+
+  // 7a. Latest lab values outside the Guide's ranges, per block.
+  const outOfRange: string[] = [];
+  latestLab.forEach((r, block) => {
+    if (diffDays(today, r.date) > 400) return;
+    const bad = (Object.keys(r.values) as Array<keyof typeof LAB_RANGES>)
+      .map((k) => ({ k, lv: labLevel(k, r.values[k]) }))
+      .filter((x) => x.lv === 'low' || x.lv === 'high')
+      .map((x) => t(`guide.lab.${x.k}`) + ' ' + t(`guide.lab.level.${x.lv}`));
+    if (bad.length) outOfRange.push(`${t('common.blockN', { n: block })}: ${bad.join(', ')}`);
+  });
+  if (outOfRange.length) {
+    checks.push({
+      id: 'labRange',
+      topic: 'nutrition',
+      status: 'warn',
+      title: tn('guide.chk.labRange.warn', outOfRange.length),
+      detail: outOfRange.join(' · '),
+      action: { kind: 'link', to: '/guide/nutrition', label: t('guide.act.readTopic') },
+    });
+  }
 
   // 7b. Calcium + boron sprays around flowering and fruit set (fruit set, flesh disorders).
   const hasCaB = active.some((p) => CALCIUM_BORON_RE.test(planText(p)));
@@ -917,6 +978,80 @@ export function buildChecks({ trees, variants, plans, scheduleTasks, seasons, no
       title: t('guide.chk.inspect.warn', { n: unchecked.length, total: trees.length }),
       detail: t('guide.chk.inspect.detail'),
       action: { kind: 'link', to: '/trees?stale=1', label: t('guide.act.showTrees') },
+    });
+  }
+
+  // 14. Season tasks whose window has passed without being marked done (thinning, bagging, tying...).
+  const late: string[] = [];
+  for (const s of seasons) {
+    for (const bt of blockTasks(s, seasonTasksDone)) {
+      if (bt.status === 'late') late.push(`${t('common.blockN', { n: s.block })}: ${pick(SEASON_TASKS[bt.task].title, getLang())}`);
+    }
+  }
+  if (late.length) {
+    checks.push({
+      id: 'seasonTasks',
+      topic: 'fruit',
+      status: 'warn',
+      title: tn('guide.chk.tasks.warn', late.length),
+      detail: late.slice(0, 6).join(' · '),
+      action: { kind: 'link', to: '/guide', label: t('guide.act.openSeason') },
+    });
+  }
+
+  // 15. Harvest log: a block's harvest window has ended but nothing was logged for that season.
+  const unlogged = seasons
+    .filter((s) => s.floweredOn && !s.outdated && s.harvestTo && s.day !== undefined)
+    .filter((s) => diffDays(today, s.harvestTo!) > 7 && s.day! <= s.ripeMax + 120)
+    .filter((s) => !harvests.some((h) => h.block === s.block && h.date >= s.floweredOn!))
+    .map((s) => s.block);
+  if (unlogged.length) {
+    checks.push({
+      id: 'harvestLog',
+      topic: 'harvest',
+      status: 'warn',
+      title: tn('guide.chk.harvestLog.warn', unlogged.length),
+      detail: t('guide.chk.harvestLog.detail', { blocks: listBlocks(unlogged) }),
+      action: { kind: 'link', to: '/schedule?view=harvest', label: t('guide.act.logHarvest') },
+    });
+  }
+
+  // 16. Rain records: the dry-spell flowering trigger and wet-core risk need them.
+  const rs = rainSummary(rain, today);
+  if (!rs.lastDate) {
+    checks.push({
+      id: 'rain',
+      topic: 'water',
+      status: 'warn',
+      title: t('guide.chk.rain.none'),
+      detail: t('guide.chk.rain.none.detail'),
+      action: { kind: 'link', to: '/', label: t('guide.act.enterRain') },
+    });
+  } else if ((rs.daysSinceLast ?? 0) > 3) {
+    checks.push({
+      id: 'rain',
+      topic: 'water',
+      status: 'warn',
+      title: t('guide.chk.rain.stale', { n: rs.daysSinceLast ?? 0 }),
+      action: { kind: 'link', to: '/', label: t('guide.act.enterRain') },
+    });
+  } else {
+    checks.push({ id: 'rain', topic: 'water', status: 'ok', title: t('guide.chk.rain.ok') });
+  }
+
+  // 17. Heavy rain while fruit matures: 200 mm or more raises wet-core and uneven-ripening risk.
+  const wet = seasons
+    .filter((s) => (s.stage === 'mature' || s.stage === 'harvest') && s.floweredOn && !s.outdated)
+    .map((s) => ({ block: s.block, mm: rainBetween(rain, addDays(s.floweredOn!, s.ripeMin - 30), today) }))
+    .filter((x) => x.mm >= 200);
+  if (wet.length) {
+    checks.push({
+      id: 'wetCore',
+      topic: 'harvest',
+      status: 'warn',
+      title: tn('guide.chk.wet.warn', wet.length),
+      detail: t('guide.chk.wet.detail', { blocks: wet.map((w) => `${t('common.blockN', { n: w.block })} (${Math.round(w.mm)} mm)`).join(', ') }),
+      action: { kind: 'link', to: '/guide/water', label: t('guide.act.readTopic') },
     });
   }
 

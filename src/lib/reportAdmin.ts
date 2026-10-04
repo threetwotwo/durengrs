@@ -8,8 +8,13 @@ import {
   where,
   writeBatch,
 } from 'firebase/firestore';
-import { deleteObject, ref } from 'firebase/storage';
-import { db, storage } from './firebase';
+import { deleteObject, getStorage, ref } from 'firebase/storage';
+import { app, db } from './firebase';
+
+// Cloud Storage (report photos) is only needed here, so it loads with the Reports page, not on every visit.
+const storage = getStorage(app);
+// Give up quickly on a bad connection instead of retrying for 2 minutes with a spinner on screen.
+storage.maxOperationRetryTime = 15000;
 import { normalizeTimestamp } from '../context/FarmContext';
 
 /** "https://firebasestorage.googleapis.com/v0/b/bucket/o/report-photos%2FA1%2Fx.jpg?alt=media&token=..." -> "report-photos/A1/x.jpg" */

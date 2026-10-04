@@ -39,6 +39,23 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
+    // Farm records for the Guide: harvests, one-off season tasks, daily rain, lab results, weekly review
+    match /harvests/{id} {
+      allow read, write: if true;
+    }
+    match /seasonTasks/{id} {
+      allow read, write: if true;
+    }
+    match /weather/{date} {
+      allow read, write: if true;
+    }
+    match /labResults/{id} {
+      allow read, write: if true;
+    }
+    match /farmMeta/{id} {
+      allow read, write: if true;
+    }
+
     // One flowering date per block, used for the harvest outlook
     match /harvestCycles/{block} {
       allow read, write: if true;

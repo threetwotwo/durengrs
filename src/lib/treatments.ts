@@ -1,11 +1,17 @@
 import {
+  FieldPath,
   addDoc,
   collection,
   deleteDoc,
   doc,
+  getDoc,
+  getDocs,
+  query,
   serverTimestamp,
   setDoc,
   updateDoc,
+  where,
+  writeBatch,
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { getLang, locale, translate } from '../i18n';
@@ -54,6 +60,11 @@ export interface TreatmentPlan {
   /** First due date (YYYY-MM-DD) for blocks never treated. Defaults to the day it was created. */
   firstDue?: string;
   active: boolean;
+  /**
+   * Last date done per block (YYYY-MM-DD), kept on the plan itself so the schedule is right however long the
+   * history grows (the treatments listener only reads the newest 500).
+   */
+  lastDone?: Record<string, string>;
 }
 
 /** One application that was actually done. */
@@ -164,6 +175,15 @@ export function computeTasks(
     }
   }
 
+  // Dates stored on the plan cover history older than the treatments that were loaded.
+  for (const plan of plans) {
+    for (const [b, d] of Object.entries(plan.lastDone || {})) {
+      const key = `${plan.id}|${b}`;
+      const prev = last.get(key);
+      if (typeof d === 'string' && (!prev || d > prev)) last.set(key, d);
+    }
+  }
+
   const tasks: ScheduleTask[] = [];
   for (const plan of plans) {
     if (!plan.active || !plan.everyDays || plan.everyDays < 1) continue;
@@ -267,14 +287,44 @@ export async function removePlan(id: string): Promise<void> {
   await deleteDoc(doc(db, 'treatmentPlans', id));
 }
 
-export async function logTreatment(t: Omit<Treatment, 'id'>): Promise<string> {
-  const ref = await addDoc(
-    collection(db, 'treatments'),
-    clean({ ...t, source: t.source || 'webapp', createdAt: serverTimestamp() } as any)
-  );
+/** Logs work done; for a routine, also moves the plan's last-done date forward for those blocks (same batch). */
+export async function logTreatment(t: Omit<Treatment, 'id'>, plan?: TreatmentPlan): Promise<string> {
+  const ref = doc(collection(db, 'treatments'));
+  const batch = writeBatch(db);
+  batch.set(ref, clean({ ...t, source: t.source || 'webapp', createdAt: serverTimestamp() } as any));
+  if (plan && t.planId) {
+    const newer = (t.blocks || []).filter((b) => !plan.lastDone?.[b] || t.date > plan.lastDone[b]);
+    if (newer.length) {
+      const [first, ...rest] = newer;
+      batch.update(
+        doc(db, 'treatmentPlans', t.planId),
+        new FieldPath('lastDone', first),
+        t.date,
+        ...rest.flatMap((b) => [new FieldPath('lastDone', b), t.date])
+      );
+    }
+  }
+  await batch.commit();
   return ref.id;
 }
 
+/** Recomputes a plan's last-done dates from its full history (also used once for plans saved before lastDone). */
+export async function rebuildLastDone(planId: string): Promise<Record<string, string>> {
+  const snap = await getDocs(query(collection(db, 'treatments'), where('planId', '==', planId)));
+  const lastDone: Record<string, string> = {};
+  snap.forEach((d) => {
+    const x = d.data() as Treatment;
+    for (const b of x.blocks || []) if (!lastDone[b] || x.date > lastDone[b]) lastDone[b] = x.date;
+  });
+  // An empty map (not a missing field) marks the plan as rebuilt, so this runs once per plan.
+  await updateDoc(doc(db, 'treatmentPlans', planId), { lastDone });
+  return lastDone;
+}
+
 export async function removeTreatment(id: string): Promise<void> {
+  const snap = await getDoc(doc(db, 'treatments', id));
+  const planId = snap.exists() ? (snap.data() as Treatment).planId : undefined;
   await deleteDoc(doc(db, 'treatments', id));
+  // Undo / delete must not leave the plan claiming a date that no longer exists.
+  if (planId) await rebuildLastDone(planId).catch((e) => console.error('Rebuilding last-done failed:', e));
 }

@@ -27,6 +27,8 @@ export const shell: Bundle = {
     'err.trees': 'Pohon tidak dapat dimuat ({msg})',
     'err.listeners': 'Gagal menghubungkan ke database: {msg}',
     'err.rules': 'Aturan Firestore belum mengizinkan treatmentPlans / treatments. Terbitkan firestore.rules yang terbaru.',
+    'err.rulesRecords': 'Aturan Firestore belum mengizinkan catatan panen, hujan, tugas musim atau hasil lab. Terbitkan firestore.rules yang terbaru.',
+    'app.slow': 'Sinyal lemah. Data akan muncul begitu koneksi kembali.',
     'date.none': 'Tidak ada laporan',
   },
   en: {
@@ -55,6 +57,8 @@ export const shell: Bundle = {
     'err.trees': 'Could not load trees ({msg})',
     'err.listeners': 'Failed to attach Firestore listeners: {msg}',
     'err.rules': 'Firestore rules do not allow treatmentPlans / treatments yet. Publish the updated firestore.rules.',
+    'err.rulesRecords': 'Firestore rules do not allow harvest, rain, season-task or lab records yet. Publish the updated firestore.rules.',
+    'app.slow': 'Weak signal. Data will appear as soon as the connection returns.',
     'date.none': 'No reports',
   },
 };

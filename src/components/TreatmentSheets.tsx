@@ -97,7 +97,7 @@ export const MarkDoneSheet: React.FC<{
         dose,
         doneBy,
         notes,
-      });
+      }, plan);
       onSaved(id, t('sched.done.logged', { name: plan.name, blocks: selected.join(', ') }));
       onClose();
     } catch (e: any) {

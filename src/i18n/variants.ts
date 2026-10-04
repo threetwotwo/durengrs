@@ -80,6 +80,8 @@ export const variants: Bundle = {
     'var.del.done': 'Varietas "{code}" dihapus.',
     'var.del.doneMoved': 'Varietas "{code}" dihapus; {n} pohon dipindah ke {to}.',
     'var.del.failed': 'Varietas tidak bisa dihapus: {msg}',
+    'var.real': 'Nyata: {n} hari (dari {h} catatan panen)',
+    'var.useReal': 'Pakai {n} hari',
   },
   en: {
     'var.title': 'Variants',
@@ -160,5 +162,7 @@ export const variants: Bundle = {
     'var.del.done': 'Variant "{code}" deleted.',
     'var.del.doneMoved': 'Variant "{code}" deleted; {n} trees moved to {to}.',
     'var.del.failed': 'The variant could not be deleted: {msg}',
+    'var.real': 'Real: {n} days (from {h} harvest entries)',
+    'var.useReal': 'Use {n} days',
   },
 };

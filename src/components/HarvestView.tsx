@@ -6,6 +6,7 @@ import { formatShortDate, todayStr } from '../lib/treatments';
 import { useT } from '../i18n';
 import { Link } from './Link';
 import { inputCls } from './PageHeader';
+import { HarvestLog } from './FieldRecords';
 
 /** When will each block ripen, and roughly how much fruit to expect each month. */
 export const HarvestView: React.FC = () => {
@@ -93,6 +94,8 @@ export const HarvestView: React.FC = () => {
         )}
         <p className="text-xs text-slate-500">{t('sched.hv.guide')}</p>
       </section>
+
+      <HarvestLog />
 
       <section className="bg-white rounded-xl border border-slate-200 overflow-hidden" aria-labelledby="hv-rows">
         <h2 id="hv-rows" className="px-4 py-3 text-sm font-bold text-slate-900 border-b border-slate-200">{t('sched.hv.h3')}</h2>

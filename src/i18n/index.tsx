@@ -7,6 +7,7 @@ import { trees } from './trees';
 import { reports } from './reports';
 import { variants } from './variants';
 import { guide } from './guide';
+import { records } from './records';
 
 /**
  * Tiny i18n layer. Indonesian is the default (the owner and the WhatsApp Flow speak Indonesian);
@@ -27,7 +28,7 @@ export interface Bundle {
   en: Dict;
 }
 
-const bundles: Bundle[] = [common, shell, dashboard, schedule, trees, reports, variants, guide];
+const bundles: Bundle[] = [common, shell, dashboard, schedule, trees, reports, variants, guide, records];
 const merged: Bundle = { id: {}, en: {} };
 for (const b of bundles) {
   Object.assign(merged.id, b.id);

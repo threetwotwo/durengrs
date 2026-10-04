@@ -1,6 +1,9 @@
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
 import {
   getFirestore,
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
   Firestore,
   doc,
   setDoc,
@@ -17,7 +20,6 @@ import {
   DocumentSnapshot,
   startAfter,
 } from 'firebase/firestore';
-import { getStorage, FirebaseStorage } from 'firebase/storage';
 import { DurianTree, DurianVariant, ReportPhoto, TreeCondition, TreeReport } from '../types';
 import rawConfig from '../../firebase-applet-config.json';
 
@@ -71,12 +73,15 @@ export const app: FirebaseApp =
 
 // The (default) Firestore database holds all farm data; the bot writes there too. Don't add a database id:
 // a named "duren-db" database was an unused leftover, and naming it here again would read an empty database.
-export const db: Firestore = getFirestore(app);
-
-/** Cloud Storage (report photos). */
-export const storage: FirebaseStorage = getStorage(app);
-// Give up quickly on a bad connection instead of retrying for 2 minutes with a spinner on screen.
-storage.maxOperationRetryTime = 15000;
+// A copy of the data is kept on the device, so the app opens instantly and keeps working on a weak signal.
+function createDb(): Firestore {
+  try {
+    return initializeFirestore(app, { localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }) });
+  } catch {
+    return getFirestore(app); // already initialised (hot reload)
+  }
+}
+export const db: Firestore = createDb();
 
 export const activeProjectId = rawConfig.projectId || 'duren-db';
 

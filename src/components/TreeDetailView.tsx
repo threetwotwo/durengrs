@@ -30,6 +30,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { TreeGuideSection } from './GuideWidgets';
+import { maskPhone } from '../lib/insights';
 import { TREE_LIMITS, checkTreeForm, plantedDateStr } from '../lib/trees';
 
 interface TreeDetailViewProps {
@@ -371,14 +372,6 @@ export const TreeDetailView: React.FC<TreeDetailViewProps> = ({ treeId, onBack }
 
   const currentVariant = variants.find((v) => v.code === formData.variant);
 
-  const maskPhone = (phone?: string): string => {
-    if (!phone) return '';
-    const digits = phone.replace(/\D/g, '');
-    if (digits.length >= 4) {
-      return `••••${digits.slice(-4)}`;
-    }
-    return phone;
-  };
 
   return (
     <div className="space-y-5">

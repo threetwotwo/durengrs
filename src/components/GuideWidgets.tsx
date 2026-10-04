@@ -40,6 +40,8 @@ import {
 } from '../lib/guide';
 import { PLAN_TEMPLATE_BY_ID, formatShortDate, todayStr } from '../lib/treatments';
 import { saveHarvestCycle } from '../lib/insights';
+import { rainSummary } from '../lib/fieldInsights';
+import { SeasonTaskChips } from './FieldRecords';
 import type { DurianTree, TreeReport } from '../types';
 import { Link } from './Link';
 import { PlanEditorSheet } from './TreatmentSheets';
@@ -64,13 +66,13 @@ export const topicUrl = (id: TopicId) => `/guide/${id}`;
 
 /** Seasons, checks and note mentions from live farm data. Shared by the Guide, Dashboard and tree pages. */
 export function useGuideData() {
-  const { trees, variants, harvestCycles, plans, scheduleTasks } = useFarm();
+  const { trees, variants, harvestCycles, plans, scheduleTasks, harvests, seasonTasksDone, rain, labResults } = useFarm();
   const { lang } = useT();
   const seasons = useMemo(() => blockSeasons(trees, variants, harvestCycles), [trees, variants, harvestCycles]);
   const checks = useMemo(
-    () => buildChecks({ trees, variants, plans, scheduleTasks, seasons }),
+    () => buildChecks({ trees, variants, plans, scheduleTasks, seasons, harvests, seasonTasksDone, rain, labResults }),
     // lang: check titles are translated when built
-    [trees, variants, plans, scheduleTasks, seasons, lang]
+    [trees, variants, plans, scheduleTasks, seasons, harvests, seasonTasksDone, rain, labResults, lang]
   );
   const mentions = useMemo(() => {
     const map = new Map<TopicId, DurianTree[]>();
@@ -203,8 +205,12 @@ function blockLine(s: BlockSeason, t: (k: string, v?: Record<string, string | nu
 /** One card per stage: which blocks are in it, and what the research says to do now. */
 export const StageGroupCard: React.FC<{ group: StageGroup; maxActions?: number }> = ({ group, maxActions }) => {
   const { t, lang } = useT();
+  const { rain } = useFarm();
   const info = STAGES[group.stage];
-  const actions = maxActions ? info.actions.slice(0, maxActions) : info.actions;
+  // Doable season tasks first, so the Done chips are visible even when the list is shortened.
+  const ordered = [...info.actions].sort((a, b) => (a.task ? 0 : 1) - (b.task ? 0 : 1));
+  const actions = maxActions ? ordered.slice(0, maxActions) : ordered;
+  const dry = group.stage === 'preflower' ? rainSummary(rain) : null;
   const assumed = group.blocks.some((b) => b.ripeningAssumed) && group.stage !== 'preflower';
   return (
     <article className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
@@ -228,6 +234,11 @@ export const StageGroupCard: React.FC<{ group: StageGroup; maxActions?: number }
         ))}
       </ul>
       {assumed && <p className="text-xs text-amber-800">{t('guide.season.assumed', { d: group.blocks[0].ripeMin })}</p>}
+      {dry?.dry && dry.drySince && dry.expectedBloom && (
+        <p className="text-xs text-amber-900 bg-amber-50 border border-amber-200 rounded-lg p-2">
+          {t('rec.rain.dry', { since: formatShortDate(dry.drySince), bloom: formatShortDate(dry.expectedBloom) })}
+        </p>
+      )}
       <div>
         <h4 className="text-xs font-bold uppercase tracking-wide text-slate-500 mb-1.5">{t('guide.season.now')}</h4>
         <ul className="space-y-1.5">
@@ -239,6 +250,7 @@ export const StageGroupCard: React.FC<{ group: StageGroup; maxActions?: number }
                 <Link to={topicUrl(a.topic)} className="text-xs font-semibold text-emerald-700 hover:text-emerald-800 whitespace-nowrap">
                   {pick(TOPIC_BY_ID.get(a.topic)!.title, lang)} →
                 </Link>
+                {a.task && <SeasonTaskChips task={a.task} seasons={group.blocks} />}
               </span>
             </li>
           ))}
@@ -450,7 +462,7 @@ export const TreeGuideSection: React.FC<{ tree: DurianTree; reports: TreeReport[
             <span className="text-xs font-normal text-slate-600 tabular">· {blockLine(season, t).split(' · ').slice(1).join(' · ')}</span>
           </p>
           <ul className="space-y-1">
-            {stageInfo.actions.slice(0, 2).map((a, i) => (
+            {[...stageInfo.actions].sort((a, b) => (a.task ? 0 : 1) - (b.task ? 0 : 1)).slice(0, 2).map((a, i) => (
               <li key={i} className="flex items-start gap-2 text-sm text-slate-700">
                 <span className="mt-2 w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" aria-hidden="true" />
                 <span>
@@ -458,6 +470,7 @@ export const TreeGuideSection: React.FC<{ tree: DurianTree; reports: TreeReport[
                   <Link to={topicUrl(a.topic)} className="text-xs font-semibold text-emerald-700 whitespace-nowrap">
                     {pick(TOPIC_BY_ID.get(a.topic)!.title, lang)} →
                   </Link>
+                  {a.task && <SeasonTaskChips task={a.task} seasons={[season]} />}
                 </span>
               </li>
             ))}

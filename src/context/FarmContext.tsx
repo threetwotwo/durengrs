@@ -1,6 +1,6 @@
 import { translate, locale } from '../i18n';
-import React, { createContext, useContext, useEffect, useMemo, useState, useCallback } from 'react';
-import { collection, onSnapshot, query, where, orderBy, limit, Timestamp } from 'firebase/firestore';
+import React, { createContext, useContext, useEffect, useMemo, useRef, useState, useCallback } from 'react';
+import { collection, doc, onSnapshot, query, where, orderBy, limit, Timestamp } from 'firebase/firestore';
 import { DurianTree, DurianVariant, TreeReport, TreeCondition } from '../types';
 import {
   db,
@@ -13,7 +13,8 @@ import {
   OperationType,
 } from '../lib/firebase';
 import { HarvestCycle } from '../lib/insights';
-import { TreatmentPlan, Treatment, ScheduleTask, computeTasks } from '../lib/treatments';
+import { TreatmentPlan, Treatment, ScheduleTask, computeTasks, rebuildLastDone, addDays, todayStr } from '../lib/treatments';
+import type { Harvest, LabResult, RainDay, SeasonTaskDone } from '../lib/fieldData';
 
 import { AppTab, useRoute } from '../lib/router';
 export type { AppTab };
@@ -40,6 +41,17 @@ interface FarmContextType {
   /** Deletes a variant; trees using it are moved to `reassignTo` first. */
   deleteVariant: (code: string, reassignTo?: string) => Promise<void>;
   totalFruits: number;
+  /** Farm records for the Guide (see lib/fieldData.ts). */
+  harvests: Harvest[];
+  seasonTasksDone: SeasonTaskDone[];
+  rain: RainDay[];
+  labResults: LabResult[];
+  /** YYYY-MM-DD of the last weekly farm check, if any. */
+  weeklyReviewDate: string | null;
+  /** Set when Firestore refuses the farm-record collections (rules not published yet). */
+  recordsError: string | null;
+  /** Still loading after 10 s: probably a weak signal. */
+  slowConnection: boolean;
 }
 
 const FarmContext = createContext<FarmContextType | null>(null);
@@ -126,6 +138,77 @@ export const FarmProvider: React.FC<{ children: React.ReactNode }> = ({ children
       unsubTreatments();
     };
   }, []);
+
+  // Farm records the Guide reads: harvests, season tasks, rain (last 120 days), lab results, weekly review.
+  const [harvests, setHarvests] = useState<Harvest[]>([]);
+  const [seasonTasksDone, setSeasonTasksDone] = useState<SeasonTaskDone[]>([]);
+  const [rain, setRain] = useState<RainDay[]>([]);
+  const [labResults, setLabResults] = useState<LabResult[]>([]);
+  const [weeklyReviewDate, setWeeklyReviewDate] = useState<string | null>(null);
+  const [recordsError, setRecordsError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const onErr = (what: string) => (err: any) => {
+      console.error(`${what} listener failed:`, err);
+      setRecordsError(err?.code === 'permission-denied' ? translate('err.rulesRecords') : String(err?.message || err));
+    };
+    const since = addDays(todayStr(), -120);
+    const seasonsSince = addDays(todayStr(), -400);
+    const subs = [
+      onSnapshot(
+        query(collection(db, 'harvests'), orderBy('date', 'desc'), limit(1000)),
+        (s) => setHarvests(s.docs.map((d) => ({ id: d.id, ...(d.data() as any) }) as Harvest)),
+        onErr('Harvests')
+      ),
+      onSnapshot(
+        query(collection(db, 'seasonTasks'), where('season', '>=', seasonsSince)),
+        (s) => setSeasonTasksDone(s.docs.map((d) => ({ id: d.id, ...(d.data() as any) }) as SeasonTaskDone)),
+        onErr('Season tasks')
+      ),
+      onSnapshot(
+        query(collection(db, 'weather'), where('date', '>=', since)),
+        (s) =>
+          setRain(
+            s.docs
+              .map((d) => d.data() as RainDay)
+              .filter((d) => typeof d.rainMm === 'number' && typeof d.date === 'string')
+          ),
+        onErr('Rain')
+      ),
+      onSnapshot(
+        query(collection(db, 'labResults'), orderBy('date', 'desc'), limit(300)),
+        (s) => setLabResults(s.docs.map((d) => ({ id: d.id, ...(d.data() as any) }) as LabResult)),
+        onErr('Lab results')
+      ),
+      onSnapshot(
+        doc(db, 'farmMeta', 'weeklyReview'),
+        (s) => setWeeklyReviewDate(s.exists() ? (s.data().date as string) || null : null),
+        onErr('Weekly review')
+      ),
+    ];
+    return () => subs.forEach((u) => u());
+  }, []);
+
+  // Routines saved before plans kept their own last-done dates: rebuild those once from the full history.
+  const rebuilt = useRef(new Set<string>());
+  useEffect(() => {
+    for (const p of plans) {
+      if (p.lastDone || rebuilt.current.has(p.id)) continue;
+      rebuilt.current.add(p.id);
+      rebuildLastDone(p.id).catch((e) => console.error('Rebuilding last-done failed:', e));
+    }
+  }, [plans]);
+
+  // Weak signal: say so instead of an endless spinner (data still appears when it arrives).
+  const [slowConnection, setSlowConnection] = useState(false);
+  useEffect(() => {
+    if (!loading) {
+      setSlowConnection(false);
+      return;
+    }
+    const id = setTimeout(() => setSlowConnection(true), 10000);
+    return () => clearTimeout(id);
+  }, [loading]);
 
   const blocks = useMemo(
     () => Array.from(new Set(trees.map((t) => t.block).filter(Boolean))).sort(),
@@ -315,6 +398,13 @@ export const FarmProvider: React.FC<{ children: React.ReactNode }> = ({ children
         updateTree,
         saveVariant,
         deleteVariant,
+        harvests,
+        seasonTasksDone,
+        rain,
+        labResults,
+        weeklyReviewDate,
+        recordsError,
+        slowConnection,
         totalFruits,
       }}
     >

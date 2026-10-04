@@ -20,6 +20,8 @@ import {
 import { Confidence, TOPIC_CONTENT } from '../lib/guideContent';
 import { PLAN_TEMPLATE_BY_ID, typeLabel } from '../lib/treatments';
 import { ConditionBadge } from './ConditionBadge';
+import { LabResults, WeeklyReview } from './FieldRecords';
+import { actualRipening } from '../lib/fieldInsights';
 import { Link } from './Link';
 import { PageHeader, btnPrimary, inputCls } from './PageHeader';
 import {
@@ -93,6 +95,7 @@ const GLANCE: Array<[TopicId, string]> = [
 
 const Overview: React.FC = () => {
   const { t, lang } = useT();
+  const { recordsError } = useFarm();
   const { seasons, checks, mentions } = useGuideData();
   const { notes } = useGuideNotes();
   const templates = useTemplateSheet();
@@ -104,6 +107,12 @@ const Overview: React.FC = () => {
   return (
     <div className="space-y-6">
       <PageHeader title={t('guide.title')} description={t('guide.desc')} />
+      {recordsError && (
+        <p role="alert" className="flex items-start gap-2 p-3 rounded-xl bg-amber-50 border border-amber-200 text-sm text-amber-900">
+          <HelpCircle className="w-4 h-4 mt-0.5 shrink-0" />
+          {recordsError}
+        </p>
+      )}
 
       <section className="space-y-3" aria-labelledby="g-season">
         <div>
@@ -132,6 +141,10 @@ const Overview: React.FC = () => {
           <p className="text-xs text-slate-500 mt-1 tabular">
             {t('guide.checks.summary', { gap: count('gap'), warn: count('warn'), ok: count('ok') })}
           </p>
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-700">
+            <span className="font-semibold">{t('guide.checks.review')}:</span>
+            <WeeklyReview compact />
+          </div>
         </div>
         <ul className="divide-y divide-slate-100">
           {open.map((c) => (
@@ -247,7 +260,7 @@ const h2 = 'text-sm font-bold text-slate-900';
 
 const TopicView: React.FC<{ id: TopicId }> = ({ id }) => {
   const { t, lang } = useT();
-  const { trees, variants, plans } = useFarm();
+  const { trees, variants, plans, harvests } = useFarm();
   const { seasons, checks, mentions } = useGuideData();
   const templates = useTemplateSheet();
   const topic = TOPIC_BY_ID.get(id)!;
@@ -356,6 +369,7 @@ const TopicView: React.FC<{ id: TopicId }> = ({ id }) => {
             )}
             {id === 'harvest' && <VarietyRipening />}
             {id === 'fruit' && <HeavyTrees />}
+            {(id === 'nutrition' || id === 'site') && <LabResults />}
             {mentioned.length > 0 && (
               <div className="p-4 border-t border-slate-100">
                 <h3 className="text-xs font-bold uppercase tracking-wide text-slate-500 mb-2">{t('guide.farm.mentions')}</h3>
@@ -459,6 +473,7 @@ const TopicView: React.FC<{ id: TopicId }> = ({ id }) => {
   );
 
   function VarietyRipening() {
+    const real = actualRipening(harvests);
     const used = new Set(trees.map((x) => x.variant));
     const list = variants.filter((v) => used.has(v.code));
     if (list.length === 0) return null;
@@ -470,6 +485,7 @@ const TopicView: React.FC<{ id: TopicId }> = ({ id }) => {
             const ref = ripeningRefFor(v);
             const days = Number(v.ripeningDays) > 0 ? Number(v.ripeningDays) : null;
             const outside = ref && days !== null && (days < ref.min - 5 || days > ref.max + 5);
+            const realDays = real.get(v.code);
             return (
               <li key={v.code} className="text-sm">
                 <Link to={`/variants?edit=${encodeURIComponent(v.code)}`} className="font-semibold text-slate-900 hover:text-emerald-700 hover:underline">
@@ -481,6 +497,7 @@ const TopicView: React.FC<{ id: TopicId }> = ({ id }) => {
                   {' · '}
                   {ref ? t('guide.varieties.ref', { min: ref.min, max: ref.max }) : t('guide.varieties.noRef')}
                   {outside && <span className="text-amber-800 font-semibold"> · {t('guide.varieties.outside')}</span>}
+                  {realDays && <span className="block font-semibold text-emerald-800">{t('var.real', { n: realDays.days, h: realDays.harvests })}</span>}
                 </span>
                 {ref && <span className="block text-xs text-slate-500">{pick(ref.note, lang)}</span>}
               </li>

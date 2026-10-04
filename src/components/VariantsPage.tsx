@@ -15,6 +15,7 @@ import {
   unknownVariantCodes,
   validateVariant,
 } from '../lib/variants';
+import { actualRipening } from '../lib/fieldInsights';
 import {
   Sprout,
   Plus,
@@ -36,7 +37,10 @@ const fieldCls =
   'w-full text-sm p-2.5 border rounded-md focus:ring-2 focus:ring-emerald-500 aria-[invalid=true]:border-rose-500 aria-[invalid=true]:bg-rose-50/40';
 
 export const VariantsPage: React.FC = () => {
-  const { variants, trees, harvestCycles, saveVariant, deleteVariant } = useFarm();
+  const { variants, trees, harvestCycles, saveVariant, deleteVariant, harvests: harvestLog } = useFarm();
+  // Real bloom-to-harvest days from the harvest log (A10: keep ripening days up to date).
+  const realRipening = useMemo(() => actualRipening(harvestLog), [harvestLog]);
+  const [updating, setUpdating] = useState<string | null>(null);
   const { t, lang } = useT();
   const [params, setParams] = useQueryParams();
 
@@ -415,6 +419,35 @@ export const VariantsPage: React.FC = () => {
                       {ref ? ` · ${t('var.ref', { min: ref.min, max: ref.max })}` : ''}
                     </button>
                   )}
+                  {realRipening.get(variant.code) && (() => {
+                    const r = realRipening.get(variant.code)!;
+                    const differs = !days || Math.abs(r.days - days) > 3;
+                    return (
+                      <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-emerald-800 font-semibold tabular">
+                        <Wheat className="w-3.5 h-3.5 shrink-0" />
+                        {t('var.real', { n: r.days, h: r.harvests })}
+                        {differs && !variant.nameMissing && (
+                          <button
+                            type="button"
+                            disabled={updating === variant.code}
+                            onClick={async () => {
+                              setUpdating(variant.code);
+                              try {
+                                await saveVariant({ ...variant, ripeningDays: r.days });
+                                setSuccessToast(t('var.toast.updated', { code: variant.code }));
+                                setTimeout(() => setSuccessToast(null), 3000);
+                              } finally {
+                                setUpdating(null);
+                              }
+                            }}
+                            className="min-h-8 px-2 rounded-md border border-emerald-300 bg-white text-emerald-800 text-xs font-semibold hover:bg-emerald-50 disabled:opacity-50"
+                          >
+                            {t('var.useReal', { n: r.days })}
+                          </button>
+                        )}
+                      </span>
+                    );
+                  })()}
                   {outside && (
                     <Link to="/guide/harvest" className="flex items-start gap-1 text-amber-800 hover:underline">
                       <AlertTriangle className="w-3.5 h-3.5 mt-px shrink-0" />
