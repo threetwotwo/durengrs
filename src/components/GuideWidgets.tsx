@@ -1,3 +1,4 @@
+import { SourceBadge } from './SourceBadge';
 import React, { useMemo, useState } from 'react';
 import {
   Apple,
@@ -508,6 +509,7 @@ export const TreeGuideSection: React.FC<{ tree: DurianTree; reports: TreeReport[
                 <span className="text-xs text-slate-600">
                   {w.fromBlock ? t('guide.tree.fromBlock', { block: tree.block }) : t(`guide.part.${w.part}`)}
                 </span>
+                {w.id && <SourceBadge source={treeBlooms.find((b) => b.id === w.id)?.source} />}
                 {w.id && (
                   <button
                     type="button"

@@ -222,6 +222,7 @@ export interface TreeBloom {
   /** whole = the whole tree flowered then (replaces the block date for this tree); others = only those branches. */
   part: BloomPart;
   note?: string;
+  source?: 'webapp' | 'whatsapp';
 }
 export type BloomPart = 'whole' | 'lower' | 'middle' | 'upper' | 'some';
 export const BLOOM_PARTS: BloomPart[] = ['whole', 'lower', 'middle', 'upper', 'some'];

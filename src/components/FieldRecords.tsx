@@ -6,10 +6,13 @@ import { useSeasons } from './useSeasons';
 import { useGuideOn } from '../lib/guideMode';
 import { Sheet, fieldInput, fieldLabel } from './Sheet';
 import { Link } from './Link';
+import { SourceBadge } from './SourceBadge';
+import { PhotoLightbox } from './PhotoLightbox';
 import {
   GRADES,
   Grade,
   HARVEST_PROBLEMS,
+  type Harvest,
   HarvestProblem,
   LAB_KEYS,
   LabKey,
@@ -222,6 +225,12 @@ export const HarvestLog: React.FC = () => {
   const { t } = useT();
   const { harvests, variants } = useFarm();
   const [open, setOpen] = useState(false);
+  const [viewer, setViewer] = useState<{ h: Harvest; index: number } | null>(null);
+  // A harvest with photos also loses its files in Cloud Storage (the storage code loads only when needed).
+  const deleteHarvest = (h: Harvest) => {
+    const done = h.photos?.length ? import('../lib/reportAdmin').then((m) => m.deleteHarvest(h)) : removeHarvest(h.id);
+    Promise.resolve(done).catch((e) => console.error('Deleting harvest failed:', e));
+  };
   const real = useMemo(() => actualRipening(harvests), [harvests]);
   const quality = useMemo(() => harvestQuality(harvests, (h) => h.variant), [harvests]);
   const nameOf = (code: string) => variants.find((v) => v.code === code)?.name || code;
@@ -289,7 +298,8 @@ export const HarvestLog: React.FC = () => {
               <div className="min-w-0 flex-1 text-sm">
                 <span className="font-semibold text-slate-900">
                   {formatShortDate(h.date)} · {h.treeId ? t('rep.treeN', { id: h.treeId }) : t('common.blockN', { n: h.block })} · {nameOf(h.variant)}
-                </span>
+                </span>{' '}
+                <SourceBadge source={h.source} />
                 <span className="block text-xs text-slate-600 tabular">
                   {t('rec.hv.line', { n: h.fruits })}
                   {h.grades ? ` (${GRADES.filter((g) => h.grades![g]).map((g) => `${t(`grade.${g}.short`)} ${h.grades![g]}`).join(', ')})` : ''}
@@ -297,10 +307,25 @@ export const HarvestLog: React.FC = () => {
                   {typeof h.daysFromBloom === 'number' ? ` · ${t('rec.hv.dayN', { n: h.daysFromBloom })}` : ''}
                   {h.problems?.length ? ` · ${h.problems.map((p) => t(`rec.hv.p.${p}`)).join(', ')}${h.problemFruits ? ` (${h.problemFruits})` : ''}` : ''}
                 </span>
+                {h.photos && h.photos.length > 0 && (
+                  <span className="mt-1.5 flex gap-1.5">
+                    {h.photos.map((ph, i) => (
+                      <button
+                        key={ph.url}
+                        type="button"
+                        onClick={() => setViewer({ h, index: i })}
+                        aria-label={t('rec.hv.photoN', { i: i + 1, n: h.photos!.length })}
+                        className="w-12 h-12 rounded-md overflow-hidden border border-slate-200 bg-slate-100"
+                      >
+                        <img src={ph.thumb || ph.medium || ph.url} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
+                      </button>
+                    ))}
+                  </span>
+                )}
               </div>
               <button
                 type="button"
-                onClick={() => window.confirm(t('rec.hv.confirmDelete')) && removeHarvest(h.id)}
+                onClick={() => window.confirm(t('rec.hv.confirmDelete')) && deleteHarvest(h)}
                 className="p-2 rounded-lg text-slate-500 hover:bg-slate-100"
                 aria-label={t('rec.delete')}
               >
@@ -311,6 +336,18 @@ export const HarvestLog: React.FC = () => {
         </ul>
       )}
       {open && <HarvestSheet onClose={() => setOpen(false)} />}
+      {viewer && (
+        <PhotoLightbox
+          items={viewer.h.photos!.map((ph, i) => ({
+            url: ph.url,
+            medium: ph.medium,
+            thumb: ph.thumb,
+            caption: t('rec.hv.cap', { id: viewer.h.treeId || viewer.h.block, date: formatShortDate(viewer.h.date) }) + ` (${i + 1}/${viewer.h.photos!.length})`,
+          }))}
+          index={viewer.index}
+          onClose={() => setViewer(null)}
+        />
+      )}
     </section>
   );
 };

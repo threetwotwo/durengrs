@@ -7,8 +7,10 @@ import {
   query,
   where,
   writeBatch,
+  deleteDoc,
 } from 'firebase/firestore';
 import { deleteObject, getStorage, ref } from 'firebase/storage';
+import type { ReportPhoto } from '../types';
 import { app, db } from './firebase';
 
 // Cloud Storage (report photos) is only needed here, so it loads with the Reports page, not on every visit.
@@ -108,5 +110,18 @@ export async function deleteReport(reportId: string): Promise<DeleteReportResult
   const filesFailed = results.filter(
     (r) => r.status === 'rejected' && (r.reason as any)?.code !== 'storage/object-not-found'
   ).length;
+  return { filesFailed, filesTotal: paths.size };
+}
+
+/** Deletes a harvest entry and the photo files sent with it (full, 900px and thumbnail). The entry goes first. */
+export async function deleteHarvest(h: { id: string; photos?: ReportPhoto[] }): Promise<DeleteReportResult> {
+  const paths = new Set<string>();
+  for (const p of h.photos || []) for (const u of [p.url, p.medium, p.thumb]) {
+    const path = pathFromUrl(u);
+    if (path) paths.add(path);
+  }
+  await deleteDoc(doc(db, 'harvests', h.id));
+  const results = await Promise.allSettled([...paths].map((p) => deleteObject(ref(storage, p))));
+  const filesFailed = results.filter((r) => r.status === 'rejected' && (r.reason as any)?.code !== 'storage/object-not-found').length;
   return { filesFailed, filesTotal: paths.size };
 }

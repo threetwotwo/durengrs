@@ -1,6 +1,7 @@
 import { collection, deleteDoc, doc, serverTimestamp, setDoc, writeBatch } from 'firebase/firestore';
 import { db } from './firebase';
 import type { BloomPart, TreeBloom } from './guide';
+import type { ReportPhoto } from '../types';
 
 /**
  * Farm records the Guide needs, entered in the web app (all writes for them live here).
@@ -43,6 +44,8 @@ export interface Harvest {
   daysFromBloom?: number;
   notes?: string;
   source?: 'webapp' | 'whatsapp';
+  /** Photos sent with the harvest report on WhatsApp (same three sizes as report photos). */
+  photos?: ReportPhoto[];
 }
 
 export type SeasonTaskId = 'hand_pollination' | 'fruit_thinning' | 'bagging' | 'ca_mg_spray' | 'fruit_tying';
@@ -125,6 +128,7 @@ export interface CropCount {
   date: string;
   by?: string;
   note?: string;
+  source?: 'webapp' | 'whatsapp';
 }
 
 export const cropCountId = (c: Pick<CropCount, 'treeId' | 'season' | 'stage' | 'date'>) => `${c.treeId}_${c.season}_${c.stage}_${c.date}`;

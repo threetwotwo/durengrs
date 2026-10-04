@@ -1,3 +1,4 @@
+import { SourceBadge } from './SourceBadge';
 import React, { useMemo, useState } from 'react';
 import { BookOpen, ChevronRight, ClipboardList, ClipboardPlus, Plus, Trash2, Wheat } from 'lucide-react';
 import { STAGES, STAGE_ORDER, StageId, TOPIC_BY_ID, pick } from '../lib/guide';
@@ -412,7 +413,8 @@ export const TreeCropCard: React.FC<{ tree: DurianTree }> = ({ tree }) => {
                     <li key={h.id} className="flex items-center gap-2 py-1.5 text-sm">
                       <span className="min-w-0 flex-1">
                         {formatShortDate(h.date)} · {t(`crop.stage.${h.stage}`)} <span className="font-semibold tabular">{h.count}</span>
-                        {h.by ? <span className="text-xs text-slate-500"> · {h.by}</span> : null}
+                        {h.by ? <span className="text-xs text-slate-500"> · {h.by}</span> : null}{' '}
+                        <SourceBadge source={h.source} />
                         {h.note ? <span className="block text-xs text-slate-500">{h.note}</span> : null}
                       </span>
                       <button
