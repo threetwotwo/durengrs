@@ -69,7 +69,8 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
 export const app: FirebaseApp =
   getApps().length > 0 ? getApp() : initializeApp(rawConfig);
 
-// Connect to default Firestore database
+// The (default) Firestore database holds all farm data; the bot writes there too. Don't add a database id:
+// a named "duren-db" database was an unused leftover, and naming it here again would read an empty database.
 export const db: Firestore = getFirestore(app);
 
 /** Cloud Storage (report photos). */

@@ -38,14 +38,16 @@ Each action gets two scores. The list is sorted by **impact first**, then by **l
 
 ## Start here: the first week
 
-If you only do five things, do these. Together they take about **2 hours of your time** plus code changes
-Claude can do.
+If you only do five things, do these. Your part is about **5 minutes** plus a short team habit; the rest are code
+changes Claude can do.
 
-1. **A1 Turn on backups** (You, 15 min)
-2. **A2 Check which database is live** (You, 10 min)
-3. **A3 Check the bot's timestamps** (You, 5 min)
-4. **A4 Stop losing unsaved tree edits** (Claude)
-5. **A5 Record bloom dates every season** (Team, 2 min per block per season)
+1. **A3 Check the bot's timestamps** (You, 5 min)
+2. **A4 Stop losing unsaved tree edits** (Claude)
+3. **A5 Record bloom dates every season** (Team, 2 min per block per season)
+4. **A8 Make planting date editable** (Claude)
+5. **A9 Check tree measurements when saving** (Claude)
+
+**Decided:** A1 backups skipped for now · A2 done (the default database is the live one) · A17 skipped.
 
 ---
 
@@ -53,8 +55,8 @@ Claude can do.
 
 | # | Action | Impact | Effort | Who |
 |---|---|---|---|---|
-| A1 | Turn on backups | ★★★★★ | S | You |
-| A2 | Check which database is live | ★★★★★ | S | You (+ Claude, 1 line) |
+| A1 | Turn on backups · **skipped for now** | ★★★★★ | S | You |
+| A2 | Check which database is live · **done** | ★★★★★ | S | You (+ Claude, 1 line) |
 | A3 | Check the bot's timestamps | ★★★★★ | S | You |
 | A4 | Stop losing unsaved tree edits | ★★★★★ | S | Claude |
 | A5 | Record bloom dates every season | ★★★★★ | Habit | Team |
@@ -69,14 +71,16 @@ Claude can do.
 | A14 | Put deploy settings in the code | ★★★ | S | Claude (+ You, once) |
 | A15 | Rain gauge + daily rain entry | ★★★ | M | Claude + Team habit |
 | A16 | Lab results page | ★★★ | M | Claude |
-| A17 | Error alerts | ★★ | S | Claude (+ You, sign-up) |
+| A17 | Error alerts · **skipped** | ★★ | S | Claude (+ You, sign-up) |
 | A18 | Faster first load | ★ | S | Claude |
 
 ---
 
 ## Action details
 
-### A1 Turn on backups · ★★★★★ · S · You
+### A1 Turn on backups · ★★★★★ · S · You · skipped for now
+
+> Skipped for now by decision. Worth revisiting before the first full season of data.
 
 **Why:** the Guide improves every season from the farm's own history: bloom dates, ripening days, condition
 changes and work done. One mistaken delete or a bad bot update could erase years of it. Today there is no backup.
@@ -93,7 +97,13 @@ changes and work done. One mistaken delete or a bad bot update could erase years
 
 ---
 
-### A2 Check which database is live · ★★★★★ · S · You (+ Claude, 1 line)
+### A2 Check which database is live · ★★★★★ · S · You (+ Claude, 1 line) · done
+
+> **Done.** The **(default)** database is the live one. The unused `duren-db` database was deleted but kept
+> coming back; the likely cause was `"firestoreDatabaseId": "duren-db"` in `firebase-applet-config.json`, which
+> AI Studio's Firebase setup reads. That line has been removed and the app now states the default database
+> explicitly. If `duren-db` still reappears after deleting it again, check AI Studio's Firebase integration
+> settings. If the bot names a database in its own config, it should use the default too.
 
 **Why:** the settings file names a database called `duren-db`, but the app reads the **(default)** database.
 If the WhatsApp bot writes to one and the app reads the other, reports silently go missing.
@@ -274,7 +284,9 @@ green or amber against the Guide's ranges.
 
 ---
 
-### A17 Error alerts · ★★ · S · Claude (+ You, sign-up)
+### A17 Error alerts · ★★ · S · Claude (+ You, sign-up) · skipped
+
+> Skipped by decision.
 
 **Why:** if something breaks (for example the database refuses a save), today only the browser console knows.
 
