@@ -38,7 +38,8 @@ import {
   treeAgeYears,
   typicalMaxFruit,
 } from '../lib/guide';
-import { PLAN_TEMPLATE_BY_ID, formatShortDate } from '../lib/treatments';
+import { PLAN_TEMPLATE_BY_ID, formatShortDate, todayStr } from '../lib/treatments';
+import { saveHarvestCycle } from '../lib/insights';
 import type { DurianTree, TreeReport } from '../types';
 import { Link } from './Link';
 import { PlanEditorSheet } from './TreatmentSheets';
@@ -213,10 +214,16 @@ export const StageGroupCard: React.FC<{ group: StageGroup; maxActions?: number }
       </header>
       <ul className="space-y-1">
         {group.blocks.map((b) => (
-          <li key={b.block} className="text-xs text-slate-700 tabular">
+          <li key={b.block} className="text-xs text-slate-700 tabular space-y-1">
             <Link to={`/trees?block=${encodeURIComponent(b.block)}`} className="font-semibold text-slate-900 hover:text-emerald-700">
               {blockLine(b, t)}
             </Link>
+            {/* Waiting for flowers: one tap starts the new season for this block. */}
+            {group.stage === 'preflower' && (
+              <div>
+                <BloomQuickSet block={b.block} current={b.floweredOn} />
+              </div>
+            )}
           </li>
         ))}
       </ul>
@@ -241,15 +248,100 @@ export const StageGroupCard: React.FC<{ group: StageGroup; maxActions?: number }
   );
 };
 
+/**
+ * One tap to record that flowers opened in a block (the date every Guide stage counts from), right where the
+ * Guide asks for it. "Other date" for a past day; Undo restores the previous value.
+ */
+export const BloomQuickSet: React.FC<{ block: string; current?: string }> = ({ block, current }) => {
+  const { t } = useT();
+  const [picking, setPicking] = useState(false);
+  const [date, setDate] = useState(todayStr());
+  const [state, setState] = useState<{ kind: 'idle' | 'saving' | 'saved' | 'error'; msg?: string; prev?: string | null }>({ kind: 'idle' });
+
+  const save = async (value: string | null, prev: string | null) => {
+    setState({ kind: 'saving' });
+    try {
+      await saveHarvestCycle(block, value);
+      setPicking(false);
+      setState(value ? { kind: 'saved', prev } : { kind: 'idle' });
+    } catch (e: any) {
+      console.error('Saving bloom date failed:', e);
+      setState({ kind: 'error', msg: e?.code === 'permission-denied' ? t('sched.hv.rulesHint') : t('sched.hv.saveError') });
+    }
+  };
+
+  if (state.kind === 'saved') {
+    return (
+      <span role="status" className="inline-flex flex-wrap items-center gap-2 text-xs text-emerald-800">
+        <span>{t('guide.bloom.saved', { block })}</span>
+        <button type="button" onClick={() => save(state.prev ?? null, null)} className="font-semibold underline min-h-8">
+          {t('sched.undo')}
+        </button>
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex flex-wrap items-center gap-2">
+      {!picking ? (
+        <>
+          <button
+            type="button"
+            disabled={state.kind === 'saving'}
+            onClick={() => save(todayStr(), current ?? null)}
+            className={`${smallBtn} bg-emerald-600 border-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60`}
+          >
+            <Flower2 className="w-3.5 h-3.5" />
+            {t('guide.bloom.today', { block })}
+          </button>
+          <button type="button" onClick={() => setPicking(true)} className="text-xs font-semibold text-slate-600 hover:text-slate-900 underline min-h-8">
+            {t('guide.bloom.other')}
+          </button>
+        </>
+      ) : (
+        <>
+          <input
+            type="date"
+            value={date}
+            max={todayStr()}
+            onChange={(e) => setDate(e.target.value)}
+            aria-label={t('guide.bloom.dateLabel', { block })}
+            className="min-h-9 px-2 rounded-lg border border-slate-300 text-sm"
+          />
+          <button
+            type="button"
+            disabled={!date || date > todayStr() || state.kind === 'saving'}
+            onClick={() => save(date, current ?? null)}
+            className={`${smallBtn} bg-emerald-600 border-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60`}
+          >
+            {t('guide.bloom.save')}
+          </button>
+          <button type="button" onClick={() => setPicking(false)} className="text-xs text-slate-600 underline min-h-8">
+            {t('common.cancel')}
+          </button>
+        </>
+      )}
+      {state.kind === 'error' && <span role="alert" className="basis-full text-xs text-rose-700">{state.msg}</span>}
+    </span>
+  );
+};
+
 export const NoDateCard: React.FC<{ blocks: BlockSeason[] }> = ({ blocks }) => {
   const { t } = useT();
   return (
-    <article className="bg-white rounded-xl border border-dashed border-slate-300 p-4 space-y-2">
-      <h3 className="text-sm font-bold text-slate-900">{t('guide.season.noDate.title')}</h3>
-      <p className="text-xs text-slate-600">{blocks.map((b) => t('common.blockN', { n: b.block })).join(', ')}</p>
-      <p className="text-sm text-slate-700">{t('guide.season.noDate.body')}</p>
-      <Link to="/schedule?view=harvest" className={`${smallBtn} bg-emerald-600 border-emerald-600 text-white hover:bg-emerald-700`}>
-        {t('guide.act.setFlowering')}
+    <article className="bg-white rounded-xl border border-dashed border-slate-300 p-4 space-y-3">
+      <div>
+        <h3 className="text-sm font-bold text-slate-900">{t('guide.season.noDate.title')}</h3>
+        <p className="text-sm text-slate-700 mt-0.5">{t('guide.season.noDate.body')}</p>
+      </div>
+      <ul className="space-y-2">
+        {blocks.map((b) => (
+          <li key={b.block}>
+            <BloomQuickSet block={b.block} />
+          </li>
+        ))}
+      </ul>
+      <Link to="/schedule?view=harvest" className="inline-flex items-center gap-1 text-xs font-semibold text-slate-600 hover:text-slate-900">
+        {t('guide.bloom.allInSchedule')}
         <ArrowRight className="w-3.5 h-3.5" />
       </Link>
     </article>
@@ -310,21 +402,13 @@ export const DashboardSeasonCard: React.FC = () => {
           </Link>
         </div>
       </div>
-      {groups.length === 0 ? (
-        <div className="p-4 flex flex-wrap items-center justify-between gap-3">
-          <p className="text-sm text-slate-700">{t('guide.dash.setDates')}</p>
-          <Link to="/schedule?view=harvest" className={`${smallBtn} bg-emerald-600 border-emerald-600 text-white hover:bg-emerald-700`}>
-            {t('guide.act.setFlowering')}
-          </Link>
-        </div>
-      ) : (
-        <div className="p-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {groups.slice(0, 3).map((g) => (
-            <StageGroupCard key={g.stage} group={g} maxActions={2} />
-          ))}
-          {groups.length < 3 && noDate.length > 0 && <NoDateCard blocks={noDate} />}
-        </div>
-      )}
+      <div className="p-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        {/* Blocks without a bloom date come first: one tap there unlocks everything else. */}
+        {noDate.length > 0 && <NoDateCard blocks={noDate} />}
+        {groups.slice(0, noDate.length > 0 ? 2 : 3).map((g) => (
+          <StageGroupCard key={g.stage} group={g} maxActions={2} />
+        ))}
+      </div>
     </section>
   );
 };
@@ -381,8 +465,10 @@ export const TreeGuideSection: React.FC<{ tree: DurianTree; reports: TreeReport[
         </div>
       ) : (
         <p className="text-sm text-slate-600">
-          {t('guide.tree.noStage', { block: tree.block })}{' '}
-          <Link to="/schedule?view=harvest" className="font-semibold text-emerald-700">{t('guide.act.setFlowering')} →</Link>
+          {t('guide.tree.noStage', { block: tree.block })}
+          <span className="block mt-1.5">
+            <BloomQuickSet block={tree.block} />
+          </span>
         </p>
       )}
 

@@ -57,9 +57,9 @@ changes Claude can do.
 |---|---|---|---|---|
 | A1 | Turn on backups · **skipped for now** | ★★★★★ | S | You |
 | A2 | Check which database is live · **done** | ★★★★★ | S | You (+ Claude, 1 line) |
-| A3 | Check the bot's timestamps | ★★★★★ | S | You |
+| A3 | Check the bot's timestamps · **done, passes** | ★★★★★ | S | You |
 | A4 | Stop losing unsaved tree edits · **done** | ★★★★★ | S | Claude |
-| A5 | Record bloom dates every season | ★★★★★ | Habit | Team |
+| A5 | Record bloom dates every season · **made one tap** | ★★★★★ | Habit | Team |
 | A6 | Simple harvest log | ★★★★★ | M | Claude + Team habit |
 | A7 | Weekly 10-minute farm check | ★★★★ | Habit | Team |
 | A8 | Make planting date editable · **done** | ★★★★ | S | Claude |
@@ -117,7 +117,9 @@ If the WhatsApp bot writes to one and the app reads the other, reports silently 
 
 ---
 
-### A3 Check the bot's timestamps · ★★★★★ · S · You
+### A3 Check the bot's timestamps · ★★★★★ · S · You · done
+
+> **Done, passes.** `reports.createdAt` is stored as a timestamp (checked 4 Oct 2026). The live database had only `reports`, `trees` and `variants` then: no bloom dates, routines or work logs saved yet. If saving those fails, publish the current `firestore.rules`.
 
 **Why:** the app's "new reports" badge and the Activity view look for reports by date. They only find a report
 if its `createdAt` is stored as a Firestore **timestamp**. If the bot stores it as text, those reports are
@@ -152,9 +154,10 @@ new report") with the option to reload.
 **Why:** every season stage, "do now" action and harvest date in the Guide is counted from the day flowers open
 in each block. Without it, the Guide can only give general advice.
 
-**Routine (2 minutes per block, once per season):**
-1. When most flowers in a block open, open the app → **Schedule** → **Harvest**.
-2. Pick the date for that block. That's all.
+**Routine (a few seconds per block, once per season):** when most flowers in a block open, tap
+**"Block X: flowers opened today"** on the Dashboard's *This season* card, the Guide, or any tree page in that
+block. Use **other date** if you forgot for a few days; **Undo** fixes a wrong tap. (All dates can still be
+edited in **Schedule → Harvest**.)
 
 **Done when:** the Guide's farm check shows "Every block has a bloom date".
 
