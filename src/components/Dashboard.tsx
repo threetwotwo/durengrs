@@ -378,16 +378,23 @@ export const Dashboard: React.FC = () => {
                       </td>
                       <td className="py-2.5 px-3">
                         {s?.floweredOn ? (
-                          <Link to="/guide" className="inline-flex items-center gap-1.5">
-                            <StagePill stage={s.stage} />
-                            {s.stage !== 'preflower' && s.day !== undefined && <span className="text-slate-500 tabular">{t('guide.season.day', { n: s.day })}</span>}
+                          <Link to="/guide" className="inline-flex flex-wrap items-center gap-1.5">
+                            {/* Every stage the block's trees are in: trees and branches can flower apart. */}
+                            {(s.stages.length ? s.stages : [s.stage]).map((st) => (
+                              <StagePill key={st} stage={st} />
+                            ))}
+                            {s.stages.some((st) => st !== 'preflower') && s.dayMax !== undefined && s.dayMin !== undefined && (
+                              <span className="text-slate-500 tabular">
+                                {s.dayMax === s.dayMin ? t('guide.season.day', { n: s.dayMax }) : t('guide.season.days', { a: s.dayMin, b: s.dayMax })}
+                              </span>
+                            )}
                           </Link>
                         ) : (
                           <Link to="/guide" className="text-amber-800 font-semibold hover:underline">{t('dash.col.noBloom')}</Link>
                         )}
                       </td>
                       <td className="py-2.5 px-3 tabular text-slate-700">
-                        {s?.harvestFrom && s.harvestTo && s.stage !== 'preflower' && s.stage !== 'recovery'
+                        {s?.harvestFrom && s.harvestTo && s.stages.some((st) => st !== 'preflower' && st !== 'recovery')
                           ? s.harvestFrom === s.harvestTo
                             ? formatShortDate(s.harvestFrom)
                             : `${formatShortDate(s.harvestFrom)} - ${formatShortDate(s.harvestTo)}`

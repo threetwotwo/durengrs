@@ -39,7 +39,7 @@ export function waitingLabel(f: FollowUp): string {
 
 // ---------- harvest outlook ----------
 
-/** One flowering date per block. Expected harvest = flowering date + the variant's ripening days. */
+/** The block's bloom date. Expected harvest = flowering date + the variant's ripening days. Trees can flower apart (bloomWaves). */
 export interface HarvestCycle {
   block: string;
   floweredOn: string; // YYYY-MM-DD
@@ -57,10 +57,16 @@ export interface HarvestRow {
   daysToHarvest?: number;
 }
 
+/**
+ * Expected harvest per block, variety and flowering date. `wavesOf` gives a tree's flowering dates this season
+ * (the block date by default); a tree that flowered in waves is counted in each, with its fruit estimate split
+ * evenly between them.
+ */
 export function buildHarvestRows(
   trees: DurianTree[],
   variants: DurianVariant[],
   cycles: HarvestCycle[],
+  wavesOf?: (tree: DurianTree) => string[],
   today = todayStr()
 ): HarvestRow[] {
   const cycleByBlock = new Map(cycles.map((c) => [c.block, c.floweredOn]));
@@ -69,28 +75,34 @@ export function buildHarvestRows(
 
   for (const t of trees) {
     if (!t.block || !t.variant) continue;
-    const key = `${t.block}|${t.variant}`;
-    let row = rows.get(key);
-    if (!row) {
-      const v = variantByCode.get(t.variant);
-      const ripening = v?.ripeningDays ? Number(v.ripeningDays) : undefined;
-      const floweredOn = cycleByBlock.get(t.block);
-      const harvestDate = floweredOn && ripening ? addDays(floweredOn, ripening) : undefined;
-      row = {
-        block: t.block,
-        variant: t.variant,
-        variantName: v?.name || t.variant,
-        trees: 0,
-        fruits: 0,
-        floweredOn,
-        ripeningDays: ripening,
-        harvestDate,
-        daysToHarvest: harvestDate ? diffDays(harvestDate, today) : undefined,
-      };
-      rows.set(key, row);
-    }
-    row.trees++;
-    row.fruits += t.estimatedFruitCount || 0;
+    const blockDate = cycleByBlock.get(t.block);
+    const dates: Array<string | undefined> = wavesOf ? wavesOf(t) : [blockDate];
+    const list = dates.length ? dates : [undefined];
+    const v = variantByCode.get(t.variant);
+    const ripening = v?.ripeningDays ? Number(v.ripeningDays) : undefined;
+    list.forEach((floweredOn, i) => {
+      const key = `${t.block}|${t.variant}|${floweredOn || ''}`;
+      let row = rows.get(key);
+      if (!row) {
+        const harvestDate = floweredOn && ripening ? addDays(floweredOn, ripening) : undefined;
+        row = {
+          block: t.block,
+          variant: t.variant,
+          variantName: v?.name || t.variant,
+          trees: 0,
+          fruits: 0,
+          floweredOn,
+          ripeningDays: ripening,
+          harvestDate,
+          daysToHarvest: harvestDate ? diffDays(harvestDate, today) : undefined,
+        };
+        rows.set(key, row);
+      }
+      row.trees++;
+      // Split so the total is unchanged; the remainder goes to the first wave.
+      const n = t.estimatedFruitCount || 0;
+      row.fruits += Math.floor(n / list.length) + (i === 0 ? n % list.length : 0);
+    });
   }
   return Array.from(rows.values()).sort(
     (a, b) =>

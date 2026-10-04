@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Check, CloudRain, FlaskConical, Plus, Sun, Trash2, Wheat } from 'lucide-react';
 import { useFarm } from '../context/FarmContext';
 import { useT } from '../i18n';
+import { useSeasons } from './useSeasons';
 import { Sheet, fieldInput, fieldLabel } from './Sheet';
 import { Link } from './Link';
 import {
@@ -24,12 +25,13 @@ import {
   SEASON_TASKS,
   actualRipening,
   blockTasks,
+  type BlockTask,
   harvestQuality,
   labLevel,
   latestLabByBlock,
   rainSummary,
 } from '../lib/fieldInsights';
-import { BlockSeason, pick } from '../lib/guide';
+import { BlockSeason, pick, waveWho } from '../lib/guide';
 import { diffDays, formatShortDate, todayStr } from '../lib/treatments';
 
 /**
@@ -52,17 +54,23 @@ export const SeasonTaskChips: React.FC<{ task: SeasonTaskId; seasons: BlockSeaso
   const { seasonTasksDone } = useFarm();
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const rows = seasons
-    .map((s) => ({ s, bt: blockTasks(s, seasonTasksDone).find((x) => x.task === task) }))
-    .filter((r) => r.bt && r.bt.status !== 'upcoming' && r.bt.status !== 'missed');
+  // One chip per block, or per flowering wave when trees or branches flowered apart.
+  const rows = seasons.flatMap((s) =>
+    blockTasks(s, seasonTasksDone)
+      .filter((bt) => bt.task === task && bt.status !== 'upcoming' && bt.status !== 'missed')
+      .map((bt) => {
+        const who = waveWho(bt.wave, s, t);
+        return { s, bt, key: `${s.block}|${bt.wave.date}`, label: who ? `${s.block} · ${who}` : s.block };
+      })
+  );
   if (rows.length === 0) return null;
 
-  const toggle = async (s: BlockSeason, done: boolean) => {
-    setBusy(s.block);
+  const toggle = async (s: BlockSeason, bt: BlockTask, key: string) => {
+    setBusy(key);
     setError(null);
     try {
-      if (done) await unmarkSeasonTask(s.block, s.floweredOn!, task);
-      else await markSeasonTask(s.block, s.floweredOn!, task, todayStr());
+      if (bt.status === 'done') await unmarkSeasonTask(s.block, bt.wave.date, task);
+      else await markSeasonTask(s.block, bt.wave.date, task, todayStr());
     } catch (e) {
       console.error('Season task save failed:', e);
       setError(errorText(e, t));
@@ -73,15 +81,15 @@ export const SeasonTaskChips: React.FC<{ task: SeasonTaskId; seasons: BlockSeaso
 
   return (
     <span className="flex flex-wrap gap-1.5 mt-1.5">
-      {rows.map(({ s, bt }) => {
-        const done = bt!.status === 'done';
-        const late = bt!.status === 'late';
+      {rows.map(({ s, bt, key, label }) => {
+        const done = bt.status === 'done';
+        const late = bt.status === 'late';
         return (
           <button
-            key={s.block}
+            key={key}
             type="button"
-            disabled={busy === s.block}
-            onClick={() => toggle(s, done)}
+            disabled={busy === key}
+            onClick={() => toggle(s, bt, key)}
             aria-pressed={done}
             title={done ? t('rec.task.undo') : t('rec.task.mark')}
             className={`${chip} ${
@@ -94,10 +102,10 @@ export const SeasonTaskChips: React.FC<{ task: SeasonTaskId; seasons: BlockSeaso
           >
             {done && <Check className="w-3.5 h-3.5" />}
             {done
-              ? t('rec.task.done', { block: s.block, date: formatShortDate(bt!.doneDate!) })
+              ? t('rec.task.done', { block: label, date: formatShortDate(bt.doneDate!) })
               : late
-              ? t('rec.task.late', { block: s.block })
-              : t('rec.task.todo', { block: s.block })}
+              ? t('rec.task.late', { block: label })
+              : t('rec.task.todo', { block: label })}
           </button>
         );
       })}
@@ -327,7 +335,16 @@ const HarvestSheet: React.FC<{
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const chosenVariant = blockVariants.includes(variant) ? variant : blockVariants[0] || '';
-  const floweredOn = cycles.find((c) => c.block === block)?.floweredOn;
+  // Which flowers this fruit came from. Trees or branches can flower apart, so a block can have several dates:
+  // default to the one whose expected harvest is nearest the harvest day.
+  const seasons = useSeasons();
+  const season = seasons.find((x) => x.block === block);
+  const [waveChoice, setWaveChoice] = useState('');
+  const waveDates = (season?.waves || []).map((w) => w.date).filter((d) => d <= date);
+  const ripening = Number(variants.find((v) => v.code === chosenVariant)?.ripeningDays) || season?.ripeMin || 120;
+  const nearest = [...waveDates].sort((a, b) => Math.abs(diffDays(date, a) - ripening) - Math.abs(diffDays(date, b) - ripening))[0];
+  const blockDate = cycles.find((c) => c.block === block)?.floweredOn;
+  const floweredOn = waveDates.includes(waveChoice) ? waveChoice : nearest ?? blockDate;
 
   const save = async () => {
     const n = Number(fruits);
@@ -397,6 +414,21 @@ const HarvestSheet: React.FC<{
             {blockVariants.map((v) => (
               <option key={v} value={v}>{v} · {variants.find((x) => x.code === v)?.name || v}</option>
             ))}
+          </select>
+        </div>
+      )}
+      {season && waveDates.length > 1 && (
+        <div>
+          <label htmlFor="hv-wave" className={fieldLabel}>{t('rec.hv.wave')}</label>
+          <select id="hv-wave" value={floweredOn} onChange={(e) => setWaveChoice(e.target.value)} className={fieldInput}>
+            {season.waves
+              .filter((w) => w.date <= date)
+              .map((w) => (
+                <option key={w.date} value={w.date}>
+                  {formatShortDate(w.date)}
+                  {waveWho(w, season, t) ? ` · ${waveWho(w, season, t)}` : ''}
+                </option>
+              ))}
           </select>
         </div>
       )}

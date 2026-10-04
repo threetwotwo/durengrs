@@ -14,7 +14,7 @@ import {
 } from '../lib/firebase';
 import { HarvestCycle } from '../lib/insights';
 import { TreatmentPlan, Treatment, ScheduleTask, computeTasks, rebuildLastDone, addDays, todayStr } from '../lib/treatments';
-import type { Harvest, LabResult, RainDay, SeasonTaskDone } from '../lib/fieldData';
+import type { Harvest, LabResult, RainDay, SeasonTaskDone, TreeBloom } from '../lib/fieldData';
 
 import { AppTab, useRoute } from '../lib/router';
 export type { AppTab };
@@ -44,6 +44,8 @@ interface FarmContextType {
   /** Farm records for the Guide (see lib/fieldData.ts). */
   harvests: Harvest[];
   seasonTasksDone: SeasonTaskDone[];
+  /** Trees (or branches) that flowered apart from their block's bloom date. */
+  treeBlooms: TreeBloom[];
   rain: RainDay[];
   labResults: LabResult[];
   /** YYYY-MM-DD of the last weekly farm check, if any. */
@@ -145,6 +147,7 @@ export const FarmProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [rain, setRain] = useState<RainDay[]>([]);
   const [labResults, setLabResults] = useState<LabResult[]>([]);
   const [weeklyReviewDate, setWeeklyReviewDate] = useState<string | null>(null);
+  const [treeBlooms, setTreeBlooms] = useState<TreeBloom[]>([]);
   const [recordsError, setRecordsError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -179,6 +182,11 @@ export const FarmProvider: React.FC<{ children: React.ReactNode }> = ({ children
         query(collection(db, 'labResults'), orderBy('date', 'desc'), limit(300)),
         (s) => setLabResults(s.docs.map((d) => ({ id: d.id, ...(d.data() as any) }) as LabResult)),
         onErr('Lab results')
+      ),
+      onSnapshot(
+        query(collection(db, 'bloomWaves'), where('date', '>=', seasonsSince)),
+        (s) => setTreeBlooms(s.docs.map((d) => ({ id: d.id, ...(d.data() as any) }) as TreeBloom)),
+        onErr('Tree bloom')
       ),
       onSnapshot(
         doc(db, 'farmMeta', 'weeklyReview'),
@@ -400,6 +408,7 @@ export const FarmProvider: React.FC<{ children: React.ReactNode }> = ({ children
         deleteVariant,
         harvests,
         seasonTasksDone,
+        treeBlooms,
         rain,
         labResults,
         weeklyReviewDate,

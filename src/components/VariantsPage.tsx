@@ -3,6 +3,7 @@ import { useFarm } from '../context/FarmContext';
 import { DurianVariant } from '../types';
 import { PageHeader, btnPrimary, inputCls } from './PageHeader';
 import { Link } from './Link';
+import { useSeasons } from './useSeasons';
 import { treesUrl, useQueryParams } from '../lib/router';
 import { useT } from '../i18n';
 import { pick, ripeningRefFor } from '../lib/guide';
@@ -37,7 +38,9 @@ const fieldCls =
   'w-full text-sm p-2.5 border rounded-md focus:ring-2 focus:ring-emerald-500 aria-[invalid=true]:border-rose-500 aria-[invalid=true]:bg-rose-50/40';
 
 export const VariantsPage: React.FC = () => {
-  const { variants, trees, harvestCycles, saveVariant, deleteVariant, harvests: harvestLog } = useFarm();
+  const { variants, trees, saveVariant, deleteVariant, harvests: harvestLog } = useFarm();
+  const seasons = useSeasons();
+  const variantOfTree = useMemo(() => new Map(trees.map((x) => [x.id, x.variant])), [trees]);
   // Real bloom-to-harvest days from the harvest log (A10: keep ripening days up to date).
   const realRipening = useMemo(() => actualRipening(harvestLog), [harvestLog]);
   const [updating, setUpdating] = useState<string | null>(null);
@@ -314,11 +317,16 @@ export const VariantsPage: React.FC = () => {
           const days = Number(variant.ripeningDays) > 0 ? Number(variant.ripeningDays) : null;
 
           // Expected harvest per block that grows this variety and has a bloom date (recent or upcoming only).
+          // Trees of one block can flower apart, so each block gives a date range (first to last flowering of this variety).
           const harvests = days
-            ? harvestCycles
-                .filter((c) => variantsByBlock.get(c.block)?.has(variant.code))
-                .map((c) => ({ block: c.block, date: addDays(c.floweredOn, days) }))
-                .filter((h) => diffDays(h.date, today) >= -14)
+            ? seasons
+                .map((sea) => {
+                  const ds = sea.waves
+                    .filter((w) => w.trees.some((id) => variantOfTree.get(id) === variant.code))
+                    .map((w) => addDays(w.date, days));
+                  return ds.length ? { block: sea.block, date: ds[0], to: ds[ds.length - 1] } : null;
+                })
+                .filter((h): h is { block: string; date: string; to: string } => !!h && diffDays(h.to, today) >= -14)
                 .sort((a, b) => a.date.localeCompare(b.date))
             : [];
           // Blocks where this is the only variety: no pollinator variety nearby.
@@ -461,7 +469,7 @@ export const VariantsPage: React.FC = () => {
                         {t('var.g.harvest')}:{' '}
                         {harvests
                           .slice(0, 3)
-                          .map((h) => t('var.g.harvestRow', { block: h.block, date: formatShortDate(h.date) }))
+                          .map((h) => t('var.g.harvestRow', { block: h.block, date: h.to === h.date ? formatShortDate(h.date) : `${formatShortDate(h.date)} - ${formatShortDate(h.to)}` }))
                           .join(', ')}
                       </span>
                     </Link>

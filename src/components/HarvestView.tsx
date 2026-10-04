@@ -7,22 +7,30 @@ import { useT } from '../i18n';
 import { Link } from './Link';
 import { inputCls } from './PageHeader';
 import { HarvestLog } from './FieldRecords';
-import { STAGES, blockSeasons, pick } from '../lib/guide';
+import { STAGES, pick, treeWaves, waveWho } from '../lib/guide';
+import { useSeasons } from './useSeasons';
 
 /** When will each block ripen, and roughly how much fruit to expect each month. */
 export const HarvestView: React.FC = () => {
   const { t, locale, lang } = useT();
-  const { trees, variants, harvestCycles, blocks, scheduleError } = useFarm();
+  const { trees, variants, harvestCycles, blocks, scheduleError, treeBlooms } = useFarm();
   const [saving, setSaving] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const rows = useMemo(() => buildHarvestRows(trees, variants, harvestCycles), [trees, variants, harvestCycles]);
+  const seasons = useSeasons();
+  const rows = useMemo(() => {
+    const cycleByBlock = new Map(harvestCycles.map((c) => [c.block, c.floweredOn]));
+    const ripeMaxByBlock = new Map(seasons.map((s) => [s.block, s.ripeMax]));
+    return buildHarvestRows(trees, variants, harvestCycles, (tree) =>
+      treeWaves(tree, cycleByBlock.get(tree.block), treeBlooms, (ripeMaxByBlock.get(tree.block) ?? 120) + 90).map((w) => w.date)
+    );
+  }, [trees, variants, harvestCycles, treeBlooms, seasons]);
   const months = useMemo(() => fruitsByMonth(rows), [rows, locale]);
   const maxFruits = Math.max(1, ...months.map((m) => m.fruits));
   const cycleByBlock = new Map(harvestCycles.map((c) => [c.block, c.floweredOn]));
   const seasonByBlock = useMemo(
-    () => new Map(blockSeasons(trees, variants, harvestCycles).map((s) => [s.block, s])),
-    [trees, variants, harvestCycles]
+    () => new Map(seasons.map((s) => [s.block, s])),
+    [seasons]
   );
   const missingRipening = Array.from(new Set(rows.filter((r) => !r.ripeningDays).map((r) => r.variantName)));
 
@@ -86,12 +94,25 @@ export const HarvestView: React.FC = () => {
                     </button>
                   )}
                 </div>
-                {season?.floweredOn && season.day !== undefined && !season.outdated && (
+                {value && season?.floweredOn === value && season.day !== undefined && !season.outdated && (
                   <Link to="/guide" className="block mt-1 text-xs text-emerald-700 hover:text-emerald-800">
                     {t('sched.hv.stage', { n: season.day, stage: pick(STAGES[season.stage].title, lang) })}
                   </Link>
                 )}
                 {season?.outdated && <p className="mt-1 text-xs text-amber-800">{t('sched.hv.old')}</p>}
+                {/* Trees or branches that flowered on their own date (recorded on the tree page). */}
+                {season?.waves
+                  .filter((w) => !w.fromBlock)
+                  .map((w) => (
+                    <p key={w.date} className="mt-1 text-xs text-slate-600">
+                      {t('sched.hv.wave', { date: formatShortDate(w.date), who: waveWho(w, season, t), stage: pick(STAGES[w.stage].title, lang) })}{' '}
+                      {w.trees.length === 1 && (
+                        <Link to={`/trees/${encodeURIComponent(w.trees[0])}`} className="font-semibold text-emerald-700 hover:underline">
+                          {t('sched.hv.openTree')}
+                        </Link>
+                      )}
+                    </p>
+                  ))}
               </div>
             );
           })}
@@ -144,7 +165,7 @@ export const HarvestView: React.FC = () => {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {rows.map((r) => (
-                <tr key={`${r.block}|${r.variant}`}>
+                <tr key={`${r.block}|${r.variant}|${r.floweredOn || ""}`}>
                   <td className="px-4 py-2.5 font-semibold text-slate-900">{t('common.blockN', { n: r.block })}</td>
                   <td className="px-3 py-2.5 text-slate-700">{r.variantName}</td>
                   <td className="px-3 py-2.5 text-right tabular">{r.trees}</td>

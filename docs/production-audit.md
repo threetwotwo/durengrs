@@ -106,6 +106,21 @@ Every stage, "do now" action, season task and harvest date is counted from the d
 **App (done):** one tap ("Block X: flowers opened today"), "other date" for a past day, and Undo. It's on the
 Dashboard, the Guide and tree pages, wherever a block has no date or is waiting for flowers.
 
+### A5b Trees and branches that flower apart · ★★★★★ · done (team: record exceptions)
+
+**Why:** trees in one block don't all flower on the same day, and one tree can have branches at different
+stages. Timing every tree from the block date would make thinning, bagging and harvest wrong for those trees.
+**App:** the block bloom date stays the default (one tap). On a tree page, **Did this tree flower on another
+date?** records an exception: **Whole tree** (its own date replaces the block date for that tree) or **Lower /
+Middle / Upper / Some branches** (an extra wave; the rest of the tree keeps the block date). The app then:
+- shows a block in **every stage** its trees are in (Guide, Dashboard), with which trees or branches;
+- gives each flowering wave its own season-task windows and **Done** chips (the main wave keeps existing records);
+- widens the harvest window from the first flowering to the last, splits each tree's fruit estimate across its
+  waves in the harvest forecast, and asks which flowers a logged harvest came from when there is more than one;
+- checks routines against every stage in the block (e.g. no insecticide while any branch is in bloom).
+
+**Team habit:** only record trees or branches that flower clearly apart (a week or more) from their block.
+
 ### A11 One-tap "done" for season tasks · ★★★★★ · M · Claude + Team · done
 
 **Why:** thinning, bagging, the calcium + magnesium spray and tying fruit stalks are done once per season, timed

@@ -9,7 +9,8 @@ import { LAB_RANGES, SEASON_TASKS, blockTasks, labLevel, latestLabByBlock, rainB
 /**
  * Guide engine: the research in guideContent.ts applied to this farm's live data.
  *
- *   blockSeasons()  where each block is in its fruiting cycle, from the flowering date in harvestCycles
+ *   blockSeasons()  where each block is in its fruiting cycle: the block's bloom date (harvestCycles) plus the
+ *                   trees or branches that flowered apart (bloomWaves), so one block can be in several stages
  *   STAGES          what the research says to do in each stage (shown on the Guide, Dashboard and tree pages)
  *   buildChecks()   gaps between best practice and what the farm records or schedules
  *   topicsForText() which guide topics a worker's note or report is about
@@ -212,17 +213,72 @@ export function stageOf(day: number, ripeMin: number, ripeMax: number): StageId 
   return 'preflower';
 }
 
+/** One recorded flowering on a tree (see fieldData bloomWaves). */
+export interface TreeBloom {
+  id: string;
+  treeId: string;
+  block: string;
+  date: string;
+  /** whole = the whole tree flowered then (replaces the block date for this tree); others = only those branches. */
+  part: BloomPart;
+  note?: string;
+}
+export type BloomPart = 'whole' | 'lower' | 'middle' | 'upper' | 'some';
+export const BLOOM_PARTS: BloomPart[] = ['whole', 'lower', 'middle', 'upper', 'some'];
+
+/** Flowers of one date in a block: which trees, how far along, and what stage. */
+export interface BloomWave {
+  date: string;
+  day: number;
+  stage: StageId;
+  /** Trees flowering on this date (all trees of the block for the block date, unless some have their own). */
+  trees: string[];
+  /** Only some branches of these trees (the rest of each tree follows another wave). */
+  partial: boolean;
+  /** Comes from the block's bloom date rather than a tree record. */
+  fromBlock: boolean;
+}
+
+/** The flowerings that count for one tree this season: its own records, plus the block date unless it flowered whole on another date. */
+export function treeWaves(
+  tree: Pick<DurianTree, 'id' | 'block'>,
+  blockDate: string | undefined,
+  blooms: TreeBloom[],
+  horizonDays: number,
+  today = todayStr()
+): Array<{ date: string; part: BloomPart; fromBlock: boolean; id?: string }> {
+  const own = blooms
+    .filter((b) => b.treeId === tree.id && b.date <= today && diffDays(today, b.date) <= horizonDays)
+    .map((b) => ({ date: b.date, part: b.part, fromBlock: false, id: b.id }));
+  const hasWhole = own.some((b) => b.part === 'whole');
+  const blockCurrent = blockDate && diffDays(today, blockDate) <= 365;
+  const all = !hasWhole && blockCurrent ? [{ date: blockDate!, part: 'whole' as BloomPart, fromBlock: true }, ...own] : own;
+  return all.sort((a, b) => a.date.localeCompare(b.date));
+}
+
 export interface BlockSeason {
   block: string;
   variants: string[];
+  /**
+   * The block's bloom date (or, when it has none, its first tree flowering). Identifies the season (season tasks
+   * are stored against it) and gives the main `day` and `stage`.
+   */
   floweredOn?: string;
-  /** Days since the recorded flowering date. */
+  /** Days since floweredOn. */
   day?: number;
   stage: StageId;
+  /** Every flowering in the block this season, oldest first. More than one when trees or branches flowered apart. */
+  waves: BloomWave[];
+  /** Distinct stages across the waves, in season order. */
+  stages: StageId[];
+  /** Days since the oldest and the youngest flowering. Equal to `day` when the block flowered together. */
+  dayMax?: number;
+  dayMin?: number;
   ripeMin: number;
   ripeMax: number;
   /** True when no variant in the block has ripening days, so DEFAULT_RIPENING_DAYS was used. */
   ripeningAssumed: boolean;
+  /** From the earliest flowering + the fastest variety to the latest flowering + the slowest. */
   harvestFrom?: string;
   harvestTo?: string;
   /** The last flowering date is more than a year old: a season was probably not recorded. */
@@ -233,41 +289,101 @@ export function blockSeasons(
   trees: DurianTree[],
   variants: DurianVariant[],
   cycles: HarvestCycle[],
+  blooms: TreeBloom[] = [],
   today = todayStr()
 ): BlockSeason[] {
   const variantByCode = new Map(variants.map((v) => [v.code, v]));
   const cycleByBlock = new Map(cycles.map((c) => [c.block, c.floweredOn]));
-  const byBlock = new Map<string, Set<string>>();
+  const byBlock = new Map<string, DurianTree[]>();
   for (const t of trees) {
     if (!t.block) continue;
-    const set = byBlock.get(t.block) || new Set<string>();
-    if (t.variant) set.add(t.variant);
-    byBlock.set(t.block, set);
+    const list = byBlock.get(t.block) || [];
+    list.push(t);
+    byBlock.set(t.block, list);
   }
+  const ripeningOf = (code?: string) => {
+    const n = Number(code ? variantByCode.get(code)?.ripeningDays : undefined);
+    return Number.isFinite(n) && n > 0 ? n : undefined;
+  };
 
   return Array.from(byBlock.entries())
     .sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }))
-    .map(([block, codes]) => {
-      const days = Array.from(codes)
-        .map((c) => Number(variantByCode.get(c)?.ripeningDays))
-        .filter((n) => Number.isFinite(n) && n > 0);
+    .map(([block, list]) => {
+      const codes = Array.from(new Set(list.map((t) => t.variant).filter(Boolean))).sort();
+      const days = codes.map(ripeningOf).filter((n): n is number => n !== undefined);
       const ripeningAssumed = days.length === 0;
       const ripeMin = ripeningAssumed ? DEFAULT_RIPENING_DAYS : Math.min(...days);
       const ripeMax = ripeningAssumed ? DEFAULT_RIPENING_DAYS : Math.max(...days);
-      const floweredOn = cycleByBlock.get(block);
-      const base = { block, variants: Array.from(codes).sort(), ripeMin, ripeMax, ripeningAssumed };
-      if (!floweredOn) return { ...base, stage: 'preflower' as StageId, outdated: false };
+      const base = { block, variants: codes, ripeMin, ripeMax, ripeningAssumed };
+      const blockDate = cycleByBlock.get(block);
+      // A tree record counts this season until the block's recovery stage would end.
+      const horizon = ripeMax + 90;
+
+      // Group every tree's flowerings by date.
+      const byDate = new Map<string, { trees: Set<string>; partial: boolean; fromBlock: boolean }>();
+      let harvestFrom: string | undefined;
+      let harvestTo: string | undefined;
+      for (const t of list) {
+        const ripe = ripeningOf(t.variant);
+        for (const w of treeWaves(t, blockDate, blooms, horizon, today)) {
+          const g = byDate.get(w.date) || { trees: new Set<string>(), partial: true, fromBlock: false };
+          g.trees.add(t.id);
+          if (w.part === 'whole') g.partial = false;
+          if (w.fromBlock) g.fromBlock = true;
+          byDate.set(w.date, g);
+          const from = addDays(w.date, ripe ?? ripeMin);
+          const to = addDays(w.date, ripe ?? ripeMax);
+          if (!harvestFrom || from < harvestFrom) harvestFrom = from;
+          if (!harvestTo || to > harvestTo) harvestTo = to;
+        }
+      }
+      // A block date with no trees following it (every tree flowered whole on its own date) still marks the season.
+      if (blockDate && !byDate.size && diffDays(today, blockDate) > 365) {
+        const day = diffDays(today, blockDate);
+        return { ...base, floweredOn: blockDate, day, dayMax: day, dayMin: day, stage: stageOf(day, ripeMin, ripeMax), waves: [], stages: [], outdated: true };
+      }
+      if (!byDate.size) return { ...base, stage: 'preflower' as StageId, waves: [], stages: [], outdated: false };
+
+      const waves: BloomWave[] = Array.from(byDate.entries())
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([date, g]) => {
+          const day = diffDays(today, date);
+          return { date, day, stage: stageOf(day, ripeMin, ripeMax), trees: Array.from(g.trees).sort(), partial: g.partial, fromBlock: g.fromBlock };
+        });
+      const floweredOn = blockDate && byDate.has(blockDate) ? blockDate : waves[0].date;
       const day = diffDays(today, floweredOn);
+      const stages = STAGE_ORDER.filter((st) => waves.some((w) => w.stage === st));
       return {
         ...base,
         floweredOn,
         day,
         stage: stageOf(day, ripeMin, ripeMax),
-        harvestFrom: addDays(floweredOn, ripeMin),
-        harvestTo: addDays(floweredOn, ripeMax),
-        outdated: day > 365,
+        waves,
+        stages,
+        dayMax: waves[0].day,
+        dayMin: waves[waves.length - 1].day,
+        harvestFrom,
+        harvestTo,
+        outdated: false,
       };
     });
+}
+
+/** Who flowered on a date, when it is not simply the whole block: "A3, A4 (some branches)" or "rest of block". */
+export function waveWho(w: BloomWave, s: BlockSeason, t: (k: string, v?: Record<string, string | number>) => string = translate): string {
+  if (s.waves.length <= 1 && w.fromBlock && !w.partial) return '';
+  const who = w.fromBlock ? t('guide.wave.block') : w.trees.length <= 3 ? w.trees.join(', ') : t('guide.wave.trees', { n: w.trees.length });
+  return w.partial ? `${who} (${t('guide.wave.branches')})` : who;
+}
+
+/** Stages of one tree's flowerings (tree page, report page). */
+export function treeStages(tree: DurianTree, season: BlockSeason | undefined, blooms: TreeBloom[], cycles: HarvestCycle[], today = todayStr()) {
+  if (!season) return [];
+  const blockDate = cycles.find((c) => c.block === tree.block)?.floweredOn;
+  return treeWaves(tree, blockDate, blooms, season.ripeMax + 90, today).map((w) => {
+    const day = diffDays(today, w.date);
+    return { ...w, day, stage: stageOf(day, season.ripeMin, season.ripeMax) };
+  });
 }
 
 export interface StageAction {
@@ -913,7 +1029,7 @@ export function buildChecks({
 
   // 10. Fruit counts in blocks that are past thinning (the harvest forecast needs them).
   const fruitStages: StageId[] = ['thin', 'grow', 'mature', 'harvest'];
-  const fruitBlocks = new Set(seasons.filter((s) => fruitStages.includes(s.stage) && !s.outdated).map((s) => s.block));
+  const fruitBlocks = new Set(seasons.filter((s) => s.stages.some((st) => fruitStages.includes(st)) && !s.outdated).map((s) => s.block));
   const noCount = trees.filter((x) => fruitBlocks.has(x.block) && x.estimatedFruitCount === undefined);
   if (noCount.length) {
     const blocks = Array.from(new Set(noCount.map((x) => x.block)));
@@ -985,7 +1101,10 @@ export function buildChecks({
   const late: string[] = [];
   for (const s of seasons) {
     for (const bt of blockTasks(s, seasonTasksDone)) {
-      if (bt.status === 'late') late.push(`${t('common.blockN', { n: s.block })}: ${pick(SEASON_TASKS[bt.task].title, getLang())}`);
+      if (bt.status === 'late') {
+        const who = waveWho(bt.wave, s);
+        late.push(`${t('common.blockN', { n: s.block })}${who ? ` (${who})` : ''}: ${pick(SEASON_TASKS[bt.task].title, getLang())}`);
+      }
     }
   }
   if (late.length) {
@@ -1002,7 +1121,7 @@ export function buildChecks({
   // 15. Harvest log: a block's harvest window has ended but nothing was logged for that season.
   const unlogged = seasons
     .filter((s) => s.floweredOn && !s.outdated && s.harvestTo && s.day !== undefined)
-    .filter((s) => diffDays(today, s.harvestTo!) > 7 && s.day! <= s.ripeMax + 120)
+    .filter((s) => diffDays(today, s.harvestTo!) > 7 && (s.dayMin ?? s.day!) <= s.ripeMax + 120)
     .filter((s) => !harvests.some((h) => h.block === s.block && h.date >= s.floweredOn!))
     .map((s) => s.block);
   if (unlogged.length) {
@@ -1041,8 +1160,12 @@ export function buildChecks({
 
   // 17. Heavy rain while fruit matures: 200 mm or more raises wet-core and uneven-ripening risk.
   const wet = seasons
-    .filter((s) => (s.stage === 'mature' || s.stage === 'harvest') && s.floweredOn && !s.outdated)
-    .map((s) => ({ block: s.block, mm: rainBetween(rain, addDays(s.floweredOn!, s.ripeMin - 30), today) }))
+    .filter((s) => (s.stages.includes('mature') || s.stages.includes('harvest')) && s.waves.length && !s.outdated)
+    .map((s) => {
+      // Rain since the oldest flowers that are now maturing or ripe started their last month.
+      const ripening = s.waves.filter((w) => w.stage === 'mature' || w.stage === 'harvest');
+      return { block: s.block, mm: rainBetween(rain, addDays(ripening[0].date, s.ripeMin - 30), today) };
+    })
     .filter((x) => x.mm >= 200);
   if (wet.length) {
     checks.push({
@@ -1098,7 +1221,8 @@ export function planGuidance(plan: TreatmentPlan, seasons: BlockSeason[], blocks
   const live = seasons.filter((s) => scope.includes(s.block) && s.floweredOn && !s.outdated && s.day !== undefined);
   if (!live.length) return [];
   const kinds = planKinds(plan);
-  const inStage = (...stages: StageId[]) => live.filter((s) => stages.includes(s.stage)).map((s) => s.block);
+  // A block counts in every stage any of its flowerings is in (trees and branches can flower apart).
+  const inStage = (...stages: StageId[]) => live.filter((s) => s.stages.some((st) => stages.includes(st))).map((s) => s.block);
   const out: PlanAdvice[] = [];
   const add = (level: PlanAdvice['level'], key: string, topic: TopicId, bs: string[], vars: Record<string, string | number> = {}) => {
     if (bs.length) out.push({ level, topic, blocks: bs, text: t(key, { blocks: listBlocks(bs), ...vars }) });

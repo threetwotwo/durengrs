@@ -22,6 +22,7 @@ import {
 import { useFarm } from '../context/FarmContext';
 import { useT } from '../i18n';
 import {
+  BloomWave,
   BlockSeason,
   CheckStatus,
   FarmCheck,
@@ -31,19 +32,24 @@ import {
   TOPICS,
   TOPIC_BY_ID,
   TopicId,
-  blockSeasons,
   buildChecks,
   pick,
   topicsForText,
   treeAgeYears,
+  treeStages,
+  waveWho,
+  BLOOM_PARTS,
+  BloomPart,
   typicalMaxFruit,
 } from '../lib/guide';
-import { PLAN_TEMPLATE_BY_ID, formatShortDate, todayStr } from '../lib/treatments';
+import { PLAN_TEMPLATE_BY_ID, addDays, formatShortDate, todayStr } from '../lib/treatments';
 import { saveHarvestCycle } from '../lib/insights';
 import { rainSummary } from '../lib/fieldInsights';
 import { SeasonTaskChips } from './FieldRecords';
+import { addTreeBloom, removeTreeBloom } from '../lib/fieldData';
 import type { DurianTree, TreeReport } from '../types';
 import { Link } from './Link';
+import { useSeasons } from './useSeasons';
 import { PlanEditorSheet } from './TreatmentSheets';
 
 export const TOPIC_ICON: Record<TopicId, React.ComponentType<{ className?: string }>> = {
@@ -68,7 +74,7 @@ export const topicUrl = (id: TopicId) => `/guide/${id}`;
 export function useGuideData() {
   const { trees, variants, harvestCycles, plans, scheduleTasks, harvests, seasonTasksDone, rain, labResults } = useFarm();
   const { lang } = useT();
-  const seasons = useMemo(() => blockSeasons(trees, variants, harvestCycles), [trees, variants, harvestCycles]);
+  const seasons = useSeasons();
   const checks = useMemo(
     () => buildChecks({ trees, variants, plans, scheduleTasks, seasons, harvests, seasonTasksDone, rain, labResults }),
     // lang: check titles are translated when built
@@ -91,14 +97,26 @@ export function useGuideData() {
 export interface StageGroup {
   stage: StageId;
   blocks: BlockSeason[];
+  /** Per block, its flowerings that are in this stage (a block can be in several stages at once). */
+  waves: Record<string, BloomWave[]>;
 }
 
-/** Blocks with a bloom date grouped by stage, in cycle order. Blocks without one are returned separately. */
+/** The flowerings of a block that are in a stage. A year-old bloom date with nothing current counts in its own stage. */
+export const wavesInStage = (s: BlockSeason, stage: StageId) =>
+  s.waves.length ? s.waves.filter((w) => w.stage === stage) : s.floweredOn && s.stage === stage ? [] : null;
+
+/**
+ * Blocks with a bloom date grouped by stage, in cycle order; a block whose trees or branches flowered apart is in
+ * every stage one of its flowerings is in. Blocks without a date are returned separately.
+ */
 export function groupByStage(seasons: BlockSeason[]): { groups: StageGroup[]; noDate: BlockSeason[] } {
-  const groups = STAGE_ORDER.map((stage) => ({
-    stage,
-    blocks: seasons.filter((s) => s.floweredOn && s.stage === stage),
-  })).filter((g) => g.blocks.length > 0);
+  const groups = STAGE_ORDER.map((stage) => {
+    const blocks = seasons.filter((s) => {
+      const w = wavesInStage(s, stage);
+      return w !== null && (w.length > 0 || !s.waves.length);
+    });
+    return { stage, blocks, waves: Object.fromEntries(blocks.map((b) => [b.block, wavesInStage(b, stage) || []])) };
+  }).filter((g) => g.blocks.length > 0);
   // The active part of the cycle first; blocks waiting for their next bloom last.
   groups.sort((a, b) => (a.stage === 'preflower' ? 1 : 0) - (b.stage === 'preflower' ? 1 : 0));
   return { groups, noDate: seasons.filter((s) => !s.floweredOn) };
@@ -185,19 +203,34 @@ export const StagePill: React.FC<{ stage: StageId; active?: boolean }> = ({ stag
   );
 };
 
-export function blockLine(s: BlockSeason, t: (k: string, v?: Record<string, string | number>) => string): string {
+/**
+ * "Block A · day 62 · harvest 01 Dec - 31 Dec". With `waves` (the block's flowerings in one stage) it describes only
+ * those: "Block A · day 20 · A3, A4 (some branches) · harvest ...".
+ */
+export function blockLine(s: BlockSeason, t: (k: string, v?: Record<string, string | number>) => string, waves?: BloomWave[]): string {
   const parts = [t('common.blockN', { n: s.block })];
-  if (s.stage === 'preflower' && s.floweredOn) {
-    parts.push(t('guide.season.lastBloom', { date: formatShortDate(s.floweredOn) }));
-  } else if (s.day !== undefined) {
-    parts.push(t('guide.season.day', { n: s.day }));
-    if (s.harvestFrom && s.harvestTo && s.stage !== 'recovery') {
-      parts.push(
-        s.harvestFrom === s.harvestTo
-          ? t('guide.season.harvest', { date: formatShortDate(s.harvestFrom) })
-          : t('guide.season.harvestRange', { from: formatShortDate(s.harvestFrom), to: formatShortDate(s.harvestTo) })
-      );
-    }
+  const ws = waves && waves.length ? waves : null;
+  const stage = ws ? ws[0].stage : s.stage;
+  if (stage === 'preflower' && s.floweredOn) {
+    parts.push(t('guide.season.lastBloom', { date: formatShortDate(ws ? ws[ws.length - 1].date : s.floweredOn) }));
+    return parts.join(' · ');
+  }
+  const dMax = ws ? ws[0].day : s.dayMax ?? s.day;
+  const dMin = ws ? ws[ws.length - 1].day : s.dayMin ?? s.day;
+  if (dMax === undefined || dMin === undefined) return parts.join(' · ');
+  parts.push(dMax === dMin ? t('guide.season.day', { n: dMax }) : t('guide.season.days', { a: dMin, b: dMax }));
+  if (ws) {
+    const who = ws.map((w) => waveWho(w, s, t)).filter(Boolean);
+    if (who.length) parts.push(who.join('; '));
+  } else if (s.waves.length > 1) {
+    parts.push(t('guide.wave.count', { n: s.waves.length }));
+  }
+  const from = ws ? addDays(ws[0].date, s.ripeMin) : s.harvestFrom;
+  const to = ws ? addDays(ws[ws.length - 1].date, s.ripeMax) : s.harvestTo;
+  if (from && to && stage !== 'recovery') {
+    parts.push(
+      from === to ? t('guide.season.harvest', { date: formatShortDate(from) }) : t('guide.season.harvestRange', { from: formatShortDate(from), to: formatShortDate(to) })
+    );
   }
   return parts.join(' · ');
 }
@@ -222,7 +255,7 @@ export const StageGroupCard: React.FC<{ group: StageGroup; maxActions?: number }
         {group.blocks.map((b) => (
           <li key={b.block} className="text-xs text-slate-700 tabular space-y-1">
             <Link to={`/trees?block=${encodeURIComponent(b.block)}`} className="font-semibold text-slate-900 hover:text-emerald-700">
-              {blockLine(b, t)}
+              {blockLine(b, t, group.waves[b.block])}
             </Link>
             {/* Waiting for flowers: one tap starts the new season for this block. */}
             {group.stage === 'preflower' && (
@@ -366,7 +399,7 @@ export const CycleStrip: React.FC<{ seasons: BlockSeason[] }> = ({ seasons }) =>
   return (
     <ol className="flex flex-wrap gap-1.5" aria-label={t('guide.season.cycle')}>
       {STAGE_ORDER.map((stage, i) => {
-        const here = seasons.filter((s) => s.floweredOn && s.stage === stage).map((s) => s.block);
+        const here = seasons.filter((s) => (s.waves.length ? s.stages.includes(stage) : s.floweredOn && s.stage === stage)).map((s) => s.block);
         const on = here.length > 0;
         return (
           <li
@@ -430,6 +463,7 @@ export const DashboardSeasonCard: React.FC = () => {
 export const TreeGuideSection: React.FC<{ tree: DurianTree; reports: TreeReport[] }> = ({ tree, reports }) => {
   const { t, lang } = useT();
   const { seasons } = useGuideData();
+  const { treeBlooms, harvestCycles } = useFarm();
   const season = seasons.find((s) => s.block === tree.block);
   const topics = useMemo(
     () => topicsForText(tree.conditionNotes, ...reports.slice(0, 5).map((r) => r.description)),
@@ -441,7 +475,9 @@ export const TreeGuideSection: React.FC<{ tree: DurianTree; reports: TreeReport[
   const noSize = tree.trunkSize === undefined || tree.canopySize === undefined || tree.canopySize === '';
   if (!tree.block) return null;
 
-  const stageInfo = season?.floweredOn ? STAGES[season.stage] : null;
+  // This tree's own flowerings (or the block date it follows), each with its stage.
+  const tws = treeStages(tree, season, treeBlooms, harvestCycles);
+  const stagesHere = STAGE_ORDER.filter((st) => tws.some((w) => w.stage === st));
 
   return (
     <section className="bg-white rounded-xl border border-slate-200 shadow-xs p-4 space-y-3" aria-labelledby="tg-h">
@@ -455,26 +491,50 @@ export const TreeGuideSection: React.FC<{ tree: DurianTree; reports: TreeReport[
         </Link>
       </div>
 
-      {stageInfo && season ? (
-        <div className="space-y-1.5">
-          <p className="text-sm font-semibold text-slate-900">
-            {t('guide.tree.stage', { block: tree.block, stage: pick(stageInfo.title, lang) })}{' '}
-            <span className="text-xs font-normal text-slate-600 tabular">· {blockLine(season, t).split(' · ').slice(1).join(' · ')}</span>
-          </p>
-          <ul className="space-y-1">
-            {[...stageInfo.actions].sort((a, b) => (a.task ? 0 : 1) - (b.task ? 0 : 1)).slice(0, 2).map((a, i) => (
-              <li key={i} className="flex items-start gap-2 text-sm text-slate-700">
-                <span className="mt-2 w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" aria-hidden="true" />
-                <span>
-                  {pick(a.text, lang)}{' '}
-                  <Link to={topicUrl(a.topic)} className="text-xs font-semibold text-emerald-700 whitespace-nowrap">
-                    {pick(TOPIC_BY_ID.get(a.topic)!.title, lang)} →
-                  </Link>
-                  {a.task && <SeasonTaskChips task={a.task} seasons={[season]} />}
+      {tws.length > 0 && season ? (
+        <div className="space-y-3">
+          <ul className="space-y-1.5" aria-label={t('guide.tree.blooms')}>
+            {tws.map((w) => (
+              <li key={(w.id || 'block') + w.date} className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+                <StagePill stage={w.stage} />
+                <span className="text-slate-800 tabular">
+                  {formatShortDate(w.date)} · {t('guide.season.day', { n: w.day })}
                 </span>
+                <span className="text-xs text-slate-600">
+                  {w.fromBlock ? t('guide.tree.fromBlock', { block: tree.block }) : t(`guide.part.${w.part}`)}
+                </span>
+                {w.id && (
+                  <button
+                    type="button"
+                    onClick={() => window.confirm(t('guide.tree.removeBloom', { date: formatShortDate(w.date) })) && removeTreeBloom(w.id!)}
+                    className="text-xs font-semibold text-slate-500 hover:text-rose-700 underline min-h-8"
+                  >
+                    {t('guide.tree.remove')}
+                  </button>
+                )}
               </li>
             ))}
           </ul>
+          {tws.length > 1 && <p className="text-xs text-slate-600">{t('guide.tree.mixed')}</p>}
+          {stagesHere.map((st) => (
+            <div key={st} className="space-y-1">
+              {stagesHere.length > 1 && <p className="text-xs font-bold uppercase tracking-wide text-slate-500">{pick(STAGES[st].title, lang)}</p>}
+              <ul className="space-y-1">
+                {[...STAGES[st].actions].sort((a, b) => (a.task ? 0 : 1) - (b.task ? 0 : 1)).slice(0, 2).map((a, i) => (
+                  <li key={i} className="flex items-start gap-2 text-sm text-slate-700">
+                    <span className="mt-2 w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" aria-hidden="true" />
+                    <span>
+                      {pick(a.text, lang)}{' '}
+                      <Link to={topicUrl(a.topic)} className="text-xs font-semibold text-emerald-700 whitespace-nowrap">
+                        {pick(TOPIC_BY_ID.get(a.topic)!.title, lang)} →
+                      </Link>
+                      {a.task && <SeasonTaskChips task={a.task} seasons={[season]} />}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
         </div>
       ) : (
         <p className="text-sm text-slate-600">
@@ -484,6 +544,7 @@ export const TreeGuideSection: React.FC<{ tree: DurianTree; reports: TreeReport[
           </span>
         </p>
       )}
+      <TreeBloomRecorder tree={tree} />
 
       {topics.length > 0 && (
         <div>
@@ -514,5 +575,91 @@ export const TreeGuideSection: React.FC<{ tree: DurianTree; reports: TreeReport[
       )}
       {noSize && <p className="text-xs text-slate-600">{t('guide.tree.missingSize')}</p>}
     </section>
+  );
+};
+
+/**
+ * Record that this tree flowered apart from its block: the whole tree (its own date replaces the block's for it) or
+ * only some branches (an extra wave; the rest of the tree keeps following the block).
+ */
+export const TreeBloomRecorder: React.FC<{ tree: DurianTree }> = ({ tree }) => {
+  const { t } = useT();
+  const [open, setOpen] = useState(false);
+  const [part, setPart] = useState<BloomPart>('some');
+  const [date, setDate] = useState(todayStr());
+  const [state, setState] = useState<{ kind: 'idle' | 'saving' | 'saved' | 'error'; id?: string; msg?: string }>({ kind: 'idle' });
+
+  const save = async () => {
+    if (!date || date > todayStr()) return setState({ kind: 'error', msg: t('sched.hv.future') });
+    setState({ kind: 'saving' });
+    try {
+      const id = await addTreeBloom({ treeId: tree.id, block: tree.block, date, part });
+      setOpen(false);
+      setState({ kind: 'saved', id });
+    } catch (e: any) {
+      console.error('Saving tree bloom failed:', e);
+      setState({ kind: 'error', msg: e?.code === 'permission-denied' ? t('err.rulesRecords') : t('sched.hv.saveError') });
+    }
+  };
+
+  if (!open) {
+    return (
+      <div className="pt-1 border-t border-slate-100 space-y-1">
+        {state.kind === 'saved' && (
+          <p role="status" className="text-xs text-emerald-800 flex flex-wrap items-center gap-2">
+            {t('guide.tree.bloomSaved')}
+            <button type="button" onClick={() => state.id && removeTreeBloom(state.id).then(() => setState({ kind: 'idle' }))} className="font-semibold underline min-h-8">
+              {t('sched.undo')}
+            </button>
+          </p>
+        )}
+        <button type="button" onClick={() => setOpen(true)} className={`${smallBtn} bg-white border-slate-300 text-slate-800 hover:bg-slate-50`}>
+          <Flower2 className="w-3.5 h-3.5 text-emerald-600" />
+          {t('guide.tree.addBloom')}
+        </button>
+      </div>
+    );
+  }
+  return (
+    <div className="pt-3 border-t border-slate-100 space-y-2.5">
+      <p className="text-sm font-semibold text-slate-900">{t('guide.tree.addBloomTitle', { id: tree.id })}</p>
+      <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label={t('guide.tree.part')}>
+        {BLOOM_PARTS.map((p) => (
+          <button
+            key={p}
+            type="button"
+            role="radio"
+            aria-checked={part === p}
+            onClick={() => setPart(p)}
+            className={`min-h-9 px-3 rounded-full border text-xs font-semibold ${part === p ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-white border-slate-300 text-slate-700'}`}
+          >
+            {t(`guide.part.${p}`)}
+          </button>
+        ))}
+      </div>
+      <p className="text-xs text-slate-600">{t(part === 'whole' ? 'guide.tree.partWholeHelp' : 'guide.tree.partSomeHelp', { block: tree.block })}</p>
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          type="date"
+          value={date}
+          max={todayStr()}
+          onChange={(e) => setDate(e.target.value)}
+          aria-label={t('guide.tree.bloomDate')}
+          className="min-h-9 px-2 rounded-lg border border-slate-300 text-sm"
+        />
+        <button
+          type="button"
+          onClick={save}
+          disabled={state.kind === 'saving'}
+          className={`${smallBtn} bg-emerald-600 border-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60`}
+        >
+          {t('guide.tree.saveBloom')}
+        </button>
+        <button type="button" onClick={() => setOpen(false)} className="text-xs font-semibold text-slate-600 underline min-h-8">
+          {t('common.cancel')}
+        </button>
+      </div>
+      {state.kind === 'error' && <p role="alert" className="text-xs text-rose-700">{state.msg}</p>}
+    </div>
   );
 };

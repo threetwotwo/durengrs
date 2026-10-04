@@ -60,6 +60,10 @@ service cloud.firestore {
     match /harvestCycles/{block} {
       allow read, write: if true;
     }
+    // Trees (or some of their branches) that flowered apart from their block's date
+    match /bloomWaves/{id} {
+      allow read, write: if true;
+    }
 
     // Connection test document
     match /test/{docId} {

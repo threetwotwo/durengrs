@@ -15,7 +15,7 @@ import {
 } from '../lib/treatments';
 import { useT } from '../i18n';
 import { useQueryParams } from '../lib/router';
-import { blockSeasons } from '../lib/guide';
+import { useSeasons } from './useSeasons';
 import { SEASON_TASKS } from '../lib/fieldInsights';
 import { SeasonTaskDone, unmarkSeasonTask } from '../lib/fieldData';
 import { taskTitle } from './FieldRecords';
@@ -39,8 +39,9 @@ const VIEWS: View[] = ['agenda', 'routines', 'harvest', 'history'];
 
 export const SchedulePage: React.FC = () => {
   const { t, lang } = useT();
-  const { plans, treatments, scheduleTasks, scheduleError, trees, variants, harvestCycles, seasonTasksDone } = useFarm();
-  const seasons = useMemo(() => blockSeasons(trees, variants, harvestCycles), [trees, variants, harvestCycles]);
+  const { plans, treatments, scheduleTasks, scheduleError, seasonTasksDone, harvestCycles } = useFarm();
+  const blockDateOf = useMemo(() => new Map(harvestCycles.map((c) => [c.block, c.floweredOn])), [harvestCycles]);
+  const seasons = useSeasons();
   // In the URL (?view=harvest) so other pages, like the Guide, can link straight to a tab.
   const [params, setParams] = useQueryParams();
   const view: View = VIEWS.includes(params.get('view') as View) ? (params.get('view') as View) : 'agenda';
@@ -214,7 +215,9 @@ export const SchedulePage: React.FC = () => {
                     <div className="min-w-0 flex-1">
                       <h3 className="text-sm font-semibold text-slate-900">{taskTitle(st.task, lang)}</h3>
                       <p className="text-xs text-slate-600">
-                        {formatShortDate(st.date)} · {t('common.blockN', { n: st.block })} ·{' '}
+                        {formatShortDate(st.date)} · {t('common.blockN', { n: st.block })}
+                        {/* Done for a later flowering wave (trees or branches that flowered apart). */}
+                        {blockDateOf.get(st.block) !== st.season ? ` (${t('sched.hist.wave', { date: formatShortDate(st.season) })})` : ''} ·{' '}
                         <Link to={`/guide/${SEASON_TASKS[st.task].topic}`} className="font-semibold text-emerald-700 hover:text-emerald-800">
                           {t('sched.hist.seasonTask')}
                         </Link>

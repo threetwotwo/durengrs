@@ -15,7 +15,8 @@ import {
   typeLabel,
 } from '../lib/treatments';
 import { useT } from '../i18n';
-import { blockSeasons, planGuidance } from '../lib/guide';
+import { planGuidance } from '../lib/guide';
+import { useSeasons } from './useSeasons';
 import { PlanAdviceList } from './TaskRow';
 
 const MONTH_NUMS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
@@ -69,7 +70,7 @@ export const MarkDoneSheet: React.FC<{
   onSaved: (id: string, message: string) => void;
 }> = ({ task, onClose, onSaved }) => {
   const { t, lang } = useT();
-  const { trees, variants, harvestCycles } = useFarm();
+  const seasons = useSeasons();
   const { plan } = task;
   const [date, setDate] = useState(todayStr());
   const [selected, setSelected] = useState<string[]>(
@@ -77,8 +78,8 @@ export const MarkDoneSheet: React.FC<{
   );
   // The Guide's view of this routine for the blocks being marked, so a stage conflict is seen before the work is logged.
   const advice = useMemo(
-    () => planGuidance(plan, blockSeasons(trees, variants, harvestCycles), selected).filter((a) => a.level === 'warn'),
-    [plan, trees, variants, harvestCycles, selected, lang]
+    () => planGuidance(plan, seasons, selected).filter((a) => a.level === 'warn'),
+    [plan, seasons, selected, lang]
   );
   const [product, setProduct] = useState(plan.product || '');
   const [dose, setDose] = useState(plan.dose || '');

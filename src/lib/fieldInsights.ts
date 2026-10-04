@@ -1,4 +1,4 @@
-import type { BlockSeason, L, TopicId } from './guide';
+import type { BlockSeason, BloomWave, L, TopicId } from './guide';
 import type { Harvest, HarvestProblem, LabKey, LabResult, RainDay, SeasonTaskDone, SeasonTaskId } from './fieldData';
 import { addDays, diffDays, todayStr } from './treatments';
 
@@ -45,30 +45,38 @@ export interface BlockTask {
   status: TaskStatus;
   doneDate?: string;
   window: [number, number];
+  /** The flowering this applies to; its date is the season key the Done record is stored under. */
+  wave: BloomWave;
 }
 
-/** Status of every season task for one block's current season (empty when there is no current season). */
+/**
+ * Status of every season task for each flowering in a block's current season (empty when there is none).
+ * Trees or branches that flowered apart are a separate wave with their own windows and their own Done records,
+ * stored against the wave's date (the main wave uses the block's bloom date, as before).
+ */
 export function blockTasks(season: BlockSeason, done: SeasonTaskDone[]): BlockTask[] {
-  if (!season.floweredOn || season.day === undefined || season.outdated) return [];
-  // After the harvest window the season is over; its tasks no longer count as late.
-  if (season.day > season.ripeMax + 14) return [];
-  const mine = done.filter((d) => d.block === season.block && d.season === season.floweredOn);
-  return SEASON_TASK_ORDER.map((task) => {
-    const window = taskWindow(task, season.ripeMin);
-    const rec = mine.find((d) => d.task === task);
-    const day = season.day!;
-    const past = day > window[1];
-    const status: TaskStatus = rec
-      ? 'done'
-      : past
-      ? SEASON_TASKS[task].optional || day > window[1] + LATE_GRACE_DAYS
-        ? 'missed'
-        : 'late'
-      : day >= window[0]
-      ? 'due'
-      : 'upcoming';
-    return { task, status, doneDate: rec?.date, window };
-  });
+  if (!season.floweredOn || season.outdated) return [];
+  const out: BlockTask[] = [];
+  for (const wave of season.waves) {
+    // After its harvest window a wave's season is over; its tasks no longer count as late.
+    if (wave.day > season.ripeMax + 14) continue;
+    const mine = done.filter((d) => d.block === season.block && d.season === wave.date);
+    for (const task of SEASON_TASK_ORDER) {
+      const window = taskWindow(task, season.ripeMin);
+      const rec = mine.find((d) => d.task === task);
+      const status: TaskStatus = rec
+        ? 'done'
+        : wave.day > window[1]
+        ? SEASON_TASKS[task].optional || wave.day > window[1] + LATE_GRACE_DAYS
+          ? 'missed'
+          : 'late'
+        : wave.day >= window[0]
+        ? 'due'
+        : 'upcoming';
+      out.push({ task, status, doneDate: rec?.date, window, wave });
+    }
+  }
+  return out;
 }
 
 // ---------- rain (A15) ----------

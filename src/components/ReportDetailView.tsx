@@ -6,7 +6,8 @@ import { normalizeTimestamp, useFarm } from '../context/FarmContext';
 import { goBack, navigate, treeUrl } from '../lib/router';
 import { cachedReport, rememberReport } from '../lib/reportCache';
 import { FOLLOW_UP_LIMIT_DAYS, maskPhone } from '../lib/insights';
-import { STAGES, TOPIC_BY_ID, blockSeasons, pick, topicsForText } from '../lib/guide';
+import { STAGES, STAGE_ORDER, TOPIC_BY_ID, pick, topicsForText, treeStages } from '../lib/guide';
+import { useSeasons } from './useSeasons';
 import { useT } from '../i18n';
 import type { TreeReport } from '../types';
 import { ConditionBadge } from './ConditionBadge';
@@ -29,7 +30,7 @@ const h2 = 'text-sm font-bold text-slate-900';
  */
 export const ReportDetailView: React.FC<{ reportId: string }> = ({ reportId }) => {
   const { t, lang, locale } = useT();
-  const { trees, variants, harvestCycles } = useFarm();
+  const { trees, variants, harvestCycles, treeBlooms } = useFarm();
   // Same style as ReportDate ("04 Oct 2026").
   const day = (v: any) => new Date(normalizeTimestamp(v)).toLocaleDateString(locale, { day: '2-digit', month: 'short', year: 'numeric' });
   const [report, setReport] = useState<TreeReport | null | undefined>(() => cachedReport(reportId));
@@ -68,10 +69,8 @@ export const ReportDetailView: React.FC<{ reportId: string }> = ({ reportId }) =
 
   const tree = useMemo(() => trees.find((x) => x.id === treeId), [trees, treeId]);
   const block = report?.block || tree?.block;
-  const season = useMemo(
-    () => (block ? blockSeasons(trees, variants, harvestCycles).find((s) => s.block === block) : undefined),
-    [trees, variants, harvestCycles, block]
-  );
+  const seasons = useSeasons();
+  const season = seasons.find((s) => s.block === block);
   const topics = useMemo(() => topicsForText(report?.description), [report?.description]);
 
   if (loadError && !report) {
@@ -103,10 +102,13 @@ export const ReportDetailView: React.FC<{ reportId: string }> = ({ reportId }) =
   const due = ts + limitDays * DAY;
   const followed = nextReport ? normalizeTimestamp(nextReport.createdAt) : 0;
 
+  // Stages of this tree (it may have flowered apart from its block, or in waves), else of the whole block.
+  const tws = tree && season ? treeStages(tree, season, treeBlooms, harvestCycles) : [];
+  const stageIds = tws.length ? STAGE_ORDER.filter((st) => tws.some((w) => w.stage === st)) : season?.stages || [];
+  const stage = season?.floweredOn && !season.outdated && stageIds.length > 0;
   // Stage actions: those on the topics the note mentions first.
-  const stage = season?.floweredOn && !season.outdated ? STAGES[season.stage] : null;
   const actions = stage
-    ? [...stage.actions].sort((a, b) => (topics.includes(a.topic) ? 0 : 1) - (topics.includes(b.topic) ? 0 : 1)).slice(0, 3)
+    ? stageIds.flatMap((st) => STAGES[st].actions).sort((a, b) => (topics.includes(a.topic) ? 0 : 1) - (topics.includes(b.topic) ? 0 : 1)).slice(0, 3)
     : [];
 
   return (
@@ -278,11 +280,25 @@ export const ReportDetailView: React.FC<{ reportId: string }> = ({ reportId }) =
             <section className={card} aria-labelledby="rd-season">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h2 id="rd-season" className={h2}>{t('rep.detail.blockNow', { block })}</h2>
-                {stage && season && <StagePill stage={season.stage} />}
+                {stage && (
+                  <span className="flex flex-wrap gap-1">
+                    {stageIds.map((st) => (
+                      <StagePill key={st} stage={st} />
+                    ))}
+                  </span>
+                )}
               </div>
               {stage && season ? (
                 <>
                   <p className="text-xs text-slate-600 tabular">{blockLine(season, t)}</p>
+                  {tws.length > 0 && (tws.length > 1 || !tws[0].fromBlock) && (
+                    <p className="text-xs text-slate-700">
+                      {t('rep.detail.treeBlooms', {
+                        id: report.treeId,
+                        list: tws.map((w) => `${t('guide.season.day', { n: w.day })} (${w.fromBlock ? t('guide.tree.fromBlock', { block: block || '' }) : t(`guide.part.${w.part}`)})`).join(', '),
+                      })}
+                    </p>
+                  )}
                   <ul className="space-y-1.5">
                     {actions.map((a, i) => (
                       <li key={i} className="flex items-start gap-2 text-sm text-slate-800">

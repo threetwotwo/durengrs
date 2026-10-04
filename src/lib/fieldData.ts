@@ -1,5 +1,6 @@
 import { collection, deleteDoc, doc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { db } from './firebase';
+import type { BloomPart, TreeBloom } from './guide';
 
 /**
  * Farm records the Guide needs, entered in the web app (all writes for them live here).
@@ -9,6 +10,7 @@ import { db } from './firebase';
  *   weather/{YYYY-MM-DD}                  rain in mm from the farm's rain gauge                       (A15)
  *   labResults/{auto}                     leaf and soil analysis per block                           (A16)
  *   farmMeta/weeklyReview                 when the weekly farm check was last done                   (A7)
+ *   bloomWaves/{auto}                     a tree, or some of its branches, flowering apart from its block's bloom date
  *
  * Calendar dates are YYYY-MM-DD in local (Indonesian) time; instants are Firestore timestamps.
  */
@@ -95,6 +97,21 @@ export async function markSeasonTask(block: string, season: string, task: Season
 export async function unmarkSeasonTask(block: string, season: string, task: SeasonTaskId): Promise<void> {
   await deleteDoc(doc(db, 'seasonTasks', seasonTaskId(block, season, task)));
 }
+
+// ---------- tree bloom waves ----------
+
+/** A tree flowered on its own date: the whole tree (replaces the block date for it) or only some branches. */
+export async function addTreeBloom(b: { treeId: string; block: string; date: string; part: BloomPart; note?: string }): Promise<string> {
+  const ref = doc(collection(db, 'bloomWaves'));
+  await setDoc(ref, stripUndefined({ ...b, source: 'webapp', createdAt: serverTimestamp() }));
+  return ref.id;
+}
+
+export async function removeTreeBloom(id: string): Promise<void> {
+  await deleteDoc(doc(db, 'bloomWaves', id));
+}
+
+export type { TreeBloom };
 
 // ---------- rain ----------
 
