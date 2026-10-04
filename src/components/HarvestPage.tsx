@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { CalendarClock, CheckCircle2, Hash, Wheat } from 'lucide-react';
+import { CalendarClock, CheckCircle2, ClipboardPlus, Plus } from 'lucide-react';
 import { useFarm } from '../context/FarmContext';
 import { useT } from '../i18n';
 import { useQueryParams } from '../lib/router';
@@ -71,11 +71,11 @@ export const HarvestPage: React.FC = () => {
         actions={
           <>
             <button type="button" onClick={() => setCounting({})} className={btnSecondary}>
-              <Hash className="w-4 h-4" />
+              <ClipboardPlus className="w-4 h-4 text-emerald-700" />
               {t('crop.count')}
             </button>
             <button type="button" onClick={() => setHarvesting({})} className={btnPrimary}>
-              <Wheat className="w-4 h-4" />
+              <Plus className="w-4 h-4" />
               {t('crop.logHarvest')}
             </button>
           </>

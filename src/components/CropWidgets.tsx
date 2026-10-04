@@ -1,5 +1,7 @@
 import React, { useMemo, useState } from 'react';
-import { ChevronRight, ClipboardList, Hash, Plus, Trash2, Wheat } from 'lucide-react';
+import { BookOpen, ChevronRight, ClipboardList, ClipboardPlus, Plus, Trash2, Wheat } from 'lucide-react';
+import { STAGES, STAGE_ORDER, StageId, TOPIC_BY_ID, pick } from '../lib/guide';
+import { useGuideOn } from '../lib/guideMode';
 import { useFarm } from '../context/FarmContext';
 import { useT } from '../i18n';
 import { Sheet, fieldInput, fieldLabel } from './Sheet';
@@ -55,28 +57,47 @@ export const GradeBar: React.FC<{ grades: GradeTotals; legend?: boolean; classNa
 
 
 /** Flower clusters → fruit set → kept → on the trees → harvested, with the ratio between steps. */
-export const FunnelStrip: React.FC<{ funnel: Funnel; compact?: boolean }> = ({ funnel, compact }) => {
+export const FunnelStrip: React.FC<{ funnel: Funnel; compact?: boolean; hints?: Partial<Record<string, React.ReactNode>> }> = ({ funnel, hints = {} }) => {
   const { t } = useT();
   const s = funnel.stages;
   const top = topGradeShare(funnel.harvested.grades);
   const r = funnel.ratios;
   const trees = (n: number) => t('crop.f.trees', { n });
   const steps = [
-    { key: 'clusters', value: s.clusters.total, sub: trees(s.clusters.trees) },
-    { key: 'set', value: s.set.total, sub: r.setPerCluster !== null ? t('crop.f.perCluster', { n: r.setPerCluster.toFixed(1) }) : trees(s.set.trees) },
-    { key: 'kept', value: s.kept.total, sub: r.keptOfSet !== null ? t('crop.f.ofSet', { n: Math.round(r.keptOfSet * 100) }) : trees(s.kept.trees) },
-    { key: 'onTree', value: funnel.remaining, sub: r.onTreeOfKept !== null ? t('crop.f.ofKept', { n: Math.round(r.onTreeOfKept * 100) }) : trees(s.onTree.trees || s.kept.trees || s.set.trees) },
-    { key: 'harvested', value: funnel.harvested.fruits, sub: top !== null ? t('crop.f.topGrade', { n: Math.round(top * 100) }) : funnel.harvested.weightKg ? `${Math.round(funnel.harvested.weightKg)} kg` : '—' },
+    { key: 'clusters', value: s.clusters.total, counted: s.clusters.trees > 0, sub: trees(s.clusters.trees) },
+    { key: 'set', value: s.set.total, counted: s.set.trees > 0, sub: r.setPerCluster !== null ? t('crop.f.perCluster', { n: r.setPerCluster.toFixed(1) }) : trees(s.set.trees) },
+    { key: 'kept', value: s.kept.total, counted: s.kept.trees > 0, sub: r.keptOfSet !== null ? t('crop.f.ofSet', { n: Math.round(r.keptOfSet * 100) }) : trees(s.kept.trees) },
+    {
+      key: 'onTree',
+      value: funnel.remaining,
+      counted: s.onTree.trees + s.kept.trees + s.set.trees > 0,
+      sub: r.onTreeOfKept !== null ? t('crop.f.ofKept', { n: Math.round(r.onTreeOfKept * 100) }) : trees(s.onTree.trees || s.kept.trees || s.set.trees),
+    },
+    {
+      key: 'harvested',
+      value: funnel.harvested.fruits,
+      counted: funnel.harvested.entries > 0,
+      sub: top !== null ? t('crop.f.topGrade', { n: Math.round(top * 100) }) : funnel.harvested.weightKg ? `${Math.round(funnel.harvested.weightKg)} kg` : t('crop.notPicked'),
+    },
   ];
+  // One strip, steps divided by lines (not separate cards); steps nobody has counted yet are muted.
   return (
-    <ol className={`grid grid-cols-2 sm:grid-cols-5 gap-2 ${compact ? '' : 'sm:gap-0'}`}>
+    <ol className="grid grid-cols-2 sm:grid-cols-5 rounded-xl border border-slate-200 bg-white overflow-hidden">
       {steps.map((st, i) => (
-        <li key={st.key} className={`relative p-3 rounded-xl border bg-white ${compact ? 'border-slate-200' : 'sm:rounded-none sm:first:rounded-l-xl sm:last:rounded-r-xl sm:-ml-px border-slate-200'} ${i === 4 ? 'col-span-2 sm:col-span-1' : ''}`}>
-          <span className="block text-xs font-semibold text-slate-600">{t(`crop.stage.${st.key}`)}</span>
-          <span className="block mt-1 text-2xl font-bold tabular text-slate-900">{st.value.toLocaleString()}</span>
-          <span className="block text-xs text-slate-500 tabular">{st.sub}</span>
+        <li
+          key={st.key}
+          className={`relative p-3 border-slate-200 ${i < 4 ? 'border-b sm:border-b-0 sm:border-r' : 'col-span-2 sm:col-span-1'} ${i % 2 === 0 && i < 4 ? 'border-r' : ''} ${st.counted ? '' : 'bg-slate-50/70'}`}
+        >
+          <span className="flex items-center gap-1 text-xs font-semibold text-slate-600">
+            <span className={`w-4 h-4 rounded-full text-[10px] leading-4 text-center font-bold ${st.counted ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-500'}`} aria-hidden>
+              {i + 1}
+            </span>
+            {t(`crop.stage.${st.key}`)}
+          </span>
+          <span className={`block mt-1 text-2xl font-bold tabular ${st.counted ? 'text-slate-900' : 'text-slate-300'}`}>{st.counted ? st.value.toLocaleString() : '—'}</span>
+          <span className="block text-xs text-slate-500 tabular">{st.counted ? st.sub : t('crop.notCounted')}</span>
+          {hints[st.key] && <span className="block text-xs">{hints[st.key]}</span>}
           {i === 4 && <GradeBar grades={funnel.harvested.grades} className="mt-1.5" />}
-          {i < 4 && !compact && <ChevronRight className="hidden sm:block absolute -right-2.5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300 bg-white rounded-full z-10" aria-hidden />}
         </li>
       ))}
     </ol>
@@ -329,7 +350,7 @@ export const TreeCropCard: React.FC<{ tree: DurianTree }> = ({ tree }) => {
               onClick={() => (next.kind === 'harvest' ? setHarvesting(true) : setCounting('next'))}
               className={`${next.overdue || next.kind === 'harvest' ? btnPrimary : btnSecondary} w-full`}
             >
-              {next.kind === 'harvest' ? <Wheat className="w-4 h-4" /> : <Hash className="w-4 h-4" />}
+              {next.kind === 'harvest' ? <Wheat className="w-4 h-4" /> : <ClipboardPlus className="w-4 h-4" />}
               {nextLabel(crop, t)}
             </button>
           )}
@@ -461,9 +482,13 @@ export const TreeLink: React.FC<{ id: string }> = ({ id }) => (
 
 // ---------- Dashboard ----------
 
-/** Harvest at a glance on the homepage: the farm funnel, the next harvest windows and what to count today. */
+/** Which funnel step each stage of the season fills, for the Guide hints. */
+const STAGE_STEP: Partial<Record<StageId, string>> = { bloom: 'clusters', set: 'set', thin: 'kept', grow: 'onTree', mature: 'onTree', harvest: 'harvested' };
+
+/** Harvest at a glance on the homepage: one funnel strip, one action row, and (Guide on) what the stages call for. */
 export const HarvestHomeCard: React.FC = () => {
-  const { t } = useT();
+  const { t, lang } = useT();
+  const guideOn = useGuideOn();
   const { crops, funnel, seasons } = useCrops();
   const [counting, setCounting] = useState(false);
   const [harvesting, setHarvesting] = useState(false);
@@ -476,58 +501,72 @@ export const HarvestHomeCard: React.FC = () => {
     .sort((a, b) => a.harvestFrom!.localeCompare(b.harvestFrom!))
     .slice(0, 3);
 
+  // Guide: blocks per stage right now, the stage's first action, and a hint on the funnel step it fills.
+  const now = guideOn
+    ? STAGE_ORDER.filter((st) => st !== 'preflower' && st !== 'recovery')
+        .map((st) => ({ st, blocks: seasons.filter((s) => s.stages.includes(st) && !s.outdated).map((s) => s.block) }))
+        .filter((x) => x.blocks.length)
+    : [];
+  const hints: Record<string, React.ReactNode> = {};
+  for (const n of now) {
+    const step = STAGE_STEP[n.st];
+    if (step && !hints[step]) hints[step] = <span className="text-emerald-700 font-medium">{t('hh.stageNow', { blocks: n.blocks.join(', ') })}</span>;
+  }
+
   return (
     <section className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden" aria-labelledby="hh-h">
-      <div className="p-4 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2">
+      <div className="px-4 py-3 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2">
         <h2 id="hh-h" className="text-sm font-bold text-slate-900 flex items-center gap-2">
           <Wheat className="w-4 h-4 text-emerald-600" />
           {t('hh.title')}
         </h2>
         <div className="flex flex-wrap items-center gap-2">
           <button type="button" onClick={() => setCounting(true)} className={`${btnSecondary} min-h-10 px-3`}>
-            <Hash className="w-4 h-4" />
+            <ClipboardPlus className="w-4 h-4 text-emerald-700" />
             {t('crop.count')}
           </button>
           <button type="button" onClick={() => setHarvesting(true)} className={`${btnPrimary} min-h-10 px-3`}>
-            <Wheat className="w-4 h-4" />
+            <Plus className="w-4 h-4" />
             {t('crop.logHarvest')}
           </button>
-          <Link to="/harvest" className="text-xs font-semibold text-emerald-700 hover:text-emerald-800 inline-flex items-center gap-1 min-h-10 px-1">
-            {t('hh.open')}
-            <ChevronRight className="w-3.5 h-3.5" />
-          </Link>
         </div>
       </div>
+
       <div className="p-4 space-y-3">
         {msg && <p role="status" className="text-sm text-emerald-800">{msg}</p>}
-        <FunnelStrip funnel={funnel} compact />
-        <div className="grid gap-3 md:grid-cols-3">
-          <Link
-            to="/harvest?todo=1"
-            className={`p-3 rounded-xl border ${funnel.toCount ? 'border-amber-300 bg-amber-50/60' : 'border-slate-200'} hover:border-slate-400`}
-          >
-            <span className="block text-xs font-semibold text-slate-600">{t('hh.toCount')}</span>
-            <span className="block text-2xl font-bold tabular text-slate-900">{funnel.toCount}</span>
-            <span className="block text-xs text-slate-500">{funnel.toCount ? t('hh.toCount.sub') : t('hp.todo.none')}</span>
+        <FunnelStrip funnel={funnel} hints={hints} />
+
+        {/* One row: what to do now, and when the next harvests are. */}
+        <div className="grid sm:grid-cols-3 rounded-xl border border-slate-200 divide-y sm:divide-y-0 sm:divide-x divide-slate-200">
+          <Link to="/harvest?todo=1" className="group flex items-center gap-3 p-3 hover:bg-slate-50">
+            <span className={`text-2xl font-bold tabular ${funnel.toCount ? 'text-amber-700' : 'text-slate-900'}`}>{funnel.toCount}</span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-semibold text-slate-900">{t('hh.toCount')}</span>
+              <span className="block text-xs text-slate-500">{funnel.toCount ? t('hh.toCount.short') : t('hp.todo.none')}</span>
+            </span>
+            <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-slate-700" />
           </Link>
-          <Link to="/harvest?todo=1" className={`p-3 rounded-xl border ${toPick ? 'border-emerald-400 bg-emerald-50/60' : 'border-slate-200'} hover:border-slate-400`}>
-            <span className="block text-xs font-semibold text-slate-600">{t('hh.toPick')}</span>
-            <span className="block text-2xl font-bold tabular text-slate-900">{toPick}</span>
-            <span className="block text-xs text-slate-500">{t('hh.toPick.sub')}</span>
+          <Link to="/harvest?todo=1" className="group flex items-center gap-3 p-3 hover:bg-slate-50">
+            <span className={`text-2xl font-bold tabular ${toPick ? 'text-emerald-700' : 'text-slate-900'}`}>{toPick}</span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-semibold text-slate-900">{t('hh.toPick')}</span>
+              <span className="block text-xs text-slate-500">{t('hh.toPick.sub')}</span>
+            </span>
+            <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-slate-700" />
           </Link>
-          <div className="p-3 rounded-xl border border-slate-200">
-            <span className="block text-xs font-semibold text-slate-600">{t('hh.next')}</span>
+          <div className="p-3">
+            <span className="block text-sm font-semibold text-slate-900">{t('hh.next')}</span>
             {windows.length === 0 ? (
-              <span className="block mt-1 text-sm text-slate-600">{t('hp.windows.none')}</span>
+              <span className="block text-xs text-slate-500">{t('hp.windows.none')}</span>
             ) : (
-              <ul className="mt-1 space-y-0.5">
+              <ul className="mt-0.5 space-y-0.5">
                 {windows.map((s) => {
                   const d = diffDays(s.harvestFrom!, today);
                   return (
-                    <li key={s.block} className="flex items-baseline justify-between gap-2 text-sm">
-                      <span className="font-semibold text-slate-900">{t('common.blockN', { n: s.block })}</span>
-                      <span className="text-xs text-slate-600 tabular">
-                        {formatShortDate(s.harvestFrom!)} · {d <= 0 ? t('hp.win.now') : t('sched.hv.in', { n: d })}
+                    <li key={s.block} className="flex items-baseline justify-between gap-2 text-xs">
+                      <span className="font-semibold text-slate-800">{t('common.blockN', { n: s.block })}</span>
+                      <span className="text-slate-600 tabular">
+                        {formatShortDate(s.harvestFrom!)} · <span className={d <= 0 ? 'text-emerald-700 font-semibold' : ''}>{d <= 0 ? t('hp.win.now') : t('sched.hv.in', { n: d })}</span>
                       </span>
                     </li>
                   );
@@ -536,13 +575,41 @@ export const HarvestHomeCard: React.FC = () => {
             )}
           </div>
         </div>
+
+        {now.length > 0 && (
+          <ul className="space-y-1 text-sm" aria-label={t('hh.guideNow')}>
+            {now.slice(0, 3).map(({ st, blocks }) => {
+              const a = [...STAGES[st].actions].sort((x, y) => (x.task ? 0 : 1) - (y.task ? 0 : 1))[0];
+              return (
+                <li key={st} className="flex items-start gap-2 text-slate-700">
+                  <BookOpen className="w-4 h-4 mt-0.5 shrink-0 text-emerald-600" aria-hidden />
+                  <span className="line-clamp-2 sm:line-clamp-none">
+                    <span className="font-semibold text-slate-900">
+                      {pick(STAGES[st].title, lang)} · {blocks.map((b) => t('common.blockN', { n: b })).join(', ')}:
+                    </span>{' '}
+                    {pick(a.text, lang)}{' '}
+                    <Link to={`/guide/${a.topic}`} className="text-xs font-semibold text-emerald-700 whitespace-nowrap hover:underline">
+                      {pick(TOPIC_BY_ID.get(a.topic)!.title, lang)} →
+                    </Link>
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+
         {noDate.length > 0 && (
-          <p className="text-xs text-amber-900 bg-amber-50 border border-amber-200 rounded-lg p-2.5">
+          <p className="text-xs text-amber-900">
             {t('hh.noDate', { blocks: noDate.map((s) => s.block).join(', ') })}{' '}
             <Link to="/harvest" className="font-semibold underline">{t('hh.setDates')}</Link>
           </p>
         )}
       </div>
+
+      <Link to="/harvest" className="flex items-center justify-between px-4 py-2.5 border-t border-slate-100 text-sm font-semibold text-emerald-700 hover:bg-emerald-50/50">
+        {t('hh.open')}
+        <ChevronRight className="w-4 h-4" />
+      </Link>
       {counting && <CropCountSheet crops={crops} onClose={() => setCounting(false)} onSaved={setMsg} />}
       {harvesting && <HarvestSheet onClose={() => setHarvesting(false)} onSaved={setMsg} />}
     </section>
