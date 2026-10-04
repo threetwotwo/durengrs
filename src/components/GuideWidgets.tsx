@@ -185,7 +185,7 @@ export const StagePill: React.FC<{ stage: StageId; active?: boolean }> = ({ stag
   );
 };
 
-function blockLine(s: BlockSeason, t: (k: string, v?: Record<string, string | number>) => string): string {
+export function blockLine(s: BlockSeason, t: (k: string, v?: Record<string, string | number>) => string): string {
   const parts = [t('common.blockN', { n: s.block })];
   if (s.stage === 'preflower' && s.floweredOn) {
     parts.push(t('guide.season.lastBloom', { date: formatShortDate(s.floweredOn) }));

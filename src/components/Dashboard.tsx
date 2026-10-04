@@ -1,10 +1,10 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useFarm, normalizeTimestamp } from '../context/FarmContext';
 import { ConditionBadge } from './ConditionBadge';
-import { ReportDate } from './ReportDate';
+import { ReportCard } from './ReportCard';
 import { Link } from './Link';
 import { treeUrl, treesUrl } from '../lib/router';
-import { followUpOf, maskPhone, waitingLabel } from '../lib/insights';
+import { followUpOf, waitingLabel } from '../lib/insights';
 import { TaskRow } from './TaskRow';
 import { MarkDoneSheet, UndoToast, undoLogged, useUndoToast } from './TreatmentSheets';
 import { ScheduleTask, formatShortDate, relativeDue } from '../lib/treatments';
@@ -15,7 +15,7 @@ import { STAGES, TOPIC_BY_ID, pick, topicsForText } from '../lib/guide';
 import { TreeReport } from '../types';
 import { db, parseReportDoc } from '../lib/firebase';
 import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
-import { Check, AlertTriangle, AlertOctagon, ArrowRight, ArrowUpDown, User, Calendar, CalendarCheck, ClipboardCheck } from 'lucide-react';
+import { Check, AlertTriangle, AlertOctagon, ArrowRight, ArrowUpDown, Calendar, CalendarCheck, ClipboardCheck } from 'lucide-react';
 
 /**
  * Daily view: what needs doing today to keep the trees in ideal condition.
@@ -406,7 +406,7 @@ export const Dashboard: React.FC = () => {
         <RainCard className="lg:col-span-4" />
       </div>
 
-      {/* Latest field reports: compact, one small photo each */}
+      {/* Latest field reports: the shared report card, small; each opens its report page */}
       <section className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden" aria-labelledby="rep-h">
         <div className="p-4 border-b border-slate-200 flex items-center justify-between gap-2">
           <div>
@@ -431,51 +431,11 @@ export const Dashboard: React.FC = () => {
             <p className="text-xs text-slate-500 mt-1">{t('dash.latest.empty.sub')}</p>
           </div>
         ) : (
-          <ul className="grid md:grid-cols-2 divide-y md:divide-y-0 divide-slate-100">
-            {latestReports.map((report) => {
-              const tree = treeById.get(report.treeId);
-              const photo = report.photos?.[0];
-              const worker = maskPhone(report.workerPhone);
-              const topics = topicsForText(report.description).slice(0, 1);
-              return (
-                <li key={report.id} className="md:border-b md:border-slate-100">
-                  <Link to={treeUrl(report.treeId)} className="flex gap-3 p-3.5 hover:bg-slate-50">
-                    {photo ? (
-                      <img src={photo.thumb || photo.url} alt="" loading="lazy" decoding="async" width="64" height="64" className="w-16 h-16 rounded-lg object-cover border border-slate-200 shrink-0" />
-                    ) : (
-                      <span className="w-16 h-16 rounded-lg bg-slate-100 border border-slate-200 shrink-0" aria-hidden="true" />
-                    )}
-                    <span className="min-w-0 flex-1 space-y-0.5">
-                      <span className="flex items-center justify-between gap-2">
-                        <span className="text-sm font-bold text-slate-900">
-                          {t('dash.latest.tree', { id: report.treeId })}
-                          <span className="ml-1.5 text-xs font-normal text-slate-500">
-                            {[tree?.variant, t('common.blockN', { n: report.block || tree?.block || '—' })].filter(Boolean).join(' · ')}
-                          </span>
-                        </span>
-                        {report.conditionAfter && <ConditionBadge condition={report.conditionAfter} size="sm" />}
-                      </span>
-                      {report.description && /[\p{L}\p{N}]/u.test(report.description) && (
-                        <span className="block text-xs text-slate-700 line-clamp-2">{report.description}</span>
-                      )}
-                      <span className="flex flex-wrap items-center gap-x-2 text-xs text-slate-500">
-                        <ReportDate value={report.createdAt} />
-                        {worker && (
-                          <span className="inline-flex items-center gap-1 font-mono">
-                            <User className="w-3 h-3" />
-                            {worker}
-                          </span>
-                        )}
-                        {topics.map((id) => (
-                          <span key={id} className="text-emerald-700 font-semibold">{pick(TOPIC_BY_ID.get(id)!.title, lang)}</span>
-                        ))}
-                      </span>
-                    </span>
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
+          <div className="p-4 grid md:grid-cols-2 gap-3">
+            {latestReports.map((report) => (
+              <ReportCard key={report.id} report={report} tree={treeById.get(report.treeId)} size="sm" />
+            ))}
+          </div>
         )}
       </section>
     </div>

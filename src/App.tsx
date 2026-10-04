@@ -10,6 +10,7 @@ import { useT } from './i18n';
 const TreesTable = lazy(() => import('./components/TreesTable').then((m) => ({ default: m.TreesTable })));
 const TreeDetailView = lazy(() => import('./components/TreeDetailView').then((m) => ({ default: m.TreeDetailView })));
 const VariantsPage = lazy(() => import('./components/VariantsPage').then((m) => ({ default: m.VariantsPage })));
+const ReportDetailView = lazy(() => import('./components/ReportDetailView').then((m) => ({ default: m.ReportDetailView })));
 const ReportsPage = lazy(() => import('./components/ReportsPage').then((m) => ({ default: m.ReportsPage })));
 const SchedulePage = lazy(() => import('./components/SchedulePage').then((m) => ({ default: m.SchedulePage })));
 const GuidePage = lazy(() => import('./components/GuidePage').then((m) => ({ default: m.GuidePage })));
@@ -28,7 +29,7 @@ const AppContent: React.FC = () => {
   // New page: scroll to top, update the tab title, move keyboard/screen-reader focus to the content.
   useEffect(() => {
     window.scrollTo(0, 0);
-    document.title = `${route.treeId ? t('app.title.tree', { id: route.treeId }) : t(TAB_TITLES[route.tab])} · Cilowong`;
+    document.title = `${route.treeId ? t('app.title.tree', { id: route.treeId }) : route.reportId ? t('app.title.report') : t(TAB_TITLES[route.tab])} · Cilowong`;
     mainRef.current?.focus({ preventScroll: true });
   }, [route.pageKey, lang]);
 
@@ -79,7 +80,7 @@ const AppContent: React.FC = () => {
                   <TreesTable />
                 ))}
               {route.tab === 'variants' && <VariantsPage />}
-              {route.tab === 'reports' && <ReportsPage />}
+              {route.tab === 'reports' && (route.reportId ? <ReportDetailView key={route.reportId} reportId={route.reportId} /> : <ReportsPage />)}
               {route.tab === 'guide' && <GuidePage />}
             </Suspense>
           </ErrorBoundary>

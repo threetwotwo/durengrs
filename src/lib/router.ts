@@ -9,6 +9,7 @@ import { useCallback, useSyncExternalStore } from 'react';
  *   #/trees/A12             tree detail
  *   #/variants
  *   #/reports?block=A&condition=minor&changed=1&q=...
+ *   #/reports/abc123        one report
  *   #/guide                 research guide
  *   #/guide/phytophthora    one guide topic
  *
@@ -23,6 +24,8 @@ export interface Route {
   treeId: string | null;
   /** Guide topic, e.g. "phytophthora" in #/guide/phytophthora. Validated by the Guide page. */
   topicId: string | null;
+  /** Report document id in #/reports/abc123. */
+  reportId: string | null;
   params: URLSearchParams;
   /** Path without query, e.g. "/trees/A12". */
   path: string;
@@ -44,6 +47,7 @@ function parseHash(hash: string): Route {
   let tab: AppTab = 'dashboard';
   let treeId: string | null = null;
   let topicId: string | null = null;
+  let reportId: string | null = null;
   let known = true;
 
   if (segs.length === 0) {
@@ -52,11 +56,12 @@ function parseHash(hash: string): Route {
     tab = segs[0] as AppTab;
     if (tab === 'trees' && segs.length === 2) treeId = decodeURIComponent(segs[1]);
     else if (tab === 'guide' && segs.length === 2) topicId = decodeURIComponent(segs[1]);
+    else if (tab === 'reports' && segs.length === 2) reportId = decodeURIComponent(segs[1]);
     else if (segs.length > 1) known = false;
   } else {
     known = false;
   }
-  return { tab, treeId, topicId, params, path, pageKey: `${tab}:${treeId ?? topicId ?? ''}`, known };
+  return { tab, treeId, topicId, reportId, params, path, pageKey: `${tab}:${treeId ?? topicId ?? reportId ?? ''}`, known };
 }
 
 // ---- store ----
@@ -178,6 +183,7 @@ export function treesUrl(filters: Record<string, string | null | undefined> = {}
 }
 
 export const treeUrl = (id: string) => `/trees/${encodeURIComponent(id)}`;
+export const reportUrl = (id: string) => `/reports/${encodeURIComponent(id)}`;
 
 /** i18n keys, resolve with t(). */
 export const TAB_TITLES: Record<AppTab, string> = {

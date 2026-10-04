@@ -19,10 +19,10 @@ export const ReportDate: React.FC<{ value: any }> = ({ value }) => {
   const fresh = mins < 1440;
 
   return (
-    <span className="inline-flex items-center gap-2">
-      <span className="text-sm font-semibold text-slate-900">{date}</span>
+    <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
+      <span className="text-sm font-semibold text-slate-900 whitespace-nowrap">{date}</span>
       <span
-        className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${
+        className={`px-2 py-0.5 rounded-full text-xs font-semibold border whitespace-nowrap ${
           fresh
             ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
             : 'bg-slate-100 text-slate-600 border-slate-200'

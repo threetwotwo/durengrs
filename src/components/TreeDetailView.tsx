@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useT } from '../i18n';
 import { useFarm, formatDateTime, formatDate, normalizeTimestamp } from '../context/FarmContext';
-import { DurianTree, TreeCondition, ReportPhoto, TreeReport } from '../types';
+import { DurianTree, TreeCondition, TreeReport } from '../types';
 import { ConditionBadge } from './ConditionBadge';
-import { ReportDate } from './ReportDate';
+import { ReportCard } from './ReportCard';
 import { navigate, setNavigationBlocker, treeUrl, treesUrl } from '../lib/router';
 import { formatShortDate, toDateStr } from '../lib/treatments';
-import { PhotoLightbox, photoItems, type GalleryItem } from './PhotoLightbox';
+import { PhotoLightbox, type GalleryItem } from './PhotoLightbox';
 import {
   db,
   parseReportDoc,
@@ -21,65 +21,16 @@ import {
   Save,
   Check,
   Calendar,
-  User,
-  Clock,
-  Sparkles,
   RefreshCw,
-  ImageIcon,
-  ExternalLink,
   AlertCircle,
 } from 'lucide-react';
 import { TreeGuideSection } from './GuideWidgets';
-import { maskPhone } from '../lib/insights';
 import { TREE_LIMITS, checkTreeForm, plantedDateStr } from '../lib/trees';
 
 interface TreeDetailViewProps {
   treeId: string;
   onBack: () => void;
 }
-
-const ThumbnailItem: React.FC<{
-  photo: ReportPhoto;
-  idx: number;
-  reportDate: any;
-  treeId: string;
-  onOpen: (url: string, caption: string) => void;
-}> = ({ photo, idx, reportDate, treeId, onOpen }) => {
-  const { t } = useT();
-  const [loadFailed, setLoadFailed] = useState(false);
-  const src = photo.thumb || photo.url;
-  const caption = t('tree.photoCaption', { id: treeId, n: idx + 1, date: formatDateTime(reportDate) });
-
-  return (
-    <div
-      onClick={() => onOpen(photo.url, caption)}
-      className="relative aspect-square rounded-lg overflow-hidden border border-slate-200 bg-slate-100 cursor-pointer group hover:ring-2 hover:ring-emerald-500 transition-all shadow-2xs flex items-center justify-center"
-    >
-      {!loadFailed ? (
-        <img
-          src={src}
-          alt={t('tree.photoAlt', { n: idx + 1 })}
-          loading="lazy"
-          decoding="async"
-          width="120"
-          height="120"
-          referrerPolicy="no-referrer"
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
-          onError={() => setLoadFailed(true)}
-        />
-      ) : (
-        <div className="w-full h-full flex flex-col items-center justify-center p-2 text-center text-slate-500 hover:text-emerald-700 bg-slate-50">
-          <ImageIcon className="w-5 h-5 mb-1 text-slate-400" />
-          <span className="text-xs font-semibold">{t('tree.photoView', { n: idx + 1 })}</span>
-        </div>
-      )}
-
-      <div className="absolute inset-0 bg-slate-950/30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-white">
-        <ExternalLink className="w-4 h-4 drop-shadow-sm" />
-      </div>
-    </div>
-  );
-};
 
 /** i18n label per form field, for the "also changed elsewhere" notice. */
 const FIELD_LABEL: Record<string, string> = {
@@ -788,7 +739,7 @@ export const TreeDetailView: React.FC<TreeDetailViewProps> = ({ treeId, onBack }
 
           <div className="flex-1 overflow-y-auto max-h-[640px] pr-1">
             {reportsLoading ? (
-              <div className="space-y-4 pl-7">
+              <div className="space-y-3">
                 {[...Array(3)].map((_, i) => (
                   <div key={i} className="h-32 bg-slate-100 rounded-xl animate-pulse" />
                 ))}
@@ -800,89 +751,10 @@ export const TreeDetailView: React.FC<TreeDetailViewProps> = ({ treeId, onBack }
                 <p className="text-xs text-slate-500 mt-1">{t('tree.noReportsHint')}</p>
               </div>
             ) : (
-              <div className="relative pl-7 space-y-4">
-                {/* Continuous timeline spine */}
-                <div
-                  aria-hidden="true"
-                  className="absolute left-[11px] top-2.5 bottom-2.5 w-0.5 bg-slate-200"
-                />
-
-                {treeReports.map((report) => {
-                  const photos = report.photos || [];
-                  const workerMasked = maskPhone(report.workerPhone);
-
-                  return (
-                    <div key={report.id} className="relative pb-1">
-                      {/* Timeline node perfectly centered and horizontally aligned with the date */}
-                      <div
-                        aria-hidden="true"
-                        className="absolute -left-7 top-0 w-6 h-5 flex items-center justify-center pointer-events-none"
-                      >
-                        <div className="w-2.5 h-2.5 rounded-full bg-white ring-2 ring-emerald-500 shadow-2xs" />
-                      </div>
-
-                      {/* 1. Report date on top of the card - aligns with timeline node */}
-                      <div className="flex items-center justify-between text-xs text-slate-700 font-sans h-5 mb-2 pl-0.5">
-                        <div className="flex items-center gap-1.5 font-semibold text-slate-800">
-                          <ReportDate value={report.createdAt} />
-                        </div>
-
-                        {report.conditionAfter && (
-                          <ConditionBadge condition={report.conditionAfter} size="sm" />
-                        )}
-                      </div>
-
-                      {/* Report Card (Requirement 15: Removed repeated "Tree A1 · MK / Block A") */}
-                      <div className="p-3.5 rounded-xl border border-slate-200 bg-white hover:border-slate-300 shadow-2xs space-y-2.5 transition-all">
-                        {/* Condition changed indicator */}
-                        {report.conditionChanged && (
-                          <div className="p-2 rounded-lg bg-amber-50 border border-amber-200 flex items-center gap-1.5 text-xs text-amber-900 font-medium">
-                            <span>{t('cond.changed')}:</span>
-                            <ConditionBadge condition={report.conditionBefore || 'not_assessed'} size="sm" />
-                            <span>→</span>
-                            <ConditionBadge condition={report.conditionAfter || 'minor'} size="sm" />
-                          </div>
-                        )}
-
-                        {/* Worker identifier */}
-                        {workerMasked && (
-                          <div className="flex items-center gap-1.5 text-xs text-slate-600 font-mono">
-                            <User className="w-3.5 h-3.5 text-slate-400" />
-                            <span>{workerMasked}</span>
-                          </div>
-                        )}
-
-                        {/* Description */}
-                        {report.description && (
-                          <p className="text-xs text-slate-700 leading-relaxed bg-slate-50 p-2.5 rounded-lg border border-slate-100">
-                            {report.description}
-                          </p>
-                        )}
-
-                        {/* Photo thumbnails */}
-                        {photos.length > 0 && (
-                          <div className="pt-0.5">
-                            <span className="text-xs font-semibold text-slate-600 block mb-1.5">
-                              {t('tree.reportPhotos', { n: photos.length })}
-                            </span>
-                            <div className="grid grid-cols-3 gap-2">
-                              {photos.map((photo, pIdx) => (
-                                <ThumbnailItem
-                                  key={pIdx}
-                                  photo={photo}
-                                  idx={pIdx}
-                                  reportDate={report.createdAt}
-                                  treeId={treeId}
-                                  onOpen={() => setGallery({ items: photoItems(photos, treeId, report.createdAt), index: pIdx })}
-                                />
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
+              <div className="space-y-3">
+                {treeReports.map((report) => (
+                  <ReportCard key={report.id} report={report} tree={tree} showTree={false} size="sm" />
+                ))}
 
                 {/* Load More Button (Requirement 7) */}
                 {hasMoreReports && (
