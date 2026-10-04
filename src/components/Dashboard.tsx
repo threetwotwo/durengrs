@@ -7,7 +7,7 @@ import { treeUrl, treesUrl } from '../lib/router';
 import { followUpOf, waitingLabel } from '../lib/insights';
 import { TaskRow } from './TaskRow';
 import { MarkDoneSheet, UndoToast, undoLogged, useUndoToast } from './TreatmentSheets';
-import { ScheduleTask, formatShortDate, relativeDue } from '../lib/treatments';
+import { ScheduleTask, formatShortDate, relativeDue, todayStr } from '../lib/treatments';
 import { useT } from '../i18n';
 import { DashboardSeasonCard, StagePill, TOPIC_ICON, topicUrl, useGuideData } from './GuideWidgets';
 import { HarvestHomeCard } from './CropWidgets';
@@ -17,11 +17,11 @@ import { STAGES, TOPIC_BY_ID, pick, topicsForText } from '../lib/guide';
 import { TreeReport } from '../types';
 import { db, parseReportDoc } from '../lib/firebase';
 import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
-import { Check, AlertTriangle, AlertOctagon, ArrowRight, ArrowUpDown, Calendar, CalendarCheck, ClipboardCheck } from 'lucide-react';
+import { Check, AlertTriangle, AlertOctagon, ArrowRight, ArrowUpDown, Calendar, CalendarCheck, ClipboardCheck, CloudRain } from 'lucide-react';
 
 /**
  * Daily view: what needs doing today to keep the trees in ideal condition.
- *   1. KPIs: emergencies, watch list, routine work due, Guide farm check (Guide on)
+ *   1. Today: re-checks overdue, trees not inspected in 7 days, rain recorded, Guide farm check (Guide on)
  *   2. Harvest: farm funnel (clusters → fruit → graded harvest), next windows, trees to count or pick
  *   3. Trees needing attention (with the Guide topic their notes point to, Guide on) + routine work
  *   4. This season per block (Guide stages, one-tap bloom dates and season tasks; Guide on)
@@ -33,7 +33,7 @@ type BlockSort = 'block' | 'total' | 'attention' | 'fruits';
 const WEEK = 7 * 24 * 60 * 60 * 1000;
 
 export const Dashboard: React.FC = () => {
-  const { trees, totalReportsCount, loading: treesLoading, plans, scheduleTasks, recordsError } = useFarm();
+  const { trees, totalReportsCount, loading: treesLoading, plans, scheduleTasks, recordsError, rain } = useFarm();
   const { t, locale, lang } = useT();
   const { seasons, checks } = useGuideData();
   // Guide off = the plain app: no farm-check tile, season action plans, advice lines or topic links.
@@ -115,6 +115,8 @@ export const Dashboard: React.FC = () => {
     return items;
   }, [trees]);
   const followUpCount = attentionItems.filter((i) => i.fu.needs).length;
+  const notSeen = counts.total - counts.reported7d;
+  const rainToday = rain.find((r) => r.date === todayStr());
 
   const hour = new Date().getHours();
   const greeting = t(
@@ -164,36 +166,38 @@ export const Dashboard: React.FC = () => {
         </p>
       )}
 
-      {/* KPIs. Hue is reserved for status. */}
+      {/* Today: what still needs doing, not repeats of the lists below (those show the trees and routines). */}
       <div className={`grid grid-cols-2 gap-3 ${guideOn ? 'lg:grid-cols-4' : 'lg:grid-cols-3'}`}>
-        <Link to={treesUrl({ condition: 'emergency' })} className={`${tile} ${counts.emergency > 0 ? 'border-rose-300' : 'border-slate-200'}`}>
+        <Link to={treesUrl({ followup: '1' })} className={`${tile} ${followUpCount > 0 ? 'border-rose-300' : 'border-slate-200'}`}>
           <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-600">
-            <AlertOctagon className={`w-4 h-4 ${counts.emergency > 0 ? 'text-rose-600' : 'text-slate-400'}`} />
-            {t('cond.emergency')}
+            <AlertOctagon className={`w-4 h-4 ${followUpCount > 0 ? 'text-rose-600' : 'text-slate-400'}`} />
+            {t('dash.today.recheck')}
           </span>
-          <span className={`block mt-2 text-3xl font-bold tabular ${counts.emergency > 0 ? 'text-rose-700' : 'text-slate-900'}`}>{counts.emergency}</span>
-          <span className="block text-xs text-slate-600 mt-0.5">{counts.emergency === 0 ? t('dash.kpi.emergency.none') : t('dash.kpi.emergency.some')}</span>
+          <span className={`block mt-2 text-3xl font-bold tabular ${followUpCount > 0 ? 'text-rose-700' : 'text-slate-900'}`}>{followUpCount}</span>
+          <span className="block text-xs text-slate-600 mt-0.5">{followUpCount ? t('dash.today.recheck.sub') : t('dash.today.recheck.none')}</span>
         </Link>
 
-        <Link to={treesUrl({ condition: 'minor' })} className={`${tile} border-slate-200`}>
+        <Link to={treesUrl({ stale: '1' })} className={`${tile} ${notSeen > 0 ? 'border-amber-300' : 'border-slate-200'}`}>
           <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-600">
-            <AlertTriangle className={`w-4 h-4 ${counts.minor > 0 ? 'text-amber-600' : 'text-slate-400'}`} />
-            {t('dash.kpi.watch')}
+            <AlertTriangle className={`w-4 h-4 ${notSeen > 0 ? 'text-amber-600' : 'text-slate-400'}`} />
+            {t('dash.today.unseen')}
           </span>
-          <span className="block mt-2 text-3xl font-bold tabular text-slate-900">{counts.minor}</span>
-          <span className="block text-xs text-slate-600 mt-0.5">{t('dash.kpi.watch.sub')}</span>
+          <span className="block mt-2 text-3xl font-bold tabular text-slate-900">{notSeen}</span>
+          <span className="block text-xs text-slate-600 mt-0.5 tabular">{t('dash.today.unseen.sub', { a: counts.reported7d, b: counts.total })}</span>
         </Link>
 
-        <Link to="/schedule" className={`${tile} ${overdueCount > 0 ? 'border-rose-300' : 'border-slate-200'} ${guideOn ? '' : 'col-span-2 lg:col-span-1'}`}>
+        <button
+          type="button"
+          onClick={() => document.getElementById('rain-h')?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
+          className={`${tile} ${rainToday ? 'border-slate-200' : 'border-amber-300'} ${guideOn ? '' : 'col-span-2 lg:col-span-1'}`}
+        >
           <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-600">
-            <CalendarCheck className={`w-4 h-4 ${overdueCount > 0 ? 'text-rose-600' : 'text-slate-400'}`} />
-            {t('dash.kpi.routine')}
+            <CloudRain className={`w-4 h-4 ${rainToday ? 'text-slate-400' : 'text-amber-600'}`} />
+            {t('dash.today.rain')}
           </span>
-          <span className={`block mt-2 text-3xl font-bold tabular ${overdueCount > 0 ? 'text-rose-700' : 'text-slate-900'}`}>{dueSoon.length}</span>
-          <span className="block text-xs text-slate-600 mt-0.5 tabular">
-            {overdueCount > 0 ? t('dash.kpi.routine.overdue', { n: overdueCount }) : t('dash.kpi.routine.sub')}
-          </span>
-        </Link>
+          <span className="block mt-2 text-3xl font-bold tabular text-slate-900">{rainToday ? `${rainToday.rainMm} mm` : '—'}</span>
+          <span className="block text-xs text-slate-600 mt-0.5">{rainToday ? t('dash.today.rain.done') : t('dash.today.rain.todo')}</span>
+        </button>
 
         {/* The Guide's farm check: best practice vs this farm. Opening it weekly is the A7 habit. */}
         {guideOn && (
