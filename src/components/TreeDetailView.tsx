@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useT } from '../i18n';
 import { useFarm, formatDateTime, formatDate, normalizeTimestamp } from '../context/FarmContext';
 import { DurianTree, TreeCondition, ReportPhoto, TreeReport } from '../types';
@@ -30,6 +30,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { TreeGuideSection } from './GuideWidgets';
+import { TREE_LIMITS, checkTreeForm, plantedDateStr } from '../lib/trees';
 
 interface TreeDetailViewProps {
   treeId: string;
@@ -79,6 +80,22 @@ const ThumbnailItem: React.FC<{
   );
 };
 
+/** i18n label per form field, for the "also changed elsewhere" notice. */
+const FIELD_LABEL: Record<string, string> = {
+  variant: 'common.variant',
+  block: 'common.block',
+  condition: 'common.condition',
+  conditionNotes: 'tree.conditionNotes',
+  canopySize: 'field.canopy',
+  trunkSize: 'field.trunk',
+  floweringBranches: 'field.branches',
+  floweringClusters: 'field.clusters',
+  estimatedFruitCount: 'field.fruits',
+  notes: 'tree.notes',
+  supplier: 'tree.supplier',
+  datePlanted: 'tree.datePlanted',
+};
+
 export const TreeDetailView: React.FC<TreeDetailViewProps> = ({ treeId, onBack }) => {
   const { t } = useT();
   const { trees, variants, updateTree, treatments } = useFarm();
@@ -104,9 +121,19 @@ export const TreeDetailView: React.FC<TreeDetailViewProps> = ({ treeId, onBack }
     estimatedFruitCount: '',
     notes: '',
     supplier: '',
+    datePlanted: '',
   });
 
   const [initialData, setInitialData] = useState({ ...formData });
+  type FormState = typeof formData;
+  // Latest values for the live-update merge below (the effect must not depend on every keystroke).
+  const formRef = useRef(formData);
+  const initialRef = useRef(initialData);
+  formRef.current = formData;
+  initialRef.current = initialData;
+  /** Set when the tree changed in the database while the form had unsaved edits. */
+  const [remoteUpdate, setRemoteUpdate] = useState<{ conflicts: string[] } | null>(null);
+  const [showErrors, setShowErrors] = useState(false);
 
   // Targeted live stream for THIS tree's reports (with pagination limit)
   const [reportsLimit, setReportsLimit] = useState(20);
@@ -136,9 +163,26 @@ export const TreeDetailView: React.FC<TreeDetailViewProps> = ({ treeId, onBack }
         estimatedFruitCount: tree.estimatedFruitCount !== undefined && tree.estimatedFruitCount !== null ? String(tree.estimatedFruitCount) : '',
         notes: tree.notes || '',
         supplier: tree.supplier || '',
+        datePlanted: plantedDateStr(tree.datePlanted),
       };
-      setFormData(init);
+      const form = formRef.current;
+      const base = initialRef.current;
+      const keys = Object.keys(init) as Array<keyof FormState>;
+      const edited = keys.filter((k) => form[k] !== base[k]);
+      if (edited.length === 0) {
+        setFormData(init);
+        setInitialData(init);
+        return;
+      }
+      // Unsaved edits: refresh the fields the user hasn't touched, keep their edits, and say what happened.
+      // (A WhatsApp report arriving mid-edit used to wipe everything typed.)
+      const changedRemotely = keys.filter((k) => init[k] !== base[k]);
+      if (changedRemotely.length === 0) return;
+      const merged = { ...init };
+      edited.forEach((k) => ((merged as Record<string, unknown>)[k] = form[k]));
+      setFormData(merged);
       setInitialData(init);
+      setRemoteUpdate({ conflicts: edited.filter((k) => changedRemotely.includes(k)) });
     }
   }, [tree, treeId]);
 
@@ -190,9 +234,18 @@ export const TreeDetailView: React.FC<TreeDetailViewProps> = ({ treeId, onBack }
       formData.floweringClusters !== initialData.floweringClusters ||
       formData.estimatedFruitCount !== initialData.estimatedFruitCount ||
       formData.notes !== initialData.notes ||
-      formData.supplier !== initialData.supplier
+      formData.supplier !== initialData.supplier ||
+      formData.datePlanted !== initialData.datePlanted
     );
   }, [formData, initialData]);
+
+  const formCheck = useMemo(() => checkTreeForm(formData, initialData), [formData, initialData]);
+  const fieldError = (f: keyof typeof formCheck.errors) => {
+    const e = formCheck.errors[f];
+    // Show as soon as a changed value is wrong, so it can be fixed while typing.
+    return e && (showErrors || formData[f] !== initialData[f]) ? t(e.key, e.vars) : null;
+  };
+  const errCls = (f: keyof typeof formCheck.errors) => (fieldError(f) ? ' border-rose-500 bg-rose-50/40' : '');
 
   // Prompt before window unload if unsaved changes exist
   useEffect(() => {
@@ -258,6 +311,11 @@ export const TreeDetailView: React.FC<TreeDetailViewProps> = ({ treeId, onBack }
   const handleSave = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!tree || !hasUnsavedChanges) return;
+    if (Object.keys(formCheck.errors).length > 0) {
+      setShowErrors(true);
+      setSaveError(t('tree.v.fix'));
+      return;
+    }
 
     setIsSaving(true);
     setSaveError(null);
@@ -267,27 +325,33 @@ export const TreeDetailView: React.FC<TreeDetailViewProps> = ({ treeId, onBack }
       const parseNumberField = (val: string): number | undefined => {
         const trimmed = val.trim();
         if (trimmed === '') return undefined;
-        const n = Number(trimmed);
+        const n = Number(trimmed.replace(',', '.'));
         return isNaN(n) ? undefined : n;
       };
+      const canopyText = formData.canopySize.trim();
+      const canopyChanged = canopyText !== initialData.canopySize.trim();
 
       const draft: Partial<DurianTree> = {
         variant: formData.variant.trim(),
         block: formData.block.trim(),
         condition: formData.condition,
         conditionNotes: formData.conditionNotes.trim(),
-        canopySize: formData.canopySize.trim() !== '' ? formData.canopySize.trim() : undefined,
+        // A changed canopy is validated as a number; an untouched old text value is passed through unchanged.
+        canopySize: canopyText === '' ? undefined : canopyChanged ? Number(canopyText.replace(',', '.')) : canopyText,
         trunkSize: parseNumberField(formData.trunkSize),
         floweringBranches: parseNumberField(formData.floweringBranches),
         floweringClusters: parseNumberField(formData.floweringClusters),
         estimatedFruitCount: parseNumberField(formData.estimatedFruitCount),
         notes: formData.notes.trim(),
         supplier: formData.supplier.trim(),
+        ...(formData.datePlanted !== initialData.datePlanted ? { datePlanted: formData.datePlanted } : {}),
       };
 
       await updateTree(tree, draft);
 
       setInitialData({ ...formData });
+      setRemoteUpdate(null);
+      setShowErrors(false);
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 2500);
     } catch (err: any) {
@@ -415,6 +479,30 @@ export const TreeDetailView: React.FC<TreeDetailViewProps> = ({ treeId, onBack }
           >
             {t('tree.saveNow')}
           </button>
+        </div>
+      )}
+
+      {remoteUpdate && (
+        <div role="status" className="px-4 py-2.5 bg-sky-50 border border-sky-200 text-sky-900 text-xs rounded-xl flex flex-wrap items-center justify-between gap-2">
+          <span>
+            {t('tree.remote.updated')}
+            {remoteUpdate.conflicts.length > 0 && ` ${t('tree.remote.conflicts', { fields: remoteUpdate.conflicts.map((k) => t(FIELD_LABEL[k] || k)).join(', ') })}`}
+          </span>
+          <span className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setFormData({ ...initialData });
+                setRemoteUpdate(null);
+              }}
+              className="px-2.5 py-1 rounded-md border border-sky-300 bg-white font-semibold"
+            >
+              {t('tree.remote.discard')}
+            </button>
+            <button type="button" onClick={() => setRemoteUpdate(null)} className="px-2.5 py-1 rounded-md font-semibold">
+              {t('common.close')}
+            </button>
+          </span>
         </div>
       )}
 
@@ -569,13 +657,23 @@ export const TreeDetailView: React.FC<TreeDetailViewProps> = ({ treeId, onBack }
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                <label htmlFor="tf-planted" className="block text-xs font-semibold text-slate-700 mb-1">
                   {t('tree.datePlanted')}
                 </label>
-                <div className="text-xs p-2 bg-slate-50 border border-slate-200 rounded-lg font-sans text-slate-700 flex items-center justify-between">
-                  <span>{formatDate(tree?.datePlanted)}</span>
-                  <span className="text-xs text-slate-500">{t('tree.recorded')}</span>
-                </div>
+                <input
+                  id="tf-planted"
+                  type="date"
+                  min="1990-01-01"
+                  max={toDateStr(new Date())}
+                  value={formData.datePlanted}
+                  onChange={(e) => setFormData({ ...formData, datePlanted: e.target.value })}
+                  aria-invalid={Boolean(fieldError('datePlanted'))}
+                  aria-describedby="tf-planted-msg"
+                  className={`w-full min-h-11 text-sm px-3 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none${errCls('datePlanted')}`}
+                />
+                <p id="tf-planted-msg" className={`text-xs mt-0.5 ${fieldError('datePlanted') ? 'text-rose-700' : 'text-slate-500'}`}>
+                  {fieldError('datePlanted') || t('tree.datePlantedHint')}
+                </p>
               </div>
             </div>
 
@@ -592,11 +690,16 @@ export const TreeDetailView: React.FC<TreeDetailViewProps> = ({ treeId, onBack }
                   <input
                     type="number"
                     step="any"
+                    min={TREE_LIMITS.trunkSize.min}
+                    max={TREE_LIMITS.trunkSize.max}
                     value={formData.trunkSize}
                     onChange={(e) => setFormData({ ...formData, trunkSize: e.target.value })}
                     placeholder="—"
-                    className="w-full min-h-11 text-sm px-3 py-2 bg-white border border-slate-300 rounded-lg font-mono tabular-nums placeholder:text-slate-400"
+                    aria-invalid={Boolean(fieldError('trunkSize'))}
+                    aria-describedby="tf-trunkSize-msg"
+                    className={`w-full min-h-11 text-sm px-3 py-2 bg-white border border-slate-300 rounded-lg font-mono tabular-nums placeholder:text-slate-400${errCls('trunkSize')}`}
                   />
+                  {fieldError('trunkSize') && <p id="tf-trunkSize-msg" className="text-xs text-rose-700 mt-0.5">{fieldError('trunkSize')}</p>}
                 </div>
 
                 <div>
@@ -605,11 +708,15 @@ export const TreeDetailView: React.FC<TreeDetailViewProps> = ({ treeId, onBack }
                   </label>
                   <input
                     type="text"
+                    inputMode="decimal"
                     value={formData.canopySize}
                     onChange={(e) => setFormData({ ...formData, canopySize: e.target.value })}
                     placeholder="—"
-                    className="w-full min-h-11 text-sm px-3 py-2 bg-white border border-slate-300 rounded-lg font-mono tabular-nums placeholder:text-slate-400"
+                    aria-invalid={Boolean(fieldError('canopySize'))}
+                    aria-describedby="tf-canopySize-msg"
+                    className={`w-full min-h-11 text-sm px-3 py-2 bg-white border border-slate-300 rounded-lg font-mono tabular-nums placeholder:text-slate-400${errCls('canopySize')}`}
                   />
+                  {fieldError('canopySize') && <p id="tf-canopySize-msg" className="text-xs text-rose-700 mt-0.5">{fieldError('canopySize')}</p>}
                 </div>
 
                 <div>
@@ -621,8 +728,11 @@ export const TreeDetailView: React.FC<TreeDetailViewProps> = ({ treeId, onBack }
                     value={formData.floweringClusters}
                     onChange={(e) => setFormData({ ...formData, floweringClusters: e.target.value })}
                     placeholder="—"
-                    className="w-full min-h-11 text-sm px-3 py-2 bg-white border border-slate-300 rounded-lg font-mono tabular-nums placeholder:text-slate-400"
+                    aria-invalid={Boolean(fieldError('floweringClusters'))}
+                    aria-describedby="tf-floweringClusters-msg"
+                    className={`w-full min-h-11 text-sm px-3 py-2 bg-white border border-slate-300 rounded-lg font-mono tabular-nums placeholder:text-slate-400${errCls('floweringClusters')}`}
                   />
+                  {fieldError('floweringClusters') && <p id="tf-floweringClusters-msg" className="text-xs text-rose-700 mt-0.5">{fieldError('floweringClusters')}</p>}
                 </div>
 
                 <div>
@@ -634,11 +744,20 @@ export const TreeDetailView: React.FC<TreeDetailViewProps> = ({ treeId, onBack }
                     value={formData.estimatedFruitCount}
                     onChange={(e) => setFormData({ ...formData, estimatedFruitCount: e.target.value })}
                     placeholder="—"
-                    className="w-full min-h-11 text-sm px-3 py-2 bg-emerald-50/50 border border-emerald-300 rounded-lg font-mono tabular-nums font-bold text-emerald-800 focus:bg-white placeholder:text-slate-400"
+                    aria-invalid={Boolean(fieldError('estimatedFruitCount'))}
+                    aria-describedby="tf-estimatedFruitCount-msg"
+                    className={`w-full min-h-11 text-sm px-3 py-2 bg-emerald-50/50 border border-emerald-300 rounded-lg font-mono tabular-nums font-bold text-emerald-800 focus:bg-white placeholder:text-slate-400${errCls('estimatedFruitCount')}`}
                   />
+                  {fieldError('estimatedFruitCount') && <p id="tf-estimatedFruitCount-msg" className="text-xs text-rose-700 mt-0.5">{fieldError('estimatedFruitCount')}</p>}
                 </div>
               </div>
             </div>
+
+            {formCheck.fruitWarning && (
+              <p className="text-xs text-amber-900 bg-amber-50 border border-amber-200 rounded-lg p-2.5 -mt-2">
+                {t(formCheck.fruitWarning.key, formCheck.fruitWarning.vars)}
+              </p>
+            )}
 
             {/* General Notes */}
             <div>

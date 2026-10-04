@@ -314,6 +314,13 @@ export async function saveTreeChanges(
     }
   }
 
+  // Planting date (YYYY-MM-DD). Only present in the draft when the form changed it; empty clears it.
+  if ('datePlanted' in draft) {
+    const next = typeof draft.datePlanted === 'string' ? draft.datePlanted.trim() : '';
+    changes.datePlanted = { from: originalTree.datePlanted ?? null, to: next || null };
+    payload.datePlanted = next || deleteField();
+  }
+
   // Condition
   const origCondition = originalTree.condition || 'not_assessed';
   const draftCondition = draft.condition || 'not_assessed';

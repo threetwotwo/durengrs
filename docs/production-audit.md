@@ -58,12 +58,12 @@ changes Claude can do.
 | A1 | Turn on backups · **skipped for now** | ★★★★★ | S | You |
 | A2 | Check which database is live · **done** | ★★★★★ | S | You (+ Claude, 1 line) |
 | A3 | Check the bot's timestamps | ★★★★★ | S | You |
-| A4 | Stop losing unsaved tree edits | ★★★★★ | S | Claude |
+| A4 | Stop losing unsaved tree edits · **done** | ★★★★★ | S | Claude |
 | A5 | Record bloom dates every season | ★★★★★ | Habit | Team |
 | A6 | Simple harvest log | ★★★★★ | M | Claude + Team habit |
 | A7 | Weekly 10-minute farm check | ★★★★ | Habit | Team |
-| A8 | Make planting date editable | ★★★★ | S | Claude |
-| A9 | Check tree measurements when saving | ★★★★ | S | Claude |
+| A8 | Make planting date editable · **done** | ★★★★ | S | Claude |
+| A9 | Check tree measurements when saving · **done** | ★★★★ | S | Claude |
 | A10 | Keep ripening days up to date | ★★★★ | Habit | Team |
 | A11 | One-tap "done" for season tasks | ★★★★ | M | Claude |
 | A12 | Fix overdue routines that are not overdue | ★★★ | S | Claude |
@@ -133,7 +133,9 @@ missing from both.
 
 ---
 
-### A4 Stop losing unsaved tree edits · ★★★★★ · S · Claude
+### A4 Stop losing unsaved tree edits · ★★★★★ · S · Claude · done
+
+> **Done.** Untouched fields refresh, your edits are kept, and a notice names any field changed in both places, with a "Discard my changes" option.
 
 **Why:** on a tree's page, the form resets every time that tree changes in the database. If a WhatsApp report
 arrives while someone is typing, their unsaved changes disappear without warning.
@@ -188,7 +190,9 @@ a re-check, overdue work, missing Phytophthora prevention. It only helps if some
 
 ---
 
-### A8 Make planting date editable · ★★★★ · S · Claude
+### A8 Make planting date editable · ★★★★ · S · Claude · done
+
+> **Done.** Date field on the tree page; the team part below still applies.
 
 **Why:** planting date is shown as "Recorded" and can't be changed. The Guide uses it to warn when a tree carries
 more fruit than is normal for its age, and for young-tree care. Without it these warnings never appear.
@@ -199,7 +203,9 @@ more fruit than is normal for its age, and for young-tree care. Without it these
 
 ---
 
-### A9 Check tree measurements when saving · ★★★★ · S · Claude
+### A9 Check tree measurements when saving · ★★★★ · S · Claude · done
+
+> **Done.** Only changed fields are checked, so old odd values never block a save.
 
 **Why:** trunk girth, flower clusters and fruit count accept negative or impossible numbers, and canopy width
 accepts any text. One typo can make the harvest forecast or fruit-load warning wrong.
