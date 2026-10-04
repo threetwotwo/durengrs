@@ -1,5 +1,8 @@
 # WhatsApp Flows plan: field data for the Guide
 
+> **On hold.** Draft for reference only; WhatsApp flows will be evaluated later. The current plan of record is
+> [production-audit.md](./production-audit.md).
+
 How field workers feed the data the Guide needs, without opening the web app. This plan builds on the existing
 tree-report flow (`flow.json` / `index.js` in the bot, whose vocabulary is mirrored in `src/i18n/common.ts`).
 That bot code isn't in this repository, so anything about its current behaviour below is **inferred from

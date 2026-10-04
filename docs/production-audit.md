@@ -1,164 +1,310 @@
 # Production audit: Cilowong farm web app
 
-Audit of the whole web app against what the Guide says the farm must measure and maintain, with production
-readiness in mind. **Security rules and sign-in are out of scope for now** (tracked separately).
+**Goal:** run the app in production so the farm can keep trees and fruit in the best condition, as described in
+the Guide. **Not covered here:** security rules and sign-in (later), and WhatsApp flows (to be evaluated later).
 
-Companion plan: [whatsapp-flows.md](./whatsapp-flows.md) designs the field-worker flows that close the data gaps
-found here.
-
-Priority: **P0** blocks going live or makes the app give wrong advice · **P1** needed soon after launch ·
-**P2** quality and cost.
+Written for a small team: every action says **how much it helps, how much work it is, and who does it**. Most
+of the work is either a few clicks in the Firebase console or code changes Claude can make. The team's part is
+kept to short habits.
 
 ---
 
-## 1. Why data gaps matter here
+## How the priority works
 
-Almost everything the Guide does is computed from a few inputs. If an input is missing, the advice silently
-falls back to a generic default:
+Each action gets two scores. The list is sorted by **impact first**, then by **least effort**.
 
-| Guide output | Depends on | Captured today? |
-|---|---|---|
-| Season stage per block, "do now" actions, harvest window | Bloom date per block (`harvestCycles`) | Manually, in the web app only |
-| Harvest date per block/variety | Bloom date + `variants.ripeningDays` | Ripening days typed by hand, never checked against real harvests |
-| Predicting bloom ~50 days ahead | Daily rain (15-day dry spell) or bud-emergence date (~49 days) | **No** |
-| Wet-core / uneven-ripening risk | Rain while fruit matures (≥200 mm) | **No** |
-| Phosphonate injection timing, flowering readiness, psyllid watch | Leaf-flush stage per block | **No** |
-| Thinning, bagging, fruit tying, hand pollination done on time | One-off season tasks tied to the bloom date | **No** (only recurring routines exist) |
-| Harvest forecast, fruit load vs tree age | `estimatedFruitCount`, `datePlanted` | Fruit count yes; planting date **cannot be edited** |
-| Real ripening days, yield per tree, quality (wet core, rot, cracking) | Harvest records | **No** |
-| Phytophthora early detection | Structured trunk-check results | Free-text reports only (keyword matching) |
-| Leaf and soil nutrient targets | Lab results | **No** place to store them |
-| Pushing the right task to the right worker | Worker roster (name, phone, blocks, role) | **No** (only `workerPhone` on reports) |
+| Impact | Meaning |
+|---|---|
+| ★★★★★ | Protects trees, fruit or years of data. Skipping it can cause real loss. |
+| ★★★★ | The Guide gives wrong or generic advice without it. |
+| ★★★ | Saves time or avoids confusing mistakes. |
+| ★★ | Nice to have. |
+| ★ | Polish. |
 
----
+| Effort | Meaning |
+|---|---|
+| **S** | Under 1 hour, done once |
+| **M** | Half a day to a day, done once |
+| **L** | Several days |
+| **Habit** | A few minutes, repeated (daily, weekly or per season) |
 
-## 2. Findings
-
-### P0: wrong or missing advice, or a risky launch
-
-**P0-1. No harvest records.** Nothing stores what was harvested, when, how much, or its quality. That means:
-- ripening days can never be corrected from the farm's own data (the Guide asks for this);
-- the harvest forecast can't be checked against reality;
-- yield per tree, per variety and per block is unknown;
-- wet core, uneven ripening and fruit rot can't be linked to rain, nutrition or thinning.
-
-*Fix:* new `harvests` collection, filled by Flow **F5 Panen**; harvest view in the app; a rolling median of
-actual bloom-to-harvest days per variety shown next to `ripeningDays` on the Variants page.
-
-**P0-2. The bloom date, which drives the whole Guide, is only entered in the web app.** The people who
-see flowers open are in the field. A missed or late entry shifts every stage, action and harvest date for that
-block.
-*Fix:* Flow **F1 Pembungaan** reports bud emergence and bloom per block. The web app keeps the manual
-override.
-
-**P0-3. Planting date is read-only.** `datePlanted` shows "Recorded" and can't be edited. The fruit-load
-check and young-tree guidance depend on it, so for most trees they never fire.
-*Fix:* make it editable in the tree form (date input, not in the future, not before 1990), and capture it in
-Flow **F9 Pohon baru / sulam** for new and replacement trees.
-
-**P0-4. Deployment isn't reproducible from the repo.** There is no `firebase.json` or
-`firestore.indexes.json`. The tree page and report deletion need a composite index (`reports`: `treeId ==` +
-`createdAt desc`), which presumably exists only in the console. New flow collections will add more.
-*Fix:* commit `firebase.json` (hosting + rules + indexes) and `firestore.indexes.json`, and deploy from the repo.
-
-**P0-5. Unclear which database the app uses.** `firebase-applet-config.json` names `firestoreDatabaseId:
-"duren-db"`, but the app calls `getFirestore(app)`, which uses `(default)`. The bot must write to the same
-database the app reads.
-*Fix:* decide on one database, set it explicitly in code and in the bot, and remove the misleading config field.
-
-**P0-6. Date and timestamp contracts aren't written down.** The app's queries assume `reports.createdAt`
-is a Firestore `Timestamp` (unread badge, activity view). A bot that writes ISO strings would make those
-reports invisible to the queries. Date-only fields (`floweredOn`, `treatments.date`) are local
-`YYYY-MM-DD` strings. A bot server running in UTC would record dates a day early before 07:00 WIB.
-*Fix:* the data contract in [whatsapp-flows.md §4](./whatsapp-flows.md#4-data-contracts). `Timestamp` for
-instants, `YYYY-MM-DD` in **Asia/Jakarta** for calendar dates, and `source` + `flowToken` on every write.
-
-**P0-7. No backups.** One bad bot deploy or manual delete can wipe history that the Guide needs year over year.
-*Fix:* enable Firestore point-in-time recovery and a scheduled daily export to Cloud Storage.
-
-### P1: needed soon after launch
-
-**P1-1. Tree measurements accept anything.** In the tree form, trunk girth, flower clusters and fruit count
-accept negative or absurd values, and canopy width is free text (units mix). These numbers feed the
-fruit-load rule and the harvest forecast.
-*Fix:* validate in the form and in the bot with one shared rule set: girth 1–600 cm, canopy 50–2,500 cm
-(number only), clusters 0–2,000, fruit 0–500. Show a warning, not a block, when fruit exceeds the age-based
-typical maximum.
-
-**P1-2. One-off season tasks can't be logged.** Thinning (in rounds around days 28–60), bagging (by week 6
-after fruit set), tying fruit stalks, hand pollination and flower-bud thinning happen once per season,
-timed from the bloom date. Today only recurring routines exist, so they're invisible.
-*Fix:* a `seasonTasks` log (block, task, date, share of trees done) filled by Flow **F3 Pekerjaan selesai**.
-The Guide then marks each "do now" action as done or overdue per block.
-
-**P1-3. Trunk checks are free text.** Phytophthora is the main threat, and the Guide asks for weekly trunk
-checks in wet weather. Reports are matched to topics by keywords, which is a heuristic.
-*Fix:* Flow **F4 Cek batang** records structured symptoms (`wet_patch`, `red_ooze`, `borer_hole`,
-`bark_crack`, `none`) on the report, and the follow-up rule (emergency 2 days, minor 7) applies to them.
-
-**P1-4. No rain or water data.** The Guide can't detect the dry spell that triggers flowering, warn about
-≥200 mm while fruit matures, or flag waterlogged blocks.
-*Fix:* Flow **F6 Hujan & air**, one reading a day from a rain gauge, plus standing water and irrigation per
-block, written to a `weather` collection keyed by date.
-
-**P1-5. No leaf-flush data.** Phosphonate injection works best during a flush, flowering needs hardened leaves,
-and psyllids attack new flushes. None of this is recorded.
-*Fix:* Flow **F7 Tunas daun** records the flush stage per block every 2 weeks outside the fruiting period.
-
-**P1-6. Lab results have no home.** The Guide recommends a yearly leaf analysis and soil pH test and compares
-them with target ranges. There's nowhere to put the numbers.
-*Fix:* a web-app form (owner-entered, not WhatsApp): `labResults` per block and date with pH, N, P, K, Ca, Mg, B,
-Zn and organic matter. The nutrition topic then shows each value against its range.
-
-**P1-7. Treatments listener is capped at 500.** `computeTasks` takes the last-done date per plan and block
-from the newest 500 treatments. Once frequent routines (e.g. weekly irrigation across blocks) push older entries
-out, rarely done routines look **never done / overdue**.
-*Fix:* store `lastDone` per plan and block on the plan document (updated in the same batch as each log), or
-query per plan.
-
-**P1-8. No worker roster.** Pushing flows needs to know who gets which task (rain recorder, sprayer, block
-leads). Reports only carry a phone number.
-*Fix:* a `workers` collection (name, phone E.164, roles, blocks, language, active) managed in the web app.
-It's also the base for sign-in later.
-
-**P1-9. No error monitoring.** Listener failures only reach `console.error`. Bot write failures aren't
-visible anywhere.
-*Fix:* a lightweight error reporter for the web app, and a `botEvents` log (or Cloud Logging alert) for
-failed flow submissions.
-
-### P2: quality, cost, polish
-
-- **P2-1. Bundle size.** The Firebase chunk is ~550 kB (165 kB gzip). Load Storage only on report pages, and
-  consider splitting `firebase/firestore` usage per page.
-- **P2-2. Offline use of the web app.** Firestore's memory cache is used. Enabling `persistentLocalCache`
-  lets the owner open the app in the field with a weak signal. Workers are covered by WhatsApp.
-- **P2-3. Read cost.** Every open listens to all `trees`, `variants`, `treatmentPlans`, `harvestCycles` and 500
-  `treatments`. Fine at hundreds of trees. Revisit past ~2,000 trees.
-- **P2-4. Keyword matching** of notes to Guide topics stays useful for free text, but should defer to
-  structured symptom codes once F4 exists.
-- **P2-5. Variant codes on trees aren't constrained.** The Variants page now flags unknown codes; the bot
-  should only offer codes from `variants` (dynamic dropdown via the data endpoint).
+| Who | Meaning |
+|---|---|
+| **You** | Clicks in the Firebase console or a quick check. Steps are written out. |
+| **Claude** | A code change. Ask Claude to do it and review the result. |
+| **Team** | A short routine for whoever manages the farm. |
 
 ---
 
-## 3. What's already in good shape
+## Start here: the first week
 
-- Hash routing with deep links, Back that works, and URL-held filters across pages.
-- Indonesian-first UI with matching vocabulary to the WhatsApp flow.
-- Report deletion cleans up photos and repairs the tree.
-- Tree edits are atomic with their audit record.
-- The variant form validates, deletes cleanly, and reassigns trees.
-- The Guide's farm check already flags missing bloom dates, ripening days, unknown variant codes, fruit
-  counts, measurements, inspection coverage and missing routines.
+If you only do five things, do these. Together they take about **2 hours of your time** plus code changes
+Claude can do.
+
+1. **A1 Turn on backups** (You, 15 min)
+2. **A2 Check which database is live** (You, 10 min)
+3. **A3 Check the bot's timestamps** (You, 5 min)
+4. **A4 Stop losing unsaved tree edits** (Claude)
+5. **A5 Record bloom dates every season** (Team, 2 min per block per season)
 
 ---
 
-## 4. Suggested order of work
+## All actions, sorted by impact
 
-1. **Before go-live:** P0-4 deploy config + indexes, P0-5 database choice, P0-6 data contract, P0-7 backups,
-   P0-3 editable planting date.
-2. **Flows wave 1** (highest value per effort): F1 Pembungaan, F5 Panen, F3 Pekerjaan selesai, plus the
-   `workers` roster (P1-8).
-3. **Flows wave 2:** F6 Hujan & air, F4 Cek batang, F2 Hitung buah.
-4. **Flows wave 3 + app:** F7 Tunas daun, F9 Pohon baru / sulam, lab results form (P1-6), validation
-   (P1-1), treatments `lastDone` (P1-7), monitoring (P1-9).
+| # | Action | Impact | Effort | Who |
+|---|---|---|---|---|
+| A1 | Turn on backups | ★★★★★ | S | You |
+| A2 | Check which database is live | ★★★★★ | S | You (+ Claude, 1 line) |
+| A3 | Check the bot's timestamps | ★★★★★ | S | You |
+| A4 | Stop losing unsaved tree edits | ★★★★★ | S | Claude |
+| A5 | Record bloom dates every season | ★★★★★ | Habit | Team |
+| A6 | Simple harvest log | ★★★★★ | M | Claude + Team habit |
+| A7 | Weekly 10-minute farm check | ★★★★ | Habit | Team |
+| A8 | Make planting date editable | ★★★★ | S | Claude |
+| A9 | Check tree measurements when saving | ★★★★ | S | Claude |
+| A10 | Keep ripening days up to date | ★★★★ | Habit | Team |
+| A11 | One-tap "done" for season tasks | ★★★★ | M | Claude |
+| A12 | Fix overdue routines that are not overdue | ★★★ | S | Claude |
+| A13 | Clear message on a slow connection | ★★★ | S | Claude |
+| A14 | Put deploy settings in the code | ★★★ | S | Claude (+ You, once) |
+| A15 | Rain gauge + daily rain entry | ★★★ | M | Claude + Team habit |
+| A16 | Lab results page | ★★★ | M | Claude |
+| A17 | Error alerts | ★★ | S | Claude (+ You, sign-up) |
+| A18 | Faster first load | ★ | S | Claude |
+
+---
+
+## Action details
+
+### A1 Turn on backups · ★★★★★ · S · You
+
+**Why:** the Guide improves every season from the farm's own history: bloom dates, ripening days, condition
+changes and work done. One mistaken delete or a bad bot update could erase years of it. Today there is no backup.
+
+**Steps (Firebase console, about 15 minutes):**
+1. Open [console.firebase.google.com](https://console.firebase.google.com), choose project **duren-db**.
+2. Go to **Firestore Database**, then the **Disaster recovery** (or **Backups**) tab.
+3. Turn on **Point-in-time recovery**. This lets you restore any moment from the last 7 days.
+4. Create a **backup schedule**: daily, keep 14 days or more.
+5. (Optional) Upgrade to the Blaze plan if the console asks; backups need it. The cost at this farm's size is
+   very small.
+
+**Done when:** the Backups tab shows a daily schedule and point-in-time recovery is on.
+
+---
+
+### A2 Check which database is live · ★★★★★ · S · You (+ Claude, 1 line)
+
+**Why:** the settings file names a database called `duren-db`, but the app reads the **(default)** database.
+If the WhatsApp bot writes to one and the app reads the other, reports silently go missing.
+
+**Steps:**
+1. In the Firebase console, open **Firestore Database**. At the top there is a database selector.
+2. Note which database has your `trees` and `reports` (with recent dates).
+3. Tell Claude the name. Claude makes the app point to it explicitly and removes the misleading setting.
+
+**Done when:** the app and the bot are confirmed to use the same database.
+
+---
+
+### A3 Check the bot's timestamps · ★★★★★ · S · You
+
+**Why:** the app's "new reports" badge and the Activity view look for reports by date. They only find a report
+if its `createdAt` is stored as a Firestore **timestamp**. If the bot stores it as text, those reports are
+missing from both.
+
+**Steps (5 minutes):**
+1. Firebase console → **Firestore Database** → `reports` → open the newest report.
+2. Look at `createdAt`. It should say **timestamp** next to it, not **string**.
+3. Also check one with a date field written by the bot (e.g. a treatment from WhatsApp): `date` should look
+   like `2026-10-04`, in Indonesian time.
+
+**Done when:** both look right. If not, send a screenshot to whoever maintains the bot (or to Claude).
+
+---
+
+### A4 Stop losing unsaved tree edits · ★★★★★ · S · Claude
+
+**Why:** on a tree's page, the form resets every time that tree changes in the database. If a WhatsApp report
+arrives while someone is typing, their unsaved changes disappear without warning.
+
+**Change:** keep the user's edits when new data arrives, and show a small notice ("This tree was updated by a
+new report") with the option to reload.
+
+**Done when:** editing a tree while a report comes in keeps the typed values.
+
+---
+
+### A5 Record bloom dates every season · ★★★★★ · Habit · Team
+
+**Why:** every season stage, "do now" action and harvest date in the Guide is counted from the day flowers open
+in each block. Without it, the Guide can only give general advice.
+
+**Routine (2 minutes per block, once per season):**
+1. When most flowers in a block open, open the app → **Schedule** → **Harvest**.
+2. Pick the date for that block. That's all.
+
+**Done when:** the Guide's farm check shows "Every block has a bloom date".
+
+---
+
+### A6 Simple harvest log · ★★★★★ · M · Claude + Team habit
+
+**Why:** nothing records what was harvested. Without it the farm can't learn its real ripening days, its yield
+per tree or variety, or how often fruit has wet core or rot. The Guide asks for exactly these to improve each
+season.
+
+**Change (Claude):** a small form in **Schedule → Harvest**: date, block, number of fruit, optional weight,
+and tick boxes for problems (wet core, uneven ripening, rot, cracks, borers). The app then works out the real
+bloom-to-harvest days per variety and shows them next to the ripening days on the Variants page.
+
+**Routine (Team, 1 minute per block per harvest day):** at the end of a harvest day, enter the totals per block.
+
+**Done when:** after one harvest season, the Variants page shows the real ripening days next to the typed ones.
+
+---
+
+### A7 Weekly 10-minute farm check · ★★★★ · Habit · Team
+
+**Why:** the Guide's farm check already lists what needs attention: missing bloom dates, sick trees waiting for
+a re-check, overdue work, missing Phytophthora prevention. It only helps if someone looks.
+
+**Routine (every Monday, 10 minutes):**
+1. Open **Guide**. Look at **Farm check**.
+2. Fix the first red item, or give it to someone.
+3. Look at **This season by block** and share the "Do now" list with the field team.
+
+**Done when:** it has happened four Mondays in a row.
+
+---
+
+### A8 Make planting date editable · ★★★★ · S · Claude
+
+**Why:** planting date is shown as "Recorded" and can't be changed. The Guide uses it to warn when a tree carries
+more fruit than is normal for its age, and for young-tree care. Without it these warnings never appear.
+
+**Change:** a date field on the tree page (not in the future, not before 1990).
+
+**Team, once:** fill it in for trees you know, a block at a time. An approximate year is fine.
+
+---
+
+### A9 Check tree measurements when saving · ★★★★ · S · Claude
+
+**Why:** trunk girth, flower clusters and fruit count accept negative or impossible numbers, and canopy width
+accepts any text. One typo can make the harvest forecast or fruit-load warning wrong.
+
+**Change:** clear limits with friendly messages. Girth 1-600 cm, canopy 50-2,500 cm (number only), clusters
+0-2,000, fruit 0-500. Also a warning (not a block) if fruit is far above normal for the tree's age.
+
+---
+
+### A10 Keep ripening days up to date · ★★★★ · Habit · Team
+
+**Why:** harvest dates come from bloom date + ripening days per variety. The Variants page now shows the
+published range; for Super Tembaga there is no published figure at all.
+
+**Routine (after each harvest season, 5 minutes):** open **Variants**, and for each variety put in the real
+number of days from bloom to harvest. With A6, the app suggests the number.
+
+---
+
+### A11 One-tap "done" for season tasks · ★★★★ · M · Claude
+
+**Why:** thinning (around days 28-60), bagging (by week 6), tying fruit stalks and hand pollination are timed
+from the bloom date and done once per season. Today there is no way to mark them done, so nobody can see
+what was missed.
+
+**Change:** a **Done** button next to each "Do now" item on the Guide's season cards, per block. One tap
+records the date. Late items turn amber.
+
+**Team:** tap Done when a task is finished. No typing.
+
+---
+
+### A12 Fix overdue routines that are not overdue · ★★★ · S · Claude
+
+**Why:** the schedule only reads the newest 500 work records. After some months of frequent routines (for
+example weekly watering), older records drop out, and routines done less often (pruning, leaf analysis)
+wrongly show as "never done" or overdue. The team then stops trusting the schedule.
+
+**Change:** remember the last-done date on each routine itself, so no history limit matters.
+
+---
+
+### A13 Clear message on a slow connection · ★★★ · S · Claude
+
+**Why:** with a weak signal, the app can stay on "Loading…" forever with no explanation.
+
+**Change:** after about 10 seconds, show "Connection is slow; data will appear when the signal returns", and
+keep a copy of the last data on the phone so the app opens instantly next time.
+
+---
+
+### A14 Put deploy settings in the code · ★★★ · S · Claude (+ You, once)
+
+**Why:** some settings the app needs (database indexes, rules and hosting setup) exist only in the Firebase
+console. If they're changed by accident or the project is moved, nobody knows how to restore them.
+
+**Change (Claude):** add `firebase.json` and `firestore.indexes.json` to the code.
+**You, once:** confirm where the app is hosted today (AI Studio, Firebase Hosting, or elsewhere), so the files
+match.
+
+---
+
+### A15 Rain gauge + daily rain entry · ★★★ · M · Claude + Team habit
+
+**Why:** the Guide's research says about 15 dry days trigger flowering roughly 50 days later, and 200 mm or more
+of rain while fruit matures raises the risk of wet core. Without rain records the app can't warn about either.
+
+**Buy:** a simple plastic rain gauge (inexpensive at agricultural shops). Put it in an open spot.
+**Change (Claude):** a one-number "rain today (mm)" entry on the Dashboard, plus dry-spell and heavy-rain
+alerts in the farm check.
+**Routine (Team, 1 minute every morning):** read the gauge at 7:00, enter the number, empty the gauge.
+
+---
+
+### A16 Lab results page · ★★★ · M · Claude
+
+**Why:** the Guide recommends a yearly leaf analysis and soil pH test and lists the ideal ranges. There's
+nowhere to keep the results, so they can't be compared from year to year.
+
+**Change:** a simple page to type in each lab report (block, date, pH, N, P, K, Ca, Mg, B). Each value is shown
+green or amber against the Guide's ranges.
+
+---
+
+### A17 Error alerts · ★★ · S · Claude (+ You, sign-up)
+
+**Why:** if something breaks (for example the database refuses a save), today only the browser console knows.
+
+**Change:** connect a free error-reporting service, so errors arrive by email. You create the free account;
+Claude adds the code.
+
+---
+
+### A18 Faster first load · ★ · S · Claude
+
+**Why:** the app downloads about 550 kB of database code on first open. It's fine on Wi-Fi but slow on a weak
+mobile signal.
+
+**Change:** load the photo-storage part only on pages that show photos.
+
+---
+
+## What's already in good shape
+
+- **Navigation:** pages have shareable links, Back works, and filters stay in the address bar.
+- **Language:** Indonesian is the default and uses the same words as the WhatsApp reports.
+- **Report deletion** removes the photos too and repairs the tree's status.
+- **Tree edits** are saved together with their history record.
+- **Variants** are validated, can be deleted safely, and trees are moved before a variety is removed.
+- **The Guide's farm check** already flags many gaps automatically.
+
+---
+
+## Not included in this audit
+
+- **Security rules and sign-in.** The database is currently open to anyone with the address; plan it next.
+- **WhatsApp flows.** Field data collection by WhatsApp is to be evaluated later. A first draft from earlier is
+  in [whatsapp-flows.md](./whatsapp-flows.md), for reference only.
