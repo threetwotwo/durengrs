@@ -9,6 +9,7 @@ import { rememberReport } from '../lib/reportCache';
 import { formatDate } from '../context/FarmContext';
 import { useT } from '../i18n';
 import { TOPIC_BY_ID, pick, topicsForText } from '../lib/guide';
+import { useGuideOn } from '../lib/guideMode';
 import type { DurianTree, TreeReport } from '../types';
 
 /** True when the note has no letters or digits (e.g. only "🙏😎"). */
@@ -46,7 +47,8 @@ export const ReportCard: React.FC<{
   const phone = maskPhone(report.workerPhone);
   const emergency = (report.conditionAfter || '').toLowerCase() === 'emergency';
   const changed = report.conditionChanged && report.conditionBefore && report.conditionBefore !== report.conditionAfter;
-  const topics = useMemo(() => topicsForText(report.description).slice(0, 2), [report.description]);
+  const guideOn = useGuideOn();
+  const topics = useMemo(() => (guideOn ? topicsForText(report.description).slice(0, 2) : []), [report.description, guideOn]);
   const sm = size === 'sm';
   const where = [tree?.variant, block ? t('common.blockN', { n: block }) : null].filter(Boolean).join(' · ');
 

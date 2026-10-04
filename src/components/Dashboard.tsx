@@ -10,6 +10,8 @@ import { MarkDoneSheet, UndoToast, undoLogged, useUndoToast } from './TreatmentS
 import { ScheduleTask, formatShortDate, relativeDue } from '../lib/treatments';
 import { useT } from '../i18n';
 import { DashboardSeasonCard, StagePill, TOPIC_ICON, topicUrl, useGuideData } from './GuideWidgets';
+import { HarvestHomeCard } from './CropWidgets';
+import { useGuideOn } from '../lib/guideMode';
 import { RainCard, WeeklyReview } from './FieldRecords';
 import { STAGES, TOPIC_BY_ID, pick, topicsForText } from '../lib/guide';
 import { TreeReport } from '../types';
@@ -19,11 +21,12 @@ import { Check, AlertTriangle, AlertOctagon, ArrowRight, ArrowUpDown, Calendar, 
 
 /**
  * Daily view: what needs doing today to keep the trees in ideal condition.
- *   1. KPIs: emergencies, watch list, routine work due, Guide farm check
- *   2. Trees needing attention (with the Guide topic their notes point to) + routine work
- *   3. This season per block (Guide stages, one-tap bloom dates and season tasks)
- *   4. Blocks (health, stage, harvest window, fruit, inspection coverage) + rain
- *   5. Latest field reports (compact; photos live on the Reports page)
+ *   1. KPIs: emergencies, watch list, routine work due, Guide farm check (Guide on)
+ *   2. Harvest: farm funnel (clusters → fruit → graded harvest), next windows, trees to count or pick
+ *   3. Trees needing attention (with the Guide topic their notes point to, Guide on) + routine work
+ *   4. This season per block (Guide stages, one-tap bloom dates and season tasks; Guide on)
+ *   5. Blocks (health, stage, harvest window, fruit, inspection coverage) + rain
+ *   6. Latest field reports (compact; photos live on the Reports page)
  */
 
 type BlockSort = 'block' | 'total' | 'attention' | 'fruits';
@@ -33,6 +36,8 @@ export const Dashboard: React.FC = () => {
   const { trees, totalReportsCount, loading: treesLoading, plans, scheduleTasks, recordsError } = useFarm();
   const { t, locale, lang } = useT();
   const { seasons, checks } = useGuideData();
+  // Guide off = the plain app: no farm-check tile, season action plans, advice lines or topic links.
+  const guideOn = useGuideOn();
   const [doneTask, setDoneTask] = useState<ScheduleTask | null>(null);
   const { toast, show: showToast, clear: clearToast } = useUndoToast();
   const [latestReports, setLatestReports] = useState<TreeReport[]>([]);
@@ -93,7 +98,7 @@ export const Dashboard: React.FC = () => {
   const dueSoon = useMemo(() => scheduleTasks.filter((x) => x.status !== 'upcoming'), [scheduleTasks]);
   const overdueCount = dueSoon.filter((x) => x.status === 'overdue').length;
   const nextTask = scheduleTasks.find((x) => x.status === 'upcoming');
-  const checkGaps = checks.filter((c) => c.status === 'gap').length;
+  const checkGaps = guideOn ? checks.filter((c) => c.status === 'gap').length : 0;
   const checkWarn = checks.filter((c) => c.status === 'warn').length;
 
   // Needs attention: trees overdue for a re-check first (emergency before minor, longest wait first).
@@ -160,7 +165,7 @@ export const Dashboard: React.FC = () => {
       )}
 
       {/* KPIs. Hue is reserved for status. */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className={`grid grid-cols-2 gap-3 ${guideOn ? 'lg:grid-cols-4' : 'lg:grid-cols-3'}`}>
         <Link to={treesUrl({ condition: 'emergency' })} className={`${tile} ${counts.emergency > 0 ? 'border-rose-300' : 'border-slate-200'}`}>
           <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-600">
             <AlertOctagon className={`w-4 h-4 ${counts.emergency > 0 ? 'text-rose-600' : 'text-slate-400'}`} />
@@ -179,7 +184,7 @@ export const Dashboard: React.FC = () => {
           <span className="block text-xs text-slate-600 mt-0.5">{t('dash.kpi.watch.sub')}</span>
         </Link>
 
-        <Link to="/schedule" className={`${tile} ${overdueCount > 0 ? 'border-rose-300' : 'border-slate-200'}`}>
+        <Link to="/schedule" className={`${tile} ${overdueCount > 0 ? 'border-rose-300' : 'border-slate-200'} ${guideOn ? '' : 'col-span-2 lg:col-span-1'}`}>
           <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-600">
             <CalendarCheck className={`w-4 h-4 ${overdueCount > 0 ? 'text-rose-600' : 'text-slate-400'}`} />
             {t('dash.kpi.routine')}
@@ -191,6 +196,7 @@ export const Dashboard: React.FC = () => {
         </Link>
 
         {/* The Guide's farm check: best practice vs this farm. Opening it weekly is the A7 habit. */}
+        {guideOn && (
         <div className={`${tile} ${checkGaps > 0 ? 'border-rose-300' : 'border-slate-200'}`}>
           <Link to="/guide" className="block">
             <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-600">
@@ -204,7 +210,11 @@ export const Dashboard: React.FC = () => {
             <WeeklyReview compact />
           </span>
         </div>
+        )}
       </div>
+
+      {/* Harvest: the farm's crop from flowers to graded fruit, and what to count or pick today. */}
+      <HarvestHomeCard />
 
       {/* Attention (trees) + Routine work (schedule) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
@@ -251,7 +261,7 @@ export const Dashboard: React.FC = () => {
                     <ConditionBadge condition={tree.condition} size="sm" />
                     <span className={`text-xs tabular ${fu.needs ? 'text-rose-700 font-semibold' : 'text-slate-500'}`}>{waitingLabel(fu)}</span>
                     {/* What the notes point to in the Guide (e.g. "getah" -> Phytophthora). */}
-                    {topics.map((id) => {
+                    {guideOn && topics.map((id) => {
                       const Icon = TOPIC_ICON[id];
                       return (
                         <Link key={id} to={topicUrl(id)} className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 hover:text-emerald-800">
@@ -295,7 +305,7 @@ export const Dashboard: React.FC = () => {
           ) : (
             <div className="divide-y divide-slate-100">
               {dueSoon.slice(0, 5).map((task) => (
-                <TaskRow key={task.plan.id} task={task} compact onDone={setDoneTask} seasons={seasons} />
+                <TaskRow key={task.plan.id} task={task} compact onDone={setDoneTask} seasons={guideOn ? seasons : undefined} />
               ))}
               {dueSoon.length > 5 && (
                 <Link to="/schedule" className="block w-full p-3 text-center text-xs font-semibold text-emerald-700 hover:bg-slate-50 min-h-11">
@@ -308,7 +318,7 @@ export const Dashboard: React.FC = () => {
       </div>
 
       {/* This season per block: Guide stages, one-tap bloom dates and season tasks */}
-      <DashboardSeasonCard />
+      {guideOn && <DashboardSeasonCard />}
 
       {doneTask && (
         <MarkDoneSheet task={doneTask} onClose={() => setDoneTask(null)} onSaved={(id, message) => showToast({ message, undo: () => undoLogged(id) })} />
@@ -378,7 +388,7 @@ export const Dashboard: React.FC = () => {
                       </td>
                       <td className="py-2.5 px-3">
                         {s?.floweredOn ? (
-                          <Link to="/guide" className="inline-flex flex-wrap items-center gap-1.5">
+                          <Link to={guideOn ? '/guide' : '/harvest'} className="inline-flex flex-wrap items-center gap-1.5">
                             {/* Every stage the block's trees are in: trees and branches can flower apart. */}
                             {(s.stages.length ? s.stages : [s.stage]).map((st) => (
                               <StagePill key={st} stage={st} />
@@ -390,7 +400,7 @@ export const Dashboard: React.FC = () => {
                             )}
                           </Link>
                         ) : (
-                          <Link to="/guide" className="text-amber-800 font-semibold hover:underline">{t('dash.col.noBloom')}</Link>
+                          <Link to={guideOn ? '/guide' : '/harvest'} className="text-amber-800 font-semibold hover:underline">{t('dash.col.noBloom')}</Link>
                         )}
                       </td>
                       <td className="py-2.5 px-3 tabular text-slate-700">

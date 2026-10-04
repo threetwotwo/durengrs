@@ -31,10 +31,31 @@ by least effort.
 
 ---
 
+## Harvest tracking and the Guide switch
+
+**Harvest page** (new tab, also on the homepage): every tree's crop through the season, counted by the team:
+
+| Step | When to count (the app asks at the right stage) |
+|---|---|
+| Flower clusters | When flowers open |
+| Fruit set | 1-4 weeks after bloom |
+| After thinning | After the thinning rounds |
+| Fruit on the tree | Every 2 weeks until harvest (shows drop) |
+| Harvested, by grade | Each picking: Extra / Class I / Class II / reject |
+
+- **Count:** on the tree page (**This tree's crop**) or from the Harvest page's **Count or pick now** list. A count
+  also updates the tree's fruit estimate, so the month forecast stays current.
+- **Grades** follow the Codex durian standard (CXS 317-2014) and the ASEAN durian standard (Rev. 2012); the criteria
+  are on the Harvest page. Weight classes depend on the variety and buyer.
+- **Homepage:** the farm funnel, trees to count, trees ready to pick and the next harvest windows.
+
+**Guide switch** (book icon in the header, per phone/computer): **off** is the simple app (no Guide tab, action
+plans, advice lines or topic links); **on** shows everything. New devices start with the Guide off.
+
 ## Do this first (about 10 minutes)
 
-1. **A0 Publish the database rules.** Without this, none of the new records (bloom dates, harvests, rain, season
-   tasks, lab results, weekly check) can be saved. See A0 below.
+1. **A0 Publish the database rules.** Without this, none of the new records (bloom dates, tree flowering, crop
+   counts, harvests, rain, season tasks, lab results, weekly check) can be saved. See A0 below.
 2. **Buy a rain gauge** (A15) and put it in an open spot.
 3. Start the habits in [The team's routine](#the-teams-routine).
 
@@ -76,7 +97,8 @@ All of it fits in about **1 minute a day and 10 minutes a week**, plus a few tap
 | Every Monday | Open the Guide, fix the first red item, tap **Mark as checked** | Guide → **Farm check** | 10 min |
 | When flowers open in a block | Tap **Block X: flowers opened today** | Dashboard → **This season** | seconds |
 | When a season task is done | Tap the block chip (**Block A: done?**) next to the task | Dashboard / Guide → **This season** | seconds |
-| End of each harvest day | Enter fruit count per block (+ problems) | Schedule → Harvest → **Log harvest** | 1 min per block |
+| When the app asks (Harvest → Count or pick now) | Count clusters, fruit set, fruit kept, fruit on tree | Tree page or Harvest page | 1 min per tree |
+| End of each harvest day | Enter fruit per tree (or block) and grade | Harvest → **Log harvest** | 1 min per tree |
 | After each harvest season | Tap **Use N days** where the real ripening days differ | Variants | 1 min |
 | Once a year, before flowering | Leaf + soil test; copy the numbers in | Guide → Nutrition → **Add lab result** | 10 min |
 | Once, block by block | Fill in planting dates (approximate year is fine) | Tree page | as time allows |
@@ -167,8 +189,8 @@ delete). Existing routines are rebuilt from their full history the first time th
 
 ### A6 Simple harvest log · ★★★★ · M · Claude + Team · done
 
-**App:** Schedule → Harvest → **Log harvest**: date, block (variety picked automatically if the block has one),
-number of fruit, optional weight, and problem buttons (wet core, uneven ripening, rot, cracked, borers). The app
+**App:** Harvest → **Log harvest**: date, block, optional tree (variety picked automatically),
+fruit per grade, optional weight, and problem buttons (wet core, uneven ripening, rot, cracked, borers). The app
 stores the days since bloom. A summary shows per variety: fruit, % with problems, and **real ripening days** next
 to the typed ones. The farm check reminds you if a block's harvest window has passed with nothing logged.
 

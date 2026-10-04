@@ -3,9 +3,12 @@ import { Check, CloudRain, FlaskConical, Plus, Sun, Trash2, Wheat } from 'lucide
 import { useFarm } from '../context/FarmContext';
 import { useT } from '../i18n';
 import { useSeasons } from './useSeasons';
+import { useGuideOn } from '../lib/guideMode';
 import { Sheet, fieldInput, fieldLabel } from './Sheet';
 import { Link } from './Link';
 import {
+  GRADES,
+  Grade,
   HARVEST_PROBLEMS,
   HarvestProblem,
   LAB_KEYS,
@@ -31,7 +34,7 @@ import {
   latestLabByBlock,
   rainSummary,
 } from '../lib/fieldInsights';
-import { BlockSeason, pick, waveWho } from '../lib/guide';
+import { BlockSeason, pick, treeWaves, waveWho } from '../lib/guide';
 import { diffDays, formatShortDate, todayStr } from '../lib/treatments';
 
 /**
@@ -119,6 +122,7 @@ export const SeasonTaskChips: React.FC<{ task: SeasonTaskId; seasons: BlockSeaso
 /** Read the gauge, type one number (or tap "No rain"). Shows 14 days and the dry-spell trigger. */
 export const RainCard: React.FC<{ className?: string }> = ({ className = '' }) => {
   const { t } = useT();
+  const guideOn = useGuideOn();
   const { rain } = useFarm();
   const today = todayStr();
   const [date, setDate] = useState(today);
@@ -151,7 +155,7 @@ export const RainCard: React.FC<{ className?: string }> = ({ className = '' }) =
           <CloudRain className="w-4 h-4 text-sky-600" />
           {t('rec.rain.title')}
         </h2>
-        <Link to="/guide/water" className="text-xs font-semibold text-emerald-700">{t('rec.why')} →</Link>
+        {guideOn && <Link to="/guide/water" className="text-xs font-semibold text-emerald-700">{t('rec.why')} →</Link>}
       </div>
 
       <div className="flex items-end gap-1 h-16" role="img" aria-label={t('rec.rain.chart')}>
@@ -215,8 +219,8 @@ export const RainCard: React.FC<{ className?: string }> = ({ className = '' }) =
 // ---------- harvest log (A6) ----------
 
 export const HarvestLog: React.FC = () => {
-  const { t, lang } = useT();
-  const { harvests, trees, variants, harvestCycles, blocks } = useFarm();
+  const { t } = useT();
+  const { harvests, variants } = useFarm();
   const [open, setOpen] = useState(false);
   const real = useMemo(() => actualRipening(harvests), [harvests]);
   const quality = useMemo(() => harvestQuality(harvests, (h) => h.variant), [harvests]);
@@ -284,10 +288,11 @@ export const HarvestLog: React.FC = () => {
             <li key={h.id} className="flex items-start gap-3 px-4 py-2.5">
               <div className="min-w-0 flex-1 text-sm">
                 <span className="font-semibold text-slate-900">
-                  {formatShortDate(h.date)} · {t('common.blockN', { n: h.block })} · {nameOf(h.variant)}
+                  {formatShortDate(h.date)} · {h.treeId ? t('rep.treeN', { id: h.treeId }) : t('common.blockN', { n: h.block })} · {nameOf(h.variant)}
                 </span>
                 <span className="block text-xs text-slate-600 tabular">
                   {t('rec.hv.line', { n: h.fruits })}
+                  {h.grades ? ` (${GRADES.filter((g) => h.grades![g]).map((g) => `${t(`grade.${g}.short`)} ${h.grades![g]}`).join(', ')})` : ''}
                   {h.weightKg ? ` · ${h.weightKg} kg` : ''}
                   {typeof h.daysFromBloom === 'number' ? ` · ${t('rec.hv.dayN', { n: h.daysFromBloom })}` : ''}
                   {h.problems?.length ? ` · ${h.problems.map((p) => t(`rec.hv.p.${p}`)).join(', ')}${h.problemFruits ? ` (${h.problemFruits})` : ''}` : ''}
@@ -305,72 +310,87 @@ export const HarvestLog: React.FC = () => {
           ))}
         </ul>
       )}
-      {open && <HarvestSheet onClose={() => setOpen(false)} trees={trees} blocks={blocks} cycles={harvestCycles} lang={lang} />}
+      {open && <HarvestSheet onClose={() => setOpen(false)} />}
     </section>
   );
 };
 
-const HarvestSheet: React.FC<{
-  onClose: () => void;
-  trees: ReturnType<typeof useFarm>['trees'];
-  blocks: string[];
-  cycles: ReturnType<typeof useFarm>['harvestCycles'];
-  lang: string;
-}> = ({ onClose, trees, blocks, cycles }) => {
+/**
+ * Log fruit picked: from one tree (per-tree tracking) or a whole block, counted per grade. Grades follow the Codex
+ * durian standard (Extra, Class I, Class II) plus reject; reasons for rejects are the problem buttons.
+ */
+export const HarvestSheet: React.FC<{ onClose: () => void; initialBlock?: string; initialTree?: string; onSaved?: (msg: string) => void }> = ({
+  onClose,
+  initialBlock,
+  initialTree,
+  onSaved,
+}) => {
   const { t } = useT();
-  const { variants } = useFarm();
+  const { variants, trees, blocks, harvestCycles: cycles, treeBlooms } = useFarm();
   const today = todayStr();
   const [date, setDate] = useState(today);
-  const [block, setBlock] = useState(blocks[0] || '');
-  const blockVariants = useMemo(
-    () => Array.from(new Set(trees.filter((x) => x.block === block && x.variant).map((x) => x.variant))).sort(),
+  const startTree = initialTree ? trees.find((x) => x.id === initialTree) : undefined;
+  const [block, setBlock] = useState(startTree?.block || initialBlock || blocks[0] || '');
+  const [treeId, setTreeId] = useState(startTree?.id || '');
+  const blockTrees = useMemo(
+    () => trees.filter((x) => x.block === block).sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true })),
     [trees, block]
   );
+  const tree = blockTrees.find((x) => x.id === treeId);
+  const blockVariants = useMemo(
+    () => Array.from(new Set(blockTrees.filter((x) => x.variant).map((x) => x.variant))).sort(),
+    [blockTrees]
+  );
   const [variant, setVariant] = useState('');
-  const [fruits, setFruits] = useState('');
+  const [grades, setGrades] = useState<Record<Grade, string>>({ extra: '', class1: '', class2: '', reject: '' });
   const [weight, setWeight] = useState('');
   const [problems, setProblems] = useState<HarvestProblem[]>([]);
-  const [problemFruits, setProblemFruits] = useState('');
   const [notes, setNotes] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const chosenVariant = blockVariants.includes(variant) ? variant : blockVariants[0] || '';
-  // Which flowers this fruit came from. Trees or branches can flower apart, so a block can have several dates:
-  // default to the one whose expected harvest is nearest the harvest day.
+  const chosenVariant = tree?.variant || (blockVariants.includes(variant) ? variant : blockVariants[0] || '');
+  // Which flowers this fruit came from. Trees or branches can flower apart, so a block (or tree) can have several
+  // dates: default to the one whose expected harvest is nearest the harvest day.
   const seasons = useSeasons();
   const season = seasons.find((x) => x.block === block);
   const [waveChoice, setWaveChoice] = useState('');
-  const waveDates = (season?.waves || []).map((w) => w.date).filter((d) => d <= date);
+  const blockDate = cycles.find((c) => c.block === block)?.floweredOn;
+  const waveDates = (
+    tree && season ? treeWaves(tree, blockDate, treeBlooms, season.ripeMax + 90).map((w) => w.date) : (season?.waves || []).map((w) => w.date)
+  ).filter((d) => d <= date);
   const ripening = Number(variants.find((v) => v.code === chosenVariant)?.ripeningDays) || season?.ripeMin || 120;
   const nearest = [...waveDates].sort((a, b) => Math.abs(diffDays(date, a) - ripening) - Math.abs(diffDays(date, b) - ripening))[0];
-  const blockDate = cycles.find((c) => c.block === block)?.floweredOn;
   const floweredOn = waveDates.includes(waveChoice) ? waveChoice : nearest ?? blockDate;
+  const nums = GRADES.map((g) => (grades[g].trim() ? Number(grades[g]) : 0));
+  const total = nums.reduce((a, b) => a + (Number.isFinite(b) ? b : 0), 0);
 
   const save = async () => {
-    const n = Number(fruits);
     const w = weight.trim() ? Number(weight.replace(',', '.')) : undefined;
-    const pf = problemFruits.trim() ? Number(problemFruits) : undefined;
     if (!block || !chosenVariant) return setError(t('rec.hv.e.block'));
     if (!date || date > today) return setError(t('rec.e.date'));
-    if (!Number.isInteger(n) || n < 1 || n > 5000) return setError(t('rec.hv.e.fruits'));
+    if (nums.some((n) => !Number.isInteger(n) || n < 0 || n > 5000)) return setError(t('rec.hv.e.grade'));
+    if (total < 1 || total > 5000) return setError(t('rec.hv.e.fruits'));
     if (w !== undefined && (!Number.isFinite(w) || w <= 0 || w > 20000)) return setError(t('rec.hv.e.weight'));
-    if (pf !== undefined && (!Number.isInteger(pf) || pf < 0 || pf > n)) return setError(t('rec.hv.e.problemFruits'));
     const days = floweredOn && date >= floweredOn ? diffDays(date, floweredOn) : undefined;
+    const graded = Object.fromEntries(GRADES.map((g, i) => [g, nums[i]]).filter(([, n]) => (n as number) > 0)) as Partial<Record<Grade, number>>;
     setSaving(true);
     setError(null);
     try {
       await addHarvest({
         block,
+        treeId: tree?.id,
         variant: chosenVariant,
         date,
-        fruits: n,
+        fruits: total,
         weightKg: w,
+        grades: graded,
         problems: problems.filter((p) => p),
-        problemFruits: problems.length ? pf : undefined,
+        problemFruits: graded.reject || undefined,
         floweredOn: days !== undefined ? floweredOn : undefined,
         daysFromBloom: days,
         notes: notes.trim() || undefined,
       });
+      onSaved?.(t('rec.hv.saved', { n: total, where: tree ? t('rep.treeN', { id: tree.id }) : t('common.blockN', { n: block }) }));
       onClose();
     } catch (e) {
       console.error('Harvest save failed:', e);
@@ -388,7 +408,7 @@ const HarvestSheet: React.FC<{
         <div className="space-y-2">
           {error && <p role="alert" className="text-xs text-rose-700 font-medium">{error}</p>}
           <button type="button" onClick={save} disabled={saving} className={`${primaryBtn} w-full min-h-12`}>
-            {saving ? t('rec.saving') : t('rec.hv.save')}
+            {saving ? t('rec.saving') : total > 0 ? t('rec.hv.saveN', { n: total }) : t('rec.hv.save')}
           </button>
         </div>
       }
@@ -400,29 +420,53 @@ const HarvestSheet: React.FC<{
         </div>
         <div>
           <label htmlFor="hv-block" className={fieldLabel}>{t('common.block')}</label>
-          <select id="hv-block" value={block} onChange={(e) => setBlock(e.target.value)} className={fieldInput}>
+          <select
+            id="hv-block"
+            value={block}
+            onChange={(e) => {
+              setBlock(e.target.value);
+              setTreeId('');
+            }}
+            className={fieldInput}
+          >
             {blocks.map((b) => (
               <option key={b} value={b}>{t('common.blockN', { n: b })}</option>
             ))}
           </select>
         </div>
       </div>
-      {blockVariants.length > 1 && (
+      <div className="grid grid-cols-2 gap-3">
         <div>
-          <label htmlFor="hv-variant" className={fieldLabel}>{t('common.variant')}</label>
-          <select id="hv-variant" value={chosenVariant} onChange={(e) => setVariant(e.target.value)} className={fieldInput}>
-            {blockVariants.map((v) => (
-              <option key={v} value={v}>{v} · {variants.find((x) => x.code === v)?.name || v}</option>
+          <label htmlFor="hv-tree" className={fieldLabel}>{t('rec.hv.tree')}</label>
+          <select id="hv-tree" value={treeId} onChange={(e) => setTreeId(e.target.value)} className={fieldInput}>
+            <option value="">{t('rec.hv.wholeBlock')}</option>
+            {blockTrees.map((x) => (
+              <option key={x.id} value={x.id}>{x.id}{x.variant ? ` · ${x.variant}` : ''}</option>
             ))}
           </select>
         </div>
-      )}
+        {!tree && blockVariants.length > 1 ? (
+          <div>
+            <label htmlFor="hv-variant" className={fieldLabel}>{t('common.variant')}</label>
+            <select id="hv-variant" value={chosenVariant} onChange={(e) => setVariant(e.target.value)} className={fieldInput}>
+              {blockVariants.map((v) => (
+                <option key={v} value={v}>{v} · {variants.find((x) => x.code === v)?.name || v}</option>
+              ))}
+            </select>
+          </div>
+        ) : (
+          <div>
+            <span className={fieldLabel}>{t('common.variant')}</span>
+            <p className="min-h-11 flex items-center text-sm text-slate-800">{variants.find((x) => x.code === chosenVariant)?.name || chosenVariant || '—'}</p>
+          </div>
+        )}
+      </div>
       {season && waveDates.length > 1 && (
         <div>
           <label htmlFor="hv-wave" className={fieldLabel}>{t('rec.hv.wave')}</label>
           <select id="hv-wave" value={floweredOn} onChange={(e) => setWaveChoice(e.target.value)} className={fieldInput}>
             {season.waves
-              .filter((w) => w.date <= date)
+              .filter((w) => waveDates.includes(w.date))
               .map((w) => (
                 <option key={w.date} value={w.date}>
                   {formatShortDate(w.date)}
@@ -437,39 +481,61 @@ const HarvestSheet: React.FC<{
           ? t('rec.hv.bloomInfo', { date: formatShortDate(floweredOn), n: diffDays(date, floweredOn) })
           : t('rec.hv.noBloom')}
       </p>
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label htmlFor="hv-fruits" className={fieldLabel}>{t('rec.hv.fruits')}</label>
-          <input id="hv-fruits" type="number" inputMode="numeric" min={1} max={5000} value={fruits} onChange={(e) => setFruits(e.target.value)} className={fieldInput} />
+      <div>
+        <span className={fieldLabel}>{t('rec.hv.byGrade')}</span>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          {GRADES.map((g) => (
+            <label key={g} className={`block rounded-lg border p-2 ${GRADE_TONE[g]}`}>
+              <span className="block text-xs font-bold">{t(`grade.${g}`)}</span>
+              <input
+                type="number"
+                inputMode="numeric"
+                min={0}
+                max={5000}
+                value={grades[g]}
+                onChange={(e) => setGrades((prev) => ({ ...prev, [g]: e.target.value }))}
+                placeholder="0"
+                aria-label={t(`grade.${g}`)}
+                className="mt-1 w-full min-h-11 px-2 rounded-md border border-slate-300 bg-white text-lg font-bold tabular text-slate-900"
+              />
+            </label>
+          ))}
         </div>
-        <div>
-          <label htmlFor="hv-weight" className={fieldLabel}>{t('rec.hv.weight')}</label>
-          <input id="hv-weight" type="text" inputMode="decimal" value={weight} onChange={(e) => setWeight(e.target.value)} className={fieldInput} />
-        </div>
+        <p className="mt-1.5 text-xs text-slate-600">{t('rec.hv.total', { n: total })}</p>
+        <details className="mt-1.5 text-xs text-slate-700">
+          <summary className="font-semibold text-emerald-700 cursor-pointer min-h-8 inline-flex items-center">{t('rec.hv.gradingHelp')}</summary>
+          <ul className="mt-1 space-y-1">
+            {GRADES.map((g) => (
+              <li key={g}>
+                <span className="font-semibold">{t(`grade.${g}`)}:</span> {t(`grade.${g}.criteria`)}
+              </li>
+            ))}
+          </ul>
+        </details>
       </div>
       <div>
-        <span className={fieldLabel}>{t('rec.hv.problems')}</span>
-        <div className="flex flex-wrap gap-2">
-          {HARVEST_PROBLEMS.map((p) => {
-            const on = problems.includes(p);
-            return (
-              <button
-                key={p}
-                type="button"
-                aria-pressed={on}
-                onClick={() => setProblems((prev) => (on ? prev.filter((x) => x !== p) : [...prev, p]))}
-                className={`min-h-11 px-3 rounded-full border text-sm font-semibold ${on ? 'bg-amber-500 border-amber-500 text-white' : 'bg-white border-slate-300 text-slate-700'}`}
-              >
-                {t(`rec.hv.p.${p}`)}
-              </button>
-            );
-          })}
-        </div>
+        <label htmlFor="hv-weight" className={fieldLabel}>{t('rec.hv.weight')}</label>
+        <input id="hv-weight" type="text" inputMode="decimal" value={weight} onChange={(e) => setWeight(e.target.value)} className={fieldInput} />
       </div>
-      {problems.length > 0 && (
+      {(Number(grades.reject) > 0 || problems.length > 0) && (
         <div>
-          <label htmlFor="hv-pf" className={fieldLabel}>{t('rec.hv.problemFruits')}</label>
-          <input id="hv-pf" type="number" inputMode="numeric" min={0} value={problemFruits} onChange={(e) => setProblemFruits(e.target.value)} className={fieldInput} />
+          <span className={fieldLabel}>{t('rec.hv.problems')}</span>
+          <div className="flex flex-wrap gap-2">
+            {HARVEST_PROBLEMS.map((p) => {
+              const on = problems.includes(p);
+              return (
+                <button
+                  key={p}
+                  type="button"
+                  aria-pressed={on}
+                  onClick={() => setProblems((prev) => (on ? prev.filter((x) => x !== p) : [...prev, p]))}
+                  className={`min-h-11 px-3 rounded-full border text-sm font-semibold ${on ? 'bg-amber-500 border-amber-500 text-white' : 'bg-white border-slate-300 text-slate-700'}`}
+                >
+                  {t(`rec.hv.p.${p}`)}
+                </button>
+              );
+            })}
+          </div>
         </div>
       )}
       <div>
@@ -479,6 +545,15 @@ const HarvestSheet: React.FC<{
     </Sheet>
   );
 };
+
+/** Grade colours, shared with the harvest page's grade bars. */
+export const GRADE_TONE: Record<Grade, string> = {
+  extra: 'bg-emerald-50 border-emerald-300 text-emerald-900',
+  class1: 'bg-teal-50 border-teal-300 text-teal-900',
+  class2: 'bg-amber-50 border-amber-300 text-amber-900',
+  reject: 'bg-rose-50 border-rose-300 text-rose-900',
+};
+
 
 // ---------- lab results (A16) ----------
 

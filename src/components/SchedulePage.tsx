@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react';
-import { AlertTriangle, Wheat, CalendarCheck, History, ListChecks, Pause, Pencil, Play, Plus, Sprout, Trash2 } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { AlertTriangle, CalendarCheck, History, ListChecks, Pause, Pencil, Play, Plus, Sprout, Trash2 } from 'lucide-react';
 import { useFarm } from '../context/FarmContext';
 import {
   PLAN_TEMPLATES,
@@ -14,14 +14,14 @@ import {
   setPlanActive,
 } from '../lib/treatments';
 import { useT } from '../i18n';
-import { useQueryParams } from '../lib/router';
+import { navigate, useQueryParams } from '../lib/router';
 import { useSeasons } from './useSeasons';
+import { useGuideOn } from '../lib/guideMode';
 import { SEASON_TASKS } from '../lib/fieldInsights';
 import { SeasonTaskDone, unmarkSeasonTask } from '../lib/fieldData';
 import { taskTitle } from './FieldRecords';
 import { Link } from './Link';
 import { TaskRow, TYPE_ICON } from './TaskRow';
-import { HarvestView } from './HarvestView';
 import { PageHeader, btnPrimary } from './PageHeader';
 import {
   MarkDoneSheet,
@@ -34,17 +34,22 @@ import {
 const HISTORY_LIMIT = 100;
 type HistoryRow = { kind: 'treatment'; date: string; entry: Treatment } | { kind: 'season'; date: string; entry: SeasonTaskDone };
 
-type View = 'agenda' | 'routines' | 'harvest' | 'history';
-const VIEWS: View[] = ['agenda', 'routines', 'harvest', 'history'];
+type View = 'agenda' | 'routines' | 'history';
+const VIEWS: View[] = ['agenda', 'routines', 'history'];
 
 export const SchedulePage: React.FC = () => {
   const { t, lang } = useT();
   const { plans, treatments, scheduleTasks, scheduleError, seasonTasksDone, harvestCycles } = useFarm();
   const blockDateOf = useMemo(() => new Map(harvestCycles.map((c) => [c.block, c.floweredOn])), [harvestCycles]);
   const seasons = useSeasons();
-  // In the URL (?view=harvest) so other pages, like the Guide, can link straight to a tab.
+  const guideOn = useGuideOn();
+  // In the URL (?view=history) so other pages can link straight to a tab.
   const [params, setParams] = useQueryParams();
   const view: View = VIEWS.includes(params.get('view') as View) ? (params.get('view') as View) : 'agenda';
+  // The harvest tab moved to its own page (#/harvest); old links still land there.
+  useEffect(() => {
+    if (params.get('view') === 'harvest') navigate('/harvest', { replace: true });
+  }, [params]);
   const setView = (v: View) => setParams({ view: v === 'agenda' ? null : v });
   const [doneTask, setDoneTask] = useState<ScheduleTask | null>(null);
   const [editor, setEditor] = useState<{ plan?: TreatmentPlan; template?: PlanTemplate } | null>(null);
@@ -87,7 +92,6 @@ export const SchedulePage: React.FC = () => {
   const tabs: Array<{ id: View; label: string; icon: React.ComponentType<{ className?: string }> }> = [
     { id: 'agenda', label: t('sched.tab.agenda'), icon: CalendarCheck },
     { id: 'routines', label: t('sched.tab.routines', { n: plans.length }), icon: ListChecks },
-    { id: 'harvest', label: t('sched.tab.harvest'), icon: Wheat },
     { id: 'history', label: t('sched.tab.history'), icon: History },
   ];
 
@@ -199,7 +203,6 @@ export const SchedulePage: React.FC = () => {
         </div>
       )}
 
-      {view === 'harvest' && <HarvestView />}
 
       {view === 'history' && (
         <div className="bg-white rounded-xl border border-slate-200 divide-y divide-slate-100">
@@ -218,9 +221,13 @@ export const SchedulePage: React.FC = () => {
                         {formatShortDate(st.date)} · {t('common.blockN', { n: st.block })}
                         {/* Done for a later flowering wave (trees or branches that flowered apart). */}
                         {blockDateOf.get(st.block) !== st.season ? ` (${t('sched.hist.wave', { date: formatShortDate(st.season) })})` : ''} ·{' '}
-                        <Link to={`/guide/${SEASON_TASKS[st.task].topic}`} className="font-semibold text-emerald-700 hover:text-emerald-800">
-                          {t('sched.hist.seasonTask')}
-                        </Link>
+                        {guideOn ? (
+                          <Link to={`/guide/${SEASON_TASKS[st.task].topic}`} className="font-semibold text-emerald-700 hover:text-emerald-800">
+                            {t('sched.hist.seasonTask')}
+                          </Link>
+                        ) : (
+                          t('sched.hist.seasonTask')
+                        )}
                       </p>
                     </div>
                     <button

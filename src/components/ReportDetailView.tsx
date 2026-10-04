@@ -8,6 +8,7 @@ import { cachedReport, rememberReport } from '../lib/reportCache';
 import { FOLLOW_UP_LIMIT_DAYS, maskPhone } from '../lib/insights';
 import { STAGES, STAGE_ORDER, TOPIC_BY_ID, pick, topicsForText, treeStages } from '../lib/guide';
 import { useSeasons } from './useSeasons';
+import { useGuideOn } from '../lib/guideMode';
 import { useT } from '../i18n';
 import type { TreeReport } from '../types';
 import { ConditionBadge } from './ConditionBadge';
@@ -30,6 +31,7 @@ const h2 = 'text-sm font-bold text-slate-900';
  */
 export const ReportDetailView: React.FC<{ reportId: string }> = ({ reportId }) => {
   const { t, lang, locale } = useT();
+  const guideOn = useGuideOn();
   const { trees, variants, harvestCycles, treeBlooms } = useFarm();
   // Same style as ReportDate ("04 Oct 2026").
   const day = (v: any) => new Date(normalizeTimestamp(v)).toLocaleDateString(locale, { day: '2-digit', month: 'short', year: 'numeric' });
@@ -236,6 +238,7 @@ export const ReportDetailView: React.FC<{ reportId: string }> = ({ reportId }) =
             </section>
           )}
 
+          {guideOn && (
           <section className={card} aria-labelledby="rd-guide">
             <h2 id="rd-guide" className={`${h2} flex items-center gap-2`}>
               <BookOpen className="w-4 h-4 text-emerald-600" />
@@ -275,6 +278,7 @@ export const ReportDetailView: React.FC<{ reportId: string }> = ({ reportId }) =
               </Link>
             )}
           </section>
+          )}
 
           {block && (
             <section className={card} aria-labelledby="rd-season">
@@ -299,6 +303,7 @@ export const ReportDetailView: React.FC<{ reportId: string }> = ({ reportId }) =
                       })}
                     </p>
                   )}
+                  {guideOn && (
                   <ul className="space-y-1.5">
                     {actions.map((a, i) => (
                       <li key={i} className="flex items-start gap-2 text-sm text-slate-800">
@@ -313,6 +318,7 @@ export const ReportDetailView: React.FC<{ reportId: string }> = ({ reportId }) =
                       </li>
                     ))}
                   </ul>
+                  )}
                 </>
               ) : (
                 <div className="text-sm text-slate-600 space-y-1.5">

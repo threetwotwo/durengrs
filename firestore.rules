@@ -64,6 +64,10 @@ service cloud.firestore {
     match /bloomWaves/{id} {
       allow read, write: if true;
     }
+    // Per-tree crop counts: flower clusters, fruit set, kept after thinning, fruit on the tree
+    match /cropCounts/{id} {
+      allow read, write: if true;
+    }
 
     // Connection test document
     match /test/{docId} {

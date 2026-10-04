@@ -29,9 +29,9 @@ export const records: Bundle = {
     'rec.rain.dry': 'Masa kering sejak {since}: rata-rata 15 hari di bawah 1 mm. Bunga biasanya mekar sekitar {bloom}.',
 
     'rec.hv.title': 'Catatan panen',
-    'rec.hv.help': 'Isi total per blok di akhir hari panen. Dari sini terlihat lama matang nyata per varietas dan mutu buah.',
+    'rec.hv.help': 'Catat buah yang dipetik per pohon (atau per blok) dan per mutu. Dari sini terlihat lama matang nyata per varietas dan mutu buah.',
     'rec.hv.add': 'Catat panen',
-    'rec.hv.sheetHelp': 'Total untuk satu blok dan satu hari.',
+    'rec.hv.sheetHelp': 'Satu pohon atau satu blok, satu hari.',
     'rec.hv.save': 'Simpan panen',
     'rec.hv.fruits': 'Jumlah buah',
     'rec.hv.weight': 'Berat total (kg, opsional)',
@@ -102,9 +102,9 @@ export const records: Bundle = {
     'rec.rain.dry': 'Dry spell since {since}: 15-day average below 1 mm. Flowers usually open around {bloom}.',
 
     'rec.hv.title': 'Harvest log',
-    'rec.hv.help': 'Enter totals per block at the end of a harvest day. This shows real ripening days per variety and fruit quality.',
+    'rec.hv.help': 'Log fruit picked per tree (or per block) and per grade. This shows real ripening days per variety and fruit quality.',
     'rec.hv.add': 'Log harvest',
-    'rec.hv.sheetHelp': 'Totals for one block and one day.',
+    'rec.hv.sheetHelp': 'One tree or one block, one day.',
     'rec.hv.save': 'Save harvest',
     'rec.hv.fruits': 'Number of fruit',
     'rec.hv.weight': 'Total weight (kg, optional)',

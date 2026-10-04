@@ -4,6 +4,8 @@ import { DurianVariant } from '../types';
 import { PageHeader, btnPrimary, inputCls } from './PageHeader';
 import { Link } from './Link';
 import { useSeasons } from './useSeasons';
+import { useGuideOn } from '../lib/guideMode';
+import { GuideLink } from './Link';
 import { treesUrl, useQueryParams } from '../lib/router';
 import { useT } from '../i18n';
 import { pick, ripeningRefFor } from '../lib/guide';
@@ -45,6 +47,7 @@ export const VariantsPage: React.FC = () => {
   const realRipening = useMemo(() => actualRipening(harvestLog), [harvestLog]);
   const [updating, setUpdating] = useState<string | null>(null);
   const { t, lang } = useT();
+  const guideOn = useGuideOn();
   const [params, setParams] = useQueryParams();
 
   const [search, setSearch] = useState('');
@@ -457,13 +460,13 @@ export const VariantsPage: React.FC = () => {
                     );
                   })()}
                   {outside && (
-                    <Link to="/guide/harvest" className="flex items-start gap-1 text-amber-800 hover:underline">
+                    <GuideLink to="/guide/harvest" className="flex items-start gap-1 text-amber-800 hover:underline">
                       <AlertTriangle className="w-3.5 h-3.5 mt-px shrink-0" />
                       {t('var.g.outside', { min: outside.min, max: outside.max })}
-                    </Link>
+                    </GuideLink>
                   )}
                   {harvests.length > 0 && (
-                    <Link to="/schedule?view=harvest" className="flex items-start gap-1 text-slate-700 hover:underline tabular">
+                    <Link to="/harvest" className="flex items-start gap-1 text-slate-700 hover:underline tabular">
                       <Wheat className="w-3.5 h-3.5 mt-px shrink-0 text-slate-400" />
                       <span>
                         {t('var.g.harvest')}:{' '}
@@ -474,7 +477,7 @@ export const VariantsPage: React.FC = () => {
                       </span>
                     </Link>
                   )}
-                  {soloBlocks.length > 0 && (
+                  {soloBlocks.length > 0 && guideOn && (
                     <Link to="/guide/pollination" className="flex items-start gap-1 text-slate-700 hover:underline">
                       <Moon className="w-3.5 h-3.5 mt-px shrink-0 text-slate-400" />
                       {t('var.g.single', { blocks: soloBlocks.map((b) => t('common.blockN', { n: b })).join(', ') })}
@@ -614,7 +617,7 @@ export const VariantsPage: React.FC = () => {
                     ) : null}
                     <span className="block text-slate-500">
                       {formRef ? t('var.ref', { min: formRef.min, max: formRef.max }) : t('var.ref.none')}{' '}
-                      <Link to="/guide/harvest" className="text-emerald-700 font-semibold">{t('var.ref.guide')} →</Link>
+                      {guideOn && <Link to="/guide/harvest" className="text-emerald-700 font-semibold">{t('var.ref.guide')} →</Link>}
                     </span>
                   </p>
                 </div>

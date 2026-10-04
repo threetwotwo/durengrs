@@ -13,6 +13,7 @@ const VariantsPage = lazy(() => import('./components/VariantsPage').then((m) => 
 const ReportDetailView = lazy(() => import('./components/ReportDetailView').then((m) => ({ default: m.ReportDetailView })));
 const ReportsPage = lazy(() => import('./components/ReportsPage').then((m) => ({ default: m.ReportsPage })));
 const SchedulePage = lazy(() => import('./components/SchedulePage').then((m) => ({ default: m.SchedulePage })));
+const HarvestPage = lazy(() => import('./components/HarvestPage').then((m) => ({ default: m.HarvestPage })));
 const GuidePage = lazy(() => import('./components/GuidePage').then((m) => ({ default: m.GuidePage })));
 
 const AppContent: React.FC = () => {
@@ -72,6 +73,7 @@ const AppContent: React.FC = () => {
           <ErrorBoundary key={lang} resetKey={route.pageKey}>
             <Suspense fallback={<div className="h-64 rounded-xl bg-white border border-slate-200 animate-pulse" />}>
               {route.tab === 'dashboard' && <Dashboard />}
+              {route.tab === 'harvest' && <HarvestPage />}
               {route.tab === 'schedule' && <SchedulePage />}
               {route.tab === 'trees' &&
                 (route.treeId ? (

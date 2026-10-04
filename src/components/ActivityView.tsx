@@ -9,6 +9,7 @@ import { treesUrl } from '../lib/router';
 import { formatTimeAgo, normalizeTimestamp } from '../context/FarmContext';
 import { useT } from '../i18n';
 import { TOPICS, TopicId, pick, topicsForText } from '../lib/guide';
+import { useGuideOn } from '../lib/guideMode';
 
 const PERIODS = [7, 14, 30] as const;
 
@@ -16,6 +17,7 @@ const PERIODS = [7, 14, 30] as const;
 export const ActivityView: React.FC = () => {
   const { trees } = useFarm();
   const { t, lang } = useT();
+  const guideOn = useGuideOn();
   const [reports, setReports] = useState<TreeReport[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<boolean>(false);
@@ -164,15 +166,18 @@ export const ActivityView: React.FC = () => {
             );
           })}
           <p className="text-xs text-slate-500">{t('act.blockHint')}</p>
+          {guideOn && (
           <p className="text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded-lg p-2.5">
             {t('act.guideTarget')}{' '}
             <Link to="/guide/phytophthora" className="font-semibold text-emerald-700 hover:text-emerald-800 underline underline-offset-2">
               {pick(TOPICS.find((tp) => tp.id === 'phytophthora')!.title, lang)}
             </Link>
           </p>
+          )}
         </section>
       </div>
 
+      {guideOn && (
       <section className="bg-white rounded-xl border border-slate-200 p-4 space-y-2" aria-labelledby="act-topics">
         <h2 id="act-topics" className="text-sm font-bold text-slate-900">{t('act.topics')}</h2>
         {topicCounts.length === 0 ? (
@@ -193,6 +198,7 @@ export const ActivityView: React.FC = () => {
         )}
         <p className="text-xs text-slate-500">{t('act.topics.hint')}</p>
       </section>
+      )}
     </div>
   );
 };

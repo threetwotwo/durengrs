@@ -6,9 +6,9 @@ import { formatShortDate, todayStr } from '../lib/treatments';
 import { useT } from '../i18n';
 import { Link } from './Link';
 import { inputCls } from './PageHeader';
-import { HarvestLog } from './FieldRecords';
 import { STAGES, pick, treeWaves, waveWho } from '../lib/guide';
 import { useSeasons } from './useSeasons';
+import { useGuideOn } from '../lib/guideMode';
 
 /** When will each block ripen, and roughly how much fruit to expect each month. */
 export const HarvestView: React.FC = () => {
@@ -28,6 +28,7 @@ export const HarvestView: React.FC = () => {
   const months = useMemo(() => fruitsByMonth(rows), [rows, locale]);
   const maxFruits = Math.max(1, ...months.map((m) => m.fruits));
   const cycleByBlock = new Map(harvestCycles.map((c) => [c.block, c.floweredOn]));
+  const guideOn = useGuideOn();
   const seasonByBlock = useMemo(
     () => new Map(seasons.map((s) => [s.block, s])),
     [seasons]
@@ -95,7 +96,7 @@ export const HarvestView: React.FC = () => {
                   )}
                 </div>
                 {value && season?.floweredOn === value && season.day !== undefined && !season.outdated && (
-                  <Link to="/guide" className="block mt-1 text-xs text-emerald-700 hover:text-emerald-800">
+                  <Link to={guideOn ? '/guide' : `/harvest?block=${encodeURIComponent(b)}`} className="block mt-1 text-xs text-emerald-700 hover:text-emerald-800">
                     {t('sched.hv.stage', { n: season.day, stage: pick(STAGES[season.stage].title, lang) })}
                   </Link>
                 )}
@@ -147,7 +148,6 @@ export const HarvestView: React.FC = () => {
         <p className="text-xs text-slate-500">{t('sched.hv.guide')}</p>
       </section>
 
-      <HarvestLog />
 
       <section className="bg-white rounded-xl border border-slate-200 overflow-hidden" aria-labelledby="hv-rows">
         <h2 id="hv-rows" className="px-4 py-3 text-sm font-bold text-slate-900 border-b border-slate-200">{t('sched.hv.h3')}</h2>

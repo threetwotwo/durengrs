@@ -812,7 +812,7 @@ export function buildChecks({
           ]
             .filter(Boolean)
             .join(' '),
-          action: { kind: 'link', to: '/schedule?view=harvest', label: t('guide.act.setFlowering') },
+          action: { kind: 'link', to: '/harvest', label: t('guide.act.setFlowering') },
         }
       : { id: 'flowerDates', topic: 'records', status: 'ok', title: t('guide.chk.flower.ok') }
   );
@@ -1131,7 +1131,7 @@ export function buildChecks({
       status: 'warn',
       title: tn('guide.chk.harvestLog.warn', unlogged.length),
       detail: t('guide.chk.harvestLog.detail', { blocks: listBlocks(unlogged) }),
-      action: { kind: 'link', to: '/schedule?view=harvest', label: t('guide.act.logHarvest') },
+      action: { kind: 'link', to: '/harvest', label: t('guide.act.logHarvest') },
     });
   }
 

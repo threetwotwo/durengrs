@@ -1,5 +1,6 @@
 import React from 'react';
 import { navigate } from '../lib/router';
+import { useGuideOn } from '../lib/guideMode';
 
 /** Real anchor (middle-click, copy link, screen readers) that navigates without a page reload. */
 export const Link: React.FC<
@@ -19,3 +20,13 @@ export const Link: React.FC<
     {children}
   </a>
 );
+
+/** A link into the Guide that turns into plain text when the Guide is switched off (see lib/guideMode). */
+export const GuideLink: React.FC<{ to: string; className?: string; children: React.ReactNode }> = ({ to, className, children }) =>
+  useGuideOn() ? (
+    <Link to={to} className={className}>
+      {children}
+    </Link>
+  ) : (
+    <span className={className}>{children}</span>
+  );

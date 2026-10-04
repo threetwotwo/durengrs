@@ -1,4 +1,4 @@
-import { collection, deleteDoc, doc, serverTimestamp, setDoc } from 'firebase/firestore';
+import { collection, deleteDoc, doc, serverTimestamp, setDoc, writeBatch } from 'firebase/firestore';
 import { db } from './firebase';
 import type { BloomPart, TreeBloom } from './guide';
 
@@ -11,6 +11,8 @@ import type { BloomPart, TreeBloom } from './guide';
  *   labResults/{auto}                     leaf and soil analysis per block                           (A16)
  *   farmMeta/weeklyReview                 when the weekly farm check was last done                   (A7)
  *   bloomWaves/{auto}                     a tree, or some of its branches, flowering apart from its block's bloom date
+ *   cropCounts/{tree}_{season}_{stage}_{date}  per-tree crop counts: flower clusters, fruit set, kept after thinning,
+ *                                         fruit on the tree (repeated to follow progress)
  *
  * Calendar dates are YYYY-MM-DD in local (Indonesian) time; instants are Firestore timestamps.
  */
@@ -18,9 +20,15 @@ import type { BloomPart, TreeBloom } from './guide';
 export const HARVEST_PROBLEMS = ['wet_core', 'uneven', 'rot', 'crack', 'borer'] as const;
 export type HarvestProblem = (typeof HARVEST_PROBLEMS)[number];
 
+/** Grades from the Codex durian standard (CXS 317-2014) and the ASEAN durian standard: Extra, Class I, Class II, reject. */
+export const GRADES = ['extra', 'class1', 'class2', 'reject'] as const;
+export type Grade = (typeof GRADES)[number];
+
 export interface Harvest {
   id: string;
   block: string;
+  /** Picked from one tree (per-tree tracking); absent for a whole-block entry. */
+  treeId?: string;
   variant: string;
   date: string;
   fruits: number;
@@ -28,6 +36,8 @@ export interface Harvest {
   problems: HarvestProblem[];
   /** How many of the fruits had any problem. */
   problemFruits?: number;
+  /** Fruit per grade; their sum is `fruits`. Older entries have no grades. */
+  grades?: Partial<Record<Grade, number>>;
   /** Bloom date of the block's season at the time (copied so later edits don't change history). */
   floweredOn?: string;
   daysFromBloom?: number;
@@ -96,6 +106,55 @@ export async function markSeasonTask(block: string, season: string, task: Season
 
 export async function unmarkSeasonTask(block: string, season: string, task: SeasonTaskId): Promise<void> {
   await deleteDoc(doc(db, 'seasonTasks', seasonTaskId(block, season, task)));
+}
+
+// ---------- crop counts ----------
+
+/** What is counted on a tree through the season, in order. Fruit on the tree is counted again to follow progress. */
+export const CROP_STAGES = ['clusters', 'set', 'kept', 'onTree'] as const;
+export type CropStage = (typeof CROP_STAGES)[number];
+
+export interface CropCount {
+  id: string;
+  treeId: string;
+  block: string;
+  /** Date the counted flowers opened (the tree's flowering wave): identifies the crop. */
+  season: string;
+  stage: CropStage;
+  count: number;
+  date: string;
+  by?: string;
+  note?: string;
+}
+
+export const cropCountId = (c: Pick<CropCount, 'treeId' | 'season' | 'stage' | 'date'>) => `${c.treeId}_${c.season}_${c.stage}_${c.date}`;
+
+/**
+ * Save a count (counting again on the same day replaces it). `treeField` also keeps the tree record current
+ * (flower clusters, or the fruit estimate the harvest forecast uses), with the usual edit-log entry.
+ */
+export async function saveCropCount(
+  c: Omit<CropCount, 'id'>,
+  treeField?: { field: 'floweringClusters' | 'estimatedFruitCount'; from: number | undefined }
+): Promise<string> {
+  const id = cropCountId(c);
+  const batch = writeBatch(db);
+  batch.set(doc(db, 'cropCounts', id), stripUndefined({ ...c, source: 'webapp', createdAt: serverTimestamp() }));
+  if (treeField && treeField.from !== c.count) {
+    batch.update(doc(db, 'trees', c.treeId), { [treeField.field]: c.count, dateUpdated: serverTimestamp() });
+    batch.set(doc(collection(db, 'treeEdits')), {
+      treeId: c.treeId,
+      changes: { [treeField.field]: { from: treeField.from ?? null, to: c.count } },
+      at: serverTimestamp(),
+      source: 'webapp',
+    });
+  }
+  await batch.commit();
+  return id;
+}
+
+export async function removeCropCount(id: string): Promise<void> {
+  await deleteDoc(doc(db, 'cropCounts', id));
 }
 
 // ---------- tree bloom waves ----------

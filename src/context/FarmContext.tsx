@@ -14,7 +14,7 @@ import {
 } from '../lib/firebase';
 import { HarvestCycle } from '../lib/insights';
 import { TreatmentPlan, Treatment, ScheduleTask, computeTasks, rebuildLastDone, addDays, todayStr } from '../lib/treatments';
-import type { Harvest, LabResult, RainDay, SeasonTaskDone, TreeBloom } from '../lib/fieldData';
+import type { CropCount, Harvest, LabResult, RainDay, SeasonTaskDone, TreeBloom } from '../lib/fieldData';
 
 import { AppTab, useRoute } from '../lib/router';
 export type { AppTab };
@@ -46,6 +46,8 @@ interface FarmContextType {
   seasonTasksDone: SeasonTaskDone[];
   /** Trees (or branches) that flowered apart from their block's bloom date. */
   treeBlooms: TreeBloom[];
+  /** Per-tree crop counts of the current and last season. */
+  cropCounts: CropCount[];
   rain: RainDay[];
   labResults: LabResult[];
   /** YYYY-MM-DD of the last weekly farm check, if any. */
@@ -148,6 +150,7 @@ export const FarmProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [labResults, setLabResults] = useState<LabResult[]>([]);
   const [weeklyReviewDate, setWeeklyReviewDate] = useState<string | null>(null);
   const [treeBlooms, setTreeBlooms] = useState<TreeBloom[]>([]);
+  const [cropCounts, setCropCounts] = useState<CropCount[]>([]);
   const [recordsError, setRecordsError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -187,6 +190,11 @@ export const FarmProvider: React.FC<{ children: React.ReactNode }> = ({ children
         query(collection(db, 'bloomWaves'), where('date', '>=', seasonsSince)),
         (s) => setTreeBlooms(s.docs.map((d) => ({ id: d.id, ...(d.data() as any) }) as TreeBloom)),
         onErr('Tree bloom')
+      ),
+      onSnapshot(
+        query(collection(db, 'cropCounts'), where('season', '>=', seasonsSince)),
+        (s) => setCropCounts(s.docs.map((d) => ({ id: d.id, ...(d.data() as any) }) as CropCount)),
+        onErr('Crop counts')
       ),
       onSnapshot(
         doc(db, 'farmMeta', 'weeklyReview'),
@@ -409,6 +417,7 @@ export const FarmProvider: React.FC<{ children: React.ReactNode }> = ({ children
         harvests,
         seasonTasksDone,
         treeBlooms,
+        cropCounts,
         rain,
         labResults,
         weeklyReviewDate,

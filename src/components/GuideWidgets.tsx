@@ -50,6 +50,7 @@ import { addTreeBloom, removeTreeBloom } from '../lib/fieldData';
 import type { DurianTree, TreeReport } from '../types';
 import { Link } from './Link';
 import { useSeasons } from './useSeasons';
+import { useGuideOn } from '../lib/guideMode';
 import { PlanEditorSheet } from './TreatmentSheets';
 
 export const TOPIC_ICON: Record<TopicId, React.ComponentType<{ className?: string }>> = {
@@ -385,7 +386,7 @@ export const NoDateCard: React.FC<{ blocks: BlockSeason[] }> = ({ blocks }) => {
           </li>
         ))}
       </ul>
-      <Link to="/schedule?view=harvest" className="inline-flex items-center gap-1 text-xs font-semibold text-slate-600 hover:text-slate-900">
+      <Link to="/harvest" className="inline-flex items-center gap-1 text-xs font-semibold text-slate-600 hover:text-slate-900">
         {t('guide.bloom.allInSchedule')}
         <ArrowRight className="w-3.5 h-3.5" />
       </Link>
@@ -464,6 +465,8 @@ export const TreeGuideSection: React.FC<{ tree: DurianTree; reports: TreeReport[
   const { t, lang } = useT();
   const { seasons } = useGuideData();
   const { treeBlooms, harvestCycles } = useFarm();
+  // Guide off: only the flowering records (data), without the action plans and topic links.
+  const guideOn = useGuideOn();
   const season = seasons.find((s) => s.block === tree.block);
   const topics = useMemo(
     () => topicsForText(tree.conditionNotes, ...reports.slice(0, 5).map((r) => r.description)),
@@ -483,12 +486,14 @@ export const TreeGuideSection: React.FC<{ tree: DurianTree; reports: TreeReport[
     <section className="bg-white rounded-xl border border-slate-200 shadow-xs p-4 space-y-3" aria-labelledby="tg-h">
       <div className="flex items-center justify-between gap-2">
         <h2 id="tg-h" className="text-sm font-bold text-slate-900 flex items-center gap-2">
-          <BookOpen className="w-4 h-4 text-emerald-600" />
-          {t('guide.tree.title')}
+          {guideOn ? <BookOpen className="w-4 h-4 text-emerald-600" /> : <Flower2 className="w-4 h-4 text-emerald-600" />}
+          {guideOn ? t('guide.tree.title') : t('guide.tree.blooms')}
         </h2>
-        <Link to="/guide" className="text-xs font-semibold text-emerald-700 hover:text-emerald-800 min-h-8 flex items-center">
-          {t('guide.dash.open')} →
-        </Link>
+        {guideOn && (
+          <Link to="/guide" className="text-xs font-semibold text-emerald-700 hover:text-emerald-800 min-h-8 flex items-center">
+            {t('guide.dash.open')} →
+          </Link>
+        )}
       </div>
 
       {tws.length > 0 && season ? (
@@ -515,8 +520,8 @@ export const TreeGuideSection: React.FC<{ tree: DurianTree; reports: TreeReport[
               </li>
             ))}
           </ul>
-          {tws.length > 1 && <p className="text-xs text-slate-600">{t('guide.tree.mixed')}</p>}
-          {stagesHere.map((st) => (
+          {guideOn && tws.length > 1 && <p className="text-xs text-slate-600">{t('guide.tree.mixed')}</p>}
+          {guideOn && stagesHere.map((st) => (
             <div key={st} className="space-y-1">
               {stagesHere.length > 1 && <p className="text-xs font-bold uppercase tracking-wide text-slate-500">{pick(STAGES[st].title, lang)}</p>}
               <ul className="space-y-1">
@@ -546,7 +551,7 @@ export const TreeGuideSection: React.FC<{ tree: DurianTree; reports: TreeReport[
       )}
       <TreeBloomRecorder tree={tree} />
 
-      {topics.length > 0 && (
+      {guideOn && topics.length > 0 && (
         <div>
           <p className="text-xs text-slate-600 mb-1.5">{t('guide.tree.topics')}</p>
           <div className="flex flex-wrap gap-2">
@@ -567,13 +572,13 @@ export const TreeGuideSection: React.FC<{ tree: DurianTree; reports: TreeReport[
         </div>
       )}
 
-      {heavy && (
+      {guideOn && heavy && (
         <p className="text-xs text-amber-900 bg-amber-50 border border-amber-200 rounded-lg p-2.5">
           {t('guide.tree.load', { n: tree.estimatedFruitCount || 0, max: max ?? 0 })}{' '}
           <Link to={topicUrl('fruit')} className="font-semibold underline">{pick(TOPIC_BY_ID.get('fruit')!.title, lang)}</Link>
         </p>
       )}
-      {noSize && <p className="text-xs text-slate-600">{t('guide.tree.missingSize')}</p>}
+      {guideOn && noSize && <p className="text-xs text-slate-600">{t('guide.tree.missingSize')}</p>}
     </section>
   );
 };

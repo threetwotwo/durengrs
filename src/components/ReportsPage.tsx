@@ -10,6 +10,7 @@ import { TreeReport } from '../types';
 import { db, parseReportDoc } from '../lib/firebase';
 import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
 import { TOPICS, TopicId, isTopicId, pick, topicsForText } from '../lib/guide';
+import { useGuideOn } from '../lib/guideMode';
 import {
   ClipboardList,
   Search,
@@ -20,6 +21,7 @@ import {
 export const ReportsPage: React.FC = () => {
   const { trees, totalReportsCount } = useFarm();
   const { t, lang } = useT();
+  const guideOn = useGuideOn();
   const treeById = useMemo(() => new Map(trees.map((x) => [x.id, x])), [trees]);
 
   const [params, setParams] = useQueryParams();
@@ -146,7 +148,7 @@ export const ReportsPage: React.FC = () => {
 
       {showActivity ? <ActivityView /> : (
       <>
-      <div className="bg-white p-3 sm:p-4 rounded-xl border border-slate-200 shadow-xs grid grid-cols-2 lg:grid-cols-[1fr_auto_auto_auto_auto_auto] gap-2.5 items-center">
+      <div className={`bg-white p-3 sm:p-4 rounded-xl border border-slate-200 shadow-xs grid grid-cols-2 gap-2.5 items-center ${guideOn ? 'lg:grid-cols-[1fr_auto_auto_auto_auto_auto]' : 'lg:grid-cols-[1fr_auto_auto_auto_auto]'}`}>
         <div className="relative col-span-2 lg:col-span-1">
           <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
@@ -171,6 +173,7 @@ export const ReportsPage: React.FC = () => {
           <option value="emergency">{t('cond.emergency')}</option>
           <option value="not_assessed">{t('cond.not_assessed')}</option>
         </select>
+        {guideOn && (
         <select
           value={filterTopic || 'all'}
           onChange={(e) => setParams({ topic: e.target.value === 'all' ? null : e.target.value })}
@@ -184,6 +187,7 @@ export const ReportsPage: React.FC = () => {
             </option>
           ))}
         </select>
+        )}
         <label className="min-h-11 px-3 inline-flex items-center gap-2 rounded-lg border border-slate-300 text-sm font-medium text-slate-800 cursor-pointer select-none">
           <input
             type="checkbox"
@@ -207,7 +211,7 @@ export const ReportsPage: React.FC = () => {
         </div>
       )}
 
-      {filterTopic && (
+      {filterTopic && guideOn && (
         <p className="text-sm text-slate-700">
           {t('rep.topic.note')}{' '}
           <Link to={`/guide/${filterTopic}`} className="font-semibold text-emerald-700 hover:text-emerald-800 underline underline-offset-2">

@@ -4,6 +4,7 @@ import { BlockDue, ScheduleTask, TreatmentType, formatShortDate, monthShort, rel
 import { BlockSeason, PlanAdvice, TOPIC_BY_ID, pick, planGuidance } from '../lib/guide';
 import { useT } from '../i18n';
 import { Link } from './Link';
+import { useGuideOn } from '../lib/guideMode';
 
 export const TYPE_ICON: Record<TreatmentType, React.ComponentType<{ className?: string }>> = {
   fertilizer: Leaf,
@@ -70,11 +71,12 @@ export const TaskRow: React.FC<{
   seasons?: BlockSeason[];
 }> = ({ task, onDone, compact, seasons }) => {
   const { t, lang } = useT();
+  const guideOn = useGuideOn();
   const { plan } = task;
   const advice = React.useMemo(
-    () => (seasons ? planGuidance(plan, seasons, task.blocks.map((b) => b.block)) : []),
+    () => (seasons && guideOn ? planGuidance(plan, seasons, task.blocks.map((b) => b.block)) : []),
     // lang: advice text is translated when built
-    [plan, seasons, task.blocks, lang]
+    [plan, seasons, task.blocks, lang, guideOn]
   );
   const Icon = TYPE_ICON[plan.type];
   const detail = [plan.product, plan.dose].filter(Boolean).join(' · ');

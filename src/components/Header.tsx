@@ -2,7 +2,8 @@ import React from 'react';
 import { useFarm, AppTab } from '../context/FarmContext';
 import { Link } from './Link';
 import { useT, type Lang } from '../i18n';
-import { LayoutDashboard, TableProperties, Sprout, ClipboardList, CalendarCheck, BookOpen } from 'lucide-react';
+import { LayoutDashboard, TableProperties, Sprout, ClipboardList, CalendarCheck, BookOpen, Wheat } from 'lucide-react';
+import { setGuideOn, useGuideOn } from '../lib/guideMode';
 
 /** Monogram "C" with a leaf at the open end. Calm and generic on purpose. */
 const BrandMark: React.FC<{ className?: string }> = ({ className }) => (
@@ -36,6 +37,7 @@ const toneClass: Record<Tone, string> = {
 export function useNavItems(): NavItem[] {
   const { t } = useT();
   const { unreadReportsCount, scheduleTasks } = useFarm();
+  const guideOn = useGuideOn();
   const overdue = scheduleTasks.filter((t) => t.status === 'overdue').length;
   const soon = scheduleTasks.filter((t) => t.status === 'soon').length;
 
@@ -45,6 +47,7 @@ export function useNavItems(): NavItem[] {
 
   return [
     { id: 'dashboard', label: t('nav.dashboard'), icon: LayoutDashboard },
+    { id: 'harvest', label: t('nav.harvest'), icon: Wheat },
     { id: 'schedule', label: t('nav.schedule'), icon: CalendarCheck, badge: scheduleBadge },
     { id: 'trees', label: t('nav.trees'), icon: TableProperties },
     { id: 'variants', label: t('nav.variants'), icon: Sprout },
@@ -57,9 +60,34 @@ export function useNavItems(): NavItem[] {
           ? { text: unreadReportsCount > 99 ? '99+' : t('nav.badge.new', { n: unreadReportsCount }), tone: 'new' }
           : undefined,
     },
-    { id: 'guide', label: t('nav.guide'), icon: BookOpen },
+    ...(guideOn ? [{ id: 'guide' as AppTab, label: t('nav.guide'), icon: BookOpen }] : []),
   ];
 }
+
+/** Guide on/off: off is the plain app without the Guide's action plans. */
+export const GuideToggle: React.FC = () => {
+  const { t } = useT();
+  const on = useGuideOn();
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      onClick={() => setGuideOn(!on)}
+      title={on ? t('guideMode.offHint') : t('guideMode.onHint')}
+      aria-label={t('guideMode.label')}
+      className={`h-9 pl-2 pr-1 rounded-lg border text-xs font-bold inline-flex items-center gap-1.5 transition-colors ${
+        on ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-slate-800 border-slate-700 text-slate-300 hover:text-white'
+      }`}
+    >
+      <BookOpen className="w-4 h-4" />
+      <span className="hidden sm:inline">{t('guideMode.label')}</span>
+      <span className={`w-7 h-4 rounded-full relative ${on ? 'bg-emerald-300/60' : 'bg-slate-600'}`} aria-hidden>
+        <span className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all ${on ? 'left-3.5' : 'left-0.5'}`} />
+      </span>
+    </button>
+  );
+};
 
 const tabPath = (id: AppTab) => (id === 'dashboard' ? '/' : `/${id}`);
 
@@ -136,9 +164,11 @@ export const Header: React.FC = () => {
               );
             })}
           </nav>
+          <GuideToggle />
           <LanguageToggle />
           </div>
-          <div className="md:hidden">
+          <div className="md:hidden flex items-center gap-2">
+            <GuideToggle />
             <LanguageToggle />
           </div>
         </div>
@@ -158,7 +188,7 @@ export const BottomNav: React.FC = () => {
       className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-slate-900 border-t border-slate-800 pb-[env(safe-area-inset-bottom)]"
       aria-label={t('nav.main')}
     >
-      <ul className="grid grid-cols-6">
+      <ul className="grid" style={{ gridTemplateColumns: `repeat(${navItems.length}, minmax(0, 1fr))` }}>
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = activeTab === item.id;
@@ -182,7 +212,7 @@ export const BottomNav: React.FC = () => {
                     </span>
                   )}
                 </span>
-                <span>{item.label}</span>
+                <span className="max-w-full truncate px-0.5 text-[11px] leading-tight">{item.label}</span>
               </Link>
             </li>
           );

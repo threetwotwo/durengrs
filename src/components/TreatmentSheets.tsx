@@ -18,6 +18,7 @@ import { useT } from '../i18n';
 import { planGuidance } from '../lib/guide';
 import { useSeasons } from './useSeasons';
 import { PlanAdviceList } from './TaskRow';
+import { useGuideOn } from '../lib/guideMode';
 
 const MONTH_NUMS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
 
@@ -77,9 +78,10 @@ export const MarkDoneSheet: React.FC<{
     task.dueBlocks.length ? task.dueBlocks : task.blocks.map((b) => b.block)
   );
   // The Guide's view of this routine for the blocks being marked, so a stage conflict is seen before the work is logged.
+  const guideOn = useGuideOn();
   const advice = useMemo(
-    () => planGuidance(plan, seasons, selected).filter((a) => a.level === 'warn'),
-    [plan, seasons, selected, lang]
+    () => (guideOn ? planGuidance(plan, seasons, selected).filter((a) => a.level === 'warn') : []),
+    [plan, seasons, selected, lang, guideOn]
   );
   const [product, setProduct] = useState(plan.product || '');
   const [dose, setDose] = useState(plan.dose || '');
