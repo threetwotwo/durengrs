@@ -89,6 +89,9 @@ export const GuideToggle: React.FC = () => {
   );
 };
 
+/** The farm name and counts at the left of the header. Hidden for now so the tab titles have room. */
+const SHOW_BRAND = false;
+
 const tabPath = (id: AppTab) => (id === 'dashboard' ? '/' : `/${id}`);
 
 /** ID | EN switch. Shows the current language; both options visible so it is obvious how to change it. */
@@ -124,23 +127,24 @@ export const Header: React.FC = () => {
     <header className="sticky top-0 z-30 bg-slate-900 text-white border-b border-slate-800">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-14">
-          <Link
-            to="/"
-            className="flex items-center gap-3 text-left rounded-lg focus-visible:outline-2 focus-visible:outline-emerald-400"
-            aria-label={t('brand.home')}
-          >
-            <BrandMark className="w-9 h-9 shrink-0" />
-            <span className="leading-tight">
-              <span className="block font-display text-lg font-bold tracking-tight text-white">Cilowong</span>
-              <span className="block text-xs text-slate-400 tabular whitespace-nowrap">
-                {trees.length > 0 ? t('brand.subCounts', { trees: trees.length, blocks: blocks.length }) : t('brand.sub')}
+          {SHOW_BRAND && (
+            <Link
+              to="/"
+              className="flex items-center gap-3 text-left rounded-lg focus-visible:outline-2 focus-visible:outline-emerald-400"
+              aria-label={t('brand.home')}
+            >
+              <BrandMark className="w-9 h-9 shrink-0" />
+              <span className="leading-tight">
+                <span className="block font-display text-lg font-bold tracking-tight text-white">Cilowong</span>
+                <span className="block text-xs text-slate-400 tabular whitespace-nowrap">
+                  {trees.length > 0 ? t('brand.subCounts', { trees: trees.length, blocks: blocks.length }) : t('brand.sub')}
+                </span>
               </span>
-            </span>
-          </Link>
+            </Link>
+          )}
 
-          {/* Desktop navigation. On phones the bottom tab bar is used instead. */}
-          <div className="hidden md:flex items-center gap-2 xl:gap-3">
-          <nav className="flex items-center gap-0.5 xl:gap-1" aria-label={t('nav.main')}>
+          {/* Desktop navigation. On phones the bottom tab bar is used instead. Titles are always shown. */}
+          <nav className="hidden md:flex items-center gap-0.5 lg:gap-1" aria-label={t('nav.main')}>
             {navItems.map((item) => {
               const Icon = item.icon;
               const isActive = activeTab === item.id;
@@ -149,28 +153,26 @@ export const Header: React.FC = () => {
                   key={item.id}
                   to={tabPath(item.id)}
                   aria-current={isActive ? 'page' : undefined}
-                  title={item.label}
                   aria-label={item.badge ? `${item.label}, ${item.badge.text}` : item.label}
-                  className={`flex items-center gap-2 px-2.5 xl:px-3 py-2 rounded-lg text-sm font-semibold whitespace-nowrap transition-colors ${
+                  className={`flex items-center gap-2 px-2 lg:px-3 py-2 rounded-lg text-sm font-semibold whitespace-nowrap transition-colors ${
                     isActive ? 'bg-slate-800 text-emerald-400' : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
                   }`}
                 >
-                  <Icon className="w-4 h-4" />
-                  {/* Labels from xl up; icons alone (with a tooltip) between md and xl so the bar never wraps. */}
-                  <span className="hidden xl:inline">{item.label}</span>
+                  <Icon className="w-4 h-4 hidden lg:block" />
+                  <span>{item.label}</span>
                   {item.badge && (
                     <span className={`ml-0.5 px-2 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap ${toneClass[item.badge.tone]}`}>
-                      {item.badge.text}
+                      {/* Just the number until there is room for the words, so the titles never get squeezed out. */}
+                      <span className="xl:hidden">{item.badge.text.split(' ')[0]}</span>
+                      <span className="hidden xl:inline">{item.badge.text}</span>
                     </span>
                   )}
                 </Link>
               );
             })}
           </nav>
-          <GuideToggle />
-          <LanguageToggle />
-          </div>
-          <div className="md:hidden flex items-center gap-2">
+
+          <div className="flex items-center gap-2 ml-auto md:ml-4">
             <GuideToggle />
             <LanguageToggle />
           </div>
