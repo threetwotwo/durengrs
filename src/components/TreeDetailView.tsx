@@ -23,10 +23,14 @@ import {
   Calendar,
   RefreshCw,
   AlertCircle,
+  Archive,
+  ArchiveRestore,
 } from 'lucide-react';
 import { TreeGuideSection } from './GuideWidgets';
 import { TreeCropCard } from './CropWidgets';
 import { TREE_LIMITS, checkTreeForm, plantedDateStr } from '../lib/trees';
+import { restoreTree } from '../lib/fieldData';
+import { ArchiveTreeSheet } from './ArchiveTreeSheet';
 
 interface TreeDetailViewProps {
   treeId: string;
@@ -51,9 +55,13 @@ const FIELD_LABEL: Record<string, string> = {
 
 export const TreeDetailView: React.FC<TreeDetailViewProps> = ({ treeId, onBack }) => {
   const { t } = useT();
-  const { trees, variants, updateTree, treatments } = useFarm();
+  const { trees, allTrees, variants, updateTree, treatments } = useFarm();
 
-  const tree = trees.find((t) => t.id === treeId);
+  const tree = allTrees.find((t) => t.id === treeId);
+  const archived = tree?.active === false;
+  const [archiving, setArchiving] = useState(false);
+  const [restoring, setRestoring] = useState(false);
+  const [restoreError, setRestoreError] = useState<string | null>(null);
   const blockTreatments = treatments.filter((x) => tree?.block && x.blocks?.includes(tree.block)).slice(0, 5);
 
   // Stepper: Previous / Next tree in current inventory
@@ -247,7 +255,7 @@ export const TreeDetailView: React.FC<TreeDetailViewProps> = ({ treeId, onBack }
       date: toDateStr(new Date(normalizeTimestamp(r.createdAt) || Date.now())),
     }));
 
-  if (!tree && trees.length > 0) {
+  if (!tree && allTrees.length > 0) {
     return (
       <div className="bg-white rounded-xl p-8 text-center border border-slate-200 shadow-xs">
         <p className="text-sm font-semibold text-slate-700">{t('tree.notFound', { id: treeId })}</p>
@@ -354,7 +362,8 @@ export const TreeDetailView: React.FC<TreeDetailViewProps> = ({ treeId, onBack }
 
         {/* Stepper + Save Button */}
         <div className="flex items-center gap-2.5 self-end sm:self-center">
-          {/* Tree Stepper */}
+          {/* Tree Stepper (active trees only) */}
+          {!archived && (
           <div className="flex items-center border border-slate-200 rounded-lg p-0.5 bg-slate-50">
             <button
               onClick={() => prevTree && navigate(treeUrl(prevTree.id), { replace: true })}
@@ -376,6 +385,7 @@ export const TreeDetailView: React.FC<TreeDetailViewProps> = ({ treeId, onBack }
               <ChevronRight className="w-4 h-4" />
             </button>
           </div>
+          )}
 
           {/* Save Button (Requirement 17: Disabled & neutral until changed, with "Unsaved changes" label) */}
           <button
@@ -409,6 +419,41 @@ export const TreeDetailView: React.FC<TreeDetailViewProps> = ({ treeId, onBack }
           </button>
         </div>
       </div>
+
+      {archived && tree && (
+        <div className="rounded-xl border border-slate-300 bg-slate-100 p-4 flex flex-wrap items-center justify-between gap-3" role="status">
+          <div className="min-w-0">
+            <p className="text-sm font-bold text-slate-900 inline-flex items-center gap-2"><Archive className="w-4 h-4" />{t('tree.arch.banner')}</p>
+            <p className="text-xs text-slate-700 mt-0.5">
+              {tree.archivedReason ? t(`tree.arch.r.${tree.archivedReason}`) : ''}
+              {tree.archivedAt ? ` · ${formatDate(tree.archivedAt)}` : ''}
+              {tree.archivedNote ? ` · ${tree.archivedNote}` : ''}
+            </p>
+            <p className="text-xs text-slate-600 mt-0.5">{t('tree.arch.bannerHint')}</p>
+            {restoreError && <p role="alert" className="text-xs text-rose-700 mt-1">{restoreError}</p>}
+          </div>
+          <button
+            type="button"
+            disabled={restoring}
+            onClick={async () => {
+              setRestoring(true);
+              setRestoreError(null);
+              try {
+                await restoreTree(tree.id);
+              } catch (e: any) {
+                console.error('Restore tree failed:', e);
+                setRestoreError(e?.code === 'permission-denied' ? t('err.rulesRecords') : t('rec.saveError'));
+              } finally {
+                setRestoring(false);
+              }
+            }}
+            className="min-h-11 px-4 rounded-xl bg-white border border-slate-300 text-slate-800 text-sm font-semibold inline-flex items-center gap-2 disabled:opacity-60"
+          >
+            <ArchiveRestore className="w-4 h-4" />
+            {restoring ? t('tree.arch.restoring') : t('tree.arch.restore')}
+          </button>
+        </div>
+      )}
 
       {/* Unsaved changes alert banner */}
       {hasUnsavedChanges && (
@@ -799,6 +844,20 @@ export const TreeDetailView: React.FC<TreeDetailViewProps> = ({ treeId, onBack }
           </ul>
         </section>
       )}
+
+      {!archived && tree && (
+        <section className="bg-white rounded-xl border border-slate-200 shadow-xs p-4 flex flex-wrap items-center justify-between gap-3" aria-labelledby="arch-h">
+          <div className="min-w-0">
+            <h2 id="arch-h" className="text-sm font-bold text-slate-900">{t('tree.arch.sectionTitle')}</h2>
+            <p className="text-xs text-slate-600 mt-0.5">{t('tree.arch.sectionHint')}</p>
+          </div>
+          <button type="button" onClick={() => setArchiving(true)} className="min-h-11 px-4 rounded-xl bg-white border border-rose-300 text-rose-700 hover:bg-rose-50 text-sm font-semibold inline-flex items-center gap-2">
+            <Archive className="w-4 h-4" />
+            {t('tree.arch.button')}
+          </button>
+        </section>
+      )}
+      {archiving && tree && <ArchiveTreeSheet treeId={tree.id} onClose={() => setArchiving(false)} onDone={() => { setArchiving(false); navigate(treesUrl()); }} />}
 
       {/* Lightbox Modal */}
       {gallery && <PhotoLightbox items={gallery.items} index={gallery.index} onClose={() => setGallery(null)} />}

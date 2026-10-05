@@ -27,7 +27,12 @@ interface FarmContextType {
   scheduleTasks: ScheduleTask[];
   /** Set when Firestore refuses the treatments collections (rules not published yet). */
   scheduleError: string | null;
+  /** Active trees only: every list, count and forecast uses these. */
   trees: DurianTree[];
+  /** Archived trees (history kept, ID reserved forever). */
+  archivedTrees: DurianTree[];
+  /** Active and archived: for looking an ID up or checking it is free. */
+  allTrees: DurianTree[];
   variants: DurianVariant[];
   totalReportsCount: number;
   refreshReportsCount: () => Promise<void>;
@@ -61,7 +66,9 @@ interface FarmContextType {
 const FarmContext = createContext<FarmContextType | null>(null);
 
 export const FarmProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [trees, setTrees] = useState<DurianTree[]>([]);
+  const [allTrees, setAllTrees] = useState<DurianTree[]>([]);
+  const trees = useMemo(() => allTrees.filter((t) => t.active !== false), [allTrees]);
+  const archivedTrees = useMemo(() => allTrees.filter((t) => t.active === false), [allTrees]);
   const [variants, setVariants] = useState<DurianVariant[]>([]);
   const [totalReportsCount, setTotalReportsCount] = useState<number>(0);
   const [loading, setLoading] = useState<boolean>(true);
@@ -292,6 +299,9 @@ export const FarmProvider: React.FC<{ children: React.ReactNode }> = ({ children
               datePlanted: data.datePlanted,
               treeNumber: parseNum(data.treeNumber),
               active: data.active,
+              archivedAt: data.archivedAt,
+              archivedReason: data.archivedReason,
+              archivedNote: data.archivedNote,
               dateCreated: data.dateCreated,
               dateUpdated: data.dateUpdated,
               conditionUpdatedAt: data.conditionUpdatedAt,
@@ -302,7 +312,7 @@ export const FarmProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
           // Sort naturally by block then ID
           list.sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true, sensitivity: 'base' }));
-          setTrees(list);
+          setAllTrees(list);
           setLoading(false);
         },
         (err) => {
@@ -367,7 +377,7 @@ export const FarmProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const updateTree = async (originalTree: DurianTree, updatedFields: Partial<DurianTree>): Promise<boolean> => {
     const success = await saveTreeChanges(originalTree, updatedFields);
     if (success) {
-      setTrees((prev) =>
+      setAllTrees((prev) =>
         prev.map((t) => (t.id === originalTree.id ? { ...t, ...updatedFields } : t))
       );
     }
@@ -388,7 +398,7 @@ export const FarmProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const deleteVariant = async (code: string, reassignTo?: string) => {
-    await deleteVariantFromFirestore(code, trees.filter((t) => t.variant === code), reassignTo);
+    await deleteVariantFromFirestore(code, allTrees.filter((t) => t.variant === code), reassignTo);
   };
 
   const totalFruits = trees.reduce((acc, t) => acc + (t.estimatedFruitCount || 0), 0);
@@ -397,6 +407,8 @@ export const FarmProvider: React.FC<{ children: React.ReactNode }> = ({ children
     <FarmContext.Provider
       value={{
         trees,
+        archivedTrees,
+        allTrees,
         variants,
         totalReportsCount,
         refreshReportsCount,

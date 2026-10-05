@@ -27,7 +27,11 @@ export interface DurianTree {
   supplier?: string;
   datePlanted?: string | { seconds: number; nanoseconds: number } | any;
   treeNumber?: number;
+  /** false = archived: kept for history, hidden from lists, closed to WhatsApp reports. Missing = active. The ID is never reused. */
   active?: boolean;
+  archivedAt?: string | { seconds: number; nanoseconds: number } | any;
+  archivedReason?: string;
+  archivedNote?: string;
   dateCreated?: string | { seconds: number; nanoseconds: number } | any;
   dateUpdated?: string | { seconds: number; nanoseconds: number } | any;
   conditionUpdatedAt?: string | { seconds: number; nanoseconds: number } | any;

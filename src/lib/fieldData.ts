@@ -1,4 +1,4 @@
-import { Timestamp, collection, deleteDoc, doc, runTransaction, serverTimestamp, setDoc, writeBatch } from 'firebase/firestore';
+import { Timestamp, collection, deleteDoc, deleteField, doc, runTransaction, serverTimestamp, setDoc, writeBatch } from 'firebase/firestore';
 import { db } from './firebase';
 import type { BloomPart, TreeBloom } from './guide';
 import type { ReportPhoto } from '../types';
@@ -207,9 +207,9 @@ export async function markWeeklyReview(date: string): Promise<void> {
   await setDoc(doc(db, 'farmMeta', 'weeklyReview'), { date, at: serverTimestamp() });
 }
 
-// ---------- new tree ----------
+// ---------- new tree, archive, restore ----------
 
-/** Creates trees/{id}. Never overwrites: an ID that already exists is refused. */
+/** Creates trees/{id}. Never overwrites, and an archived tree's ID counts as taken. */
 export async function createTree(t: { id: string; block: string; number: number; variant: string; datePlanted?: string }): Promise<'created' | 'exists'> {
   const ref = doc(db, 'trees', t.id);
   return runTransaction(db, async (tx) => {
@@ -227,5 +227,50 @@ export async function createTree(t: { id: string; block: string; number: number;
       dateUpdated: serverTimestamp(),
     });
     return 'created' as const;
+  });
+}
+
+/**
+ * Archives a tree instead of deleting it: reports, counts, harvests and photos stay, the ID stays reserved
+ * for good, and the tree leaves the lists and closes to WhatsApp. Reversible with restoreTree.
+ */
+export async function archiveTree(treeId: string, reason: string, note: string): Promise<'archived' | 'already' | 'missing'> {
+  const ref = doc(db, 'trees', treeId);
+  return runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists()) return 'missing' as const;
+    if (snap.data().active === false) return 'already' as const;
+    tx.update(ref, {
+      active: false,
+      archivedAt: serverTimestamp(),
+      archivedReason: reason,
+      archivedNote: note.trim() || deleteField(),
+      dateUpdated: serverTimestamp(),
+    });
+    tx.set(doc(collection(db, 'treeEdits')), {
+      treeId,
+      changes: { active: { from: true, to: false } },
+      reason,
+      source: 'webapp',
+      at: serverTimestamp(),
+    });
+    return 'archived' as const;
+  });
+}
+
+export async function restoreTree(treeId: string): Promise<'restored' | 'already' | 'missing'> {
+  const ref = doc(db, 'trees', treeId);
+  return runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists()) return 'missing' as const;
+    if (snap.data().active !== false) return 'already' as const;
+    tx.update(ref, { active: true, archivedAt: deleteField(), archivedReason: deleteField(), archivedNote: deleteField(), dateUpdated: serverTimestamp() });
+    tx.set(doc(collection(db, 'treeEdits')), {
+      treeId,
+      changes: { active: { from: false, to: true } },
+      source: 'webapp',
+      at: serverTimestamp(),
+    });
+    return 'restored' as const;
   });
 }

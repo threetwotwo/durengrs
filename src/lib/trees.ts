@@ -70,11 +70,16 @@ export function checkTreeForm(values: TreeFormValues, initial: TreeFormValues, t
   return { errors, fruitWarning };
 }
 
-// ---------- adding a tree ----------
+// ---------- adding, archiving and restoring a tree ----------
 
 /** Same shape the WhatsApp bot accepts as a tree ID: 1-3 letters (the block) then a number. */
+export const TREE_ID_PATTERN = /^[A-Z]{1,3}\d{1,3}$/;
 export const NEW_TREE_BLOCK = /^[A-Z]{1,3}$/;
 export const MAX_TREE_NUMBER = 999;
+/** A number this far past the next free one is probably a typo (e.g. 250 instead of 25). */
+export const NUMBER_GAP_WARNING = 10;
+
+export const isActiveTree = (t: { active?: boolean }) => t.active !== false;
 
 export interface NewTreeValues {
   block: string;
@@ -83,15 +88,20 @@ export interface NewTreeValues {
   datePlanted: string;
 }
 
+type Msg = { key: string; vars?: Record<string, string | number> };
+
 export interface NewTreeCheck {
-  /** The ID the tree will get (e.g. "A25"), when block and number are valid. */
+  /** The ID the tree will get (e.g. "A25"), when block and number are valid and free. */
   id?: string;
-  errors: Partial<Record<keyof NewTreeValues, { key: string; vars?: Record<string, string | number> }>>;
+  /** Block everything: the tree cannot be saved. */
+  errors: Partial<Record<keyof NewTreeValues, Msg>>;
+  /** Likely mistakes: saving needs an explicit "yes, this is right". */
+  warnings: Array<{ code: 'newBlock' | 'numberGap'; msg: Msg }>;
 }
 
 export const normalizeBlock = (v: string) => v.replace(/[^a-zA-Z]/g, '').toUpperCase().slice(0, 3);
 
-/** Highest tree number used in a block, so the form can suggest the next free one. */
+/** Highest tree number used in a block (archived trees included: their IDs stay taken). */
 export function nextTreeNumber(trees: Array<{ id: string; block: string }>, block: string): number {
   let max = 0;
   for (const t of trees) {
@@ -102,13 +112,18 @@ export function nextTreeNumber(trees: Array<{ id: string; block: string }>, bloc
   return max + 1;
 }
 
+/**
+ * `trees` must be ALL trees, archived ones too: an archived tree keeps its ID forever, so two plants
+ * never share one.
+ */
 export function checkNewTree(
   values: NewTreeValues,
-  existingIds: string[],
+  trees: Array<{ id: string; block: string; active?: boolean }>,
   knownVariants: string[],
   today = todayStr()
 ): NewTreeCheck {
   const errors: NewTreeCheck['errors'] = {};
+  const warnings: NewTreeCheck['warnings'] = [];
   const block = values.block.trim().toUpperCase();
   const numRaw = values.number.trim();
   const num = Number(numRaw);
@@ -119,15 +134,46 @@ export function checkNewTree(
   let id: string | undefined;
   if (!errors.block && !errors.number) {
     id = `${block}${num}`;
-    if (existingIds.some((x) => x.toUpperCase() === id)) errors.number = { key: 'tree.new.e.exists', vars: { id } };
+    const clash = trees.find((x) => x.id.toUpperCase() === id);
+    if (clash) {
+      errors.number = { key: isActiveTree(clash) ? 'tree.new.e.exists' : 'tree.new.e.archived', vars: { id } };
+      id = undefined;
+    } else if (!TREE_ID_PATTERN.test(id)) {
+      errors.number = { key: 'tree.new.e.number', vars: { max: MAX_TREE_NUMBER } };
+      id = undefined;
+    } else {
+      const inBlock = trees.some((x) => x.block === block);
+      if (!inBlock) warnings.push({ code: 'newBlock', msg: { key: 'tree.new.w.newBlock', vars: { block } } });
+      else {
+        const next = nextTreeNumber(trees, block);
+        if (num >= next + NUMBER_GAP_WARNING) warnings.push({ code: 'numberGap', msg: { key: 'tree.new.w.gap', vars: { n: num, next, block } } });
+      }
+    }
   }
 
   if (!values.variant || !knownVariants.includes(values.variant)) errors.variant = { key: 'tree.new.e.variant' };
 
   const d = values.datePlanted;
   if (d) {
-    if (d > today) errors.datePlanted = { key: 'tree.v.future' };
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || Number.isNaN(Date.parse(d))) errors.datePlanted = { key: 'tree.v.tooOld' };
+    else if (d > today) errors.datePlanted = { key: 'tree.v.future' };
     else if (d < EARLIEST_PLANTING) errors.datePlanted = { key: 'tree.v.tooOld' };
   }
-  return { id: errors.block || errors.number ? undefined : id, errors };
+  return { id, errors, warnings };
+}
+
+export const ARCHIVE_REASONS = ['died', 'removed', 'replaced', 'test', 'other'] as const;
+export type ArchiveReason = (typeof ARCHIVE_REASONS)[number];
+export const ARCHIVE_NOTE_MAX = 200;
+
+export interface ArchiveCheck {
+  errors: Partial<Record<'reason' | 'note', Msg>>;
+}
+
+export function checkArchive(v: { reason: string; note: string }): ArchiveCheck {
+  const errors: ArchiveCheck['errors'] = {};
+  if (!(ARCHIVE_REASONS as readonly string[]).includes(v.reason)) errors.reason = { key: 'tree.arch.e.reason' };
+  else if (v.reason === 'other' && !v.note.trim()) errors.note = { key: 'tree.arch.e.noteOther' };
+  if (v.note.length > ARCHIVE_NOTE_MAX) errors.note = { key: 'tree.arch.e.noteLong', vars: { max: ARCHIVE_NOTE_MAX } };
+  return { errors };
 }

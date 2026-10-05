@@ -9,7 +9,7 @@ import { navigate, treeUrl, useQueryParams } from '../lib/router';
 import { followUpOf, waitingLabel } from '../lib/insights';
 import { formatShortDate } from '../lib/treatments';
 import { DurianTree } from '../types';
-import { Search, Download, ArrowUpDown, ArrowUp, ArrowDown, RotateCcw, TreeDeciduous, Clock, ChevronLeft, ChevronRight, Columns3, Plus } from 'lucide-react';
+import { Search, Download, ArrowUpDown, ArrowUp, ArrowDown, RotateCcw, TreeDeciduous, Clock, ChevronLeft, ChevronRight, Columns3, Plus, Archive } from 'lucide-react';
 
 const ROWS_PER_PAGE = 50;
 type SortField = keyof DurianTree;
@@ -25,10 +25,13 @@ const CONDITION_CHIPS: Array<{ id: string; labelKey: string; active: string; dot
 /** All filters, sorting and paging live in the URL, e.g. #/trees?block=A&condition=emergency&sort=lastReportAt */
 export const TreesTable: React.FC = () => {
   const { t, locale } = useT();
-  const { trees, variants, treatments } = useFarm();
+  const { trees: activeTrees, archivedTrees, variants, treatments } = useFarm();
   const [params, setParams] = useQueryParams();
   const [adding, setAdding] = useState(false);
 
+  // Archived trees (kept for history, ID reserved) are a separate view, so they never mix into counts and filters.
+  const showArchived = params.get('archived') === '1';
+  const trees = showArchived ? archivedTrees : activeTrees;
   const search = params.get('q') || '';
   const filterBlock = params.get('block') || 'all';
   const filterVariant = params.get('variant') || 'all';
@@ -219,7 +222,7 @@ export const TreesTable: React.FC = () => {
   return (
     <div className="space-y-4">
       <PageHeader
-        title={t('trees.title')}
+        title={showArchived ? t('trees.archived.title') : t('trees.title')}
         description={
           <span className="tabular">
             {activeFilterCount > 0
@@ -315,6 +318,19 @@ export const TreesTable: React.FC = () => {
           >
             {t('trees.filter.untreated')}
           </button>
+          {(archivedTrees.length > 0 || showArchived) && (
+            <button
+              onClick={() => setParams({ archived: showArchived ? null : '1', block: null, variant: null, condition: null, page: null })}
+              aria-pressed={showArchived}
+              className={`min-h-11 px-3.5 rounded-full border text-sm font-semibold inline-flex items-center gap-2 transition-colors ${
+                showArchived ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+              }`}
+            >
+              <Archive className="w-4 h-4" />
+              {t('trees.filter.archived')}
+              <span className={`tabular text-xs ${showArchived ? 'opacity-90' : 'text-slate-500'}`}>{archivedTrees.length}</span>
+            </button>
+          )}
           {missing && (
             <button
               onClick={() => setParams({ missing: null, page: null })}
