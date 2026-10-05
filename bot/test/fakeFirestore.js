@@ -13,7 +13,14 @@ const snap = (name, id) => {
   const data = col(name).get(id);
   return { exists: data !== undefined, id, data: () => (data === undefined ? undefined : clone(data)) };
 };
+// The real Firestore refuses undefined anywhere in a document ("Cannot use undefined as a Firestore value").
+// lib/firestore.js turns that off as a safety net, but the tests keep it on so such a write shows up here.
+const noUndefined = (v, path) => {
+  if (v === undefined) throw new Error(`Cannot use "undefined" as a Firestore value (found in field ${path})`);
+  if (v && typeof v === 'object' && !v._ts && !v._delete) for (const [k, x] of Object.entries(v)) noUndefined(x, `${path}.${k}`);
+};
 const apply = (name, id, d, merge) => {
+  for (const [k, v] of Object.entries(d)) noUndefined(v, k);
   const prev = merge ? { ...(col(name).get(id) || {}) } : {};
   for (const [k, v] of Object.entries(d)) {
     if (v && v._delete) delete prev[k];

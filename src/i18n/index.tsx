@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from 'react';
+import { useMemo, useSyncExternalStore } from 'react';
 import { common } from './common';
 import { shell } from './shell';
 import { dashboard } from './dashboard';
@@ -93,10 +93,15 @@ function subscribe(cb: () => void) {
 
 export function useT() {
   const lang = useSyncExternalStore(subscribe, getLang, getLang);
-  return {
-    lang,
-    setLang,
-    locale: locale(lang),
-    t: (key: string, vars?: Vars) => translate(key, vars, lang),
-  };
+  // Same object (and same `t`) until the language changes, so `t` can sit in hook dependencies without re-running
+  // them on every render.
+  return useMemo(
+    () => ({
+      lang,
+      setLang,
+      locale: locale(lang),
+      t: (key: string, vars?: Vars) => translate(key, vars, lang),
+    }),
+    [lang]
+  );
 }

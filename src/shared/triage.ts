@@ -1,7 +1,7 @@
 import { FARM_STAGES, FARM_STAGE_INFO, type FarmStage } from './stages';
 import { ISSUES, ISSUE_INFO, type Issue } from './issues';
 import { HEALTH_INFO, worstHealth, type Health } from './health';
-import { hasWord, normalize } from './text';
+import { normalize, wordHits } from './text';
 
 /**
  * Field report triage: what a worker's report is probably about. The worker only sends tree + photo + words;
@@ -10,7 +10,7 @@ import { hasWord, normalize } from './text';
  * `triageText` is the free, rule-based version (words only), shared with the WhatsApp bot so its instant reply and
  * the web app's suggestion are the same. A photo model can later fill the same `Triage` shape (source 'ai').
  */
-export const TRIAGE_RULES_VERSION = 'rules-1';
+export const TRIAGE_RULES_VERSION = 'rules-2';
 
 export type NumberKind = 'fruit' | 'clusters' | 'branches' | 'mm';
 
@@ -23,27 +23,57 @@ export interface Triage {
   health?: Health;
   /** The worker says it is getting better ("membaik"). */
   improving: boolean;
+  /**
+   * The words say the tree is in danger right now ("darurat", "hampir mati", "tumbang"), not merely that a serious
+   * problem may be present. Only this lets the bot turn a tree Merah before anyone checks. Missing on older triage.
+   */
+  urgent?: boolean;
   numbers: Array<{ value: number; kind?: NumberKind; evidence: string }>;
   /** False only for a plain "all fine" report: nothing for a person to decide. */
   needsReview: boolean;
 }
 
-const NEGATIONS = ['tidak', 'tak', 'bukan', 'belum', 'tanpa', 'no', 'gak', 'nggak', 'ga'];
-const URGENT = ['darurat', 'parah', 'sekarat', 'hampir mati', 'mati', '=sos'];
+// Not "no": workers write it for "nomor" ("pohon no 12").
+const NEGATIONS = ['tidak', 'tak', 'tdk', 'bukan', 'bkn', 'belum', 'blm', 'tanpa', 'gak', 'nggak', 'ngga', 'ga', 'gk', 'enggak', 'engga', 'ndak', 'nda', 'jangan'];
+/** "kurang bagus", "kurang sehat": only negates the all-fine words. */
+const FINE_NEGATIONS = [...NEGATIONS, 'kurang', 'agak'];
+/** Danger now. A disease name alone is not enough (that waits for a person); these words are. */
+const URGENT = ['darurat', 'parah', 'sekarat', 'hampir mati', 'pohon mati', 'mati total', 'sudah mati', 'tumbang', 'roboh', '=sos'];
 const FINE = ['sehat', 'aman', 'bagus', 'normal', '=baik', 'oke', '=ok'];
-const BETTER = ['membaik', 'mulai baik', 'sudah baik', 'pulih', 'sembuh', 'lebih baik'];
+// Not "berkurang" or "sudah hilang": "daun berkurang", "daun sudah hilang semua" are bad news.
+const BETTER = ['membaik', 'mulai baik', 'sudah baik', 'lebih baik', 'pulih', 'sembuh'];
+/** Words that may sit between a negation and what it negates: "tidak ada kutu", "tdk terlihat lagi getah". */
+const FILLER = ['ada', 'terlihat', 'kelihatan', 'keliatan', 'tampak', 'nampak', 'ditemukan', 'ketemu', 'terdapat', 'muncul', 'lagi', 'terlalu', 'begitu', 'pernah', 'sama', 'sekali', 'juga'];
 
-/** The word before `kw` in `text` is a negation ("tidak ada kutu"). */
-function negated(text: string, kw: string): boolean {
-  const k = kw.replace(/^=/, '');
-  const i = text.indexOf(k);
-  if (i < 0) return false;
-  const before = text.slice(Math.max(0, i - 14), i).trim().split(' ').slice(-2);
-  return before.some((w) => NEGATIONS.includes(w));
+/**
+ * The occurrence at `at` is negated: a negation right before it, or up to three words back with only filler words
+ * in between, within the same phrase ("tidak ada kutu", "tdk terlihat getah"; but not "tidak berbunga. ada kutu",
+ * nor "tidak ada kutu daun kuning" for "daun kuning").
+ */
+function negatedAt(text: string, at: number, negations: string[]): boolean {
+  const before = text.slice(Math.max(0, at - 60), at);
+  const phrase = before.split(/[.,;]/).pop() || '';
+  const words = phrase.trim().split(' ').filter(Boolean).slice(-3).reverse();
+  for (const w of words) {
+    if (negations.includes(w)) return true;
+    if (!FILLER.includes(w)) return false;
+  }
+  return false;
 }
 
-function matches(text: string, keywords: string[]): string[] {
-  return keywords.filter((kw) => hasWord(text, kw) && !negated(text, kw)).map((k) => k.replace(/^=/, ''));
+/** Keywords found in `text` with at least one occurrence that isn't negated. */
+function matches(text: string, keywords: string[], negations = NEGATIONS): string[] {
+  return keywords
+    .filter((kw) => wordHits(text, kw).some((at) => !negatedAt(text, at, negations)))
+    .map((k) => k.replace(/^=/, ''));
+}
+
+/** Keywords found only in negated form ("tidak sehat"). */
+function negatedOnly(text: string, keywords: string[], negations: string[]): boolean {
+  return keywords.some((kw) => {
+    const hits = wordHits(text, kw);
+    return hits.length > 0 && hits.every((at) => negatedAt(text, at, negations));
+  });
 }
 
 const UNIT_WORDS: Array<[NumberKind, string[]]> = [
@@ -69,13 +99,15 @@ function findNumbers(text: string): Triage['numbers'] {
         break;
       }
     }
-    out.push({ value, kind, evidence: `${before.split(' ').slice(-1)[0] || ''} ${m[1]} ${after.split(' ')[0] || ''}`.trim() });
+    const evidence = `${before.split(' ').slice(-1)[0] || ''} ${m[1]} ${after.split(' ')[0] || ''}`.trim();
+    out.push(kind ? { value, kind, evidence } : { value, evidence }); // no undefined fields: Firestore refuses them
   }
   return out;
 }
 
 export function triageText(raw: string | undefined): Triage {
-  const text = normalize(raw);
+  // A line break, "!" or "?" ends a phrase like a full stop (WhatsApp messages often have no other punctuation).
+  const text = normalize((raw || '').replace(/[\r\n!?]+/g, '. '));
 
   // Stage: the most specific (longest) matching word wins; several different stages lower the confidence.
   const stageHits = FARM_STAGES.flatMap((code) => matches(text, FARM_STAGE_INFO[code].keywords).map((kw) => ({ code, kw })));
@@ -92,15 +124,26 @@ export function triageText(raw: string | undefined): Triage {
     if (!issues.some((i) => i.code === h.code)) issues.push({ code: h.code, confidence: 0.6, evidence: h.kw });
   }
 
+  const improving = matches(text, BETTER).length > 0;
   let health: Health | undefined;
   for (const i of issues) health = worstHealth(health, ISSUE_INFO[i.code].health);
-  if (matches(text, URGENT).length) health = 'merah';
-  if (!health && matches(text, FINE).length) health = 'hijau';
-  const improving = matches(text, BETTER).length > 0;
+  // "tidak sehat", "kurang bagus": something is wrong even if no problem word was used.
+  const notFine = negatedOnly(text, FINE, FINE_NEGATIONS);
+  if (notFine) health = worstHealth(health, 'kuning');
+  // Danger words are always suggested as Merah; only when the worker doesn't also say it is getting better may the
+  // bot act on them by itself.
+  const danger = matches(text, URGENT).length > 0;
+  const urgent = danger && !improving;
+  if (danger) health = 'merah';
+  if (!health && matches(text, FINE, FINE_NEGATIONS).length) health = 'hijau';
 
   const numbers = findNumbers(text);
   const needsReview = !(health === 'hijau' && issues.length === 0);
-  return { source: 'rules', version: TRIAGE_RULES_VERSION, stage, issues, health, improving, numbers, needsReview };
+  // Only defined fields: Firestore refuses `undefined` values, and this object is stored as is.
+  const out: Triage = { source: 'rules', version: TRIAGE_RULES_VERSION, issues, improving, urgent, numbers, needsReview };
+  if (stage) out.stage = stage;
+  if (health) out.health = health;
+  return out;
 }
 
 /** Short WhatsApp reply in plain Indonesian: what it looks like and one next step. */

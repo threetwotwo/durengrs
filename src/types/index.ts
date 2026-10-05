@@ -73,6 +73,8 @@ export interface TreeReport {
   health?: 'hijau' | 'kuning' | 'merah';
   /** "Membaik": the problem is getting better. */
   improving?: boolean;
+  /** Who changed the tree's condition with this report: the worker's own choice (older Flow) or the urgent words. */
+  conditionSource?: 'worker' | 'triage';
 }
 
 export interface TreeEditAudit {

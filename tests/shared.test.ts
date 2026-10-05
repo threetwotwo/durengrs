@@ -105,3 +105,84 @@ test('label rules with thresholds out of order are refused', () => {
   const bad = mergeLabelRules({ tajuk: { lowMax: 600, midMax: 549 }, dose: { young: 500 } });
   assert.deepEqual(checkLabelRules(bad).map((e) => e.key), ['rules.err.order', 'rules.err.dose']);
 });
+
+test('words inside longer words do not count (Indonesian prefixes)', () => {
+  assert.notEqual(t('Tanaman tidak sehat').health, 'hijau'); // "aman" in "tanaman", "sehat" negated
+  assert.equal(t('Tanaman tidak sehat').needsReview, true);
+  assert.notEqual(t('kurang bagus').health, 'hijau');
+  assert.notEqual(t('saya amati daun kuning').health, 'merah'); // "mati" in "amati"
+  assert.equal(t('Sudah diamati, ada kutu').urgent, false);
+  assert.equal(t('mematikan jamur').urgent, false);
+  assert.equal(t('ranting mati satu').urgent, false); // a dead twig is not an emergency
+  assert.notEqual(t('buah berkembang').stage?.code, 'bloom'); // "kembang" in "berkembang"
+  assert.deepEqual(issues('kuncup bulat'), []); // "ulat" in "bulat"
+  assert.deepEqual(issues('getahnya merah'), ['phytophthora_canker']); // suffix -nya still counts
+});
+
+test('negations, also short forms and a few words back', () => {
+  assert.deepEqual(issues('tdk ada getah'), []);
+  assert.deepEqual(issues('tidak terlihat getah'), []);
+  assert.deepEqual(issues('gk ada kutu'), []);
+  assert.deepEqual(issues('tidak berbunga. ada kutu'), ['whitefly']); // a full stop ends the negation
+});
+
+test('only danger words are urgent (the bot turns a tree Merah by itself only then)', () => {
+  assert.equal(t('pohon hampir mati').urgent, true);
+  assert.equal(t('darurat, batang roboh').urgent, true);
+  assert.equal(t('Kanker batang').urgent, false); // a disease name waits for a person
+  assert.equal(t('Kanker batang').health, 'merah'); // ...but is still suggested as Merah
+  assert.equal(t('getah sudah berkurang, membaik').urgent, false);
+  assert.equal(t('tidak parah').urgent, false);
+  assert.equal(t('bukan darurat').urgent, false);
+});
+
+test('a triage never holds undefined (Firestore refuses it)', () => {
+  for (const s of ['daun kuning di dahan bawah', 'aman', '12', 'buah 3', '', 'pohon hampir mati']) {
+    const json = JSON.stringify(t(s));
+    assert.deepEqual(JSON.parse(json), t(s), s);
+    const walk = (o: unknown): void => {
+      if (o && typeof o === 'object') for (const v of Object.values(o)) { assert.notEqual(v, undefined, s); walk(v); }
+    };
+    walk(t(s));
+  }
+});
+
+test('cases from the review: "no" is a number, line breaks end a phrase, bad news is not "better"', () => {
+  assert.equal(t('pohon no 12 tumbang').urgent, true);
+  assert.equal(t('pohon no 5 sehat').health, 'hijau');
+  assert.deepEqual(issues('belum berbunga\nada kutu putih'), ['whitefly']);
+  assert.deepEqual(issues('Tidak ada kutu! Daun kuning'), ['nutrient']);
+  assert.deepEqual(issues('tidak ada kutu daun kuning'), ['nutrient']); // "daun kuning" is not what "tidak" negates
+  assert.deepEqual(issues('tidak ada lagi kutu'), []);
+  assert.equal(t('pohon hampir mati, daun berkurang').urgent, true);
+  assert.equal(t('daun sudah hilang semua').improving, false);
+  // Worker says it's getting better: still suggested Merah, but the bot waits for a person.
+  assert.equal(t('kemarin hampir mati, sekarang membaik').health, 'merah');
+  assert.equal(t('kemarin hampir mati, sekarang membaik').urgent, false);
+});
+
+test('common word forms with a prefix are known', () => {
+  assert.deepEqual(issues('batang bergetah'), ['phytophthora_canker']);
+  assert.deepEqual(issues('kebun kebanjiran'), ['water']);
+  assert.deepEqual(issues('daun melayu'), ['water']);
+  assert.deepEqual(issues('dahan jamuran'), ['stem_fungus']);
+  assert.deepEqual(issues('buah berjatuhan'), ['fruit_drop']);
+  assert.deepEqual(issues('daun berguguran'), ['leaf_drop']);
+  assert.equal(t('sudah dipanen').stage?.code, 'post');
+  assert.equal(t('buah dipanen').stage?.code, 'harvest');
+});
+
+test('fruit on the tree: last count minus fruit picked since, else this season\'s tree estimate', async () => {
+  const { fruitRemaining } = await import('../src/shared');
+  const waves = ['2026-06-01'];
+  const counts = [
+    { season: '2026-06-01', stage: 'set', count: 40, date: '2026-07-01' },
+    { season: '2026-06-01', stage: 'onTree', count: 25, date: '2026-08-15' },
+    { season: '2025-06-01', stage: 'onTree', count: 99, date: '2025-08-15' }, // last season: ignored
+  ];
+  assert.equal(fruitRemaining(counts, [{ date: '2026-09-20', fruits: 5 }, { date: '2026-08-01', fruits: 9 }], waves), 20);
+  // No count: the tree's estimate if updated after the flowers opened, minus fruit picked after that day.
+  assert.equal(fruitRemaining([], [{ date: '2026-09-20', fruits: 5 }], waves, { count: 30, date: '2026-09-01' }), 25);
+  assert.equal(fruitRemaining([], [], waves, { count: 30, date: '2026-05-01' }), undefined);
+  assert.equal(fruitRemaining([], [], [], { count: 30, date: '2026-09-01' }), undefined);
+});

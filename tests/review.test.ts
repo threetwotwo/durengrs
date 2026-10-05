@@ -1,7 +1,7 @@
 // Review inbox: only a confirmed review changes the tree, never back to an older observation.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { treeChanges, suggestedValues, needsReview } from '../src/lib/review';
+import { treeChanges, suggestedValues, needsReview, currentValues, reportCondition } from '../src/lib/review';
 import { triageText } from '../src/shared';
 
 const ts = (iso: string) => ({ seconds: Date.parse(iso) / 1000, nanoseconds: 0 });
@@ -39,6 +39,52 @@ test('"membaik" on the latest checked report marks the tree; a later check witho
   // An older report never touches it.
   const r1: any = { id: 'r1', treeId: 'A3', description: 'membaik', createdAt: ts('2026-09-20T08:00:00+07:00') };
   assert.equal(treeChanges(marked, r1, { issues: [], health: 'hijau', improving: true }).improving, undefined);
+});
+
+test('a condition set by hand after the report is never undone by its review', () => {
+  const r2: any = { id: 'r2', treeId: 'A3', description: 'kanker batang', createdAt: ts('2026-10-04T08:00:00+07:00') };
+  const handSet = { ...tree, condition: 'minor', conditionUpdatedAt: ts('2026-10-04T15:00:00+07:00') };
+  assert.equal(treeChanges(handSet, r2, { issues: ['phytophthora_canker'], health: 'merah' }).condition, undefined);
+  // Set in the same save as the report (the bot): the review still applies.
+  const sameSave = { ...tree, conditionUpdatedAt: ts('2026-10-04T08:00:02+07:00') };
+  assert.equal(treeChanges(sameSave, r2, { issues: ['phytophthora_canker'], health: 'merah' }).condition, 'emergency');
+  // Changing a review later: the earlier review's own write is not a hand set.
+  const reviewed = { ...r2, review: { decision: 'accepted', at: ts('2026-10-05T09:00:00+07:00') } };
+  const afterReview = { ...tree, condition: 'emergency', conditionUpdatedAt: ts('2026-10-05T09:00:01+07:00') };
+  assert.equal(treeChanges(afterReview, reviewed, { issues: [], health: 'kuning' }).condition, 'minor');
+});
+
+test('dismissing a report that turned the tree Merah by itself puts the tree back', () => {
+  const r2: any = {
+    id: 'r2', treeId: 'A3', description: 'pohon hampir mati', createdAt: ts('2026-10-04T08:00:00+07:00'),
+    conditionSource: 'triage', conditionChanged: true, conditionBefore: 'healthy', conditionAfter: 'emergency',
+  };
+  const t2 = { ...tree, condition: 'emergency', conditionUpdatedAt: ts('2026-10-04T08:00:00+07:00'), observedStage: { code: 'egg', date: '2026-10-04', reportId: 'r2' } };
+  const ch = treeChanges(t2, r2, { issues: [] }, 'dismissed');
+  assert.equal(ch.condition, 'healthy');
+  assert.equal(ch.observedStage, null);
+  // Not when someone changed it since, nor when the worker chose Merah themselves.
+  assert.equal(treeChanges({ ...t2, conditionUpdatedAt: ts('2026-10-04T12:00:00+07:00') }, r2, { issues: [] }, 'dismissed').condition, undefined);
+  assert.equal(treeChanges(t2, { ...r2, conditionSource: 'worker' }, { issues: [] }, 'dismissed').condition, undefined);
+});
+
+test('"tidak yakin" on the report the tree shows clears its stage', () => {
+  const t2 = { ...tree, observedStage: { code: 'egg', date: '2026-10-04', reportId: 'r2' } };
+  const r2: any = { id: 'r2', treeId: 'A3', description: 'telor', createdAt: ts('2026-10-04T08:00:00+07:00') };
+  assert.equal(treeChanges(t2, r2, { issues: [] }).observedStage, null);
+});
+
+test('a health the worker chose is proposed as it is, not re-read from the words', () => {
+  const r: any = { id: 'r9', treeId: 'A3', description: 'kanker batang', conditionSource: 'worker', conditionAfter: 'minor' };
+  assert.equal(suggestedValues(triageText(r.description), r).health, 'kuning');
+  assert.equal(suggestedValues(triageText(r.description)).health, 'merah');
+});
+
+test('"Ubah" opens on what was checked, not on the suggestion', () => {
+  const r: any = { id: 'r9', treeId: 'A3', description: 'kanker batang', review: { decision: 'corrected' }, issues: ['stem_fungus'], health: 'kuning' };
+  assert.deepEqual(currentValues(r), { issues: ['stem_fungus'], improving: false, health: 'kuning' });
+  assert.equal(reportCondition(r), 'minor');
+  assert.equal(reportCondition({ id: 'x', conditionAfter: 'Minor_Issue' } as any), 'minor');
 });
 
 test('"membaik" shows only while its report is the latest', async () => {

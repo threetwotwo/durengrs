@@ -209,6 +209,10 @@ async function processPhotos(items, treeId, reportId) {
 
 // `condition`: the worker's choice (older Flow) or 'emergency' when the words read as urgent (triage), else none.
 // `triage`: what the system read from the words (lib/shared.js); a suggestion until someone checks it in the webapp.
+async function reportExists(reportId) {
+  return (await db.collection('reports').doc(reportId).get()).exists;
+}
+
 async function createReport({ reportId, treeId, workerPhone, condition, conditionSource, description, photos, triage }) {
   const treeRef = db.collection('trees').doc(treeId);
   const reportRef = db.collection('reports').doc(reportId);
@@ -235,7 +239,9 @@ async function createReport({ reportId, treeId, workerPhone, condition, conditio
       conditionBefore: before,
       conditionAfter: after,
       conditionChanged: changed,
-      ...(changed && conditionSource ? { conditionSource } : {}),
+      // Who decided the condition: kept whenever a worker chose it (even the same as before, so a review proposes their
+      // choice rather than a reading of their words), and for the triage only when it changed the tree.
+      ...(conditionSource && CONDITIONS.includes(condition) && (changed || conditionSource === 'worker') ? { conditionSource } : {}),
       ...(triage ? { triage } : {}),
       createdAt: now,
     });
@@ -254,4 +260,4 @@ async function createReport({ reportId, treeId, workerPhone, condition, conditio
   });
 }
 
-module.exports = { getCollageUrl, reportIdFromToken, processPhotos, createReport, CONDITION_LABELS };
+module.exports = { getCollageUrl, reportIdFromToken, processPhotos, createReport, CONDITION_LABELS, reportExists };

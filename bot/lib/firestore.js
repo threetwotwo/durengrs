@@ -10,6 +10,8 @@ if (!admin.apps.length) {
 }
 
 const db = admin.firestore();
+// A field left undefined is skipped instead of failing the whole write (a worker's report must never be lost over it).
+db.settings({ ignoreUndefinedProperties: true });
 
 // Only needed when photos are uploaded, so the seed scripts still run
 // without STORAGE_BUCKET set.

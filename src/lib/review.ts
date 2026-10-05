@@ -1,8 +1,8 @@
-import { collection, deleteField, doc, serverTimestamp, writeBatch } from 'firebase/firestore';
+import { collection, deleteField, doc, getDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { db } from './firebase';
 import { normalizeTimestamp } from '../context/FarmContext';
 import { toDateStr } from './treatments';
-import { HEALTH_INFO, isFarmStage, isIssue, triageText, type FarmStage, type Health, type Issue, type Triage } from '../shared';
+import { HEALTH_INFO, healthOf, isFarmStage, isIssue, triageText, type FarmStage, type Health, type Issue, type Triage } from '../shared';
 import type { DurianTree, TreeReport } from '../types';
 
 /**
@@ -22,11 +22,36 @@ export function reportTriage(r: TreeReport): Triage {
   return r.triage || triageText(r.description);
 }
 
+/** The condition a report stands for: what a review confirmed, else what it set (older 'minor_issue' read as 'minor'). */
+export function reportCondition(r: TreeReport): string {
+  if (r.review && r.review.decision !== 'dismissed' && r.health) return HEALTH_INFO[r.health].condition;
+  const c = String(r.conditionAfter || '').toLowerCase();
+  return c === 'minor_issue' ? 'minor' : c || 'not_assessed';
+}
+
 /** Waiting for a person: not reviewed yet and not a plain "all fine". */
 export const needsReview = (r: TreeReport) => !r.review && reportTriage(r).needsReview;
 
-export function suggestedValues(t: Triage): ReviewValues {
-  return { stage: t.stage?.code, issues: t.issues.map((i) => i.code), health: t.health, improving: t.improving };
+/**
+ * What to propose in the review: the stored suggestion, except that a condition the worker chose themselves (older
+ * Flow) is kept rather than replaced by a reading of their words.
+ */
+export function suggestedValues(t: Triage, report?: TreeReport): ReviewValues {
+  const workerHealth = report?.conditionSource === 'worker' ? healthOf(report.conditionAfter) : null;
+  const v: ReviewValues = { issues: t.issues.map((i) => i.code), improving: t.improving };
+  if (t.stage) v.stage = t.stage.code;
+  const health = workerHealth || t.health;
+  if (health) v.health = health;
+  return v;
+}
+
+/** What a person checked earlier (to open "Ubah" on), else the suggestion. */
+export function currentValues(report: TreeReport): ReviewValues {
+  if (!report.review) return suggestedValues(reportTriage(report), report);
+  const v: ReviewValues = { issues: (report.issues || []).filter(isIssue), improving: !!report.improving };
+  if (report.stage && isFarmStage(report.stage)) v.stage = report.stage;
+  if (report.health) v.health = report.health;
+  return v;
 }
 
 const reportDate = (r: TreeReport) => {
@@ -34,29 +59,60 @@ const reportDate = (r: TreeReport) => {
   return ms ? toDateStr(new Date(ms)) : toDateStr(new Date());
 };
 
-/** What a confirmed review changes on the tree. Never moves a tree back to an older observation. */
-export function treeChanges(tree: DurianTree, report: TreeReport, v: ReviewValues) {
-  const out: {
-    observedStage?: { code: FarmStage; date: string; reportId: string };
-    condition?: string;
-    /** "Membaik" from this report; null clears an earlier one. */
-    improving?: { reportId: string; date: string } | null;
-  } = {};
+/** Seconds of slack between server timestamps written in the same save. */
+const SAME_SAVE_MS = 5000;
+
+export type Decision = 'accepted' | 'corrected' | 'dismissed';
+
+export interface TreeChange {
+  observedStage?: { code: FarmStage; date: string; reportId: string } | null;
+  condition?: string;
+  /** "Membaik" from this report; null clears an earlier one. */
+  improving?: { reportId: string; date: string } | null;
+}
+
+/**
+ * What a review changes on the tree.
+ * - Never moves a tree back to an older observation.
+ * - The condition follows only the tree's latest report, and never undoes a condition someone set by hand after the
+ *   report (or after its last review).
+ * - "Tidak yakin" on the report whose stage the tree shows clears that stage.
+ * - Dismissing a report whose urgent words turned the tree Merah by themselves puts the tree back as it was.
+ */
+export function treeChanges(tree: DurianTree, report: TreeReport, v: ReviewValues, decision: Decision = 'accepted'): TreeChange {
+  const out: TreeChange = {};
   const date = reportDate(report);
+  const created = normalizeTimestamp(report.createdAt);
+  const latest = tree.lastReportId === report.id || created >= normalizeTimestamp(tree.lastReportAt);
+  const lastTouch = Math.max(created, normalizeTimestamp(report.review?.at)) + SAME_SAVE_MS;
+  const handSetSince = normalizeTimestamp(tree.conditionUpdatedAt) > lastTouch;
+
+  if (decision === 'dismissed') {
+    const auto = report.conditionSource === 'triage' && report.conditionChanged && report.conditionBefore;
+    if (auto && latest && !handSetSince && tree.condition === report.conditionAfter) out.condition = String(report.conditionBefore);
+    if (tree.observedStage?.reportId === report.id) out.observedStage = null;
+    if (tree.improving?.reportId === report.id) out.improving = null;
+    return out;
+  }
+
   if (v.stage && (!tree.observedStage || date >= tree.observedStage.date)) out.observedStage = { code: v.stage, date, reportId: report.id };
-  const latest = tree.lastReportId === report.id || normalizeTimestamp(report.createdAt) >= normalizeTimestamp(tree.lastReportAt);
-  if (v.health && latest) {
+  else if (!v.stage && tree.observedStage?.reportId === report.id) out.observedStage = null;
+
+  if (v.health && latest && !handSetSince) {
     const condition = HEALTH_INFO[v.health].condition;
     if (condition !== tree.condition) out.condition = condition;
+  }
+  if (latest) {
     if (v.improving) out.improving = { reportId: report.id, date };
     else if (tree.improving) out.improving = null;
   }
   return out;
 }
 
-type Batch = ReturnType<typeof writeBatch>;
+type Writer = ReturnType<typeof writeBatch>;
 
-function addReview(batch: Batch, report: TreeReport, tree: DurianTree | undefined, decision: 'accepted' | 'corrected' | 'dismissed', v: ReviewValues, by?: string) {
+/** The writes for one review. Returns the tree as it is after them (for the next review of the same tree). */
+function writeReview(w: Writer, report: TreeReport, tree: DurianTree | undefined, decision: Decision, v: ReviewValues, by?: string): DurianTree | undefined {
   const update: Record<string, unknown> = { review: { decision, ...(by ? { by } : {}), at: serverTimestamp() } };
   if (!report.triage) update.triage = triageText(report.description); // keep what was suggested next to what was decided
   if (decision !== 'dismissed') {
@@ -69,41 +125,83 @@ function addReview(batch: Batch, report: TreeReport, tree: DurianTree | undefine
     if (v.improving) update.improving = true;
     else if (report.improving) update.improving = deleteField();
   }
-  batch.update(doc(db, 'reports', report.id), update);
-  if (!tree || decision === 'dismissed') return;
-  const ch = treeChanges(tree, report, v);
-  if (!ch.observedStage && !ch.condition && ch.improving === undefined) return;
+  w.update(doc(db, 'reports', report.id), update);
+  if (!tree || tree.active === false) return tree;
+
+  const ch = treeChanges(tree, report, v, decision);
+  if (ch.observedStage === undefined && ch.condition === undefined && ch.improving === undefined) return tree;
   const treeUpdate: Record<string, unknown> = { dateUpdated: serverTimestamp() };
   const changes: Record<string, { from: unknown; to: unknown }> = {};
-  if (ch.observedStage) {
-    treeUpdate.observedStage = ch.observedStage;
-    changes.observedStage = { from: tree.observedStage?.code ?? null, to: ch.observedStage.code };
+  const next: DurianTree = { ...tree };
+  if (ch.observedStage !== undefined) {
+    treeUpdate.observedStage = ch.observedStage ?? deleteField();
+    changes.observedStage = { from: tree.observedStage?.code ?? null, to: ch.observedStage?.code ?? null };
+    next.observedStage = ch.observedStage ?? undefined;
   }
-  if (ch.condition) {
+  if (ch.condition !== undefined) {
     treeUpdate.condition = ch.condition;
     treeUpdate.conditionUpdatedAt = serverTimestamp();
     changes.condition = { from: tree.condition, to: ch.condition };
+    // conditionUpdatedAt is left as it was in the running copy: a review is not a hand-set condition, so the next
+    // (newer) report of the same tree in acceptAll still applies.
+    next.condition = ch.condition as DurianTree['condition'];
   }
   if (ch.improving !== undefined) {
     treeUpdate.improving = ch.improving ?? deleteField();
     changes.improving = { from: !!tree.improving, to: !!ch.improving };
+    next.improving = ch.improving ?? undefined;
   }
-    batch.update(doc(db, 'trees', tree.id), treeUpdate);
-  batch.set(doc(collection(db, 'treeEdits')), { treeId: tree.id, changes, at: serverTimestamp(), source: 'webapp', reason: 'review', reportId: report.id, ...(by ? { by } : {}) });
+  w.update(doc(db, 'trees', tree.id), treeUpdate);
+  w.set(doc(collection(db, 'treeEdits')), {
+    treeId: tree.id, changes, at: serverTimestamp(), source: 'webapp', reason: decision === 'dismissed' ? 'review-dismissed' : 'review', reportId: report.id, ...(by ? { by } : {}),
+  });
+  return next;
 }
 
-export async function saveReview(report: TreeReport, tree: DurianTree | undefined, decision: 'accepted' | 'corrected' | 'dismissed', v: ReviewValues, by?: string) {
+/**
+ * The tree as the database has it now (only its stored fields: something cleared on another device stays cleared).
+ * Offline, the local copy; if even that is missing, the tree as the screen shows it.
+ */
+async function freshTree(known: DurianTree): Promise<DurianTree | undefined> {
+  try {
+    const snap = await getDoc(doc(db, 'trees', known.id));
+    return snap.exists() ? ({ ...(snap.data() as DurianTree), id: known.id } as DurianTree) : undefined;
+  } catch {
+    return known;
+  }
+}
+
+/**
+ * One review, against the tree as it is in the database right now (not as the screen last showed it), so a change
+ * made meanwhile by a worker, the bot or another person is not overwritten. A plain batch rather than a transaction,
+ * so a review made on a weak signal is kept and sent when the connection comes back.
+ */
+export async function saveReview(report: TreeReport, tree: DurianTree | undefined, decision: Decision, v: ReviewValues, by?: string) {
   const batch = writeBatch(db);
-  addReview(batch, report, tree, decision, v, by);
+  writeReview(batch, report, tree ? await freshTree(tree) : undefined, decision, v, by);
   await batch.commit();
 }
 
-/** Mark many plain "all fine" reports as checked in one go (their suggestion accepted). */
+/**
+ * Mark many plain "all fine" reports as checked in one go (their suggestion accepted). Oldest first, each against the
+ * tree as the previous one left it, so the newest report always has the last word.
+ */
 export async function acceptAll(items: Array<{ report: TreeReport; tree?: DurianTree }>, by?: string) {
+  const sorted = [...items].sort((a, b) => normalizeTimestamp(a.report.createdAt) - normalizeTimestamp(b.report.createdAt));
+  const fresh = new Map<string, DurianTree | undefined>();
+  await Promise.all(
+    [...new Set(sorted.map((x) => x.report.treeId))].map(async (id) => {
+      const known = sorted.find((x) => x.report.treeId === id)?.tree;
+      if (known) fresh.set(id, await freshTree(known));
+    })
+  );
   // Up to 3 writes per report; Firestore batches hold 500.
-  for (let i = 0; i < items.length; i += 150) {
+  for (let i = 0; i < sorted.length; i += 150) {
     const batch = writeBatch(db);
-    for (const { report, tree } of items.slice(i, i + 150)) addReview(batch, report, tree, 'accepted', suggestedValues(reportTriage(report)), by);
+    for (const { report } of sorted.slice(i, i + 150)) {
+      const after = writeReview(batch, report, fresh.get(report.treeId), 'accepted', suggestedValues(reportTriage(report), report), by);
+      if (after) fresh.set(report.treeId, after);
+    }
     await batch.commit();
   }
 }

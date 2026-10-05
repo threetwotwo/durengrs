@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { collection, getDocs, limit, onSnapshot, orderBy, query, Timestamp, where } from 'firebase/firestore';
 import { Search, X } from 'lucide-react';
 import { useFarm } from '../context/FarmContext';
+import { reportCondition } from '../lib/review';
 import { useT } from '../i18n';
 import { db, parseReportDoc } from '../lib/firebase';
 import { useQueryParams } from '../lib/router';
@@ -20,10 +21,7 @@ const MAX_REPORTS = 1500;
 
 /** Condition filter values, as in the old report feed (#/reports?condition=minor). */
 const CONDITIONS = ['healthy', 'minor', 'emergency', 'not_assessed'] as const;
-const conditionOf = (r: TreeReport) => {
-  const c = (r.conditionAfter || '').toLowerCase();
-  return c === 'minor_issue' ? 'minor' : c || 'not_assessed';
-};
+const conditionOf = (r: TreeReport) => reportCondition(r);
 
 /**
  * Laporan: every record from the field in one list, newest first, grouped by day. Worker reports, flowerings, counts,
@@ -100,7 +98,8 @@ export const FieldLog: React.FC = () => {
       }),
     [reports, treeBlooms, cropCounts, harvests, seasonTasksDone, rain, edits, blockOfTree]
   );
-  const since = Date.now() - days * 86400e3;
+  // Recomputed when the period or the data changes, not on every render (Date.now() would change it each time).
+  const since = useMemo(() => Date.now() - days * 86400e3, [days, all]);
   const inPeriod = useMemo(() => filterLog(all, { since }), [all, since]);
   // Report-only filters (condition, Guide topic, condition changed) keep only worker reports.
   const report = useMemo(

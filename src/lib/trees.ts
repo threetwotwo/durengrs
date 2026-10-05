@@ -1,6 +1,7 @@
 import { normalizeTimestamp } from '../context/FarmContext';
 import { toDateStr, todayStr } from './treatments';
 import { typicalMaxFruit } from './guide';
+import { parseNum } from './num';
 
 /**
  * Limits for tree measurements, shared by the tree form (and later the WhatsApp bot).
@@ -47,7 +48,7 @@ export function checkTreeForm(values: TreeFormValues, initial: TreeFormValues, t
   (Object.keys(TREE_LIMITS) as MeasureField[]).forEach((f) => {
     const raw = values[f].trim();
     if (raw === '' || raw === initial[f].trim()) return;
-    const n = Number(raw.replace(',', '.'));
+    const n = parseNum(raw);
     const lim = TREE_LIMITS[f];
     if (!Number.isFinite(n)) errors[f] = { key: 'tree.v.number' };
     else if (lim.integer && !Number.isInteger(n)) errors[f] = { key: 'tree.v.whole' };
@@ -61,7 +62,7 @@ export function checkTreeForm(values: TreeFormValues, initial: TreeFormValues, t
   }
 
   let fruitWarning: TreeFormCheck['fruitWarning'];
-  const fruit = Number(values.estimatedFruitCount);
+  const fruit = parseNum(values.estimatedFruitCount);
   if (values.estimatedFruitCount.trim() && Number.isFinite(fruit) && d) {
     const age = (Date.parse(today) - Date.parse(d)) / (365.25 * 24 * 60 * 60 * 1000);
     const max = typicalMaxFruit(age);

@@ -13,14 +13,26 @@ export function normalize(text: string | undefined): string {
     .trim();
 }
 
+/** Indonesian endings that may follow a keyword: "getahnya", "busuklah". */
+const SUFFIX = '(?:nya|lah|kah|pun)?';
+
 /**
- * Whether `kw` occurs in `text` (both normalized). Keywords of 3 letters or less, and any keyword marked with a
- * leading "=", match whole words only (so "pp" doesn't match inside "suppl").
+ * Where `kw` occurs in `text` (both normalized), as start indexes. A keyword always starts a word, so "aman" is not
+ * found in "tanaman", "mati" not in "diamati", "ulat" not in "bulat". It may end with a common suffix ("getahnya"),
+ * except keywords of 3 letters or less and those marked with a leading "=", which must be the whole word.
  */
-export function hasWord(text: string, kw: string): boolean {
-  const whole = kw.startsWith('=') || kw.replace(/\s/g, '').length <= 3;
+export function wordHits(text: string, kw: string): number[] {
+  const strict = kw.startsWith('=') || kw.replace(/\s/g, '').length <= 3;
   const k = kw.replace(/^=/, '');
-  if (!whole) return text.includes(k);
   const esc = k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  return new RegExp(`(^|[^\\p{L}\\p{N}])${esc}($|[^\\p{L}\\p{N}])`, 'u').test(text);
+  const re = new RegExp(`(^|[^\\p{L}\\p{N}])(${esc}${strict ? '' : SUFFIX})(?=$|[^\\p{L}\\p{N}])`, 'gu');
+  const out: number[] = [];
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text))) {
+    out.push(m.index + m[1].length);
+    re.lastIndex = m.index + m[1].length + 1;
+  }
+  return out;
 }
+
+export const hasWord = (text: string, kw: string): boolean => wordHits(text, kw).length > 0;

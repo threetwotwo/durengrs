@@ -7,7 +7,8 @@
     ],
     "MENU": [
       "REPORT",
-      "PANEN_MENU"
+      "PANEN_MENU",
+      "DONE"
     ],
     "REPORT": [
       "DONE"
@@ -16,7 +17,8 @@
       "BLOOM",
       "COUNT",
       "HARVEST_A",
-      "EDIT_TREE"
+      "EDIT_TREE",
+      "DONE"
     ],
     "BLOOM": [
       "DONE"
@@ -25,7 +27,8 @@
       "DONE"
     ],
     "HARVEST_A": [
-      "HARVEST_B"
+      "HARVEST_B",
+      "DONE"
     ],
     "HARVEST_B": [
       "DONE"
@@ -1053,6 +1056,10 @@
         "message": {
           "type": "string",
           "__example__": "Laporan untuk A1 tersimpan."
+        },
+        "saved": {
+          "type": "boolean",
+          "__example__": true
         }
       },
       "layout": {
@@ -1071,7 +1078,9 @@
             "label": "Tutup",
             "on-click-action": {
               "name": "complete",
-              "payload": {}
+              "payload": {
+                "saved": "${data.saved}"
+              }
             }
           }
         ]

@@ -66,3 +66,38 @@ test('dated count columns: latest days, fruit counts before flower counts', () =
   assert.deepEqual(countDates(counts, 2, 150, '2026-10-05'), ['2026-09-16', '2026-09-28']);
   assert.deepEqual(countGrid(counts).get('A1')?.get('2026-09-16'), { count: 20, stage: 'set' });
 });
+
+test('numbers the Indonesian or the English way, thousands included', async () => {
+  const { parseNum } = await import('../src/lib/num');
+  assert.equal(parseNum('12,5'), 12.5);
+  assert.equal(parseNum('12.5'), 12.5);
+  assert.equal(parseNum('1.000'), 1000);
+  assert.equal(parseNum('1,000'), 1000);
+  assert.equal(parseNum('1 200'), 1200);
+  assert.equal(parseNum('1.234,5'), 1234.5);
+  assert.equal(parseNum('1,234.5'), 1234.5);
+  assert.equal(parseNum('0,750'), 0.75); // a lone 0 before the separator is a decimal
+  assert.equal(parseNum('1.50'), 1.5);
+  assert.ok(Number.isNaN(parseNum('')));
+  assert.ok(Number.isNaN(parseNum('4 m')));
+  assert.ok(Number.isNaN(parseNum('1.2.3,4')));
+  assert.ok(Number.isNaN(parseNum('0x10')));
+  assert.deepEqual(checkCell('canopySize', '1.200'), { ok: true, value: 1200 });
+});
+
+test('a blank Dahan does not turn Bonggol into 0 clusters', () => {
+  const d = pasteDiff(parsePaste('ID\tDahan\tBonggol\nA2\t\t4') as any, trees);
+  assert.equal(d.changes.length, 0);
+});
+
+test('a quoted cell may hold the separator, a line break or a quote', () => {
+  const p = parsePaste('ID\tCatatan\tBatang\nA1\t"Pp\tlalu\ntelor ""besar"""\t61\nA2\t\t42') as any;
+  assert.deepEqual(p.rows, [['A1', 'Pp\tlalu\ntelor "besar"', '61'], ['A2', '', '42']]);
+  const c = parsePaste('ID;Catatan\r\nA1;"a; b"\r\n') as any;
+  assert.deepEqual(c.rows, [['A1', 'a; b']]);
+});
+
+test('CSV never hands a formula to the spreadsheet', () => {
+  assert.equal(toCsv([['=HYPERLINK("x")', '+1', '@a', -3, 'ok']]), `"'=HYPERLINK(""x"")",'+1,'@a,-3,ok`);
+  assert.equal(toCsv([['a\r\nb']]), '"a\r\nb"');
+});

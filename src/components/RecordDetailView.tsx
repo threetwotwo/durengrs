@@ -366,15 +366,18 @@ function recordRows(
         ]);
       }
       const x = e.rec as TreeEdit & { reportId?: string };
-      if (x.reason === 'review') {
+      const reasonKey =
+        x.reason === 'review' ? 'rec.f.reason.review' : x.reason === 'review-dismissed' ? 'rec.f.reason.dismissed' : x.reason === 'report-deleted' ? 'rec.f.reason.deleted' : null;
+      if (reasonKey) {
         rows.push([
           t('rec.f.reason'),
-          x.reportId ? (
+          // A deleted report has no page left to open.
+          x.reportId && x.reason !== 'report-deleted' ? (
             <Link to={reportUrl(x.reportId)} className="font-semibold text-emerald-700 hover:underline">
-              {t('rec.f.reason.review')}
+              {t(reasonKey)}
             </Link>
           ) : (
-            t('rec.f.reason.review')
+            t(reasonKey)
           ),
         ]);
       }

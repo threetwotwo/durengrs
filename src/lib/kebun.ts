@@ -2,6 +2,7 @@ import type { DurianTree } from '../types';
 import type { CropCount, CropStage } from './fieldData';
 import { TREE_LIMITS } from './trees';
 import { diffDays, todayStr } from './treatments';
+import { parseNum } from './num';
 
 /**
  * Kebun: the farm as one sheet, one row per tree, like the owner's Google Sheet. Pure helpers for typing into
@@ -29,7 +30,7 @@ export function checkCell(field: EditField, raw: string): CellCheck {
   const s = raw.trim();
   if (!s) return { ok: true, value: null };
   if (!isNumberField(field)) return { ok: true, value: s.slice(0, TEXT_MAX) };
-  const n = Number(s.replace(',', '.'));
+  const n = parseNum(s);
   const lim = LIMITS[field];
   if (!Number.isFinite(n)) return { ok: false, error: { key: 'tree.v.number' } };
   if (lim.integer && !Number.isInteger(n)) return { ok: false, error: { key: 'tree.v.whole' } };
@@ -47,7 +48,7 @@ export function cellText(tree: DurianTree, f: EditField): string {
 export function sameValue(tree: DurianTree, f: EditField, value: number | string | null): boolean {
   const cur = cellText(tree, f);
   if (value === null) return cur === '';
-  if (typeof value === 'number') return cur !== '' && Number(cur.replace(',', '.')) === value;
+  if (typeof value === 'number') return cur !== '' && parseNum(cur) === value;
   return cur === value.trim();
 }
 
@@ -90,13 +91,71 @@ export interface PasteTable {
   rows: string[][];
 }
 
+/**
+ * Cells of a copied table. Quotes are honoured like Google Sheets and Excel write them: a quoted cell may hold the
+ * separator, a line break (a note on two lines) or a doubled quote ("" = ").
+ */
+export function splitTable(text: string, sep: string): string[][] {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let cell = '';
+  let quoted = false;
+  let atStart = true;
+  const s = text.replace(/\r\n?/g, '\n');
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (quoted) {
+      if (ch === '"' && s[i + 1] === '"') {
+        cell += '"';
+        i++;
+      } else if (ch === '"') quoted = false;
+      else cell += ch;
+      continue;
+    }
+    if (ch === '"' && atStart && !cell.trim()) {
+      quoted = true;
+      cell = '';
+      atStart = false;
+    } else if (ch === sep) {
+      row.push(cell.trim());
+      cell = '';
+      atStart = true;
+    } else if (ch === '\n') {
+      row.push(cell.trim());
+      rows.push(row);
+      row = [];
+      cell = '';
+      atStart = true;
+    } else {
+      cell += ch;
+      if (ch !== ' ') atStart = false;
+    }
+  }
+  if (cell !== '' || row.length) {
+    row.push(cell.trim());
+    rows.push(row);
+  }
+  return rows.filter((r) => r.some((c) => c !== ''));
+}
+
+/** The separator of a copied table, read from its first line outside quotes: tab (Google Sheets), else ; or ,. */
+function separatorOf(text: string): string {
+  let quoted = false;
+  let semi = false;
+  for (const ch of text) {
+    if (ch === '"') quoted = !quoted;
+    else if (!quoted && (ch === '\n' || ch === '\r')) break;
+    else if (!quoted && ch === '\t') return '\t';
+    else if (!quoted && ch === ';') semi = true;
+  }
+  return semi ? ';' : ',';
+}
+
 /** Rows copied from a sheet: tab-separated (Google Sheets), else semicolon or comma. First row = headers. */
 export function parsePaste(text: string): PasteTable | { error: 'empty' | 'noId' } {
-  const lines = text.replace(/\r/g, '').split('\n').filter((l) => l.trim() !== '');
-  if (lines.length < 2) return { error: 'empty' };
-  const sep = lines[0].includes('\t') ? '\t' : lines[0].includes(';') ? ';' : ',';
-  const split = (l: string) => l.split(sep).map((c) => c.trim().replace(/^"(.*)"$/, '$1'));
-  const headers = split(lines[0]);
+  const table = splitTable(text, separatorOf(text));
+  if (table.length < 2) return { error: 'empty' };
+  const headers = table[0];
   const fields = headers.map(headerField);
   // First column wins if a header appears twice.
   const seen = new Set<PasteField>();
@@ -105,7 +164,7 @@ export function parsePaste(text: string): PasteTable | { error: 'empty' | 'noId'
     else if (f) seen.add(f);
   });
   if (!fields.includes('id')) return { error: 'noId' };
-  return { headers, fields, rows: lines.slice(1).map(split) };
+  return { headers, fields, rows: table.slice(1) };
 }
 
 export interface CellChange {
@@ -151,9 +210,12 @@ export function pasteDiff(table: PasteTable, trees: DurianTree[]): PasteDiff {
       if (f && f !== 'id' && f !== 'perBranch') cells.push([f, row[i] ?? '']);
     });
     if (derive) {
-      const b = Number((row[col('floweringBranches')] || '').replace(',', '.'));
-      const p = Number((row[col('perBranch')] || '').replace(',', '.'));
-      if ((row[col('perBranch')] || '').trim() && Number.isFinite(b) && Number.isFinite(p)) cells.push(['floweringClusters', String(b * p)]);
+      // Both cells must be filled: a blank Dahan is "not counted", not 0 branches.
+      const rawB = (row[col('floweringBranches')] || '').trim();
+      const rawP = (row[col('perBranch')] || '').trim();
+      const b = parseNum(rawB);
+      const p = parseNum(rawP);
+      if (rawB && rawP && Number.isFinite(b) && Number.isFinite(p)) cells.push(['floweringClusters', String(Math.round(b * p))]);
     }
     for (const [field, raw] of cells) {
       if (!raw.trim()) continue;
@@ -175,17 +237,22 @@ export function changesByTree(changes: CellChange[]): Map<string, Partial<Record
 
 // ---------- CSV ----------
 
+/**
+ * CSV for Excel and Google Sheets. Text that starts like a formula (= + - @) gets a leading apostrophe, so a note
+ * such as "=HYPERLINK(...)" typed by anyone shows as text instead of running when the file is opened.
+ */
 export function toCsv(rows: Array<Array<string | number | null | undefined>>): string {
   return rows
     .map((r) =>
       r
         .map((v) => {
-          const s = v === null || v === undefined ? '' : String(v);
-          return /[",;\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+          let s = v === null || v === undefined ? '' : String(v);
+          if (typeof v === 'string' && /^[=+\-@\t\r]/.test(s)) s = `'${s}`;
+          return /[",;\n\r\t]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
         })
         .join(',')
     )
-    .join('\n');
+    .join('\r\n');
 }
 
 // ---------- dated counts, as in the sheet (2 Sep, 16 Sep, 28 Sep) ----------

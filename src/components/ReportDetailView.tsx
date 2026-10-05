@@ -6,6 +6,7 @@ import { normalizeTimestamp, useFarm } from '../context/FarmContext';
 import { goBack, navigate, treeUrl } from '../lib/router';
 import { cachedReport, rememberReport } from '../lib/reportCache';
 import { FOLLOW_UP_LIMIT_DAYS } from '../lib/insights';
+import { reportCondition } from '../lib/review';
 import { STAGES, STAGE_ORDER, TOPIC_BY_ID, pick, topicsForText, treeStages } from '../lib/guide';
 import { useSeasons } from './useSeasons';
 import { useGuideOn } from '../lib/guideMode';
@@ -99,8 +100,9 @@ export const ReportDetailView: React.FC<{ reportId: string }> = ({ reportId }) =
   const otherReports = others.filter((r) => r.id !== report.id).slice(0, 5);
 
   // Follow-up rule from the Guide: emergency re-checked within 2 days, minor within 7.
-  const cond = (report.conditionAfter || '').toLowerCase();
-  const limitDays = cond === 'emergency' ? FOLLOW_UP_LIMIT_DAYS.emergency : cond === 'minor' || cond === 'minor_issue' ? FOLLOW_UP_LIMIT_DAYS.minor : 0;
+  // What the owner confirmed in the review counts over what the report first set.
+  const cond = reportCondition(report);
+  const limitDays = cond === 'emergency' ? FOLLOW_UP_LIMIT_DAYS.emergency : cond === 'minor' ? FOLLOW_UP_LIMIT_DAYS.minor : 0;
   // The first report on this tree after this one (others is newest first).
   const nextReport = [...others].reverse().find((r) => normalizeTimestamp(r.createdAt) > ts);
   const due = ts + limitDays * DAY;

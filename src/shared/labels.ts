@@ -111,5 +111,7 @@ export function checkLabelRules(r: LabelRules): Array<{ key: string; vars?: Reco
   const doses = [r.dose.fruiting.low, r.dose.fruiting.mid, r.dose.fruiting.high, r.dose.vegetative.high, r.dose.vegetative.other, r.dose.young];
   if (doses.some((x) => !Number.isFinite(x) || x < 0 || x > 100)) out.push({ key: 'rules.err.dose' });
   if (!r.products.fruiting.trim() || !r.products.vegetative.trim() || !r.products.young.trim()) out.push({ key: 'rules.err.product' });
+  // A confirmed dose is sent to workers (bot), so it needs its unit: "1" alone could be kg, cups or scoops.
+  if (r.confirmed && !r.dose.unit.trim()) out.push({ key: 'rules.err.unit' });
   return out;
 }

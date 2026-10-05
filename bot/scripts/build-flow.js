@@ -60,8 +60,9 @@ const DATE_DATA = { min_date: str('2026-08-01'), max_date: str('2026-10-04') };
 const DONE = screen(
   'DONE',
   'Selesai',
-  { title: str('✅ Laporan tersimpan'), message: str('Laporan untuk A1 tersimpan.') },
-  [heading('${data.title}'), body('${data.message}'), footer('Tutup', { name: 'complete', payload: {} })],
+  { title: str('✅ Laporan tersimpan'), message: str('Laporan untuk A1 tersimpan.'), saved: bool(true) },
+  // `saved` is sent back with the completion, so the chat message that follows can tell "saved" from "not saved".
+  [heading('${data.title}'), body('${data.message}'), footer('Tutup', { name: 'complete', payload: { saved: '${data.saved}' } })],
   { terminal: true, success: true }
 );
 
@@ -370,12 +371,13 @@ const treeFlow = {
   data_api_version: '3.0',
   routing_model: {
     TREE_LOOKUP: ['MENU'],
-    MENU: ['REPORT', 'PANEN_MENU'],
+    // DONE is also where a step ends when the tree has gone (archived or removed) while the Flow was open.
+    MENU: ['REPORT', 'PANEN_MENU', 'DONE'],
     REPORT: ['DONE'],
-    PANEN_MENU: ['BLOOM', 'COUNT', 'HARVEST_A', 'EDIT_TREE'],
+    PANEN_MENU: ['BLOOM', 'COUNT', 'HARVEST_A', 'EDIT_TREE', 'DONE'],
     BLOOM: ['DONE'],
     COUNT: ['DONE'],
-    HARVEST_A: ['HARVEST_B'],
+    HARVEST_A: ['HARVEST_B', 'DONE'],
     HARVEST_B: ['DONE'],
     EDIT_TREE: ['DONE'],
     DONE: [],

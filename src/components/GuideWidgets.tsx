@@ -1,4 +1,5 @@
 import { SourceBadge } from './SourceBadge';
+import { ENGINE_STAGE_WORDS } from '../shared';
 import { MissedLink, ViaWhatsApp } from './FieldFirst';
 import { PhotoStrip } from './PhotoStrip';
 import React, { useMemo, useState } from 'react';
@@ -194,7 +195,8 @@ export const CheckRow: React.FC<{
   );
 };
 
-export const StagePill: React.FC<{ stage: StageId; active?: boolean }> = ({ stage, active = true }) => {
+/** `farm`: the stage in the farm's words (as observed stages are shown), for an expected stage next to an observed one. */
+export const StagePill: React.FC<{ stage: StageId; active?: boolean; farm?: boolean }> = ({ stage, active = true, farm }) => {
   const { lang } = useT();
   return (
     <span
@@ -202,7 +204,7 @@ export const StagePill: React.FC<{ stage: StageId; active?: boolean }> = ({ stag
         active ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-slate-50 text-slate-500 border-slate-200'
       }`}
     >
-      {pick(STAGES[stage].title, lang)}
+      {farm ? ENGINE_STAGE_WORDS[stage][lang] : pick(STAGES[stage].title, lang)}
     </span>
   );
 };

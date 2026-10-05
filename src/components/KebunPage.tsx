@@ -5,6 +5,7 @@ import { useT } from '../i18n';
 import { treeUrl, useQueryParams } from '../lib/router';
 import { formatShortDate } from '../lib/treatments';
 import { improvingNow, plantedDateStr } from '../lib/trees';
+import { parseNum } from '../lib/num';
 import { type EditField, cellText, checkCell, countDates, countGrid, sameValue, toCsv, treeDraft } from '../lib/kebun';
 import type { TreeCrop } from '../lib/crop';
 import {
@@ -20,8 +21,8 @@ import {
   labelTajuk,
   type Health,
   type Label,
+  ENGINE_STAGE_WORDS,
 } from '../shared';
-import { STAGES, pick } from '../lib/guide';
 import type { DurianTree } from '../types';
 import { PageHeader, btnSecondary, inputCls } from './PageHeader';
 import { Link } from './Link';
@@ -66,7 +67,7 @@ interface Col {
 }
 
 const num = (v: unknown) => {
-  const n = typeof v === 'number' ? v : Number(String(v ?? '').replace(',', '.'));
+  const n = typeof v === 'number' ? v : parseNum(String(v ?? ''));
   return v === undefined || v === null || v === '' || !Number.isFinite(n) ? undefined : n;
 };
 const idOrder = (a: DurianTree, b: DurianTree) => a.block.localeCompare(b.block) || a.id.localeCompare(b.id, undefined, { numeric: true });
@@ -94,7 +95,8 @@ export const KebunPage: React.FC = () => {
   const [hidden, setHidden] = useState<Set<Group>>(readHidden);
   const [showCols, setShowCols] = useState(false);
   const [pasting, setPasting] = useState(false);
-  const [editing, setEditing] = useState<{ treeId: string; field: EditField; text: string } | null>(null);
+  // typed: the edit started with a keystroke (the cell holds that key; keep the caret after it rather than selecting it).
+  const [editing, setEditing] = useState<{ treeId: string; field: EditField; text: string; typed?: boolean } | null>(null);
   const [cellError, setCellError] = useState<{ treeId: string; field: EditField; msg: string } | null>(null);
   const [saving, setSaving] = useState<string | null>(null);
   // Enter then blur would commit the same edit twice: remember the last one committed.
@@ -148,7 +150,7 @@ export const KebunPage: React.FC = () => {
     const seen = observedNow(r.tree);
     if (seen && !seen.stale) return FARM_STAGE_INFO[seen.code].label[lang];
     const exp = r.crop?.waves[0]?.stage;
-    return exp ? `(${pick(STAGES[exp].title, lang)})` : '';
+    return exp ? `(${ENGINE_STAGE_WORDS[exp][lang]})` : '';
   };
 
   const cols: Col[] = useMemo(() => {
@@ -263,7 +265,12 @@ export const KebunPage: React.FC = () => {
       return true;
     });
     const col = cols.find((c) => c.key === sortKey);
-    if (col?.sort) {
+    if (sortKey === 'id') {
+      list = [...list].sort((a, b) => {
+        const d = a.tree.id.localeCompare(b.tree.id, undefined, { numeric: true });
+        return desc ? -d : d;
+      });
+    } else if (col?.sort) {
       const val = col.sort;
       list = [...list].sort((a, b) => {
         const x = val(a);
@@ -431,9 +438,15 @@ export const KebunPage: React.FC = () => {
         <table className="text-sm border-separate border-spacing-0 min-w-full">
           <thead>
             <tr className="h-7">
-              <th rowSpan={2} scope="col" className={`${th} sticky left-0 top-0 z-30 min-w-[64px] border-r`}>
-                <button type="button" onClick={() => sortBy('id')} className="inline-flex items-center gap-1">
+              <th
+                rowSpan={2}
+                scope="col"
+                aria-sort={sortKey === 'id' ? (desc ? 'descending' : 'ascending') : undefined}
+                className={`${th} sticky left-0 top-0 z-30 min-w-[64px] border-r`}
+              >
+                <button type="button" onClick={() => sortBy('id')} className={`inline-flex items-center gap-1 ${sortKey === 'id' ? 'text-white' : ''}`}>
                   ID
+                  {sortKey === 'id' && (desc ? <ArrowDown className="w-3 h-3" /> : <ArrowUp className="w-3 h-3" />)}
                 </button>
               </th>
               {groupSpans.map(({ g, n }) => (
@@ -494,7 +507,11 @@ export const KebunPage: React.FC = () => {
                         <input
                           autoFocus
                           value={editing.text}
-                          onFocus={(e) => e.currentTarget.select()}
+                          onFocus={(e) => {
+                            const el = e.currentTarget;
+                            if (editing.typed) el.setSelectionRange(el.value.length, el.value.length);
+                            else el.select();
+                          }}
                           onChange={(e) => setEditing({ ...editing, text: e.target.value })}
                           onBlur={() => commit()}
                           onKeyDown={(e) => {
@@ -531,10 +548,10 @@ export const KebunPage: React.FC = () => {
                               setEditing({ treeId: r.tree.id, field: f, text });
                             } else if (e.key === 'Delete' || e.key === 'Backspace') {
                               e.preventDefault();
-                              setEditing({ treeId: r.tree.id, field: f, text: '' });
+                              setEditing({ treeId: r.tree.id, field: f, text: '', typed: true });
                             } else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
                               e.preventDefault();
-                              setEditing({ treeId: r.tree.id, field: f, text: e.key });
+                              setEditing({ treeId: r.tree.id, field: f, text: e.key, typed: true });
                             }
                           }}
                           aria-label={`${r.tree.id} · ${c.label}: ${text || '—'}`}
@@ -564,9 +581,22 @@ export const KebunPage: React.FC = () => {
                       ? sum((r) => num(r.tree[c.key as EditField]))
                       : c.key.startsWith('count:')
                         ? sum((r) => r.counts?.get(c.key.slice(6))?.count)
-                        : c.key === 'dose'
-                          ? sum((r) => r.dose?.dose)
-                          : null;
+                        : null;
+                  if (c.key === 'dose') {
+                    // One total per product: different fertilisers are never added together.
+                    const byProduct = new Map<string, number>();
+                    for (const r of filtered) if (r.dose) byProduct.set(r.dose.product, (byProduct.get(r.dose.product) || 0) + r.dose.dose);
+                    return (
+                      <td key={c.key} className="sticky bottom-0 bg-slate-100 px-2.5 py-2 border-t border-slate-200 text-right tabular whitespace-nowrap">
+                        {[...byProduct].map(([product, total]) => (
+                          <span key={product} className="block">
+                            {Math.round(total * 100) / 100}
+                            {rules.dose.unit ? ` ${rules.dose.unit}` : ''} <span className="text-xs font-normal text-slate-500">{product}</span>
+                          </span>
+                        ))}
+                      </td>
+                    );
+                  }
                   return (
                     <td key={c.key} className="sticky bottom-0 bg-slate-100 px-2.5 py-2 border-t border-slate-200 text-right tabular whitespace-nowrap">
                       {sumOf === null ? '' : Math.round(sumOf * 100) / 100}

@@ -39,7 +39,7 @@ export const ISSUE_INFO: Record<Issue, IssueInfo> = {
     topic: 'phytophthora',
     health: 'merah',
     nextStep: { id: 'Foto dekat bagian batang yang basah/bergetah. Jangan dilukai dulu; admin akan cek hari ini.', en: 'Take a close photo of the wet/oozing bark. Don\'t cut yet; the admin will check today.' },
-    keywords: ['kanker', 'getah merah', 'getah', 'blendok', 'busuk batang', 'kulit basah', 'batang basah', 'kulit busuk', 'phytophthora', 'fitoftora'],
+    keywords: ['kanker', 'getah merah', 'getah', 'bergetah', 'blendok', 'busuk batang', 'kulit basah', 'batang basah', 'kulit busuk', 'phytophthora', 'fitoftora'],
   },
   stem_fungus: {
     code: 'stem_fungus',
@@ -47,7 +47,7 @@ export const ISSUE_INFO: Record<Issue, IssueInfo> = {
     topic: 'diseases',
     health: 'kuning',
     nextStep: { id: 'Foto dekat jamurnya. Tandai dahan yang kena.', en: 'Take a close photo of the fungus. Mark the affected branch.' },
-    keywords: ['jamur upas', 'jamur batang', 'jamur dahan', 'jamur', 'cendawan', 'lumut kerak'],
+    keywords: ['jamur upas', 'jamur batang', 'jamur dahan', 'jamur', 'berjamur', 'jamuran', 'cendawan', 'lumut kerak'],
   },
   leaf_blight: {
     code: 'leaf_blight',
@@ -79,7 +79,7 @@ export const ISSUE_INFO: Record<Issue, IssueInfo> = {
     topic: 'water',
     health: 'kuning',
     nextStep: { id: 'Foto seluruh pohon dan tanah di bawahnya (kering atau tergenang?).', en: 'Photograph the whole tree and the soil under it (dry or waterlogged?).' },
-    keywords: ['rontok daun', 'daun rontok', 'daun gugur', 'meranggas', 'daun jatuh'],
+    keywords: ['rontok daun', 'daun rontok', 'daun gugur', 'meranggas', 'daun jatuh', 'daun berguguran', 'daun berjatuhan'],
   },
   fruit_drop: {
     code: 'fruit_drop',
@@ -87,7 +87,7 @@ export const ISSUE_INFO: Record<Issue, IssueInfo> = {
     topic: 'fruit',
     health: 'kuning',
     nextStep: { id: 'Hitung kira-kira berapa buah yang jatuh dan foto buahnya.', en: 'Roughly count the fallen fruit and photograph them.' },
-    keywords: ['buah rontok', 'rontok buah', 'bunga rontok', 'rontok bunga', 'buah gugur', 'rontok'],
+    keywords: ['buah rontok', 'rontok buah', 'bunga rontok', 'rontok bunga', 'buah gugur', 'buah berjatuhan', 'berguguran', 'berjatuhan', 'rontok'],
   },
   nutrient: {
     code: 'nutrient',
@@ -103,7 +103,7 @@ export const ISSUE_INFO: Record<Issue, IssueInfo> = {
     topic: 'water',
     health: 'kuning',
     nextStep: { id: 'Foto tanah di bawah tajuk.', en: 'Photograph the soil under the canopy.' },
-    keywords: ['tergenang', 'genangan', 'banjir', 'becek', 'kekeringan', 'layu', 'tanah kering'],
+    keywords: ['tergenang', 'genangan', 'banjir', 'kebanjiran', 'becek', 'kekeringan', 'layu', 'melayu', 'tanah kering'],
   },
   other: {
     code: 'other',

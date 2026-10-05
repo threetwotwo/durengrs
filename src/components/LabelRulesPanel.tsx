@@ -86,17 +86,39 @@ export const LabelRulesPanel: React.FC<{ stored: StoredLabelRules; samples: Rule
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [open, setOpen] = useState(false);
+  // The person has typed in the form since it last matched the stored values.
+  const [touched, setTouched] = useState(false);
+  // A value changed after the rules were confirmed: the tick is taken off until someone checks again.
+  const [unticked, setUnticked] = useState(false);
 
   const draft = useMemo(() => fromText(text, confirmed), [text, confirmed]);
   const dirty = JSON.stringify(draft) !== JSON.stringify(current);
-  // Follow the stored values (another device saved) unless this form has unsaved edits.
+  // Follow the stored values (first load, or another device saved) unless the person is editing. Never compare with
+  // "dirty" here: on first load the form still holds the sheet's values, which differ from the saved ones.
   useEffect(() => {
-    if (!dirty) {
+    if (!touched) {
       setText(toText(current));
       setConfirmed(current.confirmed);
+      setUnticked(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [current]);
+
+  const edit = (p: Path, value: string) => {
+    setText((prev) => ({ ...prev, [p]: value }));
+    setTouched(true);
+    setMsg(null);
+    if (confirmed) {
+      setConfirmed(false);
+      setUnticked(true);
+    }
+  };
+  const reset = () => {
+    setText(toText(current));
+    setConfirmed(current.confirmed);
+    setTouched(false);
+    setUnticked(false);
+  };
 
   const errors = checkLabelRules(draft);
   const badPaths = new Set<Path>(NUM_PATHS.filter((p) => Number.isNaN(parseNum(text[p]))));
@@ -129,6 +151,8 @@ export const LabelRulesPanel: React.FC<{ stored: StoredLabelRules; samples: Rule
         /* per-device convenience only */
       }
       await saveLabelRules(draft, current, who || undefined);
+      setTouched(false);
+      setUnticked(false);
       setMsg({ ok: true, text: t('rules.saved') });
     } catch (e: any) {
       console.error('Saving label rules failed:', e);
@@ -141,10 +165,7 @@ export const LabelRulesPanel: React.FC<{ stored: StoredLabelRules; samples: Rule
   const num = (p: (typeof NUM_PATHS)[number], label: string) => (
     <input
       value={text[p]}
-      onChange={(e) => {
-        setText({ ...text, [p]: e.target.value });
-        setMsg(null);
-      }}
+      onChange={(e) => edit(p, e.target.value)}
       inputMode="decimal"
       aria-label={label}
       aria-invalid={badPaths.has(p) || undefined}
@@ -154,10 +175,7 @@ export const LabelRulesPanel: React.FC<{ stored: StoredLabelRules; samples: Rule
   const str = (p: (typeof TEXT_PATHS)[number], label: string, w = 'w-36') => (
     <input
       value={text[p]}
-      onChange={(e) => {
-        setText({ ...text, [p]: e.target.value });
-        setMsg(null);
-      }}
+      onChange={(e) => edit(p, e.target.value)}
       aria-label={label}
       placeholder={p === 'dose.unit' ? 'kg' : ''}
       className={`${w} min-h-10 px-2 rounded-lg border border-slate-300 bg-white text-sm`}
@@ -192,7 +210,8 @@ export const LabelRulesPanel: React.FC<{ stored: StoredLabelRules; samples: Rule
       </button>
 
       {open && (
-        <div className="px-4 pb-4 space-y-4 border-t border-slate-100 pt-4">
+        // Nothing can be typed until the saved rules have arrived, so an edit never starts from the sheet's values.
+        <fieldset disabled={stored.loading} aria-busy={stored.loading || undefined} className="px-4 pb-4 space-y-4 border-t border-slate-100 pt-4 disabled:opacity-60">
           <p className="text-xs text-slate-600">{t('rules.help')}</p>
 
           <div className="overflow-x-auto">
@@ -270,9 +289,19 @@ export const LabelRulesPanel: React.FC<{ stored: StoredLabelRules; samples: Rule
 
           <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
             <label className="inline-flex items-center gap-2 text-sm font-medium text-slate-800">
-              <input type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} className="w-4 h-4 accent-emerald-600" />
+              <input
+                type="checkbox"
+                checked={confirmed}
+                onChange={(e) => {
+                  setConfirmed(e.target.checked);
+                  setTouched(true);
+                  setUnticked(false);
+                }}
+                className="w-4 h-4 accent-emerald-600"
+              />
               {t('rules.confirm')}
             </label>
+            {unticked && <span className="text-xs text-amber-800">{t('rules.unconfirmedAgain')}</span>}
             <label className="inline-flex items-center gap-2 text-sm text-slate-700">
               {t('inbox.by')}
               <input value={by} onChange={(e) => setBy(e.target.value)} className="w-36 min-h-10 px-2 rounded-lg border border-slate-300 text-sm" />
@@ -294,18 +323,11 @@ export const LabelRulesPanel: React.FC<{ stored: StoredLabelRules; samples: Rule
           )}
 
           <div className="flex flex-wrap gap-2">
-            <button type="button" disabled={!dirty || errors.length > 0 || busy} onClick={save} className={`${btnPrimary} disabled:opacity-50`}>
+            <button type="button" disabled={stored.loading || !dirty || errors.length > 0 || busy} onClick={save} className={`${btnPrimary} disabled:opacity-50`}>
               {busy ? t('kebun.paste.saving') : t('rules.save')}
             </button>
             {dirty && (
-              <button
-                type="button"
-                onClick={() => {
-                  setText(toText(current));
-                  setConfirmed(current.confirmed);
-                }}
-                className={btnSecondary}
-              >
+              <button type="button" onClick={reset} className={btnSecondary}>
                 {t('rules.cancel')}
               </button>
             )}
@@ -314,6 +336,7 @@ export const LabelRulesPanel: React.FC<{ stored: StoredLabelRules; samples: Rule
               onClick={() => {
                 setText(toText(DEFAULT_LABEL_RULES));
                 setConfirmed(false);
+                setTouched(true);
               }}
               className={`${btnSecondary} text-slate-600`}
             >
@@ -322,7 +345,7 @@ export const LabelRulesPanel: React.FC<{ stored: StoredLabelRules; samples: Rule
             </button>
           </div>
           <p className="text-xs text-slate-500">{t('rules.where')}</p>
-        </div>
+        </fieldset>
       )}
     </section>
   );

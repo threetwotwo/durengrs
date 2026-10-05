@@ -183,7 +183,12 @@ async function reopenAfterCompletion(to, message) {
     token = JSON.parse(message.interactive?.nfm_reply?.response_json || '{}').flow_token || '';
   } catch (_) {}
   const { kind, treeId } = parseFlowToken(token);
-  const thanks = '✅ Terima kasih, laporan sudah tersimpan.';
+  let saved = true; // the older published Flows don't send it
+  try {
+    const r = JSON.parse(message.interactive?.nfm_reply?.response_json || '{}');
+    if (r.saved === false || r.saved === 'false') saved = false;
+  } catch (_) {}
+  const thanks = saved ? '✅ Terima kasih, laporan sudah tersimpan.' : '⚠️ Laporan belum tersimpan. Coba lagi lewat tombol di bawah, atau kirim ID pohon lain.';
   if (kind === 'tree' && treeId) {
     const tree = await getTreeById(treeId);
     if (tree) return sendTreeFlow(to, tree, thanks);

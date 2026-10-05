@@ -93,15 +93,30 @@ export const FARM_STAGE_INFO: Record<FarmStage, FarmStageInfo> = {
     label: { id: 'Panen', en: 'Harvest' },
     sees: { id: 'Buah jatuh atau dipetik', en: 'Fruit falling or being picked' },
     engine: 'harvest',
-    keywords: ['panen', 'petik', 'buah jatuh', 'jatuhan', 'matang'],
+    keywords: ['panen', 'dipanen', 'petik', 'dipetik', 'buah jatuh', 'jatuhan', 'matang'],
   },
   post: {
     code: 'post',
     label: { id: 'Pemulihan', en: 'Recovery' },
     sees: { id: 'Setelah panen: pangkas, pupuk, tunggu tunas', en: 'After harvest: prune, feed, wait for the flush' },
     engine: 'recovery',
-    keywords: ['habis panen', 'selesai panen', 'sudah panen', 'pemulihan', 'pasca panen'],
+    keywords: ['habis panen', 'selesai panen', 'sudah panen', 'sudah dipanen', 'pemulihan', 'pasca panen'],
   },
+};
+
+/**
+ * The stage expected from the bloom date, in the same words as the observed stages (shown side by side), so
+ * "Pentil" is never compared with "Bakal buah" or with a task name.
+ */
+export const ENGINE_STAGE_WORDS: Record<EngineStage, L> = {
+  preflower: { id: 'Belum berbunga', en: 'Not flowering yet' },
+  bloom: { id: 'Bunga mekar', en: 'In bloom' },
+  set: { id: 'Pentil', en: 'Fruitlet (pentil)' },
+  thin: { id: 'Ping pong', en: 'Ping pong' },
+  grow: { id: 'Telor / buah membesar', en: 'Egg / fruit growing' },
+  mature: { id: 'Menjelang matang', en: 'Maturing' },
+  harvest: { id: 'Panen', en: 'Harvest' },
+  recovery: { id: 'Pemulihan', en: 'Recovery' },
 };
 
 export const isFarmStage = (s: unknown): s is FarmStage => typeof s === 'string' && (FARM_STAGES as readonly string[]).includes(s);

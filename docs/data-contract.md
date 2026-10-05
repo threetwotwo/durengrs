@@ -19,7 +19,7 @@ both read and write it. Every field below has one meaning on both sides. Shared 
 |---|---|---|---|
 | `trees/{treeId}` (e.g. `A12`) | web app (form, Kebun), bot (counts → fruit estimate, condition from reports) | both | `block, variant, condition (healthy/minor/emergency/not_assessed), conditionNotes, canopySize, trunkSize, floweringBranches, floweringClusters, estimatedFruitCount, datePlanted, supplier, notes, active, lastReportAt, lastReportId, dateUpdated`; ✱`observedStage {code: FarmStage, date, reportId}`: the latest **confirmed** stage seen on the tree; ✱`improving {reportId, date}`: "membaik" from a checked report, shown only while `lastReportId` is that report |
 | `treeEdits/{auto}` | both | web app | `treeId, changes {field: {from, to}}, at, source, workerPhone?, reason?`, one per change to a tree |
-| `reports/{auto}` | bot | both | `treeId, block, workerPhone, description, photos [{url, thumb, medium}], conditionBefore, conditionAfter, conditionChanged, createdAt`; ✱`triage` (below); ✱`review {decision: accepted/corrected/dismissed, by?, at}`; ✱`stage: FarmStage`; ✱`issues: Issue[]`; ✱`health: Health`; ✱`improving: true` ("membaik"); ✱`conditionSource: 'worker' \| 'triage'` when the report changed the condition |
+| `reports/{auto}` | bot | both | `treeId, block, workerPhone, description, photos [{url, thumb, medium}], conditionBefore, conditionAfter, conditionChanged, createdAt`; ✱`triage` (below); ✱`review {decision: accepted/corrected/dismissed, by?, at}`; ✱`stage: FarmStage`; ✱`issues: Issue[]`; ✱`health: Health`; ✱`improving: true` ("membaik"); ✱`conditionSource: 'worker' \| 'triage'`: 'worker' whenever the worker chose a condition (older Flow), 'triage' when urgent words changed it |
 | `harvestCycles/{block}` | web app, bot | both | `block, floweredOn` (the block's bloom date), `updatedAt` |
 | `bloomWaves/{treeId}_{date}_{part}` | bot, web app | both | `treeId, block, date, part (whole/lower/middle/upper/some), note?, photos?, source, workerPhone?` |
 | `cropCounts/{treeId}_{season}_{stage}_{date}` | bot, web app | both | `treeId, block, season (bloom date of the counted flowers), stage (clusters/set/kept/onTree), count, date, by?, note?, photos?, source` |
@@ -39,19 +39,25 @@ model. Shape (`src/shared/triage.ts` `Triage`):
 
 ```ts
 {
-  source: 'rules' | 'ai', version: string,            // 'rules-1', or model + prompt version
+  source: 'rules' | 'ai', version: string,            // 'rules-2', or model + prompt version
   stage?: { code: FarmStage, confidence: number, evidence: string },
   issues: [{ code: Issue, confidence: number, evidence: string }],
   health?: 'hijau' | 'kuning' | 'merah',
   improving: boolean,                                  // "membaik"
+  urgent?: boolean,                                    // danger words ("hampir mati", "tumbang") and no "membaik"
   numbers: [{ value: number, kind?: 'fruit' | 'clusters' | 'branches' | 'mm', evidence: string }],
   needsReview: boolean                                 // false only for a plain "all fine" report
 }
 ```
 
 The bot writes it on every new report (`bot/lib/shared.js` is generated from `src/shared`, so both sides read
-words the same way). **One exception to "suggestion only":** when the words read as urgent (`health: 'merah'`), the
-bot turns the tree Merah at once (`conditionSource: 'triage'`), so an emergency never waits for the inbox.
+words the same way). **One exception to "suggestion only":** when the words read as urgent (`urgent: true`: danger
+now, such as "hampir mati", "tumbang", "darurat"; a disease name alone is not enough), the bot turns the tree Merah at
+once (`conditionSource: 'triage'`), so an emergency never waits for the inbox. Dismissing that report in the inbox
+puts the tree back, unless someone changed the condition since.
+
+Words are matched at the start of a word ("aman" is not found in "tanaman"), a negation up to three words back
+cancels them ("tidak ada kutu"), and a full stop, comma, line break, "!" or "?" ends a negation.
 
 **A triage is a suggestion.** Only a review (`reports.review`) sets `reports.stage / issues / health`, and from
 there `trees.observedStage` and `trees.condition`, each change logged in `treeEdits`.
@@ -64,6 +70,7 @@ there `trees.observedStage` and `trees.condition`, each change logged in `treeEd
 | `issues.ts` | `ISSUES` = `phytophthora_canker, stem_fungus, leaf_blight, whitefly, borer, leaf_drop, fruit_drop, nutrient, water, other`; label, Guide topic, default health, the worker's next step |
 | `health.ts` | Hijau / Kuning / Merah ⇄ `healthy / minor / emergency`; "Membaik" |
 | `triage.ts` | `triageText()` (rule-based, free) and `workerReply()` (the bot's instant reply text) |
-| `labels.ts` | The owner's size and fruit labels and dose suggestion; every function takes the rules from `farmMeta/labelRules` (`mergeLabelRules`), else the sheet's values. Suggestions only until `confirmed` |
+| `labels.ts` | The owner's size and fruit labels and dose suggestion; every function takes the rules from `farmMeta/labelRules` (`mergeLabelRules`), else the sheet's values. Suggestions only until `confirmed` (which needs a dose unit); the bot shows a dose to workers only then |
+| `crop.ts` | `fruitRemaining()`: fruit on a tree now (last fruit count minus fruit picked since, else this season's tree estimate), for the Kebun sheet and the bot's dose line alike |
 
 Codes are pinned by `tests/shared.test.ts`. Changing a code is a migration, not a rename.

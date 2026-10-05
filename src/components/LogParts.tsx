@@ -1,4 +1,5 @@
 import React from 'react';
+import { reportCondition } from '../lib/review';
 import { AlertTriangle, ClipboardList, CloudRain, Flower2, ListChecks, Ruler, Trash2, Wheat } from 'lucide-react';
 import { useFarm } from '../context/FarmContext';
 import { useT } from '../i18n';
@@ -19,6 +20,9 @@ import { ConditionBadge } from './ConditionBadge';
 import { ReportReading } from './FieldStage';
 
 /** Pieces shared by the Laporan list and the record page: icon, colour, one-line summary, delete, link. */
+
+/** Older reports stored 'minor_issue'. */
+const normCond = (c?: string) => (String(c || '').toLowerCase() === 'minor_issue' ? 'minor' : String(c || '').toLowerCase());
 
 export const KIND_ICON: Record<LogKind, React.ComponentType<{ className?: string }>> = {
   issue: AlertTriangle,
@@ -110,7 +114,7 @@ export function useLogSummary() {
         const changed = r.conditionChanged && r.conditionBefore && r.conditionAfter && r.conditionBefore !== r.conditionAfter;
         return (
           <>
-            {changed && <span className="block font-semibold">{t(`cond.${r.conditionBefore}`)} → {t(`cond.${r.conditionAfter}`)}</span>}
+            {changed && <span className="block font-semibold">{t(`cond.${normCond(r.conditionBefore)}`)} → {t(`cond.${normCond(r.conditionAfter)}`)}</span>}
             <span className="line-clamp-2">{r.description || t('log.s.noText')}</span>
           </>
         );
@@ -198,7 +202,7 @@ export const LogRow: React.FC<{ entry: LogEntry; dated?: boolean; busy?: boolean
             <span className="text-slate-700">{t('common.blockN', { n: e.block })}</span>
           ) : null}
           {e.treeId && e.block && <span className="text-xs text-slate-500">{t('common.blockN', { n: e.block })}</span>}
-          {e.kind === 'issue' && e.rec.conditionAfter && <ConditionBadge condition={e.rec.conditionAfter} size="sm" />}
+          {e.kind === 'issue' && e.rec.conditionAfter && <ConditionBadge condition={reportCondition(e.rec)} size="sm" />}
         </p>
         <div className="text-sm text-slate-800 min-w-0">{summary(e)}</div>
         {e.kind === 'issue' && <ReportReading report={e.rec} />}

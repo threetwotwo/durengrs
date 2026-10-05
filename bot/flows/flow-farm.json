@@ -304,6 +304,10 @@
         "message": {
           "type": "string",
           "__example__": "Laporan untuk A1 tersimpan."
+        },
+        "saved": {
+          "type": "boolean",
+          "__example__": true
         }
       },
       "layout": {
@@ -322,7 +326,9 @@
             "label": "Tutup",
             "on-click-action": {
               "name": "complete",
-              "payload": {}
+              "payload": {
+                "saved": "${data.saved}"
+              }
             }
           }
         ]

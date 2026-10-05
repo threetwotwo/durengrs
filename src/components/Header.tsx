@@ -317,7 +317,7 @@ export const BottomNav: React.FC = () => {
                       className={`absolute -top-1.5 -right-2.5 min-w-4 h-4 px-1 rounded-full text-xs leading-4 text-center font-bold ${toneClass[item.badge.tone]}`}
                       aria-label={item.badge.text}
                     >
-                      {item.badge.text.replace(/\D+$/, '').replace(/\s.*/, '') || '•'}
+                      {item.badge.text.match(/^\d+\+?/)?.[0] || '•'}
                     </span>
                   )}
                 </span>

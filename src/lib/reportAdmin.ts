@@ -8,6 +8,7 @@ import {
   where,
   writeBatch,
   deleteDoc,
+  serverTimestamp,
 } from 'firebase/firestore';
 import { deleteObject, getStorage, ref } from 'firebase/storage';
 import type { ReportPhoto } from '../types';
@@ -68,24 +69,25 @@ export async function deleteReport(reportId: string): Promise<DeleteReportResult
   }
   add(data.collageUrl);
 
-  // ---- tree: point "last report" at the newest remaining one, revert the condition this report set ----
+  // ---- tree: point "last report" at the newest remaining one, revert the condition this report set, and drop the
+  // stage or "membaik" that came from this report ----
   const batch = writeBatch(db);
   const treeId: string = data.treeId;
   if (treeId) {
     const treeRef = doc(db, 'trees', treeId);
     const treeSnap = await getDoc(treeRef);
-    if (treeSnap.exists() && treeSnap.data().lastReportId === reportId) {
+    const tree = treeSnap.exists() ? treeSnap.data() : null;
+    const update: Record<string, unknown> = {};
+    const changes: Record<string, { from: unknown; to: unknown }> = {};
+    if (tree && tree.lastReportId === reportId) {
       const others = await getDocs(query(collection(db, 'reports'), where('treeId', '==', treeId)));
       const remaining = others.docs
         .filter((d) => d.id !== reportId)
         .sort((a, b) => normalizeTimestamp(b.data().createdAt) - normalizeTimestamp(a.data().createdAt));
       const latest = remaining[0];
-      const update: Record<string, unknown> = latest
-        ? { lastReportId: latest.id, lastReportAt: latest.data().createdAt }
-        : { lastReportId: deleteField(), lastReportAt: deleteField() };
+      Object.assign(update, latest ? { lastReportId: latest.id, lastReportAt: latest.data().createdAt } : { lastReportId: deleteField(), lastReportAt: deleteField() });
 
       // Only undo the condition if this report is what set it (it may have been edited by hand since).
-      const tree = treeSnap.data();
       if (data.conditionChanged && tree.condition === data.conditionAfter) {
         // The condition right before this report; older reports only as a fallback (a report that did
         // not change the condition may have no conditionAfter).
@@ -95,9 +97,21 @@ export async function deleteReport(reportId: string): Promise<DeleteReportResult
         if (restored && restored !== tree.condition) {
           update.condition = restored;
           update.conditionNotes = deleteField(); // that note was this report's description
+          changes.condition = { from: tree.condition, to: restored };
         }
       }
-      batch.update(treeRef, update);
+    }
+    if (tree?.observedStage?.reportId === reportId) {
+      update.observedStage = deleteField();
+      changes.observedStage = { from: tree.observedStage.code ?? null, to: null };
+    }
+    if (tree?.improving?.reportId === reportId) {
+      update.improving = deleteField();
+      changes.improving = { from: true, to: false };
+    }
+    if (Object.keys(update).length) batch.update(treeRef, update);
+    if (Object.keys(changes).length) {
+      batch.set(doc(collection(db, 'treeEdits')), { treeId, changes, at: serverTimestamp(), source: 'webapp', reason: 'report-deleted', reportId });
     }
   }
   batch.delete(reportRef);

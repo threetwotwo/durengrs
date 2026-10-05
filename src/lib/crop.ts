@@ -5,6 +5,7 @@ import { CROP_STAGES, GRADES } from './fieldData';
 import { BlockSeason, StageId, TreeBloom, stageOf, treeWaves } from './guide';
 import type { HarvestCycle } from './insights';
 import { diffDays, toDateStr, todayStr } from './treatments';
+import { fruitRemaining } from '../shared';
 
 /**
  * Harvest engine: each tree's crop through the season, from its own counts and harvests.
@@ -142,10 +143,11 @@ export function treeCrops(
     const harvested = emptyHarvest();
     for (const h of harvestsByTree.get(tree.id) || []) if (start && h.date >= start) addHarvest(harvested, h);
 
-    // Fruit still on the tree: newest fruit count minus fruit picked after it.
-    const lastFruit = (['onTree', 'kept', 'set'] as CropStage[]).map((st) => sums[st]).filter(Boolean).sort((a, b) => b!.date.localeCompare(a!.date))[0];
-    const pickedSince = (harvestsByTree.get(tree.id) || []).filter((h) => lastFruit && h.date > lastFruit.date).reduce((n, h) => n + (h.fruits || 0), 0);
-    const remaining = lastFruit ? Math.max(0, lastFruit.count - pickedSince) : undefined;
+    // Fruit still on the tree: newest fruit count minus fruit picked after it (shared with the WhatsApp bot).
+    const remaining = fruitRemaining(countsByTree.get(tree.id) || [], harvestsByTree.get(tree.id) || [], [...waveDates], {
+      count: tree.estimatedFruitCount,
+      date: recordDate,
+    });
 
     // Next step: the first wave whose stage calls for a count that is missing (or, for fruit on the tree, stale).
     let next: NextStep | null = null;

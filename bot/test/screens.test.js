@@ -248,11 +248,55 @@ test('issue report: the system reads the words, replies at once, and only urgent
   assert.deepEqual(r.triage.issues.map((i) => i.code), ['leaf_blight']);
   assert.equal(fake.get('trees', 'A1').condition, 'healthy'); // kuning waits for the owner's check
 
-  const urgent = await send('REPORT', { description: 'ada getah merah keluar dari batang, kulit basah', photos: [{ cdn_url: 'c' }] });
+  // A disease name is a strong suggestion, but waits for the owner's check: the tree doesn't change by itself.
+  const canker = await send('REPORT', { description: 'ada getah merah keluar dari batang, kulit basah', photos: [{ cdn_url: 'c' }] });
+  assert.equal(canker.screen, 'DONE');
+  assert.equal(fake.get('trees', 'A1').condition, 'healthy');
+  assert.equal(fake.all('reports').find((x) => x.description.startsWith('ada getah')).triage.health, 'merah');
+
+  // Words that say the tree is in danger now do change it at once.
+  const urgent = await send('REPORT', { description: 'pohon hampir mati, getah merah banyak', photos: [{ cdn_url: 'd' }] });
   assert.match(urgent.data.message, /Kondisi pohon: Hijau → Merah/);
   assert.equal(fake.get('trees', 'A1').condition, 'emergency');
   const red = fake.all('reports').find((x) => x.conditionChanged);
   assert.equal(red.conditionSource, 'triage');
+
+  // Harmless words that only look alarming inside longer words never do.
+  seed();
+  for (const d of ['sudah diamati, ada kutu', 'tanaman tidak sehat', 'ranting mati satu', 'kemarin hampir mati, sekarang membaik']) {
+    await send('REPORT', { description: d, photos: [{ cdn_url: d }] });
+  }
+  assert.equal(fake.get('trees', 'A1').condition, 'healthy');
+});
+
+test('issue report: words with no stage or health in them still save (no undefined fields), a retry does not re-upload', async () => {
+  seed();
+  photoCalls = [];
+  const ok = await send('REPORT', { description: 'daun kuning di dahan bawah', photos: [{ cdn_url: 'x' }] });
+  assert.equal(ok.screen, 'DONE');
+  assert.equal(ok.data.saved, true);
+  const again = await send('REPORT', { description: 'daun kuning di dahan bawah', photos: [{ cdn_url: 'x' }] });
+  assert.match(again.data.message, /sudah tersimpan sebelumnya/);
+  assert.equal(photoCalls.length, 1);
+  assert.equal(fake.all('reports').length, 1);
+});
+
+test('older Flow: a report with only a photo, or only words, still saves', async () => {
+  seed();
+  assert.equal((await send('REPORT', { condition: 'healthy', photos: [{ cdn_url: 'p' }], description: '' })).screen, 'DONE');
+  assert.equal((await send('REPORT', { condition: 'minor', description: 'daun menguning' })).screen, 'DONE');
+  assert.equal(fake.all('reports').length, 2);
+  // The worker's choice is recorded even when it matches the tree already (the review then proposes it as is).
+  const same = fake.all('reports').find((r) => !r.description);
+  assert.equal(same.conditionChanged, false);
+  assert.equal(same.conditionSource, 'worker');
+});
+
+test('a step that ends without saving says so to the chat (saved: false)', async () => {
+  seed();
+  const r = await route({ kind: 'tree', action: 'data_exchange', screen: 'MENU', flowToken: 'tree:Z9:628111886551:9', treeId: 'Z9', workerPhone: '628111886551', data: { choice: 'issue' } });
+  assert.equal(r.screen, 'DONE');
+  assert.equal(r.data.saved, false);
 });
 
 test('issue report from the older Flow (condition and type lists) still saves, in the new words', async () => {
@@ -270,7 +314,11 @@ test('the tree view shows the owner\'s dose, from the rules edited in the webapp
   seed();
   require('../lib/cropData').resetLabelRulesCache();
   fake.seed('trees', 'A1', { id: 'A1', variant: 'MK', block: 'A', condition: 'healthy', trunkSize: 60, canopySize: 600, estimatedFruitCount: 8 });
-  assert.match((await open()).data.measurements, /Dosis pupuk: \*\*0\.75 NPK Perfect\*\* \(saran\)/);
+  // Not shown to workers until the owner has confirmed the rules and given a unit.
+  assert.doesNotMatch((await open()).data.measurements, /Dosis/);
+  require('../lib/cropData').resetLabelRulesCache();
+  fake.seed('farmMeta', 'labelRules', { dose: { fruiting: { mid: 0.8 } }, confirmed: true });
+  assert.doesNotMatch((await open()).data.measurements, /Dosis/);
   require('../lib/cropData').resetLabelRulesCache();
   fake.seed('farmMeta', 'labelRules', { dose: { fruiting: { mid: 0.8 }, unit: 'kg' }, confirmed: true });
   assert.match((await open()).data.measurements, /Dosis pupuk: \*\*0\.8 kg NPK Perfect\*\*$/m);

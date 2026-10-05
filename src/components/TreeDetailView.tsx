@@ -32,6 +32,7 @@ import { TreeCropCard } from './CropWidgets';
 import { TreeStageCell } from './StageBoard';
 import { useCrops } from './useCrops';
 import { TREE_LIMITS, checkTreeForm, plantedDateStr, improvingNow } from '../lib/trees';
+import { parseNum } from '../lib/num';
 import { restoreTree } from '../lib/fieldData';
 import { ArchiveTreeSheet } from './ArchiveTreeSheet';
 
@@ -290,7 +291,7 @@ export const TreeDetailView: React.FC<TreeDetailViewProps> = ({ treeId, onBack }
       const parseNumberField = (val: string): number | undefined => {
         const trimmed = val.trim();
         if (trimmed === '') return undefined;
-        const n = Number(trimmed.replace(',', '.'));
+        const n = parseNum(trimmed);
         return isNaN(n) ? undefined : n;
       };
       const canopyText = formData.canopySize.trim();
@@ -302,7 +303,7 @@ export const TreeDetailView: React.FC<TreeDetailViewProps> = ({ treeId, onBack }
         condition: formData.condition,
         conditionNotes: formData.conditionNotes.trim(),
         // A changed canopy is validated as a number; an untouched old text value is passed through unchanged.
-        canopySize: canopyText === '' ? undefined : canopyChanged ? Number(canopyText.replace(',', '.')) : canopyText,
+        canopySize: canopyText === '' ? undefined : canopyChanged ? parseNum(canopyText) : canopyText,
         trunkSize: parseNumberField(formData.trunkSize),
         floweringBranches: parseNumberField(formData.floweringBranches),
         floweringClusters: parseNumberField(formData.floweringClusters),

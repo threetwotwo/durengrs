@@ -76,7 +76,11 @@ export const app: FirebaseApp =
 // A copy of the data is kept on the device, so the app opens instantly and keeps working on a weak signal.
 function createDb(): Firestore {
   try {
-    return initializeFirestore(app, { localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }) });
+    return initializeFirestore(app, {
+      localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
+      // A field left undefined is skipped instead of failing the whole save.
+      ignoreUndefinedProperties: true,
+    });
   } catch {
     return getFirestore(app); // already initialised (hot reload)
   }
@@ -187,6 +191,7 @@ export function parseReportDoc(docSnap: DocumentSnapshot): TreeReport {
     issues: Array.isArray(data.issues) ? data.issues : undefined,
     health: data.health === 'hijau' || data.health === 'kuning' || data.health === 'merah' ? data.health : undefined,
     improving: data.improving === true ? true : undefined,
+    conditionSource: data.conditionSource === 'worker' || data.conditionSource === 'triage' ? data.conditionSource : undefined,
   };
 }
 

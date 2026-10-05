@@ -6,8 +6,9 @@ import { useFarm } from '../context/FarmContext';
 import { useT } from '../i18n';
 import { reportUrl, treeUrl } from '../lib/router';
 import { rememberReport } from '../lib/reportCache';
-import { acceptAll, needsReview, reportTriage, saveReview, suggestedValues, type ReviewValues } from '../lib/review';
-import { FARM_STAGES, FARM_STAGE_INFO, HEALTH, HEALTH_INFO, IMPROVING, ISSUES, ISSUE_INFO, type FarmStage, type Health, type Issue } from '../shared';
+import { acceptAll, currentValues, needsReview, reportTriage, saveReview, suggestedValues, type ReviewValues } from '../lib/review';
+import { FARM_STAGES, FARM_STAGE_INFO, HEALTH, HEALTH_INFO, IMPROVING, ISSUES, ISSUE_INFO, healthOf, type FarmStage, type Health, type Issue } from '../shared';
+import type { TreeCrop } from '../lib/crop';
 import type { DurianTree, TreeReport } from '../types';
 import { Link } from './Link';
 import { Sheet, fieldLabel } from './Sheet';
@@ -23,26 +24,33 @@ import { ReportReading } from './FieldStage';
  * read from the words (stage, issue, health). One tap confirms; "Ubah" corrects; confirmed values update the tree.
  */
 
-const DAYS = 30;
+const DAYS = 60;
+const MAX = 500;
 
 export function useRecentReports(days = DAYS) {
   const [reports, setReports] = useState<TreeReport[]>([]);
   const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
+  const [full, setFull] = useState(false);
   useEffect(() => {
     const since = Timestamp.fromMillis(Date.now() - days * 24 * 60 * 60 * 1000);
     return onSnapshot(
-      query(collection(db, 'reports'), where('createdAt', '>=', since), orderBy('createdAt', 'desc'), limit(300)),
+      query(collection(db, 'reports'), where('createdAt', '>=', since), orderBy('createdAt', 'desc'), limit(MAX)),
       (snap) => {
         setReports(snap.docs.map(parseReportDoc));
+        // Hit the limit: older reports of the period were not read, so the inbox can't promise it's complete.
+        setFull(snap.size >= MAX);
+        setFailed(false);
         setLoading(false);
       },
       (err) => {
         console.error('Review inbox load failed:', err);
+        setFailed(true);
         setLoading(false);
       }
     );
   }, [days]);
-  return { reports, loading };
+  return { reports, loading, failed, full };
 }
 
 const saveBy = (v: string) => {
@@ -63,11 +71,17 @@ const readBy = () => {
 
 export const ReviewInbox: React.FC = () => {
   const { t } = useT();
-  const { trees } = useFarm();
-  const { reports, loading } = useRecentReports();
+  const { trees, allTrees } = useFarm();
+  const { reports, loading, failed, full } = useRecentReports();
   const treeById = useMemo(() => new Map(trees.map((x) => [x.id, x])), [trees]);
-  const pending = reports.filter(needsReview);
-  const fine = reports.filter((r) => !r.review && !needsReview(r));
+  // Worked out once for the whole list (each card used to run the crop engine for every tree).
+  const { crops } = useCrops();
+  const cropByTree = useMemo(() => new Map(crops.map((c) => [c.tree.id, c])), [crops]);
+  // A test tree's reports leave the inbox once it is archived.
+  const testTrees = useMemo(() => new Set(allTrees.filter((x) => x.active === false && x.archivedReason === 'test').map((x) => x.id)), [allTrees]);
+  const open = useMemo(() => reports.filter((r) => !r.review && !testTrees.has(r.treeId)), [reports, testTrees]);
+  const pending = useMemo(() => open.filter(needsReview), [open]);
+  const fine = useMemo(() => open.filter((r) => !needsReview(r)), [open]);
   const [editing, setEditing] = useState<TreeReport | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -113,7 +127,9 @@ export const ReviewInbox: React.FC = () => {
         </label>
       </div>
       {error && <p role="alert" className="px-4 py-2 text-sm text-rose-700 bg-rose-50">{error}</p>}
-      {pending.length === 0 ? (
+      {failed && <p role="alert" className="px-4 py-2 text-sm text-amber-900 bg-amber-50">{t('inbox.loadError')}</p>}
+      {full && <p className="px-4 py-2 text-xs text-slate-600 bg-slate-50 border-b border-slate-100">{t('inbox.full', { n: MAX, days: DAYS })}</p>}
+      {failed ? null : pending.length === 0 ? (
         <p className="p-5 text-sm text-slate-600 flex items-center gap-2">
           <CheckCircle2 className="w-5 h-5 text-emerald-600" />
           {t('inbox.empty')}
@@ -125,8 +141,9 @@ export const ReviewInbox: React.FC = () => {
               key={r.id}
               report={r}
               tree={treeById.get(r.treeId)}
+              crop={cropByTree.get(r.treeId)}
               busy={busy === r.id}
-              onAccept={() => run(r.id, () => saveReview(r, treeById.get(r.treeId), 'accepted', suggestedValues(reportTriage(r)), who))}
+              onAccept={() => run(r.id, () => saveReview(r, treeById.get(r.treeId), 'accepted', suggestedValues(reportTriage(r), r), who))}
               onEdit={() => setEditing(r)}
               onDismiss={() => run(r.id, () => saveReview(r, treeById.get(r.treeId), 'dismissed', { issues: [] }, who))}
             />
@@ -181,17 +198,16 @@ export const ReviewInbox: React.FC = () => {
 const ReviewCard: React.FC<{
   report: TreeReport;
   tree?: DurianTree;
+  crop?: TreeCrop;
   busy: boolean;
   onAccept: () => void;
   onEdit: () => void;
   onDismiss: () => void;
-}> = ({ report, tree, busy, onAccept, onEdit, onDismiss }) => {
+}> = ({ report, tree, crop, busy, onAccept, onEdit, onDismiss }) => {
   const { t } = useT();
   const { workerLabel } = useFarm();
-  const { crops } = useCrops();
   const tr = reportTriage(report);
   const photo = report.photos?.[0];
-  const crop = crops.find((c) => c.tree.id === report.treeId);
   const expected = crop?.waves[0]?.stage;
   const mismatch = !!tr.stage && cropMismatch(tr.stage.code, crop);
   const empty = !tr.stage && tr.issues.length === 0 && !tr.health;
@@ -238,9 +254,10 @@ const ReviewCard: React.FC<{
             </>
           )}
         </div>
+        <ConditionSourceNote report={report} />
         {expected && (
           <p className="text-xs text-slate-600 flex flex-wrap items-center gap-1.5">
-            {t('inbox.expected')} <StagePill stage={expected} />
+            {t('inbox.expected')} <StagePill stage={expected} farm />
             {mismatch && <span className="text-violet-800 font-semibold">{t('inbox.mismatch')}</span>}
           </p>
         )}
@@ -303,9 +320,10 @@ export const ReportReviewPanel: React.FC<{ report: TreeReport; tree?: DurianTree
         <ReportReading report={report} health />
       )}
       {!decision && !tr.stage && tr.issues.length === 0 && !tr.health && <p className="text-sm text-slate-500">{t('inbox.nothing')}</p>}
+      <ConditionSourceNote report={report} />
       {expected && (
         <p className="text-xs text-slate-600 flex flex-wrap items-center gap-1.5">
-          {t('inbox.expected')} <StagePill stage={expected} />
+          {t('inbox.expected')} <StagePill stage={expected} farm />
           {mismatch && <span className="text-violet-800 font-semibold">{t('inbox.mismatch')}</span>}
         </p>
       )}
@@ -320,7 +338,7 @@ export const ReportReviewPanel: React.FC<{ report: TreeReport; tree?: DurianTree
           <button
             type="button"
             disabled={busy}
-            onClick={() => run(() => saveReview(report, tree, 'accepted', suggestedValues(tr), who))}
+            onClick={() => run(() => saveReview(report, tree, 'accepted', suggestedValues(tr, report), who))}
             className={`${btn} px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold`}
           >
             <Check className="w-4 h-4" />
@@ -359,13 +377,30 @@ export const ReportReviewPanel: React.FC<{ report: TreeReport; tree?: DurianTree
   );
 };
 
+/** Who changed the tree's condition with this report: the worker's own pick, or urgent words (undone by "Abaikan"). */
+const ConditionSourceNote: React.FC<{ report: TreeReport }> = ({ report }) => {
+  const { t, lang } = useT();
+  if (!report.conditionChanged || !report.conditionSource) return null;
+  const word = (c?: string) => {
+    const h = healthOf(c);
+    return h ? HEALTH_INFO[h].label[lang] : c || '—';
+  };
+  if (report.conditionSource === 'worker') return <p className="text-xs text-slate-700">{t('inbox.workerChose', { cond: word(report.conditionAfter) })}</p>;
+  return (
+    <p className="text-xs font-semibold text-rose-800 bg-rose-50 border border-rose-200 rounded-lg px-2.5 py-1.5">
+      {t('inbox.autoRed', { before: word(report.conditionBefore) })}
+    </p>
+  );
+};
+
 /** Correct what the system read: stage (or "tidak yakin"), issues, health. */
 export const ReviewSheet: React.FC<{ report: TreeReport; onClose: () => void; onSave: (v: ReviewValues) => void }> = ({ report, onClose, onSave }) => {
   const { t, lang } = useT();
-  const start = suggestedValues(reportTriage(report));
-  const [stage, setStage] = useState<FarmStage | undefined>(report.stage as FarmStage | undefined ?? start.stage);
-  const [issues, setIssues] = useState<Issue[]>((report.issues as Issue[] | undefined) ?? start.issues);
-  const [health, setHealth] = useState<Health | undefined>(report.health ?? start.health);
+  // What was checked before (a re-opened "Ubah" keeps a cleared stage or "membaik" cleared), else the suggestion.
+  const start = currentValues(report);
+  const [stage, setStage] = useState<FarmStage | undefined>(start.stage);
+  const [issues, setIssues] = useState<Issue[]>(start.issues);
+  const [health, setHealth] = useState<Health | undefined>(start.health);
   const [improving, setImproving] = useState(!!start.improving);
   const chip = (on: boolean) =>
     `min-h-10 px-3 rounded-full border text-sm font-semibold ${on ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-white border-slate-300 text-slate-700'}`;

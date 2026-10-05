@@ -21,6 +21,7 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 var index_exports = {};
 __export(index_exports, {
   DEFAULT_LABEL_RULES: () => DEFAULT_LABEL_RULES,
+  ENGINE_STAGE_WORDS: () => ENGINE_STAGE_WORDS,
   FARM_STAGES: () => FARM_STAGES,
   FARM_STAGE_INFO: () => FARM_STAGE_INFO,
   HEALTH: () => HEALTH,
@@ -32,6 +33,7 @@ __export(index_exports, {
   TRIAGE_RULES_VERSION: () => TRIAGE_RULES_VERSION,
   checkLabelRules: () => checkLabelRules,
   doseSuggestion: () => doseSuggestion,
+  fruitRemaining: () => fruitRemaining,
   hasWord: () => hasWord,
   healthOf: () => healthOf,
   isFarmStage: () => isFarmStage,
@@ -44,6 +46,7 @@ __export(index_exports, {
   normalize: () => normalize,
   stageMismatch: () => stageMismatch,
   triageText: () => triageText,
+  wordHits: () => wordHits,
   workerReply: () => workerReply,
   worstHealth: () => worstHealth
 });
@@ -53,13 +56,21 @@ module.exports = __toCommonJS(index_exports);
 function normalize(text) {
   return (text || "").toLowerCase().normalize("NFKC").replace(/[^\p{L}\p{N}.,\s]/gu, " ").replace(/\s+/g, " ").trim();
 }
-function hasWord(text, kw) {
-  const whole = kw.startsWith("=") || kw.replace(/\s/g, "").length <= 3;
+var SUFFIX = "(?:nya|lah|kah|pun)?";
+function wordHits(text, kw) {
+  const strict = kw.startsWith("=") || kw.replace(/\s/g, "").length <= 3;
   const k = kw.replace(/^=/, "");
-  if (!whole) return text.includes(k);
   const esc = k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return new RegExp(`(^|[^\\p{L}\\p{N}])${esc}($|[^\\p{L}\\p{N}])`, "u").test(text);
+  const re = new RegExp(`(^|[^\\p{L}\\p{N}])(${esc}${strict ? "" : SUFFIX})(?=$|[^\\p{L}\\p{N}])`, "gu");
+  const out = [];
+  let m;
+  while (m = re.exec(text)) {
+    out.push(m.index + m[1].length);
+    re.lastIndex = m.index + m[1].length + 1;
+  }
+  return out;
 }
+var hasWord = (text, kw) => wordHits(text, kw).length > 0;
 
 // src/shared/stages.ts
 var FARM_STAGES = ["veg", "rest", "bud", "bloom", "set", "pingpong", "egg", "grow", "mature", "harvest", "post"];
@@ -132,15 +143,25 @@ var FARM_STAGE_INFO = {
     label: { id: "Panen", en: "Harvest" },
     sees: { id: "Buah jatuh atau dipetik", en: "Fruit falling or being picked" },
     engine: "harvest",
-    keywords: ["panen", "petik", "buah jatuh", "jatuhan", "matang"]
+    keywords: ["panen", "dipanen", "petik", "dipetik", "buah jatuh", "jatuhan", "matang"]
   },
   post: {
     code: "post",
     label: { id: "Pemulihan", en: "Recovery" },
     sees: { id: "Setelah panen: pangkas, pupuk, tunggu tunas", en: "After harvest: prune, feed, wait for the flush" },
     engine: "recovery",
-    keywords: ["habis panen", "selesai panen", "sudah panen", "pemulihan", "pasca panen"]
+    keywords: ["habis panen", "selesai panen", "sudah panen", "sudah dipanen", "pemulihan", "pasca panen"]
   }
+};
+var ENGINE_STAGE_WORDS = {
+  preflower: { id: "Belum berbunga", en: "Not flowering yet" },
+  bloom: { id: "Bunga mekar", en: "In bloom" },
+  set: { id: "Pentil", en: "Fruitlet (pentil)" },
+  thin: { id: "Ping pong", en: "Ping pong" },
+  grow: { id: "Telor / buah membesar", en: "Egg / fruit growing" },
+  mature: { id: "Menjelang matang", en: "Maturing" },
+  harvest: { id: "Panen", en: "Harvest" },
+  recovery: { id: "Pemulihan", en: "Recovery" }
 };
 var isFarmStage = (s) => typeof s === "string" && FARM_STAGES.includes(s);
 var COMPATIBLE = {
@@ -180,7 +201,7 @@ var ISSUE_INFO = {
     topic: "phytophthora",
     health: "merah",
     nextStep: { id: "Foto dekat bagian batang yang basah/bergetah. Jangan dilukai dulu; admin akan cek hari ini.", en: "Take a close photo of the wet/oozing bark. Don't cut yet; the admin will check today." },
-    keywords: ["kanker", "getah merah", "getah", "blendok", "busuk batang", "kulit basah", "batang basah", "kulit busuk", "phytophthora", "fitoftora"]
+    keywords: ["kanker", "getah merah", "getah", "bergetah", "blendok", "busuk batang", "kulit basah", "batang basah", "kulit busuk", "phytophthora", "fitoftora"]
   },
   stem_fungus: {
     code: "stem_fungus",
@@ -188,7 +209,7 @@ var ISSUE_INFO = {
     topic: "diseases",
     health: "kuning",
     nextStep: { id: "Foto dekat jamurnya. Tandai dahan yang kena.", en: "Take a close photo of the fungus. Mark the affected branch." },
-    keywords: ["jamur upas", "jamur batang", "jamur dahan", "jamur", "cendawan", "lumut kerak"]
+    keywords: ["jamur upas", "jamur batang", "jamur dahan", "jamur", "berjamur", "jamuran", "cendawan", "lumut kerak"]
   },
   leaf_blight: {
     code: "leaf_blight",
@@ -220,7 +241,7 @@ var ISSUE_INFO = {
     topic: "water",
     health: "kuning",
     nextStep: { id: "Foto seluruh pohon dan tanah di bawahnya (kering atau tergenang?).", en: "Photograph the whole tree and the soil under it (dry or waterlogged?)." },
-    keywords: ["rontok daun", "daun rontok", "daun gugur", "meranggas", "daun jatuh"]
+    keywords: ["rontok daun", "daun rontok", "daun gugur", "meranggas", "daun jatuh", "daun berguguran", "daun berjatuhan"]
   },
   fruit_drop: {
     code: "fruit_drop",
@@ -228,7 +249,7 @@ var ISSUE_INFO = {
     topic: "fruit",
     health: "kuning",
     nextStep: { id: "Hitung kira-kira berapa buah yang jatuh dan foto buahnya.", en: "Roughly count the fallen fruit and photograph them." },
-    keywords: ["buah rontok", "rontok buah", "bunga rontok", "rontok bunga", "buah gugur", "rontok"]
+    keywords: ["buah rontok", "rontok buah", "bunga rontok", "rontok bunga", "buah gugur", "buah berjatuhan", "berguguran", "berjatuhan", "rontok"]
   },
   nutrient: {
     code: "nutrient",
@@ -244,7 +265,7 @@ var ISSUE_INFO = {
     topic: "water",
     health: "kuning",
     nextStep: { id: "Foto tanah di bawah tajuk.", en: "Photograph the soil under the canopy." },
-    keywords: ["tergenang", "genangan", "banjir", "becek", "kekeringan", "layu", "tanah kering"]
+    keywords: ["tergenang", "genangan", "banjir", "kebanjiran", "becek", "kekeringan", "layu", "melayu", "tanah kering"]
   },
   other: {
     code: "other",
@@ -276,20 +297,31 @@ var RANK = { hijau: 0, kuning: 1, merah: 2 };
 var worstHealth = (a, b) => !a ? b : !b ? a : RANK[a] >= RANK[b] ? a : b;
 
 // src/shared/triage.ts
-var TRIAGE_RULES_VERSION = "rules-1";
-var NEGATIONS = ["tidak", "tak", "bukan", "belum", "tanpa", "no", "gak", "nggak", "ga"];
-var URGENT = ["darurat", "parah", "sekarat", "hampir mati", "mati", "=sos"];
+var TRIAGE_RULES_VERSION = "rules-2";
+var NEGATIONS = ["tidak", "tak", "tdk", "bukan", "bkn", "belum", "blm", "tanpa", "gak", "nggak", "ngga", "ga", "gk", "enggak", "engga", "ndak", "nda", "jangan"];
+var FINE_NEGATIONS = [...NEGATIONS, "kurang", "agak"];
+var URGENT = ["darurat", "parah", "sekarat", "hampir mati", "pohon mati", "mati total", "sudah mati", "tumbang", "roboh", "=sos"];
 var FINE = ["sehat", "aman", "bagus", "normal", "=baik", "oke", "=ok"];
-var BETTER = ["membaik", "mulai baik", "sudah baik", "pulih", "sembuh", "lebih baik"];
-function negated(text, kw) {
-  const k = kw.replace(/^=/, "");
-  const i = text.indexOf(k);
-  if (i < 0) return false;
-  const before = text.slice(Math.max(0, i - 14), i).trim().split(" ").slice(-2);
-  return before.some((w) => NEGATIONS.includes(w));
+var BETTER = ["membaik", "mulai baik", "sudah baik", "lebih baik", "pulih", "sembuh"];
+var FILLER = ["ada", "terlihat", "kelihatan", "keliatan", "tampak", "nampak", "ditemukan", "ketemu", "terdapat", "muncul", "lagi", "terlalu", "begitu", "pernah", "sama", "sekali", "juga"];
+function negatedAt(text, at, negations) {
+  const before = text.slice(Math.max(0, at - 60), at);
+  const phrase = before.split(/[.,;]/).pop() || "";
+  const words = phrase.trim().split(" ").filter(Boolean).slice(-3).reverse();
+  for (const w of words) {
+    if (negations.includes(w)) return true;
+    if (!FILLER.includes(w)) return false;
+  }
+  return false;
 }
-function matches(text, keywords) {
-  return keywords.filter((kw) => hasWord(text, kw) && !negated(text, kw)).map((k) => k.replace(/^=/, ""));
+function matches(text, keywords, negations = NEGATIONS) {
+  return keywords.filter((kw) => wordHits(text, kw).some((at) => !negatedAt(text, at, negations))).map((k) => k.replace(/^=/, ""));
+}
+function negatedOnly(text, keywords, negations) {
+  return keywords.some((kw) => {
+    const hits = wordHits(text, kw);
+    return hits.length > 0 && hits.every((at) => negatedAt(text, at, negations));
+  });
 }
 var UNIT_WORDS = [
   ["fruit", ["buah", "butir"]],
@@ -313,12 +345,13 @@ function findNumbers(text) {
         break;
       }
     }
-    out.push({ value, kind, evidence: `${before.split(" ").slice(-1)[0] || ""} ${m[1]} ${after.split(" ")[0] || ""}`.trim() });
+    const evidence = `${before.split(" ").slice(-1)[0] || ""} ${m[1]} ${after.split(" ")[0] || ""}`.trim();
+    out.push(kind ? { value, kind, evidence } : { value, evidence });
   }
   return out;
 }
 function triageText(raw) {
-  const text = normalize(raw);
+  const text = normalize((raw || "").replace(/[\r\n!?]+/g, ". "));
   const stageHits = FARM_STAGES.flatMap((code) => matches(text, FARM_STAGE_INFO[code].keywords).map((kw) => ({ code, kw })));
   stageHits.sort((a, b) => b.kw.length - a.kw.length);
   const best = stageHits[0];
@@ -330,14 +363,21 @@ function triageText(raw) {
   for (const h of kept) {
     if (!issues.some((i) => i.code === h.code)) issues.push({ code: h.code, confidence: 0.6, evidence: h.kw });
   }
+  const improving = matches(text, BETTER).length > 0;
   let health;
   for (const i of issues) health = worstHealth(health, ISSUE_INFO[i.code].health);
-  if (matches(text, URGENT).length) health = "merah";
-  if (!health && matches(text, FINE).length) health = "hijau";
-  const improving = matches(text, BETTER).length > 0;
+  const notFine = negatedOnly(text, FINE, FINE_NEGATIONS);
+  if (notFine) health = worstHealth(health, "kuning");
+  const danger = matches(text, URGENT).length > 0;
+  const urgent = danger && !improving;
+  if (danger) health = "merah";
+  if (!health && matches(text, FINE, FINE_NEGATIONS).length) health = "hijau";
   const numbers = findNumbers(text);
   const needsReview = !(health === "hijau" && issues.length === 0);
-  return { source: "rules", version: TRIAGE_RULES_VERSION, stage, issues, health, improving, numbers, needsReview };
+  const out = { source: "rules", version: TRIAGE_RULES_VERSION, issues, improving, urgent, numbers, needsReview };
+  if (stage) out.stage = stage;
+  if (health) out.health = health;
+  return out;
 }
 function workerReply(t) {
   const parts = [];
@@ -427,11 +467,41 @@ function checkLabelRules(r) {
   const doses = [r.dose.fruiting.low, r.dose.fruiting.mid, r.dose.fruiting.high, r.dose.vegetative.high, r.dose.vegetative.other, r.dose.young];
   if (doses.some((x) => !Number.isFinite(x) || x < 0 || x > 100)) out.push({ key: "rules.err.dose" });
   if (!r.products.fruiting.trim() || !r.products.vegetative.trim() || !r.products.young.trim()) out.push({ key: "rules.err.product" });
+  if (r.confirmed && !r.dose.unit.trim()) out.push({ key: "rules.err.unit" });
   return out;
+}
+
+// src/shared/crop.ts
+var FRUIT_STAGES = ["set", "kept", "onTree"];
+function fruitRemaining(counts, harvests, waveDates, treeEstimate) {
+  const waves = new Set(waveDates);
+  const latest = /* @__PURE__ */ new Map();
+  for (const c of counts) {
+    if (!waves.has(c.season) || !FRUIT_STAGES.includes(c.stage)) continue;
+    const key = `${c.season}|${c.stage}`;
+    const prev = latest.get(key);
+    if (!prev || c.date > prev.date) latest.set(key, c);
+  }
+  const sums = /* @__PURE__ */ new Map();
+  latest.forEach((c) => {
+    const s = sums.get(c.stage);
+    sums.set(c.stage, { count: (s?.count || 0) + c.count, date: s && s.date > c.date ? s.date : c.date });
+  });
+  let last = [...sums.values()].sort((a, b) => b.date.localeCompare(a.date))[0];
+  if (!last && treeEstimate?.date && waveDates.length) {
+    const start = [...waveDates].sort()[0];
+    const n = Number(treeEstimate.count);
+    if (treeEstimate.date >= start && Number.isFinite(n) && n > 0) last = { count: n, date: treeEstimate.date };
+  }
+  if (!last) return void 0;
+  const from = last.date;
+  const picked = harvests.filter((h) => h.date > from).reduce((n, h) => n + (h.fruits || 0), 0);
+  return Math.max(0, last.count - picked);
 }
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
   DEFAULT_LABEL_RULES,
+  ENGINE_STAGE_WORDS,
   FARM_STAGES,
   FARM_STAGE_INFO,
   HEALTH,
@@ -443,6 +513,7 @@ function checkLabelRules(r) {
   TRIAGE_RULES_VERSION,
   checkLabelRules,
   doseSuggestion,
+  fruitRemaining,
   hasWord,
   healthOf,
   isFarmStage,
@@ -455,6 +526,7 @@ function checkLabelRules(r) {
   normalize,
   stageMismatch,
   triageText,
+  wordHits,
   workerReply,
   worstHealth
 });

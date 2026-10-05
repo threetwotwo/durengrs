@@ -18,7 +18,7 @@
 // "Ya, sudah benar" checkbox; sending again with the box ticked (and the value unchanged) saves it.
 const R = require('./rules');
 const { getTreeById, getLastReport, updateTreeMeasurements } = require('./trees');
-const { processPhotos, createReport } = require('./reports');
+const { processPhotos, createReport, reportExists } = require('./reports');
 const C = require('./cropData');
 const S = require('./shared'); // generated from the webapp's src/shared: triage, labels, health words
 
@@ -36,8 +36,10 @@ function formatDate(ts) {
 
 const screen = (name, data) => ({ version: '3.0', screen: name, data });
 const withError = (res, message) => ({ ...res, data: { ...res.data, error_message: message } });
-const done = (message, title = '✅ Laporan tersimpan') => screen('DONE', { title, message });
-const treeGone = (treeId) => done(`Pohon ${treeId || ''} tidak ditemukan atau sudah tidak aktif, tidak ada yang disimpan.`, '⚠️ Gagal');
+// `saved` goes back to WhatsApp with the completion, so the chat message after the Flow can say what really happened.
+const done = (message, title = '✅ Laporan tersimpan') => screen('DONE', { title, message, saved: true });
+const notSaved = (message) => screen('DONE', { title: '⚠️ Gagal', message, saved: false });
+const treeGone = (treeId) => notSaved(`Pohon ${treeId || ''} tidak ditemukan atau sudah tidak aktif, tidak ada yang disimpan.`);
 
 // ---------- season helpers ----------
 
@@ -70,20 +72,41 @@ const suggestionData = (text) => ({ suggestion: text || NONE, has_suggestion: !!
 // ---------- TREE_LOOKUP ----------
 
 // The owner's dose for this tree (Kebun › Aturan label dan dosis in the webapp), or '' when there's nothing to go on.
-function doseLine(tree, rules) {
-  if (!rules) return '';
+// Shown to workers only once the owner has confirmed the rules and given a unit: "0.75 NPK Perfect" alone is not
+// something to put on a tree. Fruit on the tree is worked out exactly as the webapp's Kebun sheet does.
+/** Milliseconds of a Firestore Timestamp, Date, number or date text; 0 when unknown. */
+function msOf(v) {
+  if (!v) return 0;
+  if (typeof v.toMillis === 'function') return v.toMillis();
+  if (v instanceof Date) return v.getTime();
+  if (typeof v === 'number') return v;
+  if (typeof v === 'string') return Date.parse(v) || 0;
+  if (typeof v.seconds === 'number') return v.seconds * 1000;
+  if (typeof v._seconds === 'number') return v._seconds * 1000;
+  return 0;
+}
+
+function doseLine(tree, rules, season) {
+  if (!rules || !rules.confirmed || !String(rules.dose?.unit || '').trim()) return '';
   const n = (v) => (v === undefined || v === null || v === '' || !Number.isFinite(Number(v)) ? undefined : Number(v));
+  // Same reading as the web app's Kebun sheet (src/shared/crop.ts): last fruit count minus fruit picked since, or the
+  // tree's estimate when it was updated this season.
+  const updated = Math.max(msOf(tree.dateUpdated), msOf(tree.lastReportAt));
+  const estimate = { count: tree.estimatedFruitCount, date: updated ? R.todayStr(new Date(updated)) : undefined };
+  const fruitNow = season
+    ? S.fruitRemaining(season.counts || [], season.harvests || [], (season.waves || []).map((w) => w.date), estimate) ?? n(tree.estimatedFruitCount)
+    : n(tree.estimatedFruitCount);
   const labels = {
     batang: S.labelBatang(n(tree.trunkSize), rules),
     tajuk: S.labelTajuk(n(tree.canopySize), rules),
-    fruitset: S.labelFruitset(n(tree.estimatedFruitCount), rules),
+    fruitset: S.labelFruitset(fruitNow, rules),
   };
   const d = S.doseSuggestion(labels, rules);
   if (!d) return '';
-  return `- Dosis pupuk: **${d.dose}${rules.dose.unit ? ` ${rules.dose.unit}` : ''} ${d.product}**${rules.confirmed ? '' : ' (saran)'}`;
+  return `- Dosis pupuk: **${d.dose} ${rules.dose.unit} ${d.product}**`;
 }
 
-function treeViewData(treeId, tree, lastReport, rules) {
+function treeViewData(treeId, tree, lastReport, rules, season) {
   if (!tree) {
     return {
       title: `Pohon ${treeId || ''}`, status: 'Tidak ditemukan', measurements: '- Periksa ID lalu coba lagi', notes: '—',
@@ -113,7 +136,7 @@ function treeViewData(treeId, tree, lastReport, rules) {
       `- Dahan berbunga: **${num(tree.floweringBranches)}**`,
       `- Tandan bunga: **${num(tree.floweringClusters)}**`,
       `- Perkiraan jumlah buah: **${num(tree.estimatedFruitCount)}**`,
-      ...(doseLine(tree, rules) ? [doseLine(tree, rules)] : []),
+      ...(doseLine(tree, rules, season) ? [doseLine(tree, rules, season)] : []),
     ].join('\n'),
     notes: tree.notes || '—',
     last_meta: lastMeta,
@@ -138,8 +161,9 @@ async function treeLookupScreen(treeId) {
   } catch (err) {
     console.error('Could not load label rules:', err);
   }
-  const data = treeViewData(treeId, tree, lastReport, rules);
-  if (tree) Object.assign(data, suggestionData(suggestionText(await seasonOf(tree, R.todayStr()))));
+  const season = tree ? await seasonOf(tree, R.todayStr()) : null;
+  const data = treeViewData(treeId, tree, lastReport, rules, season);
+  if (tree) Object.assign(data, suggestionData(suggestionText(season)));
   return screen('TREE_LOOKUP', data);
 }
 
@@ -347,9 +371,9 @@ async function handleCount({ data = {}, treeId, workerPhone }) {
   if (!tree) return treeGone(treeId);
   const today = R.todayStr();
   const stage = data.stage;
-  if (!R.COUNT_STAGES[stage]) return done('Jenis hitungan tidak dikenal, tidak ada yang disimpan.', '⚠️ Gagal');
+  if (!R.COUNT_STAGES[stage]) return notSaved('Jenis hitungan tidak dikenal, tidak ada yang disimpan.');
   const season = await seasonOf(tree, today);
-  if (!season?.waves.length) return done('Pohon ini belum punya tanggal bunga, tidak ada yang disimpan.', '⚠️ Gagal');
+  if (!season?.waves.length) return notSaved('Pohon ini belum punya tanggal bunga, tidak ada yang disimpan.');
 
   const res = countScreen(treeId, tree, stage, season);
   const wave = season.waves.find((w) => w.date === data.wave);
@@ -448,27 +472,42 @@ async function handleReport({ data = {}, flowToken, treeId, workerPhone }) {
   const words = R.cleanText(data.description, 600);
   const description = legacy ? R.describeWithTypes(data.problem_types, data.description) : words;
   const photoItems = Array.isArray(data.photos) ? data.photos : [];
-  if (!photoItems.length && !/\p{L}{2,}/u.test(words)) return withError(res, 'Tambahkan foto dan tulis apa yang Anda lihat.');
-  if (!photoItems.length) return withError(res, 'Tambahkan minimal satu foto: dari dekat dan seluruh pohon.');
-  if (!/\p{L}{2,}/u.test(words)) return withError(res, 'Tulis apa yang Anda lihat, misalnya: daun menguning di dahan bawah.');
+  const hasWords = /\p{L}{2,}/u.test(words);
+  if (legacy) {
+    // The older published Flow promised "foto atau keterangan": keep that promise until FLOW_ID points at the new one.
+    if (!photoItems.length && !/\p{L}{2,}/u.test(description)) return withError(res, 'Tambahkan foto atau tulis keterangan.');
+  } else {
+    if (!photoItems.length && !hasWords) return withError(res, 'Tambahkan foto dan tulis apa yang Anda lihat.');
+    if (!photoItems.length) return withError(res, 'Tambahkan minimal satu foto: dari dekat dan seluruh pohon.');
+    if (!hasWords) return withError(res, 'Tulis apa yang Anda lihat, misalnya: daun menguning di dahan bawah.');
+  }
 
   // What the words say (stage, issue, health): a suggestion for the owner to check, and the worker's instant reply.
-  const triage = S.triageText(description);
-  // The worker's own choice (older Flow), else only one automatic change: urgent words make the tree Merah at once.
+  // Never lets a report fail: without it the report still saves and waits in "Perlu dicek".
+  let triage = null;
+  try {
+    triage = S.triageText(description);
+  } catch (err) {
+    console.error('Triage failed:', err);
+  }
+  // The worker's own choice (older Flow), else one automatic change only: words that say the tree is in danger now
+  // ("darurat", "hampir mati", "tumbang") make it Merah at once. A disease name alone waits for the owner's check.
   const chosen = legacy && R.CONDITIONS.includes(data.condition) ? data.condition : null;
-  const condition = chosen || (triage.health === 'merah' && tree.condition !== 'emergency' ? 'emergency' : null);
+  const condition = chosen || (triage?.urgent && tree.condition !== 'emergency' ? 'emergency' : null);
 
   try {
     // Content-aware id: see rules.js idFromToken (an old Flow message reopened later must still save a new report).
     const reportId = R.idFromToken(flowToken, {
       description, condition: data.condition || '', photos: photoItems.map((p) => p?.cdn_url || p?.file_name || ''),
     });
+    // A retry of the same report: answer before touching the photos (uploading again would replace their links).
+    if (await reportExists(reportId)) return done(`Laporan untuk ${treeId} sudah tersimpan sebelumnya.`, '✅ Sudah tercatat');
     const { saved, failed } = await processPhotos(photoItems, treeId, reportId);
-    if (saved.length === 0) return withError(res, 'Foto tidak dapat diproses. Coba kirim lagi.');
+    if (photoItems.length && saved.length === 0) return withError(res, 'Foto tidak dapat diproses. Coba kirim lagi.');
     const result = await createReport({
       reportId, treeId, workerPhone, condition, conditionSource: chosen ? 'worker' : 'triage', description, photos: saved, triage,
     });
-    console.log(`Report ${reportId} for ${treeId}: duplicate=${!!result.duplicate} changed=${!!result.changed} photos=${saved.length} failedPhotos=${failed} health=${triage.health || '-'}`);
+    console.log(`Report ${reportId} for ${treeId}: duplicate=${!!result.duplicate} changed=${!!result.changed} photos=${saved.length} failedPhotos=${failed} health=${(triage && triage.health) || '-'}`);
     return done(reportSummary(treeId, result, failed, triage));
   } catch (err) {
     console.error('Saving report failed:', err);
