@@ -93,15 +93,34 @@ test('the tree Flow no longer holds rain or farm tasks, and the farm Flow holds 
   assert.deepEqual(farm.sort(), ['DONE', 'FARM_HOME', 'HUJAN', 'KERJA']);
 });
 
-test('tree data edit is reachable from the harvest menu, not the top menu', () => {
-  const r = flows['flow.json'].routing_model;
-  assert.ok(r.PANEN_MENU.includes('EDIT_TREE'));
-  assert.ok(!r.MENU.includes('EDIT_TREE'));
+test('tree data edit is a link under the tree notes on the info screen, not a menu option', () => {
+  const flow = flows['flow.json'];
+  const r = flow.routing_model;
+  assert.ok(r.TREE_LOOKUP.includes('EDIT_TREE'));
+  assert.ok(!r.MENU.includes('EDIT_TREE') && !r.PANEN_MENU.includes('EDIT_TREE'));
+  const kids = flow.screens.find((s) => s.id === 'TREE_LOOKUP').layout.children;
+  const notes = kids.findIndex((n) => n.type === 'TextSubheading' && /Catatan/.test(n.text));
+  const link = kids.findIndex((n) => n.type === 'EmbeddedLink');
+  assert.equal(link, notes + 2, 'the link sits right under the notes text');
+});
+
+test('links: text within 25 characters, at most 2 per screen', () => {
+  for (const flow of Object.values(flows))
+    for (const s of flow.screens) {
+      let links = 0;
+      walk(s.layout, (n) => {
+        if (n.type !== 'EmbeddedLink') return;
+        links++;
+        assert.ok(n.text && n.text.length <= 25, `${s.id}: link text`);
+        assert.ok(['data_exchange', 'navigate'].includes(n['on-click-action'].name), `${s.id}: link action`);
+      });
+      assert.ok(links <= 2, `${s.id}: too many links`);
+    }
 });
 
 test('every screen with a data_exchange is one the endpoint handles', () => {
   const handled = {
-    'flow.json': ['MENU', 'PANEN_MENU', 'BLOOM', 'COUNT', 'HARVEST_A', 'HARVEST_B', 'REPORT', 'EDIT_TREE'],
+    'flow.json': ['TREE_LOOKUP', 'MENU', 'PANEN_MENU', 'BLOOM', 'COUNT', 'HARVEST_A', 'HARVEST_B', 'REPORT', 'EDIT_TREE'],
     'flow-farm.json': ['FARM_HOME', 'KERJA', 'HUJAN'],
   };
   for (const [file, flow] of Object.entries(flows))

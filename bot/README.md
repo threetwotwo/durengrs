@@ -17,7 +17,7 @@ Two Flows, both Indonesian for the workers:
 
 | Flow | opened by | file | env | holds |
 |---|---|---|---|---|
-| **Laporan Pohon** | the worker sends a tree ID, e.g. `A1` | `flows/flow.json` | `FLOW_ID` | tree info, then: Laporan Masalah, Panen & Data Pohon (bloom, counts, harvest, edit tree data) |
+| **Laporan Pohon** | the worker sends a tree ID, e.g. `A1` | `flows/flow.json` | `FLOW_ID` | tree info (with an "Ubah data pohon" link under the notes), then: Laporan Masalah, Panen & Data Pohon (numbered: bloom, counts, harvest) |
 | **Catatan Kebun** | the "Hujan & Pekerjaan" button, or the word `KEBUN` | `flows/flow-farm.json` | `FARM_FLOW_ID` | Curah Hujan, Pekerjaan Selesai |
 
 Anything else a worker sends (hello, a photo...) gets a friendly guide with the button.

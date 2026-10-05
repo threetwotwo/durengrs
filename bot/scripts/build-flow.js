@@ -84,6 +84,7 @@ const TREE_LOOKUP = screen(
     menu_title: str('Pohon A1 · MK · Blok A'),
     suggestion: str('Saran: hitung buah di pohon (terakhir dihitung 16 hari lalu). Pilih Panen & Data Pohon.'),
     has_suggestion: bool(true),
+    can_edit: bool(true),
   },
   [
     heading('${data.title}'),
@@ -92,6 +93,9 @@ const TREE_LOOKUP = screen(
     body('${data.measurements}', { markdown: true }),
     sub('📝 Catatan pohon'),
     body('${data.notes}'),
+    // A link, not a second button: a screen has one Footer ("Buat Laporan"). The server answers with the edit
+    // screen filled with the tree's current values.
+    { type: 'EmbeddedLink', text: 'Ubah data pohon', 'on-click-action': exchange({ open: 'edit_tree' }), visible: '${data.can_edit}' },
     sub('🕒 Laporan terakhir'),
     caption('${data.last_meta}'),
     body('${data.last_text}'),
@@ -119,7 +123,7 @@ const MENU = screen(
         required: true,
         'data-source': [
           { id: 'issue', title: 'Laporan Masalah', description: 'Daun, batang, hama, atau kondisi pohon. Bisa dengan foto.' },
-          { id: 'harvest', title: 'Panen & Data Pohon', description: 'Bunga, hitung buah, catat panen, dan ukuran pohon.' },
+          { id: 'harvest', title: 'Panen & Data Pohon', description: 'Bunga, hitung buah, dan catat panen.' },
         ],
       },
       footer('Lanjut', exchange({ choice: '${form.choice}' })),
@@ -172,10 +176,10 @@ const PANEN_MENU = screen(
     panen_title: str('Panen & Data Pohon · A1 · MK · Blok A'),
     panen_hint: str('Saran: hitung buah di pohon.'),
     has_hint: bool(true),
+    // Numbered by the server in season order (1. Mulai berbunga ... 6. Catat panen).
     stage_options: opts([
-      { id: 'bloom', title: 'Mulai berbunga', description: 'Bunga pertama mekar.' },
-      { id: 'harvest', title: 'Catat panen', description: 'Jumlah buah, berat, dan kelas mutu.' },
-      { id: 'tree', title: 'Ubah data pohon', description: 'Kanopi, lingkar batang, catatan.' },
+      { id: 'bloom', title: '1. Mulai berbunga', description: 'Bunga pertama mekar.' },
+      { id: 'harvest', title: '2. Catat panen', description: 'Jumlah buah, berat, dan kelas mutu.' },
     ]),
   },
   [
@@ -370,11 +374,11 @@ const treeFlow = {
   version: '7.3',
   data_api_version: '3.0',
   routing_model: {
-    TREE_LOOKUP: ['MENU'],
     // DONE is also where a step ends when the tree has gone (archived or removed) while the Flow was open.
+    TREE_LOOKUP: ['MENU', 'EDIT_TREE', 'DONE'],
     MENU: ['REPORT', 'PANEN_MENU', 'DONE'],
     REPORT: ['DONE'],
-    PANEN_MENU: ['BLOOM', 'COUNT', 'HARVEST_A', 'EDIT_TREE', 'DONE'],
+    PANEN_MENU: ['BLOOM', 'COUNT', 'HARVEST_A', 'DONE'],
     BLOOM: ['DONE'],
     COUNT: ['DONE'],
     HARVEST_A: ['HARVEST_B', 'DONE'],

@@ -3,7 +3,9 @@
   "data_api_version": "3.0",
   "routing_model": {
     "TREE_LOOKUP": [
-      "MENU"
+      "MENU",
+      "EDIT_TREE",
+      "DONE"
     ],
     "MENU": [
       "REPORT",
@@ -17,7 +19,6 @@
       "BLOOM",
       "COUNT",
       "HARVEST_A",
-      "EDIT_TREE",
       "DONE"
     ],
     "BLOOM": [
@@ -82,6 +83,10 @@
         "has_suggestion": {
           "type": "boolean",
           "__example__": true
+        },
+        "can_edit": {
+          "type": "boolean",
+          "__example__": true
         }
       },
       "layout": {
@@ -112,6 +117,17 @@
           {
             "type": "TextBody",
             "text": "${data.notes}"
+          },
+          {
+            "type": "EmbeddedLink",
+            "text": "Ubah data pohon",
+            "on-click-action": {
+              "name": "data_exchange",
+              "payload": {
+                "open": "edit_tree"
+              }
+            },
+            "visible": "${data.can_edit}"
           },
           {
             "type": "TextSubheading",
@@ -196,7 +212,7 @@
                   {
                     "id": "harvest",
                     "title": "Panen & Data Pohon",
-                    "description": "Bunga, hitung buah, catat panen, dan ukuran pohon."
+                    "description": "Bunga, hitung buah, dan catat panen."
                   }
                 ]
               },
@@ -329,18 +345,13 @@
           "__example__": [
             {
               "id": "bloom",
-              "title": "Mulai berbunga",
+              "title": "1. Mulai berbunga",
               "description": "Bunga pertama mekar."
             },
             {
               "id": "harvest",
-              "title": "Catat panen",
+              "title": "2. Catat panen",
               "description": "Jumlah buah, berat, dan kelas mutu."
-            },
-            {
-              "id": "tree",
-              "title": "Ubah data pohon",
-              "description": "Kanopi, lingkar batang, catatan."
             }
           ]
         }

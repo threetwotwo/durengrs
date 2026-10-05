@@ -65,24 +65,30 @@ test('no bloom date: suggestion explains, and only options that work are listed'
   seed({ blockBloomDaysAgo: null });
   assert.match((await open()).data.suggestion, /Mulai berbunga/);
   const pm = await send('MENU', { choice: 'harvest' });
-  assert.deepEqual(pm.data.stage_options.map((o) => o.id), ['bloom', 'harvest', 'tree']);
+  assert.deepEqual(pm.data.stage_options.map((o) => o.id), ['bloom', 'harvest']);
+  assert.deepEqual(pm.data.stage_options.map((o) => o.title), ['1. Mulai berbunga', '2. Catat panen']);
   // a stale client that still sends a count anyway gets a friendly message
   const stale = await send('PANEN_MENU', { stage: 'kept' });
   assert.equal(stale.screen, 'PANEN_MENU');
   assert.match(stale.data.error_message, /belum punya tanggal bunga/);
 });
 
-test('top menu holds the issue report and harvest; tree data lives under harvest', async () => {
+test('top menu holds the issue report and harvest; the harvest menu is numbered in season order', async () => {
   seed();
   assert.equal((await send('MENU', { choice: 'issue' })).screen, 'REPORT');
   const pm = await send('MENU', { choice: 'harvest' });
   assert.equal(pm.screen, 'PANEN_MENU');
-  assert.deepEqual(pm.data.stage_options.map((o) => o.id), ['bloom', 'clusters', 'set', 'kept', 'onTree', 'harvest', 'tree']);
+  assert.deepEqual(pm.data.stage_options.map((o) => o.id), ['bloom', 'clusters', 'set', 'kept', 'onTree', 'harvest']);
+  assert.deepEqual(
+    pm.data.stage_options.map((o) => o.title),
+    ['1. Mulai berbunga', '2. Hitung tandan bunga', '3. Hitung buah jadi', '4. Hitung buah yang disisakan', '5. Hitung buah di pohon', '6. Catat panen']
+  );
   const kept = pm.data.stage_options.find((o) => o.id === 'kept');
   assert.match(kept.description, /^Disarankan sekarang/); // the recommended step is said in words
   // no emoji on any report option: either every option has a fitting one, or none does
   assert.equal(pm.data.stage_options.some((o) => /\p{Extended_Pictographic}/u.test(o.title)), false);
-  assert.equal((await send('PANEN_MENU', { stage: 'tree' })).screen, 'EDIT_TREE');
+  // The older published Flow still lists it there (and routes it); checked without the new Flow's contract.
+  assert.equal((await route({ ...base, kind: 'tree', action: 'data_exchange', screen: 'PANEN_MENU', data: { stage: 'tree' } })).screen, 'EDIT_TREE');
   // rain and tasks are not tree reports any more
   assert.equal((await send('MENU', { choice: 'rain' })).data.error_message.length > 0, true);
   const empty = await send('MENU', {});
@@ -457,6 +463,22 @@ test('archived trees do not change a block ripening range or season', async () =
   const C = require('../lib/cropData');
   const s = await C.loadTreeSeason({ id: 'A1', block: 'A', variant: 'MK' }, today);
   assert.equal(s.ripeMin, 120);
+});
+
+test('"Ubah data pohon" on the tree info screen opens the edit screen with the current values', async () => {
+  seed();
+  fake.seed('trees', 'A1', { id: 'A1', variant: 'MK', block: 'A', condition: 'healthy', canopySize: 520, trunkSize: 43, notes: 'dekat parit' });
+  const info = await open();
+  assert.equal(info.data.can_edit, true);
+  const edit = check('tree', 'TREE_LOOKUP', await route({ ...base, kind: 'tree', action: 'data_exchange', screen: 'TREE_LOOKUP', data: { open: 'edit_tree' } }));
+  assert.equal(edit.screen, 'EDIT_TREE');
+  assert.deepEqual(edit.data.init_values, { canopy: '520', trunk: '43', branches: '', notes: 'dekat parit' });
+  // An unknown tree: no link, and a press that comes anyway ends without saving.
+  const gone = await route({ kind: 'tree', action: 'INIT', flowToken: 'tree:Z9:628111886551:9', treeId: 'Z9', workerPhone: '628111886551' });
+  assert.equal(gone.data.can_edit, false);
+  const late = check('tree', 'TREE_LOOKUP', await route({ kind: 'tree', action: 'data_exchange', screen: 'TREE_LOOKUP', flowToken: 'tree:Z9:628111886551:9', treeId: 'Z9', workerPhone: '628111886551', data: { open: 'edit_tree' } }));
+  assert.equal(late.screen, 'DONE');
+  assert.equal(late.data.saved, false);
 });
 
 test('Ubah data pohon no longer edits flower clusters or the fruit estimate', async () => {

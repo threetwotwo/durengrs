@@ -4,7 +4,8 @@
 //
 //  Flow "Laporan Pohon" (kind 'tree', opened by sending a tree ID, flow.json):
 //    TREE_LOOKUP -> MENU -> REPORT                     (Laporan Masalah)
-//                        -> PANEN_MENU -> BLOOM | COUNT | HARVEST_A -> HARVEST_B | EDIT_TREE (ubah data pohon)
+//                        -> PANEN_MENU -> BLOOM | COUNT | HARVEST_A -> HARVEST_B   (numbered, in season order)
+//                -> EDIT_TREE                          ("Ubah data pohon" link under the tree's notes)
 //
 //  Flow "Catatan Kebun" (kind 'farm', opened with the Hujan & Pekerjaan button or the word KEBUN, flow-farm.json):
 //    FARM_HOME -> KERJA (Pekerjaan Selesai) | HUJAN (Curah Hujan)
@@ -110,7 +111,7 @@ function treeViewData(treeId, tree, lastReport, rules, season) {
   if (!tree) {
     return {
       title: `Pohon ${treeId || ''}`, status: 'Tidak ditemukan', measurements: '- Periksa ID lalu coba lagi', notes: '—',
-      last_meta: '—', last_text: '—', last_photos: '—', menu_title: `Pohon ${treeId || ''}`, ...suggestionData(''),
+      last_meta: '—', last_text: '—', last_photos: '—', menu_title: `Pohon ${treeId || ''}`, can_edit: false, ...suggestionData(''),
     };
   }
   const status = `${STATUS_ICONS[tree.condition] || '⚪'} ${conditionLabel(tree.condition)}` + (tree.conditionNotes ? ` — ${tree.conditionNotes}` : '');
@@ -143,6 +144,7 @@ function treeViewData(treeId, tree, lastReport, rules, season) {
     last_text: lastText,
     last_photos: lastPhotos,
     menu_title: `Pohon ${treeLabel(tree.id, tree)}`,
+    can_edit: true,
     ...suggestionData(''),
   };
 }
@@ -195,16 +197,19 @@ const STAGE_MENU = [
   { id: 'kept', needsBloom: true, title: 'Hitung buah yang disisakan', description: 'Setelah buah kecil yang berlebih dibuang.' },
   { id: 'onTree', needsBloom: true, title: 'Hitung buah di pohon', description: 'Ulangi tiap 2 minggu sampai panen.' },
   { id: 'harvest', needsBloom: false, title: 'Catat panen', description: 'Jumlah buah, berat, dan kelas mutu.' },
-  { id: 'tree', needsBloom: false, title: 'Ubah data pohon', description: 'Kanopi, lingkar batang, dahan berbunga, catatan.' },
 ];
+// "Ubah data pohon" is a link on the tree info screen (TREE_LOOKUP), under the tree's notes.
 
 async function panenMenuScreen(treeId, tree, season) {
   const recommended = season?.next?.kind;
   // Counts need a flowering date to hang on; without one only the options that work are listed.
   const hasBloom = !season || season.waves.length > 0;
-  const options = STAGE_MENU.filter((o) => hasBloom || !o.needsBloom).map(({ needsBloom, ...o }) =>
-    o.id === recommended ? { ...o, description: `Disarankan sekarang. ${o.description}` } : o
-  );
+  // Numbered in the order of the season, so a worker can be told "pilih nomor 3".
+  const options = STAGE_MENU.filter((o) => hasBloom || !o.needsBloom).map(({ needsBloom, ...o }, i) => ({
+    ...o,
+    title: `${i + 1}. ${o.title}`,
+    ...(o.id === recommended ? { description: `Disarankan sekarang. ${o.description}` } : {}),
+  }));
   const hint = suggestionText(season);
   return screen('PANEN_MENU', {
     panen_title: `Panen & Data Pohon · ${treeLabel(treeId, tree)}`,
@@ -303,6 +308,14 @@ function softGate(res, warning, value, d) {
 
 // ---------- tree Flow handlers ----------
 
+// The tree info screen's "Ubah data pohon" link.
+async function handleTreeLookup({ data = {}, treeId }) {
+  const tree = await getTreeById(treeId);
+  if (!tree) return treeGone(treeId);
+  if (data.open === 'edit_tree') return editScreen(treeId, tree);
+  return treeLookupScreen(treeId);
+}
+
 async function handleMenu({ data = {}, treeId }) {
   const tree = await getTreeById(treeId);
   if (!tree) return treeGone(treeId);
@@ -324,7 +337,7 @@ async function handlePanenMenu({ data = {}, treeId }) {
 
   if (stage === 'bloom') return bloomScreen(treeId, tree, today);
   if (stage === 'harvest') return harvestAScreen(treeId, tree, today, season);
-  if (stage === 'tree') return editScreen(treeId, tree);
+  if (stage === 'tree') return editScreen(treeId, tree); // the older Flow listed it here
   if (R.COUNT_STAGES[stage]) {
     if (!season) return back('Data musim belum bisa dibuka. Coba lagi sebentar lagi.');
     if (!season.waves.length) return back('Pohon ini belum punya tanggal bunga. Pilih "Mulai berbunga" dulu, atau minta pemilik mengisi tanggal bunga blok.');
@@ -591,6 +604,7 @@ async function handleRain({ data = {}, workerPhone }) {
 // ---------- router ----------
 
 const TREE_HANDLERS = {
+  TREE_LOOKUP: handleTreeLookup,
   MENU: handleMenu,
   PANEN_MENU: handlePanenMenu,
   BLOOM: handleBloom,
