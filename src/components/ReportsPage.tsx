@@ -3,6 +3,7 @@ import { useFarm } from '../context/FarmContext';
 import { ReportCard } from './ReportCard';
 import { PageHeader, inputCls } from './PageHeader';
 import { ActivityView } from './ActivityView';
+import { FieldLog } from './FieldLog';
 import { Link } from './Link';
 import { useQueryParams } from '../lib/router';
 import { useT } from '../i18n';
@@ -40,6 +41,7 @@ export const ReportsPage: React.FC = () => {
   const topicParam = params.get('topic');
   const filterTopic: TopicId | null = isTopicId(topicParam) ? topicParam : null;
   const showActivity = params.get('view') === 'activity';
+  const showLog = params.get('view') === 'log';
 
   const availableBlocks = useMemo(() => {
     const set = new Set<string>();
@@ -122,15 +124,16 @@ export const ReportsPage: React.FC = () => {
     <div className="space-y-4">
       <PageHeader
         title={t('rep.title')}
-        description={showActivity ? t('rep.desc.activity') : t('rep.desc.feed', { n: totalReportsCount })}
+        description={showLog ? t('rep.desc.log') : showActivity ? t('rep.desc.activity') : t('rep.desc.feed', { n: totalReportsCount })}
       />
 
       <div role="tablist" className="inline-flex p-1 rounded-xl bg-slate-200/70 gap-1">
         {[
           { id: 'feed', label: t('rep.tab.feed'), to: '/reports' },
+          { id: 'log', label: t('rep.tab.log'), to: '/reports?view=log' },
           { id: 'activity', label: t('rep.tab.activity'), to: '/reports?view=activity' },
         ].map((tab) => {
-          const on = (tab.id === 'activity') === showActivity;
+          const on = tab.id === (showLog ? 'log' : showActivity ? 'activity' : 'feed');
           return (
             <Link
               key={tab.id}
@@ -146,7 +149,7 @@ export const ReportsPage: React.FC = () => {
         })}
       </div>
 
-      {showActivity ? <ActivityView /> : (
+      {showLog ? <FieldLog /> : showActivity ? <ActivityView /> : (
       <>
       <div className={`bg-white p-3 sm:p-4 rounded-xl border border-slate-200 shadow-xs grid grid-cols-2 gap-2.5 items-center ${guideOn ? 'lg:grid-cols-[1fr_auto_auto_auto_auto_auto]' : 'lg:grid-cols-[1fr_auto_auto_auto_auto]'}`}>
         <div className="relative col-span-2 lg:col-span-1">
