@@ -5,8 +5,7 @@ const sharp = require('sharp');
 const { admin, db, getBucket } = require('./firestore');
 const { decryptFlowMedia, ALLOWED_TYPES } = require('./media');
 
-const CONDITIONS = ['healthy', 'minor', 'emergency'];
-const CONDITION_LABELS = { healthy: 'Sehat', minor: 'Masalah ringan', emergency: 'Darurat' };
+const { CONDITIONS, CONDITION_LABELS } = require('./rules');
 const MAX_PHOTOS = 3;
 
 // One flow session = one report. Deriving the document ID from the flow token
@@ -208,7 +207,9 @@ async function processPhotos(items, treeId, reportId) {
   return { saved, failed };
 }
 
-async function createReport({ reportId, treeId, workerPhone, condition, description, photos }) {
+// `condition`: the worker's choice (older Flow) or 'emergency' when the words read as urgent (triage), else none.
+// `triage`: what the system read from the words (lib/shared.js); a suggestion until someone checks it in the webapp.
+async function createReport({ reportId, treeId, workerPhone, condition, conditionSource, description, photos, triage }) {
   const treeRef = db.collection('trees').doc(treeId);
   const reportRef = db.collection('reports').doc(reportId);
   const now = admin.firestore.FieldValue.serverTimestamp();
@@ -234,6 +235,8 @@ async function createReport({ reportId, treeId, workerPhone, condition, descript
       conditionBefore: before,
       conditionAfter: after,
       conditionChanged: changed,
+      ...(changed && conditionSource ? { conditionSource } : {}),
+      ...(triage ? { triage } : {}),
       createdAt: now,
     });
 

@@ -126,68 +126,40 @@ const MENU = screen(
   ]
 );
 
+// Photo + words, both required; no lists to choose from. The server reads the words (lib/shared.js triageText),
+// answers the worker on the DONE screen and puts the report in the owner's "Perlu dicek" inbox.
 const REPORT = screen(
   'REPORT',
   'Laporan Masalah',
-  { report_title: str('Laporan untuk A1'), condition_caption: str('Kondisi saat ini: Sehat') },
+  { report_title: str('Laporan untuk A1'), condition_caption: str('Kondisi saat ini: Hijau') },
   [
     form('report_form', [
       heading('${data.report_title}'),
       caption('${data.condition_caption}'),
-      body('Isi seperlunya. Foto atau keterangan, salah satu wajib ada.'),
-      sub('1. Jenis masalah (boleh dilewati)'),
-      {
-        type: 'CheckboxGroup',
-        name: 'problem_types',
-        label: 'Apa yang Anda lihat?',
-        required: false,
-        'data-source': [
-          { id: 'leaf', title: 'Daun / tunas' },
-          { id: 'trunk', title: 'Batang / getah' },
-          { id: 'borer', title: 'Lubang penggerek' },
-          { id: 'pest', title: 'Hama' },
-          { id: 'fruit', title: 'Buah busuk / rontok' },
-          { id: 'other', title: 'Lainnya' },
-        ],
-      },
-      sub('2. Foto'),
-      caption('Foto dari dekat dan foto seluruh pohon membantu pemilik menilai.'),
+      body('Kirim foto dan tulis apa yang Anda lihat. Admin akan mengecek laporan Anda.'),
+      sub('1. Foto'),
+      caption('Satu foto dari dekat, satu foto seluruh pohon.'),
       {
         type: 'PhotoPicker',
         name: 'photos',
         label: 'Ambil atau pilih foto',
+        description: 'Minimal 1 foto',
         'photo-source': 'camera_gallery',
         'max-file-size-kb': 10240,
-        'min-uploaded-photos': 0,
+        'min-uploaded-photos': 1,
         'max-uploaded-photos': 3,
       },
-      sub('3. Keterangan'),
+      sub('2. Apa yang Anda lihat?'),
       {
         type: 'TextArea',
         name: 'description',
-        label: 'Apa yang Anda lihat atau lakukan?',
+        label: 'Tulis dengan kata-kata Anda',
         'label-variant': 'large',
-        'helper-text': 'Wajib diisi jika tidak ada foto',
-        required: false,
+        'helper-text': 'Contoh: daun kuning di dahan bawah; getah merah di batang; buah sebesar telor',
+        required: true,
         'max-length': 600,
       },
-      sub('4. Kondisi pohon'),
-      {
-        type: 'RadioButtonsGroup',
-        name: 'condition',
-        label: 'Kondisi pohon sekarang',
-        description: 'Pilih "Tidak ada perubahan" jika kondisinya sama. Untuk Darurat, foto wajib.',
-        required: false,
-        'data-source': [
-          { id: 'unchanged', title: 'Tidak ada perubahan' },
-          { id: 'healthy', title: '🟢 Sehat' },
-          { id: 'minor', title: '🟠 Masalah ringan' },
-          { id: 'emergency', title: '🔴 Darurat' },
-        ],
-      },
-      footer('Kirim Laporan', exchange({
-        problem_types: '${form.problem_types}', condition: '${form.condition}', description: '${form.description}', photos: '${form.photos}',
-      })),
+      footer('Kirim Laporan', exchange({ description: '${form.description}', photos: '${form.photos}' })),
     ]),
   ]
 );

@@ -39,7 +39,8 @@ const SEASON_TASK_LABELS = {
 };
 
 const CONDITIONS = ['healthy', 'minor', 'emergency'];
-const CONDITION_LABELS = { healthy: 'Sehat', minor: 'Masalah ringan', emergency: 'Darurat' };
+// The owner's words (Hijau / Kuning / Merah), same as the webapp; stored codes stay healthy / minor / emergency.
+const CONDITION_LABELS = { healthy: 'Hijau', minor: 'Kuning', emergency: 'Merah' };
 
 const PROBLEM_TYPES = ['leaf', 'trunk', 'borer', 'pest', 'fruit', 'other'];
 const PROBLEM_TYPE_LABELS = {

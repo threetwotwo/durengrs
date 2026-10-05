@@ -189,7 +189,7 @@ own words map onto that. **Proposed farm scale** (codes are internal, labels are
 | Work | Status |
 |---|---|
 | Shared vocabulary and data contract (`src/shared/`, `docs/data-contract.md`) | **Done.** Bot to import it once its code is in the repo. |
-| Rule-based triage of the worker's words + worker reply text | **Done** in `src/shared/triage.ts` (free). Bot side waits for the bot code. |
+| Rule-based triage of the worker's words + worker reply text | **Done**, in the web app and the bot (`bot/lib/shared.js`, generated from `src/shared`). |
 | "Perlu dicek" review inbox (Laporan) | **Done.** Benar / Ubah / Abaikan; a check sets the report's stage, issues and health, the tree's observed stage and (latest report only) its condition, logged in `treeEdits`. |
 | Observed stage per tree, next to the expected one | **Done.** Trees list (Tahap column), tree page header, Panen table, report cards and the report page. Violet = what was seen fits none of the tree's flowering waves; dashed = seen over 30 days ago. |
 | Stage board on Hari ini | **Done.** Per block: trees by observed stage, not seen, how many don't fit the bloom date, and the expected stages. |
@@ -198,9 +198,9 @@ own words map onto that. **Proposed farm scale** (codes are internal, labels are
 | Field record page for every kind; one Laporan list | **Done.** Laporan is one list (worker reports, flowering, counts, harvests, tasks, rain, tree data) with search, kind, block, condition, sender and source filters; every row opens its page (`#/reports/<id>` for a worker report, `#/reports/<kind>:<id>` for the rest). The review inbox shows 4 at a time above it. Tree pages link to all their records. |
 | Kebun sheet view | **Done** (`#/kebun`). One row per tree in William's column groups (Pohon, Ukuran, Bunga & buah, dated counts, Tahap, Kesehatan, Label, Dosis, Catatan), sticky header and ID column, sort, filters (block, stage, health, ID), column groups remembered per device, totals row. Type into a cell like Sheets (Enter/Tab/Esc/arrows); same checks and `treeEdits` log as the tree form. Paste from Google Sheets previews only the changed cells; CSV export of what's shown. Labels and dose come from `src/shared/labels.ts` with the rules stored in `farmMeta/labelRules`: **editable** in Kebun › Aturan label dan dosis (limits, doses, unit, products, a "confirmed" tick), with a preview of how many trees a change moves; marked "belum dikonfirmasi" until ticked. |
 | Lighter navigation; Hijau / Kuning / Merah everywhere | **Done.** Tabs: Hari ini · Kebun · Laporan · Panen · Jadwal; Pohon, Varietas, Pekerja and Panduan under "Lainnya" (a menu on desktop, a sheet on phones). Conditions read Hijau / Kuning / Merah with their meaning on hover; a checked "membaik" shows on the tree (`trees.improving`) until a newer report arrives. Stored codes are unchanged. |
-| Catatan Kebun changes, daily route push, 07:00 rain template | Waiting for the bot code (all bot-side). |
+| Catatan Kebun changes, daily route push, 07:00 rain template | Not started (bot-side; the code is now here). |
 | Firestore rules lock-down | Needs the owner: the web app would need sign-in for writes, and the bot must write with the Admin SDK first. |
-| Bot: photo + words mandatory, no menus, instant reply | Waiting for the bot code. |
+| Bot: photo + words mandatory, no menus, instant reply | **Done in code** (bot in `bot/`): Laporan Masalah asks only for a photo and the worker's words; the reply says the stage and likely problem with the next step; Hijau / Kuning / Merah; the tree view shows the dose from the editable rules. Live after the owner deploys and publishes the new Flow. |
 
 ---
 

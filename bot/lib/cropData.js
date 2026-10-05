@@ -189,4 +189,15 @@ async function saveRain({ date, rainMm, workerPhone }) {
   return { replaced: prev.exists ? prev.data().rainMm : null };
 }
 
-module.exports = { listBlocks, blockSeasonDate, loadTreeSeason, bloomExists, saveBloom, saveCount, harvestExists, saveHarvest, saveSeasonTasks, saveRain };
+// The owner's label and dose rules (farmMeta/labelRules, edited in the webapp's Kebun page), read at most once a minute.
+let rulesCache = { at: 0, rules: null };
+async function labelRules() {
+  if (rulesCache.rules && Date.now() - rulesCache.at < 60_000) return rulesCache.rules;
+  const snap = await db.collection('farmMeta').doc('labelRules').get();
+  const { mergeLabelRules } = require('./shared');
+  rulesCache = { at: Date.now(), rules: mergeLabelRules(snap.exists ? snap.data() : null) };
+  return rulesCache.rules;
+}
+const resetLabelRulesCache = () => (rulesCache = { at: 0, rules: null });
+
+module.exports = { labelRules, resetLabelRulesCache, listBlocks, blockSeasonDate, loadTreeSeason, bloomExists, saveBloom, saveCount, harvestExists, saveHarvest, saveSeasonTasks, saveRain };

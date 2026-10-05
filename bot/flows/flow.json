@@ -222,7 +222,7 @@
         },
         "condition_caption": {
           "type": "string",
-          "__example__": "Kondisi saat ini: Sehat"
+          "__example__": "Kondisi saat ini: Hijau"
         }
       },
       "layout": {
@@ -242,102 +242,38 @@
               },
               {
                 "type": "TextBody",
-                "text": "Isi seperlunya. Foto atau keterangan, salah satu wajib ada."
+                "text": "Kirim foto dan tulis apa yang Anda lihat. Admin akan mengecek laporan Anda."
               },
               {
                 "type": "TextSubheading",
-                "text": "1. Jenis masalah (boleh dilewati)"
-              },
-              {
-                "type": "CheckboxGroup",
-                "name": "problem_types",
-                "label": "Apa yang Anda lihat?",
-                "required": false,
-                "data-source": [
-                  {
-                    "id": "leaf",
-                    "title": "Daun / tunas"
-                  },
-                  {
-                    "id": "trunk",
-                    "title": "Batang / getah"
-                  },
-                  {
-                    "id": "borer",
-                    "title": "Lubang penggerek"
-                  },
-                  {
-                    "id": "pest",
-                    "title": "Hama"
-                  },
-                  {
-                    "id": "fruit",
-                    "title": "Buah busuk / rontok"
-                  },
-                  {
-                    "id": "other",
-                    "title": "Lainnya"
-                  }
-                ]
-              },
-              {
-                "type": "TextSubheading",
-                "text": "2. Foto"
+                "text": "1. Foto"
               },
               {
                 "type": "TextCaption",
-                "text": "Foto dari dekat dan foto seluruh pohon membantu pemilik menilai."
+                "text": "Satu foto dari dekat, satu foto seluruh pohon."
               },
               {
                 "type": "PhotoPicker",
                 "name": "photos",
                 "label": "Ambil atau pilih foto",
+                "description": "Minimal 1 foto",
                 "photo-source": "camera_gallery",
                 "max-file-size-kb": 10240,
-                "min-uploaded-photos": 0,
+                "min-uploaded-photos": 1,
                 "max-uploaded-photos": 3
               },
               {
                 "type": "TextSubheading",
-                "text": "3. Keterangan"
+                "text": "2. Apa yang Anda lihat?"
               },
               {
                 "type": "TextArea",
                 "name": "description",
-                "label": "Apa yang Anda lihat atau lakukan?",
+                "label": "Tulis dengan kata-kata Anda",
                 "label-variant": "large",
-                "helper-text": "Wajib diisi jika tidak ada foto",
-                "required": false,
+                "helper-text": "Contoh: daun kuning di dahan bawah; getah merah di batang; buah sebesar telor",
+                "required": true,
                 "max-length": 600
-              },
-              {
-                "type": "TextSubheading",
-                "text": "4. Kondisi pohon"
-              },
-              {
-                "type": "RadioButtonsGroup",
-                "name": "condition",
-                "label": "Kondisi pohon sekarang",
-                "description": "Pilih \"Tidak ada perubahan\" jika kondisinya sama. Untuk Darurat, foto wajib.",
-                "required": false,
-                "data-source": [
-                  {
-                    "id": "unchanged",
-                    "title": "Tidak ada perubahan"
-                  },
-                  {
-                    "id": "healthy",
-                    "title": "🟢 Sehat"
-                  },
-                  {
-                    "id": "minor",
-                    "title": "🟠 Masalah ringan"
-                  },
-                  {
-                    "id": "emergency",
-                    "title": "🔴 Darurat"
-                  }
-                ]
               },
               {
                 "type": "Footer",
@@ -345,8 +281,6 @@
                 "on-click-action": {
                   "name": "data_exchange",
                   "payload": {
-                    "problem_types": "${form.problem_types}",
-                    "condition": "${form.condition}",
                     "description": "${form.description}",
                     "photos": "${form.photos}"
                   }

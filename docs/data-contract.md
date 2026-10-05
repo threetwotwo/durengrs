@@ -19,7 +19,7 @@ both read and write it. Every field below has one meaning on both sides. Shared 
 |---|---|---|---|
 | `trees/{treeId}` (e.g. `A12`) | web app (form, Kebun), bot (counts → fruit estimate, condition from reports) | both | `block, variant, condition (healthy/minor/emergency/not_assessed), conditionNotes, canopySize, trunkSize, floweringBranches, floweringClusters, estimatedFruitCount, datePlanted, supplier, notes, active, lastReportAt, lastReportId, dateUpdated`; ✱`observedStage {code: FarmStage, date, reportId}`: the latest **confirmed** stage seen on the tree; ✱`improving {reportId, date}`: "membaik" from a checked report, shown only while `lastReportId` is that report |
 | `treeEdits/{auto}` | both | web app | `treeId, changes {field: {from, to}}, at, source, workerPhone?, reason?`, one per change to a tree |
-| `reports/{auto}` | bot | both | `treeId, block, workerPhone, description, photos [{url, thumb, medium}], conditionBefore, conditionAfter, conditionChanged, createdAt`; ✱`triage` (below); ✱`review {decision: accepted/corrected/dismissed, by?, at}`; ✱`stage: FarmStage`; ✱`issues: Issue[]`; ✱`health: Health`; ✱`improving: true` ("membaik") |
+| `reports/{auto}` | bot | both | `treeId, block, workerPhone, description, photos [{url, thumb, medium}], conditionBefore, conditionAfter, conditionChanged, createdAt`; ✱`triage` (below); ✱`review {decision: accepted/corrected/dismissed, by?, at}`; ✱`stage: FarmStage`; ✱`issues: Issue[]`; ✱`health: Health`; ✱`improving: true` ("membaik"); ✱`conditionSource: 'worker' \| 'triage'` when the report changed the condition |
 | `harvestCycles/{block}` | web app, bot | both | `block, floweredOn` (the block's bloom date), `updatedAt` |
 | `bloomWaves/{treeId}_{date}_{part}` | bot, web app | both | `treeId, block, date, part (whole/lower/middle/upper/some), note?, photos?, source, workerPhone?` |
 | `cropCounts/{treeId}_{season}_{stage}_{date}` | bot, web app | both | `treeId, block, season (bloom date of the counted flowers), stage (clusters/set/kept/onTree), count, date, by?, note?, photos?, source` |
@@ -48,6 +48,10 @@ model. Shape (`src/shared/triage.ts` `Triage`):
   needsReview: boolean                                 // false only for a plain "all fine" report
 }
 ```
+
+The bot writes it on every new report (`bot/lib/shared.js` is generated from `src/shared`, so both sides read
+words the same way). **One exception to "suggestion only":** when the words read as urgent (`health: 'merah'`), the
+bot turns the tree Merah at once (`conditionSource: 'triage'`), so an emergency never waits for the inbox.
 
 **A triage is a suggestion.** Only a review (`reports.review`) sets `reports.stage / issues / health`, and from
 there `trees.observedStage` and `trees.condition`, each change logged in `treeEdits`.
