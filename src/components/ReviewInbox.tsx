@@ -72,6 +72,9 @@ export const ReviewInbox: React.FC = () => {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [by, setBy] = useState(readBy);
+  // A few at a time, so the full list below stays in reach; one tap shows up to 20.
+  const [many, setMany] = useState(false);
+  const shownN = many ? 20 : 4;
 
   const run = async (key: string, fn: () => Promise<void>) => {
     setBusy(key);
@@ -117,7 +120,7 @@ export const ReviewInbox: React.FC = () => {
         </p>
       ) : (
         <ul className="divide-y divide-slate-100">
-          {pending.slice(0, 20).map((r) => (
+          {pending.slice(0, shownN).map((r) => (
             <ReviewCard
               key={r.id}
               report={r}
@@ -130,7 +133,18 @@ export const ReviewInbox: React.FC = () => {
           ))}
         </ul>
       )}
-      {pending.length > 20 && <p className="px-4 py-2 text-xs text-slate-500 border-t border-slate-100">{t('inbox.more', { n: pending.length - 20 })}</p>}
+      {pending.length > shownN &&
+        (many ? (
+          <p className="px-4 py-2 text-xs text-slate-500 border-t border-slate-100">{t('inbox.more', { n: pending.length - shownN })}</p>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setMany(true)}
+            className="w-full min-h-11 px-4 border-t border-slate-100 text-sm font-semibold text-sky-800 hover:bg-sky-50"
+          >
+            {t('inbox.showMore', { n: Math.min(20, pending.length) - shownN })}
+          </button>
+        ))}
       {fine.length > 0 && (
         <div className="px-4 py-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 bg-slate-50">
           <span className="text-sm text-slate-700">
@@ -190,7 +204,7 @@ const ReviewCard: React.FC<{
             alt=""
             loading="lazy"
             referrerPolicy="no-referrer"
-            className="w-full aspect-square sm:w-[140px] object-cover rounded-lg border border-slate-200 bg-slate-100"
+            className="w-full aspect-[16/9] sm:aspect-square sm:w-[140px] object-cover rounded-lg border border-slate-200 bg-slate-100"
           />
         </Link>
       ) : (

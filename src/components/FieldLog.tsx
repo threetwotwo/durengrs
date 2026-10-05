@@ -1,76 +1,43 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { collection, getDocs, limit, orderBy, query, Timestamp, where } from 'firebase/firestore';
-import { AlertTriangle, ClipboardList, CloudRain, Flower2, ListChecks, Ruler, Trash2, Wheat } from 'lucide-react';
+import { collection, getDocs, limit, onSnapshot, orderBy, query, Timestamp, where } from 'firebase/firestore';
+import { Search, X } from 'lucide-react';
 import { useFarm } from '../context/FarmContext';
 import { useT } from '../i18n';
 import { db, parseReportDoc } from '../lib/firebase';
-import { useQueryParams, reportUrl } from '../lib/router';
+import { useQueryParams } from '../lib/router';
 import { LOG_KINDS, LogEntry, LogKind, TreeEdit, buildFieldLog, byDay, filterLog } from '../lib/fieldLog';
-import { removeCropCount, removeTreeBloom, saveRain, unmarkSeasonTask, GRADES } from '../lib/fieldData';
-import { SEASON_TASKS } from '../lib/fieldInsights';
-import { pick } from '../lib/guide';
-import { formatShortDate } from '../lib/treatments';
-import { plantedDateStr } from '../lib/trees';
+import { TOPICS, isTopicId, pick, topicsForText } from '../lib/guide';
+import { useGuideOn } from '../lib/guideMode';
+import type { TreeReport } from '../types';
 import { inputCls } from './PageHeader';
 import { Link } from './Link';
-import { TreeLink } from './CropWidgets';
-import { SourceBadge } from './SourceBadge';
-import { PhotoStrip } from './PhotoStrip';
-import type { TreeReport } from '../types';
+import { KIND_ICON, LogRow, canDelete, deleteRecord } from './LogParts';
 
 const PERIODS = [7, 30, 90] as const;
-const MAX_DAYS = 90;
 const PAGE = 60;
+/** Most reports read for one period; the list says so when there are more. */
+const MAX_REPORTS = 1500;
 
-const KIND_ICON: Record<LogKind, React.ComponentType<{ className?: string }>> = {
-  issue: AlertTriangle,
-  bloom: Flower2,
-  count: ClipboardList,
-  harvest: Wheat,
-  task: ListChecks,
-  rain: CloudRain,
-  treeData: Ruler,
-};
-const KIND_TONE: Record<LogKind, string> = {
-  issue: 'bg-rose-50 text-rose-700',
-  bloom: 'bg-pink-50 text-pink-700',
-  count: 'bg-amber-50 text-amber-800',
-  harvest: 'bg-emerald-50 text-emerald-700',
-  task: 'bg-teal-50 text-teal-700',
-  rain: 'bg-sky-50 text-sky-700',
-  treeData: 'bg-slate-100 text-slate-700',
-};
-const FIELD_KEY: Record<string, string> = {
-  canopySize: 'field.canopy',
-  trunkSize: 'field.trunk',
-  floweringBranches: 'field.branches',
-  floweringClusters: 'field.clusters',
-  estimatedFruitCount: 'field.fruits',
-  notes: 'common.notes',
-  conditionNotes: 'tree.conditionNotes',
-  condition: 'common.condition',
-  variant: 'common.variant',
-  block: 'common.block',
-  supplier: 'trees.col.supplier',
-  datePlanted: 'trees.col.planted',
-};
-const TEXT_FIELDS = new Set(['notes', 'conditionNotes']);
-/** Local calendar day of a time, as YYYY-MM-DD. */
-const localDay = (ms: number) => {
-  const d = new Date(ms);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+/** Condition filter values, as in the old report feed (#/reports?condition=minor). */
+const CONDITIONS = ['healthy', 'minor', 'emergency', 'not_assessed'] as const;
+const conditionOf = (r: TreeReport) => {
+  const c = (r.conditionAfter || '').toLowerCase();
+  return c === 'minor_issue' ? 'minor' : c || 'not_assessed';
 };
 
 /**
- * Every record from the field in one list: issue reports, flowerings, counts, harvests, season tasks, rain and tree
- * data edits. Filters live in the URL (#/reports?view=log&type=count&block=A ...), like the rest of the app.
+ * Laporan: every record from the field in one list, newest first, grouped by day. Worker reports, flowerings, counts,
+ * harvests, season tasks, rain and tree data edits; each row opens its own page. Filters live in the URL
+ * (#/reports?type=count&block=A&q=A12 ...), like the rest of the app.
  */
 export const FieldLog: React.FC = () => {
   const { t, lang, locale } = useT();
+  const guideOn = useGuideOn();
   const { allTrees, treeBlooms, cropCounts, harvests, seasonTasksDone, rain, workers, workerLabel } = useFarm();
   const [params, setParams] = useQueryParams();
   const [reports, setReports] = useState<TreeReport[]>([]);
   const [edits, setEdits] = useState<TreeEdit[]>([]);
+  const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [shown, setShown] = useState(PAGE);
   const [busy, setBusy] = useState<string | null>(null);
@@ -79,32 +46,44 @@ export const FieldLog: React.FC = () => {
   const daysParam = Number(params.get('days'));
   const days = (PERIODS as readonly number[]).includes(daysParam) ? daysParam : 30;
   const kind = (LOG_KINDS as readonly string[]).includes(params.get('type') || '') ? (params.get('type') as LogKind) : null;
-  const block = params.get('block') || '';
+  const block = params.get('block') && params.get('block') !== 'all' ? params.get('block')! : '';
   const tree = params.get('tree') || '';
   const who = params.get('who') || '';
+  const text = params.get('q') || '';
   const source = params.get('src') === 'whatsapp' || params.get('src') === 'webapp' ? (params.get('src') as 'whatsapp' | 'webapp') : undefined;
+  const condition = (CONDITIONS as readonly string[]).includes(params.get('condition') || '') ? params.get('condition')! : '';
+  const topicParam = params.get('topic');
+  const topic = isTopicId(topicParam) ? topicParam : null;
+  const changed = params.get('changed') === '1';
 
-  // Issue reports and tree edits are not kept in memory by the app: one read of the last 90 days when the log opens.
+  // Worker reports live (new WhatsApp reports appear at once); tree edits once per period.
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const since = Timestamp.fromMillis(Date.now() - MAX_DAYS * 86400e3);
-      const [r, e] = await Promise.allSettled([
-        getDocs(query(collection(db, 'reports'), where('createdAt', '>=', since), orderBy('createdAt', 'desc'), limit(1000))),
-        getDocs(query(collection(db, 'treeEdits'), where('at', '>=', since), orderBy('at', 'desc'), limit(1000))),
-      ]);
-      if (cancelled) return;
-      if (r.status === 'fulfilled') setReports(r.value.docs.map(parseReportDoc));
-      if (e.status === 'fulfilled') setEdits(e.value.docs.map((d) => ({ id: d.id, ...(d.data() as any) }) as TreeEdit));
-      if (r.status === 'rejected' || e.status === 'rejected') {
-        console.error('Field log load failed:', r.status === 'rejected' ? r.reason : (e as PromiseRejectedResult).reason);
+    setLoading(true);
+    const since = Timestamp.fromMillis(Date.now() - days * 86400e3);
+    const unsub = onSnapshot(
+      query(collection(db, 'reports'), where('createdAt', '>=', since), orderBy('createdAt', 'desc'), limit(MAX_REPORTS)),
+      (snap) => {
+        setReports(snap.docs.map(parseReportDoc));
+        setLoading(false);
+      },
+      (err) => {
+        console.error('Reports load failed:', err);
         setLoadError(true);
+        setLoading(false);
       }
-    })();
+    );
+    let cancelled = false;
+    getDocs(query(collection(db, 'treeEdits'), where('at', '>=', since), orderBy('at', 'desc'), limit(1000)))
+      .then((snap) => !cancelled && setEdits(snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }) as TreeEdit)))
+      .catch((err) => {
+        console.error('Tree edits load failed:', err);
+        if (!cancelled) setLoadError(true);
+      });
     return () => {
       cancelled = true;
+      unsub();
     };
-  }, []);
+  }, [days]);
 
   const blockOfTree = useMemo(() => new Map(allTrees.map((x) => [x.id, x.block])), [allTrees]);
   const all = useMemo(
@@ -123,15 +102,22 @@ export const FieldLog: React.FC = () => {
   );
   const since = Date.now() - days * 86400e3;
   const inPeriod = useMemo(() => filterLog(all, { since }), [all, since]);
-  const list = useMemo(
-    () => filterLog(inPeriod, { kinds: kind ? [kind] : undefined, block: block || undefined, tree: tree || undefined, who: who || undefined, source }),
-    [inPeriod, kind, block, tree, who, source]
+  // Report-only filters (condition, Guide topic, condition changed) keep only worker reports.
+  const report = useMemo(
+    () =>
+      condition || topic || changed
+        ? (r: TreeReport) =>
+            (!condition || conditionOf(r) === condition) && (!topic || topicsForText(r.description).includes(topic)) && (!changed || !!r.conditionChanged)
+        : undefined,
+    [condition, topic, changed]
   );
+  const common = { block: block || undefined, tree: tree || undefined, who: who || undefined, source, text: text || undefined, report };
+  const list = useMemo(() => filterLog(inPeriod, { ...common, kinds: kind ? [kind] : undefined }), [inPeriod, kind, block, tree, who, source, text, report]);
   const kindCounts = useMemo(() => {
     const m = new Map<LogKind, number>();
-    for (const e of filterLog(inPeriod, { block: block || undefined, tree: tree || undefined, who: who || undefined, source })) m.set(e.kind, (m.get(e.kind) || 0) + 1);
+    for (const e of filterLog(inPeriod, common)) m.set(e.kind, (m.get(e.kind) || 0) + 1);
     return m;
-  }, [inPeriod, block, tree, who, source]);
+  }, [inPeriod, block, tree, who, source, text, report]);
   const blocks = useMemo(() => Array.from(new Set(allTrees.map((x) => x.block).filter(Boolean))).sort(), [allTrees]);
   // Everyone who sent something in the period (named workers first).
   const senders = useMemo(() => {
@@ -141,7 +127,7 @@ export const FieldLog: React.FC = () => {
     return Array.from(seen.entries()).sort((a, b) => a[1].localeCompare(b[1]));
   }, [inPeriod, workers, workerLabel]);
   const fromWhatsApp = list.filter((e) => e.source === 'whatsapp').length;
-  const filtered = !!(kind || block || tree || who || source);
+  const filtered = !!(kind || block || tree || who || source || text || condition || topic || changed);
 
   const set = (patch: Record<string, string | null>) => {
     setShown(PAGE);
@@ -153,11 +139,7 @@ export const FieldLog: React.FC = () => {
     setBusy(e.key);
     setError(null);
     try {
-      if (e.kind === 'count') await removeCropCount(e.rec.id, e.rec.photos);
-      else if (e.kind === 'bloom') await removeTreeBloom(e.rec.id, e.rec.photos);
-      else if (e.kind === 'harvest') await import('../lib/reportAdmin').then((m) => m.deleteHarvest(e.rec));
-      else if (e.kind === 'task') await unmarkSeasonTask(e.rec.block, e.rec.season, e.rec.task);
-      else if (e.kind === 'rain') await saveRain(e.rec.date, null);
+      await deleteRecord(e);
     } catch (err: any) {
       console.error('Delete failed:', err);
       setError(err?.code === 'permission-denied' ? t('err.rulesRecords') : t('rec.saveError'));
@@ -166,82 +148,24 @@ export const FieldLog: React.FC = () => {
     }
   };
 
-  const summary = (e: LogEntry): React.ReactNode => {
-    switch (e.kind) {
-      case 'issue': {
-        const r = e.rec;
-        const changed = r.conditionChanged && r.conditionBefore && r.conditionAfter && r.conditionBefore !== r.conditionAfter;
-        return (
-          <>
-            {changed && <span className="block font-semibold">{t(`cond.${r.conditionBefore}`)} → {t(`cond.${r.conditionAfter}`)}</span>}
-            <span className="line-clamp-2">{r.description || t('log.s.noText')}</span>
-          </>
-        );
-      }
-      case 'bloom':
-        return t('log.s.bloom', { date: formatShortDate(e.rec.date), part: t(`guide.part.${e.rec.part}`) });
-      case 'count':
-        return (
-          <>
-            <span className="font-semibold">{t(`crop.stage.${e.rec.stage}`)}: {e.rec.count}</span>
-            <span className="text-slate-500"> · {t('log.s.wave', { date: formatShortDate(e.rec.season) })}</span>
-            {e.timed && e.rec.date !== localDay(e.at) && <span className="text-slate-500"> · {t('log.s.countedOn', { date: formatShortDate(e.rec.date) })}</span>}
-          </>
-        );
-      case 'harvest': {
-        const h = e.rec;
-        const grades = GRADES.filter((g) => h.grades?.[g]).map((g) => `${t(`grade.${g}.short`)} ${h.grades![g]}`).join(', ');
-        return (
-          <>
-            <span className="font-semibold">{t('log.s.fruit', { n: h.fruits })}</span>
-            {h.weightKg ? ` · ${h.weightKg} kg` : ''}
-            {grades ? ` · ${grades}` : ''}
-            {h.problems?.length ? ` · ${h.problems.map((p) => t(`rec.hv.p.${p}`)).join(', ')}${h.problemFruits ? ` (${h.problemFruits})` : ''}` : ''}
-            {e.timed && h.date !== localDay(e.at) && <span className="text-slate-500"> · {t('log.s.pickedOn', { date: formatShortDate(h.date) })}</span>}
-          </>
-        );
-      }
-      case 'task':
-        return (
-          <>
-            <span className="font-semibold">{SEASON_TASKS[e.rec.task] ? pick(SEASON_TASKS[e.rec.task].title, lang) : e.rec.task}</span>
-            <span className="text-slate-500"> · {t('log.s.doneOn', { date: formatShortDate(e.rec.date) })}</span>
-          </>
-        );
-      case 'rain':
-        return (
-          <>
-            <span className="font-semibold tabular">{e.rec.rainMm} mm</span>
-            <span className="text-slate-500"> · {formatShortDate(e.rec.date)}</span>
-          </>
-        );
-      case 'treeData': {
-        const parts = Object.entries(e.rec.changes || {}).map(([f, c]) => {
-          if (f === 'active') return c.to === false ? t('log.s.archived') : t('log.s.restored');
-          const label = FIELD_KEY[f] ? t(FIELD_KEY[f]) : f;
-          if (TEXT_FIELDS.has(f)) return t('log.s.textChanged', { field: label });
-          const show = (v: unknown) =>
-            v === null || v === undefined || v === '' ? '—' : f === 'condition' ? t(`cond.${v}`) : f === 'datePlanted' ? formatShortDate(plantedDateStr(v)) || '—' : typeof v === 'object' ? '…' : String(v);
-          return `${label}: ${show(c.from)} → ${show(c.to)}`;
-        });
-        return parts.join(' · ');
-      }
-    }
-  };
-
   const groups = byDay(list.slice(0, shown));
   const chip = (on: boolean) =>
     `min-h-9 px-3 rounded-full border text-sm font-semibold inline-flex items-center gap-1.5 ${on ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'}`;
+  const tag = 'min-h-8 pl-3 pr-1.5 rounded-full bg-sky-50 border border-sky-200 text-xs font-semibold text-sky-900 inline-flex items-center gap-1';
 
   return (
     <div className="space-y-4">
       <div className="bg-white p-3 sm:p-4 rounded-xl border border-slate-200 shadow-xs space-y-3">
-        <div className="flex flex-wrap items-center gap-2" role="group" aria-label={t('log.period')}>
-          {PERIODS.map((d) => (
-            <button key={d} type="button" aria-pressed={days === d} onClick={() => set({ days: d === 30 ? null : String(d) })} className={chip(days === d)}>
-              {t('log.days', { n: d })}
-            </button>
-          ))}
+        <div className="relative">
+          <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+          <input
+            type="search"
+            value={text}
+            onChange={(e) => set({ q: e.target.value || null })}
+            placeholder={t('rep.search.placeholder')}
+            aria-label={t('rep.search.aria')}
+            className={`${inputCls} pl-9`}
+          />
         </div>
         <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label={t('log.type')}>
           <button type="button" aria-pressed={!kind} onClick={() => set({ type: null })} className={chip(!kind)}>
@@ -258,20 +182,24 @@ export const FieldLog: React.FC = () => {
             );
           })}
         </div>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
-          <input
-            type="search"
-            value={tree}
-            onChange={(e) => set({ tree: e.target.value.toUpperCase().replace(/\s+/g, '') || null })}
-            placeholder={t('log.tree.placeholder')}
-            aria-label={t('log.tree.aria')}
-            className={inputCls}
-          />
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-2">
+          <select value={String(days)} onChange={(e) => set({ days: e.target.value === '30' ? null : e.target.value })} aria-label={t('log.period')} className={inputCls}>
+            {PERIODS.map((d) => (
+              <option key={d} value={d}>{t('log.days', { n: d })}</option>
+            ))}
+          </select>
           <select value={block} onChange={(e) => set({ block: e.target.value || null })} aria-label={t('common.block')} className={inputCls}>
             <option value="">{t('common.allBlocks')}</option>
             {blocks.map((b) => (
               <option key={b} value={b}>{t('common.blockN', { n: b })}</option>
             ))}
+          </select>
+          <select value={condition} onChange={(e) => set({ condition: e.target.value || null })} aria-label={t('rep.filter.condition')} className={inputCls}>
+            <option value="">{t('common.allConditions')}</option>
+            <option value="healthy">{t('cond.healthy')}</option>
+            <option value="minor">{t('rep.cond.minor')}</option>
+            <option value="emergency">{t('cond.emergency')}</option>
+            <option value="not_assessed">{t('cond.not_assessed')}</option>
           </select>
           <select value={who} onChange={(e) => set({ who: e.target.value || null })} aria-label={t('log.who')} className={inputCls}>
             <option value="">{t('log.who.all')}</option>
@@ -279,16 +207,44 @@ export const FieldLog: React.FC = () => {
               <option key={id} value={id}>{label}</option>
             ))}
           </select>
-          <select value={source || ''} onChange={(e) => set({ src: e.target.value || null })} aria-label={t('log.source')} className={inputCls}>
+          <select value={source || ''} onChange={(e) => set({ src: e.target.value || null })} aria-label={t('log.source')} className={`${inputCls} col-span-2 lg:col-span-1`}>
             <option value="">{t('log.source.all')}</option>
             <option value="whatsapp">WhatsApp</option>
             <option value="webapp">{t('log.source.webapp')}</option>
           </select>
         </div>
+        {(tree || topic || changed) && (
+          <div className="flex flex-wrap items-center gap-1.5">
+            {tree && (
+              <button type="button" onClick={() => set({ tree: null })} className={tag}>
+                {t('rep.treeN', { id: tree })} <X className="w-3.5 h-3.5" aria-label={t('common.clear')} />
+              </button>
+            )}
+            {topic && (
+              <button type="button" onClick={() => set({ topic: null })} className={tag}>
+                {pick(TOPICS.find((tp) => tp.id === topic)!.title, lang)} <X className="w-3.5 h-3.5" aria-label={t('common.clear')} />
+              </button>
+            )}
+            {changed && (
+              <button type="button" onClick={() => set({ changed: null })} className={tag}>
+                {t('rep.filter.changed')} <X className="w-3.5 h-3.5" aria-label={t('common.clear')} />
+              </button>
+            )}
+            {topic && guideOn && (
+              <Link to={`/guide/${topic}`} className="text-xs font-semibold text-emerald-700 hover:underline">
+                {t('rep.topic.read', { topic: pick(TOPICS.find((tp) => tp.id === topic)!.title, lang) })}
+              </Link>
+            )}
+          </div>
+        )}
         <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600">
           <span className="tabular">{t('log.summary', { n: list.length, wa: fromWhatsApp })}</span>
           {filtered && (
-            <button type="button" onClick={() => set({ type: null, block: null, tree: null, who: null, src: null })} className="font-semibold text-rose-700 min-h-8">
+            <button
+              type="button"
+              onClick={() => set({ type: null, block: null, tree: null, who: null, src: null, q: null, condition: null, topic: null, changed: null })}
+              className="font-semibold text-rose-700 min-h-8"
+            >
               {t('log.reset')}
             </button>
           )}
@@ -297,8 +253,15 @@ export const FieldLog: React.FC = () => {
 
       {loadError && <p role="alert" className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-sm text-amber-900">{t('log.loadError')}</p>}
       {error && <p role="alert" className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-sm text-rose-800">{error}</p>}
+      {reports.length >= MAX_REPORTS && <p role="status" className="text-xs text-slate-600">{t('log.capped', { n: MAX_REPORTS })}</p>}
 
-      {list.length === 0 ? (
+      {loading && list.length === 0 ? (
+        <div className="space-y-3">
+          {[...Array(3)].map((_, i) => (
+            <div key={i} className="h-28 bg-white rounded-xl border border-slate-200 animate-pulse" />
+          ))}
+        </div>
+      ) : list.length === 0 ? (
         <p className="bg-white rounded-xl border border-slate-200 p-8 text-center text-sm text-slate-600">{t('log.empty')}</p>
       ) : (
         <div className="space-y-4">
@@ -308,46 +271,9 @@ export const FieldLog: React.FC = () => {
                 {new Date(`${g.day}T12:00:00`).toLocaleDateString(locale, { weekday: 'long', day: 'numeric', month: 'long' })}
               </h3>
               <ul className="divide-y divide-slate-100">
-                {g.items.map((e) => {
-                  const Icon = KIND_ICON[e.kind];
-                  const deletable = e.kind !== 'issue' && e.kind !== 'treeData';
-                  return (
-                    <li key={e.key} className="flex items-start gap-3 px-4 py-3">
-                      <span className={`mt-0.5 w-8 h-8 shrink-0 rounded-lg inline-flex items-center justify-center ${KIND_TONE[e.kind]}`} title={t(`log.kind.${e.kind}`)}>
-                        <Icon className="w-4 h-4" />
-                      </span>
-                      <div className="min-w-0 flex-1 space-y-0.5">
-                        <p className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm">
-                          <span className="font-semibold text-slate-900">{t(`log.kind.${e.kind}`)}</span>
-                          {e.treeId ? <TreeLink id={e.treeId} /> : e.block ? <span className="text-slate-700">{t('common.blockN', { n: e.block })}</span> : null}
-                          {e.treeId && e.block && <span className="text-xs text-slate-500">{t('common.blockN', { n: e.block })}</span>}
-                        </p>
-                        <div className="text-sm text-slate-800 min-w-0">{summary(e)}</div>
-                        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500">
-                          {e.timed && <span className="tabular">{new Date(e.at).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })}</span>}
-                          {e.who && <span>{workerLabel(e.who)}</span>}
-                          {e.source === 'whatsapp' ? <SourceBadge source="whatsapp" /> : <span>{t('log.source.webapp')}</span>}
-                        </p>
-                        <PhotoStrip photos={e.photos} caption={`${t(`log.kind.${e.kind}`)} · ${e.treeId || e.block || ''}`} />
-                      </div>
-                      {e.kind === 'issue' ? (
-                        <Link to={reportUrl(e.rec.id)} className="shrink-0 min-h-9 px-3 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 inline-flex items-center hover:bg-slate-50">
-                          {t('log.open')}
-                        </Link>
-                      ) : deletable ? (
-                        <button
-                          type="button"
-                          disabled={busy === e.key}
-                          onClick={() => remove(e)}
-                          className="shrink-0 p-2 rounded-lg text-slate-500 hover:bg-slate-100 disabled:opacity-50"
-                          aria-label={t('rec.delete')}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      ) : null}
-                    </li>
-                  );
-                })}
+                {g.items.map((e) => (
+                  <LogRow key={e.key} entry={e} busy={busy === e.key} onDelete={canDelete(e.kind) ? () => remove(e) : undefined} />
+                ))}
               </ul>
             </section>
           ))}

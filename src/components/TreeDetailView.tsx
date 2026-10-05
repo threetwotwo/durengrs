@@ -4,6 +4,7 @@ import { useFarm, formatDateTime, formatDate, normalizeTimestamp } from '../cont
 import { DurianTree, TreeCondition, TreeReport } from '../types';
 import { ConditionBadge } from './ConditionBadge';
 import { ReportCard } from './ReportCard';
+import { Link } from './Link';
 import { navigate, setNavigationBlocker, treeUrl, treesUrl } from '../lib/router';
 import { formatShortDate, toDateStr } from '../lib/treatments';
 import { PhotoLightbox, type GalleryItem } from './PhotoLightbox';
@@ -784,6 +785,9 @@ export const TreeDetailView: React.FC<TreeDetailViewProps> = ({ treeId, onBack }
               <p className="text-xs text-slate-600 mt-0.5">
                 {t('tree.logSubtitle', { id: treeId })}
               </p>
+              <Link to={`/reports?tree=${encodeURIComponent(treeId)}&days=90`} className="inline-flex min-h-8 items-center text-xs font-semibold text-emerald-700 hover:underline">
+                {t('tree.allRecords')}
+              </Link>
             </div>
             {treeReports.length > 0 && (
               <span className="text-xs font-sans text-slate-500">

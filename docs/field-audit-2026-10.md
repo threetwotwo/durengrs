@@ -195,7 +195,7 @@ own words map onto that. **Proposed farm scale** (codes are internal, labels are
 | Stage board on Hari ini | **Done.** Per block: trees by observed stage, not seen, how many don't fit the bloom date, and the expected stages. |
 | Review from the report page | **Done.** The same Benar / Ubah / Abaikan sits on each report's page; checked values can be changed later. |
 | Photo AI triage | Later, behind the same `Triage` shape, once there's an API key. |
-| Field record page for every kind; one Laporan list | Next. |
+| Field record page for every kind; one Laporan list | **Done.** Laporan is one list (worker reports, flowering, counts, harvests, tasks, rain, tree data) with search, kind, block, condition, sender and source filters; every row opens its page (`#/reports/<id>` for a worker report, `#/reports/<kind>:<id>` for the rest). The review inbox shows 4 at a time above it. Tree pages link to all their records. |
 | Kebun sheet view | Next. |
 | Lighter navigation; Hijau / Kuning / Merah everywhere | Next. |
 | Bot: photo + words mandatory, no menus, instant reply | Waiting for the bot code. |

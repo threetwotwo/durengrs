@@ -6,11 +6,13 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { TAB_TITLES, goBack, navigate, useRoute } from './lib/router';
 import { AlertCircle, RefreshCw } from 'lucide-react';
 import { useT } from './i18n';
+import { parseRecordKey } from './lib/fieldLog';
 
 const TreesTable = lazy(() => import('./components/TreesTable').then((m) => ({ default: m.TreesTable })));
 const TreeDetailView = lazy(() => import('./components/TreeDetailView').then((m) => ({ default: m.TreeDetailView })));
 const VariantsPage = lazy(() => import('./components/VariantsPage').then((m) => ({ default: m.VariantsPage })));
 const ReportDetailView = lazy(() => import('./components/ReportDetailView').then((m) => ({ default: m.ReportDetailView })));
+const RecordDetailView = lazy(() => import('./components/RecordDetailView').then((m) => ({ default: m.RecordDetailView })));
 const ReportsPage = lazy(() => import('./components/ReportsPage').then((m) => ({ default: m.ReportsPage })));
 const SchedulePage = lazy(() => import('./components/SchedulePage').then((m) => ({ default: m.SchedulePage })));
 const HarvestPage = lazy(() => import('./components/HarvestPage').then((m) => ({ default: m.HarvestPage })));
@@ -82,7 +84,16 @@ const AppContent: React.FC = () => {
                   <TreesTable />
                 ))}
               {route.tab === 'variants' && <VariantsPage />}
-              {route.tab === 'reports' && (route.reportId ? <ReportDetailView key={route.reportId} reportId={route.reportId} /> : <ReportsPage />)}
+              {route.tab === 'reports' &&
+                (route.reportId ? (
+                  parseRecordKey(route.reportId) ? (
+                    <RecordDetailView key={route.reportId} {...parseRecordKey(route.reportId)!} />
+                  ) : (
+                    <ReportDetailView key={route.reportId} reportId={route.reportId} />
+                  )
+                ) : (
+                  <ReportsPage />
+                ))}
               {route.tab === 'guide' && <GuidePage />}
             </Suspense>
           </ErrorBoundary>

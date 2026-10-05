@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildFieldLog, byDay, filterLog } from '../src/lib/fieldLog';
+import { buildFieldLog, byDay, filterLog, parseRecordKey, recordKey } from '../src/lib/fieldLog';
 
 const ts = (iso: string) => ({ seconds: Date.parse(iso) / 1000, nanoseconds: 0 });
 const P = '628111886551';
@@ -53,4 +53,25 @@ test('grouped by day', () => {
   const days = byDay(log);
   assert.equal(days[0].items[0].key, 'count:c1');
   assert.equal(days.reduce((n, d) => n + d.items.length, 0), log.length);
+});
+
+test('every record has a page: reports by their id, the rest as kind:id (rain by date)', () => {
+  const keys = log.map(recordKey);
+  assert.deepEqual(keys, ['count:c1', 'r1', 'rain:2026-10-04', 'task:B_2026-09-15_bagging', 'treeData:e1', 'harvest:h1', 'count:c2', 'treeData:e3', 'bloom:A1_2026-09-15_middle']);
+  assert.deepEqual(parseRecordKey('count:c1'), { kind: 'count', id: 'c1' });
+  assert.deepEqual(parseRecordKey('rain:2026-10-04'), { kind: 'rain', id: '2026-10-04' });
+  assert.equal(parseRecordKey('r1'), null);
+  assert.equal(parseRecordKey('issue:r1'), null);
+  assert.equal(parseRecordKey('nope:x'), null);
+});
+
+test('search: a tree id matches that tree only, digits match the sender, words match the note', () => {
+  assert.deepEqual(filterLog(log, { text: 'a1' }).map((e) => e.key), ['count:c1', 'issue:r1', 'edit:e1', 'edit:e3', 'bloom:A1_2026-09-15_middle']);
+  assert.deepEqual(filterLog(log, { text: '3333' }).map((e) => e.key), ['harvest:h1']);
+  assert.deepEqual(filterLog(log, { text: 'daun' }).map((e) => e.key), ['issue:r1']);
+  assert.deepEqual(filterLog(log, { text: 'A1 kuning' }).map((e) => e.key), ['issue:r1']);
+});
+
+test('a report-only filter leaves out the other kinds', () => {
+  assert.deepEqual(filterLog(log, { report: (r) => /kuning/i.test(r.description || '') }).map((e) => e.key), ['issue:r1']);
 });

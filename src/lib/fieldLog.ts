@@ -94,6 +94,33 @@ export function buildFieldLog(input: {
   return out.sort((a, b) => b.at - a.at || a.key.localeCompare(b.key));
 }
 
+/**
+ * Where a record opens: a worker report keeps its document id (#/reports/abc123); every other kind is
+ * "<kind>:<id>" (#/reports/count:A1_2026-09-01_set_2026-09-20). Rain is keyed by its date.
+ */
+export function recordKey(e: LogEntry): string {
+  if (e.kind === 'issue') return e.rec.id;
+  return `${e.kind}:${e.kind === 'rain' ? e.rec.date : e.rec.id}`;
+}
+
+/** The kind and id in a record key; null for a plain report id. */
+export function parseRecordKey(key: string): { kind: Exclude<LogKind, 'issue'>; id: string } | null {
+  const i = key.indexOf(':');
+  if (i < 1) return null;
+  const kind = key.slice(0, i) as LogKind;
+  const id = key.slice(i + 1);
+  if (kind === 'issue' || !(LOG_KINDS as readonly string[]).includes(kind) || !id) return null;
+  return { kind: kind as Exclude<LogKind, 'issue'>, id };
+}
+
+/** Words a record can be found by: tree, block, the worker's words or note, and who sent it. */
+export function recordText(e: LogEntry): string {
+  const words: Array<string | undefined> = [e.treeId, e.block, e.who];
+  if (e.kind === 'issue') words.push(e.rec.description);
+  else if (e.kind === 'bloom' || e.kind === 'count') words.push(e.rec.note);
+  return words.filter(Boolean).join(' ').toLowerCase();
+}
+
 export interface LogFilter {
   kinds?: LogKind[];
   since?: number;
@@ -103,6 +130,29 @@ export interface LogFilter {
   /** Digits of a phone number, or a typed name. */
   who?: string;
   source?: 'whatsapp' | 'webapp';
+  /**
+   * Free search: a tree id ("A12" matches that tree only), phone digits (matches the sender), or words in the
+   * note. Several words must all match.
+   */
+  text?: string;
+  /** Extra test for worker reports only (condition, Guide topic...); other kinds are left out when it is set. */
+  report?: (r: TreeReport) => boolean;
+}
+
+const TREE_ID = /^[a-z]{1,2}\d{1,4}$/i;
+
+function matchesText(e: LogEntry, text: string): boolean {
+  const hay = recordText(e);
+  return text
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean)
+    .every((w) => {
+      if (TREE_ID.test(w)) return (e.treeId || '').toLowerCase() === w;
+      const d = w.replace(/\D/g, '');
+      if (d && d === w) return digits(e.who).includes(d);
+      return hay.includes(w);
+    });
 }
 
 const digits = (s?: string) => (s || '').replace(/\D/g, '');
@@ -117,6 +167,8 @@ export function filterLog(entries: LogEntry[], f: LogFilter): LogEntry[] {
     if (tree && (e.treeId || '').toUpperCase() !== tree) return false;
     if (who && (digits(e.who) || e.who) !== who) return false;
     if (f.source && e.source !== f.source) return false;
+    if (f.report && (e.kind !== 'issue' || !f.report(e.rec))) return false;
+    if (f.text?.trim() && !matchesText(e, f.text)) return false;
     return true;
   });
 }

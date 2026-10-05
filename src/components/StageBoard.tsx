@@ -52,7 +52,8 @@ export const TreeStageCell: React.FC<{ tree: DurianTree; crop?: TreeCrop; compac
           title={`${t('stage.seenOn', { date: seen.date })}${mismatch ? ` · ${t('inbox.mismatch')}` : ''}`}
         />
       )}
-      {expected && (!compact || !seen) && <StagePill stage={expected} active={!seen} />}
+      {/* The expected stage only adds something when nothing recent was seen, or it says something else. */}
+      {expected && (!seen || (!compact && (seen.stale || FARM_STAGE_INFO[seen.code].engine !== expected))) && <StagePill stage={expected} active={!seen} />}
     </span>
   );
 };
