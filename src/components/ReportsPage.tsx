@@ -4,6 +4,7 @@ import { ReportCard } from './ReportCard';
 import { PageHeader, inputCls } from './PageHeader';
 import { ActivityView } from './ActivityView';
 import { FieldLog } from './FieldLog';
+import { ReviewInbox } from './ReviewInbox';
 import { Link } from './Link';
 import { useQueryParams } from '../lib/router';
 import { useT } from '../i18n';
@@ -151,6 +152,8 @@ export const ReportsPage: React.FC = () => {
 
       {showLog ? <FieldLog /> : showActivity ? <ActivityView /> : (
       <>
+      {/* Reports a person hasn't looked at yet, with what the system read from them. */}
+      <ReviewInbox />
       <div className={`bg-white p-3 sm:p-4 rounded-xl border border-slate-200 shadow-xs grid grid-cols-2 gap-2.5 items-center ${guideOn ? 'lg:grid-cols-[1fr_auto_auto_auto_auto_auto]' : 'lg:grid-cols-[1fr_auto_auto_auto_auto]'}`}>
         <div className="relative col-span-2 lg:col-span-1">
           <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />

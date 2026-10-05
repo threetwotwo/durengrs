@@ -324,6 +324,7 @@ export const FarmProvider: React.FC<{ children: React.ReactNode }> = ({ children
               conditionUpdatedAt: data.conditionUpdatedAt,
               lastReportAt: data.lastReportAt,
               lastReportId: data.lastReportId,
+              observedStage: data.observedStage && typeof data.observedStage.code === 'string' ? data.observedStage : undefined,
             };
           });
 

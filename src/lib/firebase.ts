@@ -181,6 +181,11 @@ export function parseReportDoc(docSnap: DocumentSnapshot): TreeReport {
     conditionAfter: data.conditionAfter,
     conditionChanged: Boolean(data.conditionChanged),
     createdAt: data.createdAt,
+    triage: data.triage && Array.isArray(data.triage.issues) ? data.triage : undefined,
+    review: data.review && data.review.decision ? data.review : undefined,
+    stage: typeof data.stage === 'string' ? data.stage : undefined,
+    issues: Array.isArray(data.issues) ? data.issues : undefined,
+    health: data.health === 'hijau' || data.health === 'kuning' || data.health === 'merah' ? data.health : undefined,
   };
 }
 

@@ -95,7 +95,7 @@ export const ISSUE_INFO: Record<Issue, IssueInfo> = {
     topic: 'nutrition',
     health: 'kuning',
     nextStep: { id: 'Foto daun tua dan daun muda berdampingan.', en: 'Photograph old and young leaves side by side.' },
-    keywords: ['daun kuning', 'menguning', 'kurang daun', 'daun kurang', 'daun pucat', 'pucat', 'daun sedikit'],
+    keywords: ['daun kuning', 'menguning', 'kurang daun', 'daun kurang', 'daun pucat', 'pucat'],
   },
   water: {
     code: 'water',

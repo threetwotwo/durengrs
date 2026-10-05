@@ -31,6 +31,7 @@ test('issue words from the sheet and reports', () => {
   assert.deepEqual(issues('Daun kurang'), ['nutrient']);
   assert.deepEqual(issues('Ada ulat penggerek di buah, lubang kecil'), ['borer']);
   assert.deepEqual(issues('tidak ada kutu, aman'), []);
+  assert.deepEqual(issues('Pp, hawar daun sedikit, membaik'), ['leaf_blight']);
 });
 
 test('health and review', () => {

@@ -37,6 +37,8 @@ export interface DurianTree {
   conditionUpdatedAt?: string | { seconds: number; nanoseconds: number } | any;
   lastReportAt?: string | { seconds: number; nanoseconds: number } | any;
   lastReportId?: string;
+  /** Latest confirmed stage seen on the tree (farm scale code, src/shared/stages), from a reviewed report. */
+  observedStage?: { code: string; date: string; reportId?: string };
 }
 
 export interface ReportPhoto {
@@ -59,6 +61,14 @@ export interface TreeReport {
   conditionAfter?: TreeCondition | string;
   conditionChanged?: boolean;
   createdAt?: string | { seconds: number; nanoseconds: number } | any;
+  /** Suggestion from the worker's words (or a photo model): see src/shared/triage.ts and docs/data-contract.md. */
+  triage?: import('../shared').Triage;
+  /** Set when a person has looked at the report in the review inbox. */
+  review?: { decision: 'accepted' | 'corrected' | 'dismissed'; by?: string; at?: any };
+  /** Confirmed by the review. */
+  stage?: string;
+  issues?: string[];
+  health?: 'hijau' | 'kuning' | 'merah';
 }
 
 export interface TreeEditAudit {

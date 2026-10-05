@@ -1,0 +1,308 @@
+import React, { useEffect, useMemo, useState } from 'react';
+import { Check, CheckCircle2, Pencil, X } from 'lucide-react';
+import { collection, limit, onSnapshot, orderBy, query, Timestamp, where } from 'firebase/firestore';
+import { db, parseReportDoc } from '../lib/firebase';
+import { useFarm } from '../context/FarmContext';
+import { useT } from '../i18n';
+import { reportUrl, treeUrl } from '../lib/router';
+import { rememberReport } from '../lib/reportCache';
+import { acceptAll, needsReview, reportTriage, saveReview, suggestedValues, type ReviewValues } from '../lib/review';
+import { FARM_STAGES, FARM_STAGE_INFO, HEALTH, HEALTH_INFO, IMPROVING, ISSUES, ISSUE_INFO, stageMismatch, type FarmStage, type Health, type Issue } from '../shared';
+import type { DurianTree, TreeReport } from '../types';
+import { Link } from './Link';
+import { Sheet, fieldLabel } from './Sheet';
+import { ReportDate } from './ReportDate';
+import { StagePill } from './GuideWidgets';
+import { FarmStageChip, HealthPill, IssueChip } from './FieldStage';
+import { useCrops } from './useCrops';
+
+/**
+ * "Perlu dicek": worker reports from the last 30 days that a person hasn't looked at yet, each with what the system
+ * read from the words (stage, issue, health). One tap confirms; "Ubah" corrects; confirmed values update the tree.
+ */
+
+const DAYS = 30;
+
+export function useRecentReports(days = DAYS) {
+  const [reports, setReports] = useState<TreeReport[]>([]);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    const since = Timestamp.fromMillis(Date.now() - days * 24 * 60 * 60 * 1000);
+    return onSnapshot(
+      query(collection(db, 'reports'), where('createdAt', '>=', since), orderBy('createdAt', 'desc'), limit(300)),
+      (snap) => {
+        setReports(snap.docs.map(parseReportDoc));
+        setLoading(false);
+      },
+      (err) => {
+        console.error('Review inbox load failed:', err);
+        setLoading(false);
+      }
+    );
+  }, [days]);
+  return { reports, loading };
+}
+
+const readBy = () => {
+  try {
+    return localStorage.getItem('cilowong.by') || '';
+  } catch {
+    return '';
+  }
+};
+
+export const ReviewInbox: React.FC = () => {
+  const { t } = useT();
+  const { trees } = useFarm();
+  const { reports, loading } = useRecentReports();
+  const treeById = useMemo(() => new Map(trees.map((x) => [x.id, x])), [trees]);
+  const pending = reports.filter(needsReview);
+  const fine = reports.filter((r) => !r.review && !needsReview(r));
+  const [editing, setEditing] = useState<TreeReport | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [by, setBy] = useState(readBy);
+
+  const run = async (key: string, fn: () => Promise<void>) => {
+    setBusy(key);
+    setError(null);
+    try {
+      await fn();
+    } catch (e: any) {
+      console.error('Review save failed:', e);
+      setError(e?.code === 'permission-denied' ? t('err.rulesRecords') : t('rec.saveError'));
+    } finally {
+      setBusy(null);
+    }
+  };
+  const who = by.trim() || undefined;
+
+  if (loading) return null;
+  return (
+    <section className="bg-white rounded-xl border-2 border-sky-200 overflow-hidden" aria-labelledby="inbox-h">
+      <div className="px-4 py-3 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h2 id="inbox-h" className="text-base font-bold text-slate-900">
+            {t('inbox.title')} <span className="tabular text-slate-500 font-medium">({pending.length})</span>
+          </h2>
+          <p className="text-xs text-slate-600">{t('inbox.sub')}</p>
+        </div>
+        <label className="text-xs text-slate-600 inline-flex items-center gap-2">
+          {t('inbox.by')}
+          <input
+            value={by}
+            onChange={(e) => {
+              setBy(e.target.value);
+              try {
+                localStorage.setItem('cilowong.by', e.target.value.trim());
+              } catch {
+                /* ignore */
+              }
+            }}
+            className="min-h-9 w-32 px-2 rounded-lg border border-slate-300 text-sm"
+          />
+        </label>
+      </div>
+      {error && <p role="alert" className="px-4 py-2 text-sm text-rose-700 bg-rose-50">{error}</p>}
+      {pending.length === 0 ? (
+        <p className="p-5 text-sm text-slate-600 flex items-center gap-2">
+          <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+          {t('inbox.empty')}
+        </p>
+      ) : (
+        <ul className="divide-y divide-slate-100">
+          {pending.slice(0, 20).map((r) => (
+            <ReviewCard
+              key={r.id}
+              report={r}
+              tree={treeById.get(r.treeId)}
+              busy={busy === r.id}
+              onAccept={() => run(r.id, () => saveReview(r, treeById.get(r.treeId), 'accepted', suggestedValues(reportTriage(r)), who))}
+              onEdit={() => setEditing(r)}
+              onDismiss={() => run(r.id, () => saveReview(r, treeById.get(r.treeId), 'dismissed', { issues: [] }, who))}
+            />
+          ))}
+        </ul>
+      )}
+      {pending.length > 20 && <p className="px-4 py-2 text-xs text-slate-500 border-t border-slate-100">{t('inbox.more', { n: pending.length - 20 })}</p>}
+      {fine.length > 0 && (
+        <div className="px-4 py-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 bg-slate-50">
+          <span className="text-sm text-slate-700">
+            <HealthPill health="hijau" /> {t('inbox.fine', { n: fine.length })}{' '}
+            <span className="text-xs text-slate-500">{fine.slice(0, 8).map((r) => r.treeId).join(', ')}{fine.length > 8 ? '…' : ''}</span>
+          </span>
+          <button
+            type="button"
+            disabled={busy === 'fine'}
+            onClick={() => run('fine', () => acceptAll(fine.map((r) => ({ report: r, tree: treeById.get(r.treeId) })), who))}
+            className="min-h-10 px-3 rounded-lg border border-emerald-300 bg-white text-sm font-semibold text-emerald-800 hover:bg-emerald-50 inline-flex items-center gap-1.5"
+          >
+            <Check className="w-4 h-4" />
+            {t('inbox.fineAll')}
+          </button>
+        </div>
+      )}
+      {editing && (
+        <ReviewSheet
+          report={editing}
+          onClose={() => setEditing(null)}
+          onSave={(v) =>
+            run(editing.id, async () => {
+              await saveReview(editing, treeById.get(editing.treeId), 'corrected', v, who);
+              setEditing(null);
+            })
+          }
+        />
+      )}
+    </section>
+  );
+};
+
+const ReviewCard: React.FC<{
+  report: TreeReport;
+  tree?: DurianTree;
+  busy: boolean;
+  onAccept: () => void;
+  onEdit: () => void;
+  onDismiss: () => void;
+}> = ({ report, tree, busy, onAccept, onEdit, onDismiss }) => {
+  const { t } = useT();
+  const { workerLabel } = useFarm();
+  const { crops } = useCrops();
+  const tr = reportTriage(report);
+  const photo = report.photos?.[0];
+  const crop = crops.find((c) => c.tree.id === report.treeId);
+  const expected = crop?.waves[0]?.stage;
+  const empty = !tr.stage && tr.issues.length === 0 && !tr.health;
+  return (
+    <li className="p-4 grid gap-3 sm:grid-cols-[140px_1fr]">
+      {photo ? (
+        <Link to={reportUrl(report.id)} onClick={() => rememberReport(report)} className="block">
+          <img
+            src={photo.medium || photo.thumb || photo.url}
+            alt=""
+            loading="lazy"
+            referrerPolicy="no-referrer"
+            className="w-full aspect-square sm:w-[140px] object-cover rounded-lg border border-slate-200 bg-slate-100"
+          />
+        </Link>
+      ) : (
+        <span className="hidden sm:flex w-[140px] aspect-square rounded-lg border border-dashed border-amber-300 bg-amber-50 text-xs text-amber-800 items-center justify-center text-center p-2">
+          {t('inbox.noPhoto')}
+        </span>
+      )}
+      <div className="min-w-0 space-y-2">
+        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+          <Link to={treeUrl(report.treeId)} className="font-bold text-slate-900 hover:text-emerald-700 hover:underline">
+            {t('rep.treeN', { id: report.treeId })}
+          </Link>
+          <span className="text-xs text-slate-500">{[tree?.variant, report.block || tree?.block ? t('common.blockN', { n: report.block || tree!.block }) : null].filter(Boolean).join(' · ')}</span>
+          <ReportDate value={report.createdAt} />
+          {report.workerPhone && <span className="text-xs text-slate-500">{workerLabel(report.workerPhone)}</span>}
+        </p>
+        <blockquote className="text-sm text-slate-800 border-l-2 border-slate-300 pl-3 whitespace-pre-line">
+          {report.description?.trim() || <span className="text-slate-400">{t('inbox.noWords')}</span>}
+        </blockquote>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-xs font-semibold text-slate-500">{tr.source === 'ai' ? t('inbox.readAi') : t('inbox.read')}</span>
+          {empty ? (
+            <span className="text-xs text-slate-500">{t('inbox.nothing')}</span>
+          ) : (
+            <>
+              {tr.stage && <FarmStageChip code={tr.stage.code} mismatch={stageMismatch(tr.stage.code, expected)} title={tr.stage.evidence} />}
+              {tr.issues.map((i) => (
+                <IssueChip key={i.code} code={i.code} />
+              ))}
+              <HealthPill health={tr.health} improving={tr.improving} />
+            </>
+          )}
+        </div>
+        {expected && (
+          <p className="text-xs text-slate-600 flex flex-wrap items-center gap-1.5">
+            {t('inbox.expected')} <StagePill stage={expected} />
+            {tr.stage && stageMismatch(tr.stage.code, expected) && <span className="text-violet-800 font-semibold">{t('inbox.mismatch')}</span>}
+          </p>
+        )}
+        <div className="flex flex-wrap gap-2 pt-1">
+          <button type="button" disabled={busy} onClick={onAccept} className="min-h-10 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold inline-flex items-center gap-1.5 disabled:opacity-60">
+            <Check className="w-4 h-4" />
+            {empty ? t('inbox.checked') : t('inbox.accept')}
+          </button>
+          <button type="button" disabled={busy} onClick={onEdit} className="min-h-10 px-3 rounded-lg border border-slate-300 bg-white text-sm font-semibold text-slate-800 hover:bg-slate-50 inline-flex items-center gap-1.5">
+            <Pencil className="w-4 h-4" />
+            {t('inbox.edit')}
+          </button>
+          <button type="button" disabled={busy} onClick={onDismiss} className="min-h-10 px-3 rounded-lg text-sm font-semibold text-slate-500 hover:text-slate-800 hover:bg-slate-100 inline-flex items-center gap-1.5">
+            <X className="w-4 h-4" />
+            {t('inbox.dismiss')}
+          </button>
+        </div>
+      </div>
+    </li>
+  );
+};
+
+/** Correct what the system read: stage (or "tidak yakin"), issues, health. */
+export const ReviewSheet: React.FC<{ report: TreeReport; onClose: () => void; onSave: (v: ReviewValues) => void }> = ({ report, onClose, onSave }) => {
+  const { t, lang } = useT();
+  const start = suggestedValues(reportTriage(report));
+  const [stage, setStage] = useState<FarmStage | undefined>(report.stage as FarmStage | undefined ?? start.stage);
+  const [issues, setIssues] = useState<Issue[]>((report.issues as Issue[] | undefined) ?? start.issues);
+  const [health, setHealth] = useState<Health | undefined>(report.health ?? start.health);
+  const [improving, setImproving] = useState(!!start.improving);
+  const chip = (on: boolean) =>
+    `min-h-10 px-3 rounded-full border text-sm font-semibold ${on ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-white border-slate-300 text-slate-700'}`;
+  return (
+    <Sheet
+      title={t('inbox.edit.title')}
+      subtitle={`${t('rep.treeN', { id: report.treeId })} · ${report.description?.slice(0, 60) || ''}`}
+      onClose={onClose}
+      footer={
+        <button type="button" onClick={() => onSave({ stage, issues, health, improving })} className="w-full min-h-12 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold">
+          {t('inbox.edit.save')}
+        </button>
+      }
+    >
+      <div>
+        <span className={fieldLabel}>{t('inbox.edit.stage')}</span>
+        <div className="flex flex-wrap gap-1.5">
+          {FARM_STAGES.map((s) => (
+            <button key={s} type="button" aria-pressed={stage === s} onClick={() => setStage(s)} className={chip(stage === s)} title={FARM_STAGE_INFO[s].sees[lang]}>
+              {FARM_STAGE_INFO[s].label[lang]}
+            </button>
+          ))}
+          <button type="button" aria-pressed={!stage} onClick={() => setStage(undefined)} className={chip(!stage)}>
+            {t('inbox.edit.unsure')}
+          </button>
+        </div>
+      </div>
+      <div>
+        <span className={fieldLabel}>{t('inbox.edit.issues')}</span>
+        <div className="flex flex-wrap gap-1.5">
+          {ISSUES.map((i) => {
+            const on = issues.includes(i);
+            return (
+              <button key={i} type="button" aria-pressed={on} onClick={() => setIssues((p) => (on ? p.filter((x) => x !== i) : [...p, i]))} className={chip(on)}>
+                {ISSUE_INFO[i].label[lang]}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      <div>
+        <span className={fieldLabel}>{t('inbox.edit.health')}</span>
+        <div className="flex flex-wrap gap-1.5">
+          {HEALTH.map((h) => (
+            <button key={h} type="button" aria-pressed={health === h} onClick={() => setHealth(h)} className={chip(health === h)}>
+              {HEALTH_INFO[h].label[lang]} · <span className="font-normal">{HEALTH_INFO[h].meaning[lang]}</span>
+            </button>
+          ))}
+        </div>
+        <label className="mt-2 inline-flex items-center gap-2 text-sm text-slate-700">
+          <input type="checkbox" checked={improving} onChange={(e) => setImproving(e.target.checked)} className="w-4 h-4 accent-emerald-600" />
+          {IMPROVING[lang]}
+        </label>
+      </div>
+    </Sheet>
+  );
+};
