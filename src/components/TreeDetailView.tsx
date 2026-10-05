@@ -31,7 +31,7 @@ import { TreeGuideSection } from './GuideWidgets';
 import { TreeCropCard } from './CropWidgets';
 import { TreeStageCell } from './StageBoard';
 import { useCrops } from './useCrops';
-import { TREE_LIMITS, checkTreeForm, plantedDateStr } from '../lib/trees';
+import { TREE_LIMITS, checkTreeForm, plantedDateStr, improvingNow } from '../lib/trees';
 import { restoreTree } from '../lib/fieldData';
 import { ArchiveTreeSheet } from './ArchiveTreeSheet';
 
@@ -356,7 +356,7 @@ export const TreeDetailView: React.FC<TreeDetailViewProps> = ({ treeId, onBack }
               <h1 className="text-xl font-bold font-mono tracking-tight text-slate-900">
                 {t('tree.label', { id: treeId })} · {tree?.variant || formData.variant || 'MK'}
               </h1>
-              <ConditionBadge condition={formData.condition} size="md" />
+              <ConditionBadge condition={formData.condition} improving={!!tree && formData.condition === tree.condition && improvingNow(tree)} size="md" />
             </div>
             <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-600 mt-0.5 font-sans">
               <span>{t('common.blockN', { n: formData.block || '—' })}{currentVariant ? ` · ${currentVariant.name}` : ''}</span>

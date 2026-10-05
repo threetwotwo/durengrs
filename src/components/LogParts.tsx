@@ -48,6 +48,7 @@ export const FIELD_KEY: Record<string, string> = {
   conditionNotes: 'tree.conditionNotes',
   condition: 'common.condition',
   observedStage: 'stage.seen',
+  improving: 'cond.improving',
   variant: 'common.variant',
   block: 'common.block',
   supplier: 'trees.col.supplier',
@@ -83,6 +84,10 @@ export function useEditValue() {
       ? '—'
       : field === 'condition'
         ? t(`cond.${v}`)
+        : field === 'improving'
+          ? v
+            ? t('common.yes')
+            : t('common.no')
         : field === 'observedStage'
           ? typeof v === 'string' && isFarmStage(v)
             ? FARM_STAGE_INFO[v].label[lang]

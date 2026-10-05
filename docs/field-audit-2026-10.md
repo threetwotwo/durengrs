@@ -197,7 +197,9 @@ own words map onto that. **Proposed farm scale** (codes are internal, labels are
 | Photo AI triage | Later, behind the same `Triage` shape, once there's an API key. |
 | Field record page for every kind; one Laporan list | **Done.** Laporan is one list (worker reports, flowering, counts, harvests, tasks, rain, tree data) with search, kind, block, condition, sender and source filters; every row opens its page (`#/reports/<id>` for a worker report, `#/reports/<kind>:<id>` for the rest). The review inbox shows 4 at a time above it. Tree pages link to all their records. |
 | Kebun sheet view | **Done** (`#/kebun`). One row per tree in William's column groups (Pohon, Ukuran, Bunga & buah, dated counts, Tahap, Kesehatan, Label, Dosis, Catatan), sticky header and ID column, sort, filters (block, stage, health, ID), column groups remembered per device, totals row. Type into a cell like Sheets (Enter/Tab/Esc/arrows); same checks and `treeEdits` log as the tree form. Paste from Google Sheets previews only the changed cells; CSV export of what's shown. Labels and dose are suggestions from `src/shared/labels.ts`; the thresholds are shown but not editable until William confirms them. |
-| Lighter navigation; Hijau / Kuning / Merah everywhere | Next. |
+| Lighter navigation; Hijau / Kuning / Merah everywhere | **Done.** Tabs: Hari ini · Kebun · Laporan · Panen · Jadwal; Pohon, Varietas, Pekerja and Panduan under "Lainnya" (a menu on desktop, a sheet on phones). Conditions read Hijau / Kuning / Merah with their meaning on hover; a checked "membaik" shows on the tree (`trees.improving`) until a newer report arrives. Stored codes are unchanged. |
+| Catatan Kebun changes, daily route push, 07:00 rain template | Waiting for the bot code (all bot-side). |
+| Firestore rules lock-down | Needs the owner: the web app would need sign-in for writes, and the bot must write with the Admin SDK first. |
 | Bot: photo + words mandatory, no menus, instant reply | Waiting for the bot code. |
 
 ---

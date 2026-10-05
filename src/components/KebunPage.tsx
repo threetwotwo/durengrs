@@ -4,7 +4,7 @@ import { useFarm } from '../context/FarmContext';
 import { useT } from '../i18n';
 import { treeUrl, useQueryParams } from '../lib/router';
 import { formatShortDate } from '../lib/treatments';
-import { plantedDateStr } from '../lib/trees';
+import { improvingNow, plantedDateStr } from '../lib/trees';
 import { type EditField, cellText, checkCell, countDates, countGrid, sameValue, toCsv, treeDraft } from '../lib/kebun';
 import type { TreeCrop } from '../lib/crop';
 import {
@@ -201,10 +201,10 @@ export const KebunPage: React.FC = () => {
         group: 'health',
         label: t('kebun.col.health'),
         sort: (r) => (r.health ? HEALTH.indexOf(r.health) : 9),
-        csv: (r) => (r.health ? HEALTH_INFO[r.health].label[lang] : ''),
+        csv: (r) => (r.health ? `${HEALTH_INFO[r.health].label[lang]}${improvingNow(r.tree) ? ` (${t('cond.improving')})` : ''}` : ''),
         cell: (r) => (
           <span title={r.tree.conditionNotes || undefined}>
-            {r.health ? <HealthPill health={r.health} /> : <span className="text-xs text-slate-400">{t('cond.not_assessed')}</span>}
+            {r.health ? <HealthPill health={r.health} improving={improvingNow(r.tree)} /> : <span className="text-xs text-slate-400">{t('cond.not_assessed')}</span>}
           </span>
         ),
       },

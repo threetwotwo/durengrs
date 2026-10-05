@@ -2,12 +2,14 @@ import type { Bundle } from './index';
 
 export const shell: Bundle = {
   id: {
-    'nav.dashboard': 'Dasbor',
+    'nav.dashboard': 'Hari ini',
     'nav.schedule': 'Jadwal',
     'nav.trees': 'Pohon',
     'nav.variants': 'Varietas',
     'nav.reports': 'Laporan',
     'nav.main': 'Menu utama',
+    'nav.more': 'Lainnya',
+    'nav.workers': 'Pekerja',
     'nav.badge.overdue': '{n} terlambat',
     'nav.badge.due': '{n} segera',
     'nav.badge.new': '{n} baru',
@@ -33,12 +35,14 @@ export const shell: Bundle = {
     'date.none': 'Tidak ada laporan',
   },
   en: {
-    'nav.dashboard': 'Dashboard',
+    'nav.dashboard': 'Today',
     'nav.schedule': 'Schedule',
     'nav.trees': 'Trees',
     'nav.variants': 'Variants',
     'nav.reports': 'Reports',
     'nav.main': 'Main',
+    'nav.more': 'More',
+    'nav.workers': 'Workers',
     'nav.badge.overdue': '{n} overdue',
     'nav.badge.due': '{n} due',
     'nav.badge.new': '{n} new',

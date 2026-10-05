@@ -13,6 +13,7 @@ import { diffDays, formatShortDate, todayStr } from '../lib/treatments';
 import { useGuideOn } from '../lib/guideMode';
 import type { TreeReport } from '../types';
 import { ConditionBadge } from './ConditionBadge';
+import { improvingNow } from '../lib/trees';
 import { Link } from './Link';
 import { PhotoAlbum } from './PhotoAlbum';
 import { PhotoLightbox, type GalleryItem } from './PhotoLightbox';
@@ -237,7 +238,7 @@ export const RecordDetailView: React.FC<{ kind: Kind; id: string }> = ({ kind, i
             <section className={card} aria-labelledby="rec-tree">
               <div className="flex items-center justify-between gap-2">
                 <h2 id="rec-tree" className={h2}>{t('rep.detail.treeNow', { id: tree.id })}</h2>
-                <ConditionBadge condition={tree.condition} size="sm" />
+                <ConditionBadge condition={tree.condition} improving={improvingNow(tree)} size="sm" />
               </div>
               <p>
                 <TreeStageCell tree={tree} crop={crop} />

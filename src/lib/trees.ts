@@ -178,3 +178,7 @@ export function checkArchive(v: { reason: string; note: string }): ArchiveCheck 
   if (v.note.length > ARCHIVE_NOTE_MAX) errors.note = { key: 'tree.arch.e.noteLong', vars: { max: ARCHIVE_NOTE_MAX } };
   return { errors };
 }
+
+/** "Membaik" still holds: set by a checked report that is still the tree's latest (a newer report clears it). */
+export const improvingNow = (t: { improving?: { reportId: string }; lastReportId?: string }) =>
+  !!t.improving && (!t.lastReportId || t.lastReportId === t.improving.reportId);

@@ -21,6 +21,7 @@ import {
 import { Confidence, TOPIC_CONTENT } from '../lib/guideContent';
 import { PLAN_TEMPLATE_BY_ID, typeLabel } from '../lib/treatments';
 import { ConditionBadge } from './ConditionBadge';
+import { improvingNow } from '../lib/trees';
 import { LabResults, WeeklyReview } from './FieldRecords';
 import { actualRipening } from '../lib/fieldInsights';
 import { Link } from './Link';
@@ -401,7 +402,7 @@ const TopicView: React.FC<{ id: TopicId }> = ({ id }) => {
                       <Link to={`/trees/${encodeURIComponent(tree.id)}`} className="font-semibold font-mono text-slate-900 hover:text-emerald-700">
                         {tree.id}
                       </Link>{' '}
-                      <ConditionBadge condition={tree.condition} size="sm" />
+                      <ConditionBadge condition={tree.condition} improving={improvingNow(tree)} size="sm" />
                       <span className="block text-xs text-slate-600 line-clamp-2">{tree.conditionNotes}</span>
                     </li>
                   ))}

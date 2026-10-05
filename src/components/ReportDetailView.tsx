@@ -12,6 +12,7 @@ import { useGuideOn } from '../lib/guideMode';
 import { useT } from '../i18n';
 import type { TreeReport } from '../types';
 import { ConditionBadge } from './ConditionBadge';
+import { improvingNow } from '../lib/trees';
 import { ReportDate } from './ReportDate';
 import { ReportCard, hasWords } from './ReportCard';
 import { ReportDeleteSheet } from './ReportDeleteSheet';
@@ -336,7 +337,7 @@ export const ReportDetailView: React.FC<{ reportId: string }> = ({ reportId }) =
             <section className={card} aria-labelledby="rd-tree">
               <div className="flex items-center justify-between gap-2">
                 <h2 id="rd-tree" className={h2}>{t('rep.detail.treeNow', { id: tree.id })}</h2>
-                <ConditionBadge condition={tree.condition} size="sm" />
+                <ConditionBadge condition={tree.condition} improving={improvingNow(tree)} size="sm" />
               </div>
               {tree.conditionNotes && <p className="text-sm text-slate-700 line-clamp-3">{tree.conditionNotes}</p>}
               <Link to={treeUrl(tree.id)} className="inline-flex items-center gap-1 text-sm font-semibold text-emerald-700 hover:underline">

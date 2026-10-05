@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useFarm, normalizeTimestamp } from '../context/FarmContext';
 import { ConditionBadge } from './ConditionBadge';
+import { improvingNow } from '../lib/trees';
 import { ReportCard } from './ReportCard';
 import { Link } from './Link';
 import { treeUrl, treesUrl } from '../lib/router';
@@ -266,7 +267,7 @@ export const Dashboard: React.FC = () => {
                     </span>
                   </Link>
                   <span className="flex flex-col items-end gap-1 shrink-0">
-                    <ConditionBadge condition={tree.condition} size="sm" />
+                    <ConditionBadge condition={tree.condition} improving={improvingNow(tree)} size="sm" />
                     <span className={`text-xs tabular ${fu.needs ? 'text-rose-700 font-semibold' : 'text-slate-500'}`}>{waitingLabel(fu)}</span>
                     {/* What the notes point to in the Guide (e.g. "getah" -> Phytophthora). */}
                     {guideOn && topics.map((id) => {

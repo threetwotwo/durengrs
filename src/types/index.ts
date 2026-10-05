@@ -39,6 +39,8 @@ export interface DurianTree {
   lastReportId?: string;
   /** Latest confirmed stage seen on the tree (farm scale code, src/shared/stages), from a reviewed report. */
   observedStage?: { code: string; date: string; reportId?: string };
+  /** "Membaik" from a checked report; shown only while that report is still the tree's latest. */
+  improving?: { reportId: string; date: string };
 }
 
 export interface ReportPhoto {

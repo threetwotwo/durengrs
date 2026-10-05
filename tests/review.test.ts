@@ -28,3 +28,22 @@ test('plain "aman" reports do not wait in the inbox; reviewed ones never do', ()
   assert.equal(needsReview({ id: 'y', treeId: 'A1', block: 'A', description: 'kutu kebul' } as any), true);
   assert.equal(needsReview({ id: 'z', treeId: 'A1', block: 'A', description: 'kutu kebul', review: { decision: 'accepted' } } as any), false);
 });
+
+test('"membaik" on the latest checked report marks the tree; a later check without it clears it', () => {
+  const r2: any = { id: 'r2', treeId: 'A3', description: 'hawar daun, membaik', createdAt: ts('2026-10-04T08:00:00+07:00') };
+  const ch = treeChanges(tree, r2, suggestedValues(triageText(r2.description)));
+  assert.deepEqual(ch.improving, { reportId: 'r2', date: '2026-10-04' });
+  const marked = { ...tree, improving: { reportId: 'r2', date: '2026-10-04' } };
+  const again = treeChanges(marked, r2, { issues: [], health: 'kuning' });
+  assert.equal(again.improving, null);
+  // An older report never touches it.
+  const r1: any = { id: 'r1', treeId: 'A3', description: 'membaik', createdAt: ts('2026-09-20T08:00:00+07:00') };
+  assert.equal(treeChanges(marked, r1, { issues: [], health: 'hijau', improving: true }).improving, undefined);
+});
+
+test('"membaik" shows only while its report is the latest', async () => {
+  const { improvingNow } = await import('../src/lib/trees');
+  assert.equal(improvingNow({ improving: { reportId: 'r2' }, lastReportId: 'r2' }), true);
+  assert.equal(improvingNow({ improving: { reportId: 'r2' }, lastReportId: 'r3' }), false);
+  assert.equal(improvingNow({ lastReportId: 'r3' }), false);
+});

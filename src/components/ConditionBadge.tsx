@@ -8,6 +8,8 @@ interface ConditionBadgeProps {
   size?: 'sm' | 'md' | 'lg';
   showIcon?: boolean;
   className?: string;
+  /** "Membaik": the last checked report said the problem is getting better. */
+  improving?: boolean;
 }
 
 export const ConditionBadge: React.FC<ConditionBadgeProps> = ({
@@ -15,6 +17,7 @@ export const ConditionBadge: React.FC<ConditionBadgeProps> = ({
   size = 'md',
   showIcon = true,
   className = '',
+  improving,
 }) => {
   const { t } = useT();
   const norm = (condition || '').toLowerCase().replace(/[\s_-]+/g, '_');
@@ -54,12 +57,16 @@ export const ConditionBadge: React.FC<ConditionBadgeProps> = ({
     lg: 'w-4 h-4',
   }[size];
 
+  // Hijau / Kuning / Merah are the owner's words; what each means stays one hover away.
+  const meaning = norm === 'healthy' || norm === 'emergency' ? t(`cond.${norm}.meaning`) : norm === 'minor' || norm === 'minor_issue' ? t('cond.minor.meaning') : undefined;
   return (
     <span
+      title={meaning}
       className={`inline-flex items-center font-medium rounded-md border shrink-0 ${sizeClasses} ${colorClasses} ${className}`}
     >
       {showIcon && <Icon className={`${iconSizes} shrink-0`} />}
       <span>{label}</span>
+      {improving && <span className="font-normal">· {t('cond.improving')}</span>}
     </span>
   );
 };

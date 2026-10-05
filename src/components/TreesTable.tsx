@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useT } from '../i18n';
 import { useFarm, formatDateTime, formatDate, normalizeTimestamp, formatTimeAgo } from '../context/FarmContext';
 import { ConditionBadge } from './ConditionBadge';
+import { improvingNow } from '../lib/trees';
 import { TreeStageCell } from './StageBoard';
 import { useCrops } from './useCrops';
 import { Link } from './Link';
@@ -396,7 +397,7 @@ export const TreesTable: React.FC = () => {
                           {tree.variant}{variantName ? ` · ${variantName}` : ''}
                         </span>
                       </span>
-                      <ConditionBadge condition={tree.condition} size="sm" className="whitespace-nowrap shrink-0" />
+                      <ConditionBadge condition={tree.condition} improving={improvingNow(tree)} size="sm" className="whitespace-nowrap shrink-0" />
                     </div>
                     <div className="flex items-center justify-between gap-2 text-sm text-slate-600">
                       <span className="flex flex-wrap items-center gap-2">
@@ -460,7 +461,7 @@ export const TreesTable: React.FC = () => {
                         </span>
                       </td>
                       <td className="py-3 px-3 text-slate-700 whitespace-nowrap">{t('common.blockN', { n: tree.block || '—' })}</td>
-                      <td className="py-3 px-3"><ConditionBadge condition={tree.condition} size="sm" className="whitespace-nowrap" /></td>
+                      <td className="py-3 px-3"><ConditionBadge condition={tree.condition} improving={improvingNow(tree)} size="sm" className="whitespace-nowrap" /></td>
                       <td className="py-3 px-3"><TreeStageCell tree={tree} crop={cropById.get(tree.id)} compact /></td>
                       <td className="py-3 px-3 text-right font-mono tabular font-bold text-emerald-800">{tree.estimatedFruitCount ?? '—'}</td>
                       {allColumns && (

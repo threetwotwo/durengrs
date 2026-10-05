@@ -4,7 +4,8 @@ import type { Bundle } from './index';
  * Shared vocabulary. Terms match the WhatsApp Flow (flow.json / index.js) exactly, so the owner
  * sees the same words the workers use:
  *   Pohon = tree, Blok = block, Laporan = report, Foto = photo, Keterangan = what the worker wrote,
- *   Catatan = notes, Kondisi pohon = tree condition, Sehat / Masalah ringan / Darurat / Belum dinilai,
+ *   Catatan = notes, Kondisi pohon = tree condition, Hijau / Kuning / Merah / Belum dinilai (the owner's sheet; the
+ *   current WhatsApp flow still says Sehat / Masalah ringan / Darurat until the bot moves into this repo),
  *   Tidak ada perubahan, Kondisi berubah, Laporan terakhir, Belum ada laporan,
  *   Lebar kanopi (cm), Lingkar batang (cm), Dahan berbunga, Tandan bunga, Perkiraan jumlah buah,
  *   Ubah data, Simpan Perubahan, Pengukuran.
@@ -27,6 +28,8 @@ export const common: Bundle = {
     'common.save': 'Simpan Perubahan',
     'common.cancel': 'Batal',
     'common.close': 'Tutup',
+    'common.yes': 'Ya',
+    'common.no': 'Tidak',
     'common.done': 'Selesai',
     'common.edit': 'Ubah',
     'common.delete': 'Hapus',
@@ -47,10 +50,14 @@ export const common: Bundle = {
     'common.viewAll': 'Lihat semua',
 
     // Condition labels = the Flow's radio options
-    'cond.healthy': 'Sehat',
-    'cond.minor': 'Masalah ringan',
-    'cond.emergency': 'Darurat',
+    'cond.healthy': 'Hijau',
+    'cond.minor': 'Kuning',
+    'cond.emergency': 'Merah',
     'cond.not_assessed': 'Belum dinilai',
+    'cond.healthy.meaning': 'Sehat',
+    'cond.minor.meaning': 'Ada masalah, pantau',
+    'cond.emergency.meaning': 'Darurat, tangani segera',
+    'cond.improving': 'Membaik',
     'cond.unchanged': 'Tidak ada perubahan',
     'cond.changed': 'Kondisi berubah',
 
@@ -89,6 +96,8 @@ export const common: Bundle = {
     'common.save': 'Save changes',
     'common.cancel': 'Cancel',
     'common.close': 'Close',
+    'common.yes': 'Yes',
+    'common.no': 'No',
     'common.done': 'Done',
     'common.edit': 'Edit',
     'common.delete': 'Delete',
@@ -108,10 +117,14 @@ export const common: Bundle = {
     'common.yesterday': 'Yesterday',
     'common.viewAll': 'View all',
 
-    'cond.healthy': 'Healthy',
-    'cond.minor': 'Minor issue',
-    'cond.emergency': 'Emergency',
+    'cond.healthy': 'Green',
+    'cond.minor': 'Yellow',
+    'cond.emergency': 'Red',
     'cond.not_assessed': 'Not assessed',
+    'cond.healthy.meaning': 'Healthy',
+    'cond.minor.meaning': 'Has a problem, watch it',
+    'cond.emergency.meaning': 'Emergency, act now',
+    'cond.improving': 'Improving',
     'cond.unchanged': 'No change',
     'cond.changed': 'Condition changed',
 

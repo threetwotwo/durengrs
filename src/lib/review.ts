@@ -36,13 +36,20 @@ const reportDate = (r: TreeReport) => {
 
 /** What a confirmed review changes on the tree. Never moves a tree back to an older observation. */
 export function treeChanges(tree: DurianTree, report: TreeReport, v: ReviewValues) {
-  const out: { observedStage?: { code: FarmStage; date: string; reportId: string }; condition?: string } = {};
+  const out: {
+    observedStage?: { code: FarmStage; date: string; reportId: string };
+    condition?: string;
+    /** "Membaik" from this report; null clears an earlier one. */
+    improving?: { reportId: string; date: string } | null;
+  } = {};
   const date = reportDate(report);
   if (v.stage && (!tree.observedStage || date >= tree.observedStage.date)) out.observedStage = { code: v.stage, date, reportId: report.id };
   const latest = tree.lastReportId === report.id || normalizeTimestamp(report.createdAt) >= normalizeTimestamp(tree.lastReportAt);
   if (v.health && latest) {
     const condition = HEALTH_INFO[v.health].condition;
     if (condition !== tree.condition) out.condition = condition;
+    if (v.improving) out.improving = { reportId: report.id, date };
+    else if (tree.improving) out.improving = null;
   }
   return out;
 }
@@ -65,7 +72,7 @@ function addReview(batch: Batch, report: TreeReport, tree: DurianTree | undefine
   batch.update(doc(db, 'reports', report.id), update);
   if (!tree || decision === 'dismissed') return;
   const ch = treeChanges(tree, report, v);
-  if (!ch.observedStage && !ch.condition) return;
+  if (!ch.observedStage && !ch.condition && ch.improving === undefined) return;
   const treeUpdate: Record<string, unknown> = { dateUpdated: serverTimestamp() };
   const changes: Record<string, { from: unknown; to: unknown }> = {};
   if (ch.observedStage) {
@@ -77,7 +84,11 @@ function addReview(batch: Batch, report: TreeReport, tree: DurianTree | undefine
     treeUpdate.conditionUpdatedAt = serverTimestamp();
     changes.condition = { from: tree.condition, to: ch.condition };
   }
-  batch.update(doc(db, 'trees', tree.id), treeUpdate);
+  if (ch.improving !== undefined) {
+    treeUpdate.improving = ch.improving ?? deleteField();
+    changes.improving = { from: !!tree.improving, to: !!ch.improving };
+  }
+    batch.update(doc(db, 'trees', tree.id), treeUpdate);
   batch.set(doc(collection(db, 'treeEdits')), { treeId: tree.id, changes, at: serverTimestamp(), source: 'webapp', reason: 'review', reportId: report.id, ...(by ? { by } : {}) });
 }
 
