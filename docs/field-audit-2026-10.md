@@ -196,7 +196,7 @@ own words map onto that. **Proposed farm scale** (codes are internal, labels are
 | Review from the report page | **Done.** The same Benar / Ubah / Abaikan sits on each report's page; checked values can be changed later. |
 | Photo AI triage | Later, behind the same `Triage` shape, once there's an API key. |
 | Field record page for every kind; one Laporan list | **Done.** Laporan is one list (worker reports, flowering, counts, harvests, tasks, rain, tree data) with search, kind, block, condition, sender and source filters; every row opens its page (`#/reports/<id>` for a worker report, `#/reports/<kind>:<id>` for the rest). The review inbox shows 4 at a time above it. Tree pages link to all their records. |
-| Kebun sheet view | Next. |
+| Kebun sheet view | **Done** (`#/kebun`). One row per tree in William's column groups (Pohon, Ukuran, Bunga & buah, dated counts, Tahap, Kesehatan, Label, Dosis, Catatan), sticky header and ID column, sort, filters (block, stage, health, ID), column groups remembered per device, totals row. Type into a cell like Sheets (Enter/Tab/Esc/arrows); same checks and `treeEdits` log as the tree form. Paste from Google Sheets previews only the changed cells; CSV export of what's shown. Labels and dose are suggestions from `src/shared/labels.ts`; the thresholds are shown but not editable until William confirms them. |
 | Lighter navigation; Hijau / Kuning / Merah everywhere | Next. |
 | Bot: photo + words mandatory, no menus, instant reply | Waiting for the bot code. |
 

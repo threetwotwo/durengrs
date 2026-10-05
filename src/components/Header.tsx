@@ -2,7 +2,7 @@ import React from 'react';
 import { useFarm, AppTab } from '../context/FarmContext';
 import { Link } from './Link';
 import { useT, type Lang } from '../i18n';
-import { LayoutDashboard, TableProperties, Sprout, ClipboardList, CalendarCheck, BookOpen, Wheat } from 'lucide-react';
+import { LayoutDashboard, TableProperties, Sprout, ClipboardList, CalendarCheck, BookOpen, Wheat, Sheet as SheetIcon } from 'lucide-react';
 import { setGuideOn, useGuideOn } from '../lib/guideMode';
 
 /** Monogram "C" with a leaf at the open end. Calm and generic on purpose. */
@@ -47,6 +47,7 @@ export function useNavItems(): NavItem[] {
 
   return [
     { id: 'dashboard', label: t('nav.dashboard'), icon: LayoutDashboard },
+    { id: 'kebun', label: t('nav.kebun'), icon: SheetIcon },
     { id: 'harvest', label: t('nav.harvest'), icon: Wheat },
     { id: 'schedule', label: t('nav.schedule'), icon: CalendarCheck, badge: scheduleBadge },
     { id: 'trees', label: t('nav.trees'), icon: TableProperties },

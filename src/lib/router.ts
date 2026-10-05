@@ -4,6 +4,7 @@ import { useCallback, useSyncExternalStore } from 'react';
  * Tiny hash router. The URL is the single source of truth for where you are:
  *
  *   #/                      dashboard
+ *   #/kebun                 the farm as one sheet (one row per tree), editable like Google Sheets
  *   #/harvest               crop tracking per tree, graded harvests, forecast
  *   #/schedule
  *   #/trees?block=A&condition=emergency&q=A1&stale=1&page=2
@@ -18,7 +19,7 @@ import { useCallback, useSyncExternalStore } from 'react';
  * gives working Back/Forward, shareable deep links, and survives reloads.
  */
 
-export type AppTab = 'dashboard' | 'harvest' | 'schedule' | 'trees' | 'variants' | 'reports' | 'guide';
+export type AppTab = 'dashboard' | 'kebun' | 'harvest' | 'schedule' | 'trees' | 'variants' | 'reports' | 'guide';
 
 export interface Route {
   tab: AppTab;
@@ -36,7 +37,7 @@ export interface Route {
   known: boolean;
 }
 
-const TABS: AppTab[] = ['dashboard', 'harvest', 'schedule', 'trees', 'variants', 'reports', 'guide'];
+const TABS: AppTab[] = ['dashboard', 'kebun', 'harvest', 'schedule', 'trees', 'variants', 'reports', 'guide'];
 
 function parseHash(hash: string): Route {
   const raw = hash.replace(/^#/, '') || '/';
@@ -189,6 +190,7 @@ export const reportUrl = (id: string) => `/reports/${encodeURIComponent(id)}`;
 /** i18n keys, resolve with t(). */
 export const TAB_TITLES: Record<AppTab, string> = {
   dashboard: 'nav.dashboard',
+  kebun: 'nav.kebun',
   harvest: 'nav.harvest',
   schedule: 'nav.schedule',
   trees: 'nav.trees',

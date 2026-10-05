@@ -8,6 +8,7 @@ import { AlertCircle, RefreshCw } from 'lucide-react';
 import { useT } from './i18n';
 import { parseRecordKey } from './lib/fieldLog';
 
+const KebunPage = lazy(() => import('./components/KebunPage').then((m) => ({ default: m.KebunPage })));
 const TreesTable = lazy(() => import('./components/TreesTable').then((m) => ({ default: m.TreesTable })));
 const TreeDetailView = lazy(() => import('./components/TreeDetailView').then((m) => ({ default: m.TreeDetailView })));
 const VariantsPage = lazy(() => import('./components/VariantsPage').then((m) => ({ default: m.VariantsPage })));
@@ -75,6 +76,7 @@ const AppContent: React.FC = () => {
           <ErrorBoundary key={lang} resetKey={route.pageKey}>
             <Suspense fallback={<div className="h-64 rounded-xl bg-white border border-slate-200 animate-pulse" />}>
               {route.tab === 'dashboard' && <Dashboard />}
+              {route.tab === 'kebun' && <KebunPage />}
               {route.tab === 'harvest' && <HarvestPage />}
               {route.tab === 'schedule' && <SchedulePage />}
               {route.tab === 'trees' &&
