@@ -1,0 +1,20 @@
+{
+  "name": "durian-firestore",
+  "version": "1.0.0",
+  "description": "Firestore connection and variants collection seeding for the Cilowong durian farm",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "test": "node --test test/*.test.js",
+    "build-flow": "node scripts/build-flow.js",
+    "seed-variants": "node seed-variants.js",
+    "seed-trees": "node seed-trees.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "firebase-admin": "^12.6.0",
+    "dotenv": "^16.4.5",
+    "csv-parse": "^5.5.6",
+    "sharp": "^0.33.5"
+  }
+}
