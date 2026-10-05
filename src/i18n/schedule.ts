@@ -63,7 +63,7 @@ export const schedule: Bundle = {
     'sched.hv.old': 'Lebih dari setahun lalu: catat mekar musim ini.',
     'sched.hv.rulesHint': 'Terbitkan firestore.rules yang baru untuk menyimpan tanggal berbunga.',
     'sched.hv.h1': '1. Kapan tiap blok berbunga?',
-    'sched.hv.help': 'Perkiraan panen = tanggal berbunga + lama matang varietas. Isi tanggal mekar utama tiap blok; pohon atau cabang yang mekar di tanggal lain dicatat di halaman pohon.',
+    'sched.hv.help': 'Perkiraan panen = tanggal berbunga + lama matang varietas. Isi tanggal mekar utama tiap blok; pohon atau dahan yang mekar di tanggal lain dicatat di halaman pohon.',
     'sched.hv.missing': 'Lama matang (hari) belum diisi untuk {names}.',
     'sched.hv.setVariants': 'Isi di halaman Varietas',
     'sched.hv.h2': '2. Perkiraan buah per bulan',

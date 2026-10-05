@@ -1,4 +1,5 @@
 import { SourceBadge } from './SourceBadge';
+import { PhotoStrip } from './PhotoStrip';
 import React, { useMemo, useState } from 'react';
 import {
   Apple,
@@ -510,10 +511,11 @@ export const TreeGuideSection: React.FC<{ tree: DurianTree; reports: TreeReport[
                   {w.fromBlock ? t('guide.tree.fromBlock', { block: tree.block }) : t(`guide.part.${w.part}`)}
                 </span>
                 {w.id && <SourceBadge source={treeBlooms.find((b) => b.id === w.id)?.source} />}
+                {w.id && <span className="basis-full"><PhotoStrip photos={treeBlooms.find((b) => b.id === w.id)?.photos} caption={`${tree.id} · ${formatShortDate(w.date)}`} /></span>}
                 {w.id && (
                   <button
                     type="button"
-                    onClick={() => window.confirm(t('guide.tree.removeBloom', { date: formatShortDate(w.date) })) && removeTreeBloom(w.id!)}
+                    onClick={() => window.confirm(t('guide.tree.removeBloom', { date: formatShortDate(w.date) })) && removeTreeBloom(w.id!, treeBlooms.find((b) => b.id === w.id)?.photos)}
                     className="text-xs font-semibold text-slate-500 hover:text-rose-700 underline min-h-8"
                   >
                     {t('guide.tree.remove')}

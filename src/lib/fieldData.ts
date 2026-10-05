@@ -129,6 +129,8 @@ export interface CropCount {
   by?: string;
   note?: string;
   source?: 'webapp' | 'whatsapp';
+  /** Photos sent with the count on WhatsApp. */
+  photos?: ReportPhoto[];
 }
 
 export const cropCountId = (c: Pick<CropCount, 'treeId' | 'season' | 'stage' | 'date'>) => `${c.treeId}_${c.season}_${c.stage}_${c.date}`;
@@ -157,7 +159,8 @@ export async function saveCropCount(
   return id;
 }
 
-export async function removeCropCount(id: string): Promise<void> {
+export async function removeCropCount(id: string, photos?: ReportPhoto[]): Promise<void> {
+  if (photos?.length) return void (await import('./reportAdmin').then((m) => m.deleteRecordWithPhotos('cropCounts', { id, photos })));
   await deleteDoc(doc(db, 'cropCounts', id));
 }
 
@@ -170,7 +173,8 @@ export async function addTreeBloom(b: { treeId: string; block: string; date: str
   return ref.id;
 }
 
-export async function removeTreeBloom(id: string): Promise<void> {
+export async function removeTreeBloom(id: string, photos?: ReportPhoto[]): Promise<void> {
+  if (photos?.length) return void (await import('./reportAdmin').then((m) => m.deleteRecordWithPhotos('bloomWaves', { id, photos })));
   await deleteDoc(doc(db, 'bloomWaves', id));
 }
 

@@ -1,4 +1,5 @@
 import { SourceBadge } from './SourceBadge';
+import { PhotoStrip } from './PhotoStrip';
 import React, { useMemo, useState } from 'react';
 import { BookOpen, ChevronRight, ClipboardList, ClipboardPlus, Plus, Trash2, Wheat } from 'lucide-react';
 import { STAGES, STAGE_ORDER, StageId, TOPIC_BY_ID, pick } from '../lib/guide';
@@ -416,10 +417,11 @@ export const TreeCropCard: React.FC<{ tree: DurianTree }> = ({ tree }) => {
                         {h.by ? <span className="text-xs text-slate-500"> · {h.by}</span> : null}{' '}
                         <SourceBadge source={h.source} />
                         {h.note ? <span className="block text-xs text-slate-500">{h.note}</span> : null}
+                        <PhotoStrip photos={h.photos} caption={`${h.treeId} · ${t(`crop.stage.${h.stage}`)} · ${formatShortDate(h.date)}`} />
                       </span>
                       <button
                         type="button"
-                        onClick={() => window.confirm(t('crop.history.confirm')) && removeCropCount(h.id)}
+                        onClick={() => window.confirm(t('crop.history.confirm')) && removeCropCount(h.id, h.photos)}
                         className="p-2 rounded-lg text-slate-500 hover:bg-slate-100"
                         aria-label={t('rec.delete')}
                       >

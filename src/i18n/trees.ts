@@ -26,7 +26,7 @@ export const trees: Bundle = {
     'trees.col.fruits': 'Buah',
     'trees.col.girth': 'Lingkar (cm)',
     'trees.col.canopy': 'Kanopi',
-    'trees.col.clusters': 'Kelompok bunga',
+    'trees.col.clusters': 'Tandan bunga',
     'trees.col.supplier': 'Pemasok',
     'trees.col.planted': 'Ditanam',
     'trees.col.lastTreated': 'Terakhir dirawat',

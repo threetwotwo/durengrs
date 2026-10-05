@@ -113,15 +113,17 @@ export async function deleteReport(reportId: string): Promise<DeleteReportResult
   return { filesFailed, filesTotal: paths.size };
 }
 
-/** Deletes a harvest entry and the photo files sent with it (full, 900px and thumbnail). The entry goes first. */
-export async function deleteHarvest(h: { id: string; photos?: ReportPhoto[] }): Promise<DeleteReportResult> {
+/** Deletes a record and the photo files sent with it (full, 900px and thumbnail). The record goes first. */
+export async function deleteRecordWithPhotos(collectionName: 'harvests' | 'cropCounts' | 'bloomWaves', h: { id: string; photos?: ReportPhoto[] }): Promise<DeleteReportResult> {
   const paths = new Set<string>();
   for (const p of h.photos || []) for (const u of [p.url, p.medium, p.thumb]) {
     const path = pathFromUrl(u);
     if (path) paths.add(path);
   }
-  await deleteDoc(doc(db, 'harvests', h.id));
+  await deleteDoc(doc(db, collectionName, h.id));
   const results = await Promise.allSettled([...paths].map((p) => deleteObject(ref(storage, p))));
   const filesFailed = results.filter((r) => r.status === 'rejected' && (r.reason as any)?.code !== 'storage/object-not-found').length;
   return { filesFailed, filesTotal: paths.size };
 }
+
+export const deleteHarvest = (h: { id: string; photos?: ReportPhoto[] }) => deleteRecordWithPhotos('harvests', h);

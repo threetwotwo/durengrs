@@ -1,5 +1,5 @@
 import { getLang, translate, type Lang } from '../i18n';
-import { DurianTree, DurianVariant } from '../types';
+import { DurianTree, DurianVariant, ReportPhoto } from '../types';
 import { normalizeTimestamp } from '../context/FarmContext';
 import { HarvestCycle, followUpOf } from './insights';
 import { ScheduleTask, TreatmentPlan, addDays, diffDays, formatShortDate, todayStr } from './treatments';
@@ -223,6 +223,8 @@ export interface TreeBloom {
   part: BloomPart;
   note?: string;
   source?: 'webapp' | 'whatsapp';
+  /** Photos sent with the bloom report on WhatsApp. */
+  photos?: ReportPhoto[];
 }
 export type BloomPart = 'whole' | 'lower' | 'middle' | 'upper' | 'some';
 export const BLOOM_PARTS: BloomPart[] = ['whole', 'lower', 'middle', 'upper', 'some'];

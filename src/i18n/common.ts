@@ -6,7 +6,7 @@ import type { Bundle } from './index';
  *   Pohon = tree, Blok = block, Laporan = report, Foto = photo, Keterangan = what the worker wrote,
  *   Catatan = notes, Kondisi pohon = tree condition, Sehat / Masalah ringan / Darurat / Belum dinilai,
  *   Tidak ada perubahan, Kondisi berubah, Laporan terakhir, Belum ada laporan,
- *   Lebar kanopi (cm), Lingkar batang (cm), Cabang berbunga, Kelompok bunga, Perkiraan jumlah buah,
+ *   Lebar kanopi (cm), Lingkar batang (cm), Dahan berbunga, Tandan bunga, Perkiraan jumlah buah,
  *   Ubah data, Simpan Perubahan, Pengukuran.
  */
 export const common: Bundle = {
@@ -57,8 +57,8 @@ export const common: Bundle = {
     // Measurements = the Flow's "Pengukuran" screen
     'field.canopy': 'Lebar kanopi (cm)',
     'field.trunk': 'Lingkar batang (cm)',
-    'field.branches': 'Cabang berbunga',
-    'field.clusters': 'Kelompok bunga',
+    'field.branches': 'Dahan berbunga',
+    'field.clusters': 'Tandan bunga',
     'field.fruits': 'Perkiraan jumlah buah',
     'field.measurements': 'Pengukuran',
     'field.lastReport': 'Laporan terakhir',
