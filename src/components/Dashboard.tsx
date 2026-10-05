@@ -11,6 +11,7 @@ import { ScheduleTask, formatShortDate, relativeDue, todayStr } from '../lib/tre
 import { useT } from '../i18n';
 import { DashboardSeasonCard, StagePill, TOPIC_ICON, topicUrl, useGuideData } from './GuideWidgets';
 import { HarvestHomeCard } from './CropWidgets';
+import { StageBoard } from './StageBoard';
 import { useGuideOn } from '../lib/guideMode';
 import { RainCard, WeeklyReview } from './FieldRecords';
 import { STAGES, TOPIC_BY_ID, pick, topicsForText } from '../lib/guide';
@@ -220,6 +221,8 @@ export const Dashboard: React.FC = () => {
         )}
       </div>
 
+      {/* What stage the trees are at, as seen in the field (checked reports), next to what the bloom date predicts. */}
+      <StageBoard />
 
       {/* Attention (trees) + Routine work (schedule) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">

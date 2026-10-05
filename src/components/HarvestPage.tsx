@@ -4,7 +4,7 @@ import { useFarm } from '../context/FarmContext';
 import { useT } from '../i18n';
 import { useQueryParams } from '../lib/router';
 import { CROP_STAGES, CropStage } from '../lib/fieldData';
-import { cropFunnel } from '../lib/crop';
+import { cropFunnel, type TreeCrop } from '../lib/crop';
 import { diffDays, formatShortDate, todayStr } from '../lib/treatments';
 import { PageHeader } from './PageHeader';
 import { DuePill, MissedLink, ViaWhatsApp } from './FieldFirst';
@@ -13,6 +13,7 @@ import { HarvestLog, HarvestSheet } from './FieldRecords';
 import { HarvestView } from './HarvestView';
 import { StagePill } from './GuideWidgets';
 import { useCrops } from './useCrops';
+import { FarmStageChip, cropMismatch, observedNow } from './StageBoard';
 
 /**
  * Harvest: every tree from flowers to graded fruit.
@@ -205,6 +206,7 @@ export const HarvestPage: React.FC = () => {
                   <td className="px-3 py-2.5">
                     <span className="flex flex-wrap gap-1">
                       {c.waves.length ? c.waves.map((w) => <StagePill key={w.date} stage={w.stage} />) : <span className="text-xs text-slate-400">{t('hp.noBloom')}</span>}
+                      <SeenChip crop={c} />
                     </span>
                   </td>
                   {CROP_STAGES.map((st) => {
@@ -252,4 +254,13 @@ export const HarvestPage: React.FC = () => {
       )}
     </div>
   );
+};
+
+/** What a person last saw on the tree (checked report), when recent; violet when it fits none of the expected stages. */
+const SeenChip: React.FC<{ crop: TreeCrop }> = ({ crop }) => {
+  const { t } = useT();
+  const seen = observedNow(crop.tree);
+  if (!seen || seen.stale) return null;
+  const mismatch = cropMismatch(seen.code, crop);
+  return <FarmStageChip code={seen.code} mismatch={mismatch} title={`${t('stage.seenOn', { date: seen.date })}${mismatch ? ` · ${t('inbox.mismatch')}` : ''}`} />;
 };

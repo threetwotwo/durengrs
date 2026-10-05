@@ -1,4 +1,4 @@
-import { collection, doc, serverTimestamp, writeBatch } from 'firebase/firestore';
+import { collection, deleteField, doc, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { db } from './firebase';
 import { normalizeTimestamp } from '../context/FarmContext';
 import { toDateStr } from './treatments';
@@ -54,9 +54,13 @@ function addReview(batch: Batch, report: TreeReport, tree: DurianTree | undefine
   if (!report.triage) update.triage = triageText(report.description); // keep what was suggested next to what was decided
   if (decision !== 'dismissed') {
     update.issues = v.issues.filter(isIssue);
+    // A correction can also clear a value checked earlier ("tidak yakin").
     if (v.stage && isFarmStage(v.stage)) update.stage = v.stage;
+    else if (report.stage) update.stage = deleteField();
     if (v.health) update.health = v.health;
+    else if (report.health) update.health = deleteField();
     if (v.improving) update.improving = true;
+    else if (report.improving) update.improving = deleteField();
   }
   batch.update(doc(db, 'reports', report.id), update);
   if (!tree || decision === 'dismissed') return;

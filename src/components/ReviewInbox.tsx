@@ -7,7 +7,7 @@ import { useT } from '../i18n';
 import { reportUrl, treeUrl } from '../lib/router';
 import { rememberReport } from '../lib/reportCache';
 import { acceptAll, needsReview, reportTriage, saveReview, suggestedValues, type ReviewValues } from '../lib/review';
-import { FARM_STAGES, FARM_STAGE_INFO, HEALTH, HEALTH_INFO, IMPROVING, ISSUES, ISSUE_INFO, stageMismatch, type FarmStage, type Health, type Issue } from '../shared';
+import { FARM_STAGES, FARM_STAGE_INFO, HEALTH, HEALTH_INFO, IMPROVING, ISSUES, ISSUE_INFO, type FarmStage, type Health, type Issue } from '../shared';
 import type { DurianTree, TreeReport } from '../types';
 import { Link } from './Link';
 import { Sheet, fieldLabel } from './Sheet';
@@ -15,6 +15,8 @@ import { ReportDate } from './ReportDate';
 import { StagePill } from './GuideWidgets';
 import { FarmStageChip, HealthPill, IssueChip } from './FieldStage';
 import { useCrops } from './useCrops';
+import { cropMismatch } from './StageBoard';
+import { ReportReading } from './FieldStage';
 
 /**
  * "Perlu dicek": worker reports from the last 30 days that a person hasn't looked at yet, each with what the system
@@ -42,6 +44,14 @@ export function useRecentReports(days = DAYS) {
   }, [days]);
   return { reports, loading };
 }
+
+const saveBy = (v: string) => {
+  try {
+    localStorage.setItem('cilowong.by', v.trim());
+  } catch {
+    /* ignore */
+  }
+};
 
 const readBy = () => {
   try {
@@ -93,11 +103,7 @@ export const ReviewInbox: React.FC = () => {
             value={by}
             onChange={(e) => {
               setBy(e.target.value);
-              try {
-                localStorage.setItem('cilowong.by', e.target.value.trim());
-              } catch {
-                /* ignore */
-              }
+              saveBy(e.target.value);
             }}
             className="min-h-9 w-32 px-2 rounded-lg border border-slate-300 text-sm"
           />
@@ -173,6 +179,7 @@ const ReviewCard: React.FC<{
   const photo = report.photos?.[0];
   const crop = crops.find((c) => c.tree.id === report.treeId);
   const expected = crop?.waves[0]?.stage;
+  const mismatch = !!tr.stage && cropMismatch(tr.stage.code, crop);
   const empty = !tr.stage && tr.issues.length === 0 && !tr.health;
   return (
     <li className="p-4 grid gap-3 sm:grid-cols-[140px_1fr]">
@@ -209,7 +216,7 @@ const ReviewCard: React.FC<{
             <span className="text-xs text-slate-500">{t('inbox.nothing')}</span>
           ) : (
             <>
-              {tr.stage && <FarmStageChip code={tr.stage.code} mismatch={stageMismatch(tr.stage.code, expected)} title={tr.stage.evidence} />}
+              {tr.stage && <FarmStageChip code={tr.stage.code} mismatch={mismatch} title={tr.stage.evidence} />}
               {tr.issues.map((i) => (
                 <IssueChip key={i.code} code={i.code} />
               ))}
@@ -220,7 +227,7 @@ const ReviewCard: React.FC<{
         {expected && (
           <p className="text-xs text-slate-600 flex flex-wrap items-center gap-1.5">
             {t('inbox.expected')} <StagePill stage={expected} />
-            {tr.stage && stageMismatch(tr.stage.code, expected) && <span className="text-violet-800 font-semibold">{t('inbox.mismatch')}</span>}
+            {mismatch && <span className="text-violet-800 font-semibold">{t('inbox.mismatch')}</span>}
           </p>
         )}
         <div className="flex flex-wrap gap-2 pt-1">
@@ -239,6 +246,102 @@ const ReviewCard: React.FC<{
         </div>
       </div>
     </li>
+  );
+};
+
+/**
+ * On the report page: what the report says about the tree (stage, issues, health) and, until someone checks it, the
+ * same Benar / Ubah / Abaikan as the inbox. Checked values can still be changed.
+ */
+export const ReportReviewPanel: React.FC<{ report: TreeReport; tree?: DurianTree }> = ({ report, tree }) => {
+  const { t } = useT();
+  const { crops } = useCrops();
+  const [editing, setEditing] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const tr = reportTriage(report);
+  const crop = crops.find((c) => c.tree.id === report.treeId);
+  const expected = crop?.waves[0]?.stage;
+  const decision = report.review?.decision;
+  const shown = decision && decision !== 'dismissed' ? (report.stage as FarmStage | undefined) : tr.stage?.code;
+  const mismatch = !!shown && cropMismatch(shown, crop);
+  const who = readBy() || undefined;
+  const run = async (fn: () => Promise<void>) => {
+    setBusy(true);
+    setError(null);
+    try {
+      await fn();
+    } catch (e: any) {
+      console.error('Review save failed:', e);
+      setError(e?.code === 'permission-denied' ? t('err.rulesRecords') : t('rec.saveError'));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const btn = 'min-h-10 px-3 rounded-lg text-sm font-semibold inline-flex items-center gap-1.5 disabled:opacity-60';
+
+  return (
+    <div className="space-y-2">
+      <h2 className="text-xs font-bold uppercase tracking-wide text-slate-500">{t('rep.detail.reading')}</h2>
+      {decision === 'dismissed' ? (
+        <p className="text-sm text-slate-500">{t('inbox.dismissed')}</p>
+      ) : (
+        <ReportReading report={report} health />
+      )}
+      {!decision && !tr.stage && tr.issues.length === 0 && !tr.health && <p className="text-sm text-slate-500">{t('inbox.nothing')}</p>}
+      {expected && (
+        <p className="text-xs text-slate-600 flex flex-wrap items-center gap-1.5">
+          {t('inbox.expected')} <StagePill stage={expected} />
+          {mismatch && <span className="text-violet-800 font-semibold">{t('inbox.mismatch')}</span>}
+        </p>
+      )}
+      {error && <p role="alert" className="text-sm text-rose-700">{error}</p>}
+      <div className="flex flex-wrap items-center gap-2">
+        {decision ? (
+          <span className="text-xs text-slate-600 inline-flex items-center gap-1">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600" aria-hidden />
+            {report.review?.by ? t('inbox.doneBy', { by: report.review.by }) : t('inbox.done')}
+          </span>
+        ) : (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => run(() => saveReview(report, tree, 'accepted', suggestedValues(tr), who))}
+            className={`${btn} px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold`}
+          >
+            <Check className="w-4 h-4" />
+            {!tr.stage && tr.issues.length === 0 && !tr.health ? t('inbox.checked') : t('inbox.accept')}
+          </button>
+        )}
+        <button type="button" disabled={busy} onClick={() => setEditing(true)} className={`${btn} border border-slate-300 bg-white text-slate-800 hover:bg-slate-50`}>
+          <Pencil className="w-4 h-4" />
+          {t('inbox.edit')}
+        </button>
+        {!decision && (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => run(() => saveReview(report, tree, 'dismissed', { issues: [] }, who))}
+            className={`${btn} text-slate-500 hover:text-slate-800 hover:bg-slate-100`}
+          >
+            <X className="w-4 h-4" />
+            {t('inbox.dismiss')}
+          </button>
+        )}
+      </div>
+      {editing && (
+        <ReviewSheet
+          report={report}
+          onClose={() => setEditing(false)}
+          onSave={(v) =>
+            run(async () => {
+              await saveReview(report, tree, 'corrected', v, who);
+              setEditing(false);
+            })
+          }
+        />
+      )}
+    </div>
   );
 };
 

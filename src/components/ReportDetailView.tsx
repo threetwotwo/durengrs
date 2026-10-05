@@ -15,6 +15,7 @@ import { ConditionBadge } from './ConditionBadge';
 import { ReportDate } from './ReportDate';
 import { ReportCard, hasWords } from './ReportCard';
 import { ReportDeleteSheet } from './ReportDeleteSheet';
+import { ReportReviewPanel } from './ReviewInbox';
 import { PhotoAlbum } from './PhotoAlbum';
 import { PhotoLightbox, photoItems, type GalleryItem } from './PhotoLightbox';
 import { BloomQuickSet, StagePill, TOPIC_ICON, blockLine } from './GuideWidgets';
@@ -172,6 +173,8 @@ export const ReportDetailView: React.FC<{ reportId: string }> = ({ reportId }) =
                 </p>
               )}
             </div>
+
+            <ReportReviewPanel report={report} tree={tree} />
           </div>
 
           {photos.length > 0 && (

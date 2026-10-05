@@ -1,7 +1,8 @@
 import React from 'react';
-import { Eye } from 'lucide-react';
+import { CheckCircle2, Eye, Sparkles } from 'lucide-react';
 import { useT } from '../i18n';
-import { FARM_STAGE_INFO, HEALTH_INFO, IMPROVING, ISSUE_INFO, isFarmStage, type Health, type Issue } from '../shared';
+import { FARM_STAGE_INFO, HEALTH_INFO, IMPROVING, ISSUE_INFO, isFarmStage, isIssue, triageText, type Health, type Issue } from '../shared';
+import type { TreeReport } from '../types';
 
 /**
  * Small chips in the farm's words, shared by the review inbox, report pages, tree pages and the Kebun sheet:
@@ -57,5 +58,39 @@ export const IssueChip: React.FC<{ code: Issue; className?: string }> = ({ code,
     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold border whitespace-nowrap ${HEALTH_CLS[info.health]} ${className}`}>
       {info.label[lang]}
     </span>
+  );
+};
+
+/**
+ * What a report says about the tree, in one row: the checked stage and issues once a person reviewed it, else the
+ * system's suggestion (marked as such). Nothing for a dismissed report or one the system could not read.
+ */
+export const ReportReading: React.FC<{ report: TreeReport; health?: boolean; className?: string }> = ({ report, health, className = '' }) => {
+  const { t } = useT();
+  const decision = report.review?.decision;
+  if (decision === 'dismissed') return null;
+  const checked = !!decision;
+  const tr = checked ? null : report.triage || triageText(report.description);
+  const stage = checked ? report.stage : tr?.stage?.code;
+  const issues = (checked ? report.issues || [] : tr?.issues.map((i) => i.code) || []).filter(isIssue);
+  const hp = health ? (checked ? report.health : tr?.health) : undefined;
+  if (!stage && issues.length === 0 && !hp) return null;
+  return (
+    <p className={`flex flex-wrap items-center gap-1 text-xs ${className}`}>
+      {checked ? (
+        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" aria-label={t('stage.confirmed')}>
+          <title>{t('stage.confirmed')}</title>
+        </CheckCircle2>
+      ) : (
+        <Sparkles className="w-3.5 h-3.5 text-slate-400" aria-label={t('stage.suggested')}>
+          <title>{t('stage.suggested')}</title>
+        </Sparkles>
+      )}
+      <FarmStageChip code={stage} stale={!checked} title={checked ? t('stage.confirmed') : t('stage.suggested')} />
+      {issues.map((c) => (
+        <IssueChip key={c} code={c} className={checked ? '' : 'opacity-75 border-dashed'} />
+      ))}
+      {hp && <HealthPill health={hp} improving={checked ? report.improving : tr?.improving} className={checked ? '' : 'opacity-75 border-dashed'} />}
+    </p>
   );
 };

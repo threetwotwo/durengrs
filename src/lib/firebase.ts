@@ -186,6 +186,7 @@ export function parseReportDoc(docSnap: DocumentSnapshot): TreeReport {
     stage: typeof data.stage === 'string' ? data.stage : undefined,
     issues: Array.isArray(data.issues) ? data.issues : undefined,
     health: data.health === 'hijau' || data.health === 'kuning' || data.health === 'merah' ? data.health : undefined,
+    improving: data.improving === true ? true : undefined,
   };
 }
 

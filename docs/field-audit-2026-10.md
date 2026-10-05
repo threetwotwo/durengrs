@@ -184,6 +184,22 @@ own words map onto that. **Proposed farm scale** (codes are internal, labels are
 | **P2** | Field report detail for all kinds; one Laporan list | Evidence is one tap away |
 | **P3** | Daily route push; QR or number tags with wa.me links; voice notes | Coverage and less typing |
 
+**Build status (5 Oct 2026)**
+
+| Work | Status |
+|---|---|
+| Shared vocabulary and data contract (`src/shared/`, `docs/data-contract.md`) | **Done.** Bot to import it once its code is in the repo. |
+| Rule-based triage of the worker's words + worker reply text | **Done** in `src/shared/triage.ts` (free). Bot side waits for the bot code. |
+| "Perlu dicek" review inbox (Laporan) | **Done.** Benar / Ubah / Abaikan; a check sets the report's stage, issues and health, the tree's observed stage and (latest report only) its condition, logged in `treeEdits`. |
+| Observed stage per tree, next to the expected one | **Done.** Trees list (Tahap column), tree page header, Panen table, report cards and the report page. Violet = what was seen fits none of the tree's flowering waves; dashed = seen over 30 days ago. |
+| Stage board on Hari ini | **Done.** Per block: trees by observed stage, not seen, how many don't fit the bloom date, and the expected stages. |
+| Review from the report page | **Done.** The same Benar / Ubah / Abaikan sits on each report's page; checked values can be changed later. |
+| Photo AI triage | Later, behind the same `Triage` shape, once there's an API key. |
+| Field record page for every kind; one Laporan list | Next. |
+| Kebun sheet view | Next. |
+| Lighter navigation; Hijau / Kuning / Merah everywhere | Next. |
+| Bot: photo + words mandatory, no menus, instant reply | Waiting for the bot code. |
+
 ---
 
 ## 8. Questions for the owner

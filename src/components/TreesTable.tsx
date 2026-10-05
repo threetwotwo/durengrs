@@ -2,6 +2,8 @@ import React, { useMemo, useState } from 'react';
 import { useT } from '../i18n';
 import { useFarm, formatDateTime, formatDate, normalizeTimestamp, formatTimeAgo } from '../context/FarmContext';
 import { ConditionBadge } from './ConditionBadge';
+import { TreeStageCell } from './StageBoard';
+import { useCrops } from './useCrops';
 import { Link } from './Link';
 import { PageHeader, btnPrimary, btnSecondary, inputCls } from './PageHeader';
 import { AddTreeSheet } from './AddTreeSheet';
@@ -28,6 +30,8 @@ export const TreesTable: React.FC = () => {
   const { trees: activeTrees, archivedTrees, variants, treatments } = useFarm();
   const [params, setParams] = useQueryParams();
   const [adding, setAdding] = useState(false);
+  const { crops } = useCrops();
+  const cropById = useMemo(() => new Map(crops.map((c) => [c.tree.id, c])), [crops]);
 
   // Archived trees (kept for history, ID reserved) are a separate view, so they never mix into counts and filters.
   const showArchived = params.get('archived') === '1';
@@ -394,8 +398,11 @@ export const TreesTable: React.FC = () => {
                       </span>
                       <ConditionBadge condition={tree.condition} size="sm" className="whitespace-nowrap shrink-0" />
                     </div>
-                    <div className="flex items-center justify-between text-sm text-slate-600">
-                      <span>{t('common.blockN', { n: tree.block || '—' })}</span>
+                    <div className="flex items-center justify-between gap-2 text-sm text-slate-600">
+                      <span className="flex flex-wrap items-center gap-2">
+                        {t('common.blockN', { n: tree.block || '—' })}
+                        <TreeStageCell tree={tree} crop={cropById.get(tree.id)} compact />
+                      </span>
                       <span className="flex items-center gap-1 tabular"><Clock className="w-4 h-4 text-slate-400" />{formatTimeAgo(tree.lastReportAt)}</span>
                     </div>
                     {followUpOf(tree, normalizeTimestamp(tree.lastReportAt)).needs && (
@@ -420,6 +427,7 @@ export const TreesTable: React.FC = () => {
                   <SortHeader field="variant" label={t('common.variant')} className="min-w-[150px]" />
                   <SortHeader field="block" label={t('common.block')} />
                   <SortHeader field="condition" label={t('trees.col.condition')} className="min-w-[140px]" />
+                  <th scope="col" className="px-3 text-xs uppercase tracking-wide font-semibold text-slate-200 min-w-[150px]">{t('stage.col')}</th>
                   <SortHeader field="estimatedFruitCount" label={t('trees.col.fruits')} align="right" />
                   {allColumns && (
                     <>
@@ -453,6 +461,7 @@ export const TreesTable: React.FC = () => {
                       </td>
                       <td className="py-3 px-3 text-slate-700 whitespace-nowrap">{t('common.blockN', { n: tree.block || '—' })}</td>
                       <td className="py-3 px-3"><ConditionBadge condition={tree.condition} size="sm" className="whitespace-nowrap" /></td>
+                      <td className="py-3 px-3"><TreeStageCell tree={tree} crop={cropById.get(tree.id)} compact /></td>
                       <td className="py-3 px-3 text-right font-mono tabular font-bold text-emerald-800">{tree.estimatedFruitCount ?? '—'}</td>
                       {allColumns && (
                         <>

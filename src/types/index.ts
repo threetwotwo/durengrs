@@ -69,6 +69,8 @@ export interface TreeReport {
   stage?: string;
   issues?: string[];
   health?: 'hijau' | 'kuning' | 'merah';
+  /** "Membaik": the problem is getting better. */
+  improving?: boolean;
 }
 
 export interface TreeEditAudit {

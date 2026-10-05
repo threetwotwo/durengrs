@@ -28,6 +28,8 @@ import {
 } from 'lucide-react';
 import { TreeGuideSection } from './GuideWidgets';
 import { TreeCropCard } from './CropWidgets';
+import { TreeStageCell } from './StageBoard';
+import { useCrops } from './useCrops';
 import { TREE_LIMITS, checkTreeForm, plantedDateStr } from '../lib/trees';
 import { restoreTree } from '../lib/fieldData';
 import { ArchiveTreeSheet } from './ArchiveTreeSheet';
@@ -56,6 +58,7 @@ const FIELD_LABEL: Record<string, string> = {
 export const TreeDetailView: React.FC<TreeDetailViewProps> = ({ treeId, onBack }) => {
   const { t } = useT();
   const { trees, allTrees, variants, updateTree, treatments } = useFarm();
+  const { crops } = useCrops();
 
   const tree = allTrees.find((t) => t.id === treeId);
   const archived = tree?.active === false;
@@ -354,8 +357,9 @@ export const TreeDetailView: React.FC<TreeDetailViewProps> = ({ treeId, onBack }
               </h1>
               <ConditionBadge condition={formData.condition} size="md" />
             </div>
-            <p className="text-xs text-slate-600 mt-0.5 font-sans">
-              {t('common.blockN', { n: formData.block || '—' })}{currentVariant ? ` · ${currentVariant.name}` : ''}
+            <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-600 mt-0.5 font-sans">
+              <span>{t('common.blockN', { n: formData.block || '—' })}{currentVariant ? ` · ${currentVariant.name}` : ''}</span>
+              {tree && <TreeStageCell tree={tree} crop={crops.find((c) => c.tree.id === tree.id)} />}
             </p>
           </div>
         </div>
