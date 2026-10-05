@@ -29,6 +29,7 @@ both read and write it. Every field below has one meaning on both sides. Shared 
 | `treatmentPlans/{auto}`, `treatments/{auto}` | web app | web app (bot: planned, see audit F3) | routines and applications; `plan.lastDone {block: date}` |
 | `workers/{phone}` | web app | both | `phone, name` |
 | `variants/{code}` | web app | both | `code, name, ripeningDays, …` |
+| ✱`farmMeta/labelRules` | web app (Kebun › Aturan label dan dosis) | both | the owner's label limits and doses: `batang, tajuk, est, fruitset` limits, `dose {fruiting, vegetative, young, unit}`, `products`, `confirmed`, `updatedBy, updatedAt`, `previous` (the values it replaced). Read it with `mergeLabelRules(doc)`; a missing document means the sheet's values (`DEFAULT_LABEL_RULES`) |
 | `labResults/{auto}`, `guideNotes/{topic}`, `farmMeta/*` | web app | web app | lab values, Guide notes, weekly check, import markers |
 
 ## `reports.triage` ✱
@@ -59,6 +60,6 @@ there `trees.observedStage` and `trees.condition`, each change logged in `treeEd
 | `issues.ts` | `ISSUES` = `phytophthora_canker, stem_fungus, leaf_blight, whitefly, borer, leaf_drop, fruit_drop, nutrient, water, other`; label, Guide topic, default health, the worker's next step |
 | `health.ts` | Hijau / Kuning / Merah ⇄ `healthy / minor / emergency`; "Membaik" |
 | `triage.ts` | `triageText()` (rule-based, free) and `workerReply()` (the bot's instant reply text) |
-| `labels.ts` | The owner's size and fruit labels and dose suggestion (**not confirmed**: suggestions only) |
+| `labels.ts` | The owner's size and fruit labels and dose suggestion; every function takes the rules from `farmMeta/labelRules` (`mergeLabelRules`), else the sheet's values. Suggestions only until `confirmed` |
 
 Codes are pinned by `tests/shared.test.ts`. Changing a code is a migration, not a rename.

@@ -12,7 +12,6 @@ import {
   FARM_STAGE_INFO,
   HEALTH,
   HEALTH_INFO,
-  LABEL_RULES,
   doseSuggestion,
   healthOf,
   labelBatang,
@@ -30,6 +29,8 @@ import { TreeStageCell, observedNow } from './StageBoard';
 import { HealthPill } from './FieldStage';
 import { useCrops } from './useCrops';
 import { KebunPasteSheet } from './KebunPaste';
+import { LabelRulesPanel, type RuleSample } from './LabelRulesPanel';
+import { useLabelRules } from '../lib/labelRules';
 
 /**
  * Kebun: the whole farm as one sheet, one row per tree, in the owner's columns (size, flowering and fruit, dated
@@ -114,6 +115,9 @@ export const KebunPage: React.FC = () => {
     }
   }, [hidden]);
 
+  // The owner's label and dose rules, as saved for the farm (the sheet's values until changed).
+  const stored = useLabelRules();
+  const rules = stored.rules;
   const dates = useMemo(() => countDates(cropCounts), [cropCounts]);
   const grid = useMemo(() => countGrid(cropCounts), [cropCounts]);
   const cropById = useMemo(() => new Map(crops.map((c) => [c.tree.id, c])), [crops]);
@@ -124,14 +128,18 @@ export const KebunPage: React.FC = () => {
         const crop = cropById.get(tree.id);
         const fruitNow = crop?.remaining ?? num(tree.estimatedFruitCount);
         const labels = {
-          batang: labelBatang(num(tree.trunkSize)),
-          tajuk: labelTajuk(num(tree.canopySize)),
-          est: labelEst(num(tree.floweringClusters)),
-          fruitset: labelFruitset(fruitNow),
+          batang: labelBatang(num(tree.trunkSize), rules),
+          tajuk: labelTajuk(num(tree.canopySize), rules),
+          est: labelEst(num(tree.floweringClusters), rules),
+          fruitset: labelFruitset(fruitNow, rules),
         };
-        return { tree, crop, counts: grid.get(tree.id), health: healthOf(tree.condition), fruitNow, labels, dose: doseSuggestion(labels) };
+        return { tree, crop, counts: grid.get(tree.id), health: healthOf(tree.condition), fruitNow, labels, dose: doseSuggestion(labels, rules) };
       }),
-    [trees, cropById, grid]
+    [trees, cropById, grid, rules]
+  );
+  const samples: RuleSample[] = useMemo(
+    () => rows.map((r) => ({ girth: num(r.tree.trunkSize), canopy: num(r.tree.canopySize), est: num(r.tree.floweringClusters), fruit: r.fruitNow })),
+    [rows]
   );
 
   const labelChip = (l?: Label) =>
@@ -213,7 +221,7 @@ export const KebunPage: React.FC = () => {
           key: `label:${k}`,
           group: 'label',
           label: t(`kebun.lab.${k}`),
-          title: t('kebun.labels.title'),
+          title: rules.confirmed ? t('kebun.labels.titleOk') : t('kebun.labels.title'),
           sort: (r) => (r.labels[k] ? ['skip', 'low', 'mid', 'high'].indexOf(r.labels[k]!) : -1),
           csv: (r) => r.labels[k] || '',
           cell: (r) => labelChip(r.labels[k]),
@@ -222,21 +230,22 @@ export const KebunPage: React.FC = () => {
       {
         key: 'dose',
         group: 'dose',
-        label: t('kebun.col.dose'),
-        title: t('kebun.dose.title'),
+        label: rules.confirmed ? t('kebun.col.doseOk') : t('kebun.col.dose'),
+        title: rules.confirmed ? t('kebun.dose.titleOk') : t('kebun.dose.title'),
         right: true,
         sort: (r) => r.dose?.dose,
-        csv: (r) => (r.dose ? `${r.dose.dose} ${r.dose.product}` : ''),
+        csv: (r) => (r.dose ? `${r.dose.dose}${rules.dose.unit ? ` ${rules.dose.unit}` : ''} ${r.dose.product}` : ''),
         cell: (r) =>
           r.dose ? (
             <span className="whitespace-nowrap">
-              <strong className="tabular">{r.dose.dose}</strong> <span className="text-xs text-slate-500">{r.dose.product}</span>
+              <strong className="tabular">{r.dose.dose}</strong>
+              {rules.dose.unit ? ` ${rules.dose.unit}` : ''} <span className="text-xs text-slate-500">{r.dose.product}</span>
             </span>
           ) : null,
       },
       field('notes', 'notes', t('common.notes'), false),
     ];
-  }, [t, lang, dates]);
+  }, [t, lang, dates, rules]);
 
   const shownCols = cols.filter((c) => !hidden.has(c.group));
   const editCols = shownCols.map((c, i) => (c.edit ? i : -1)).filter((i) => i >= 0);
@@ -571,63 +580,7 @@ export const KebunPage: React.FC = () => {
         {filtered.length === 0 && <p className="p-8 text-center text-sm text-slate-600">{t('kebun.empty')}</p>}
       </div>
 
-      <details className="bg-white rounded-xl border border-slate-200 p-4 text-sm text-slate-700">
-        <summary className="font-semibold text-slate-900 cursor-pointer">{t('kebun.rules')}</summary>
-        <p className="mt-2 text-xs text-slate-600">{t('kebun.rules.note')}</p>
-        <table className="mt-2 text-xs">
-          <thead>
-            <tr className="text-left text-slate-500">
-              <th className="pr-4 py-1 font-semibold" />
-              <th className="pr-4 py-1 font-semibold">{t('kebun.label.low')}</th>
-              <th className="pr-4 py-1 font-semibold">{t('kebun.label.mid')}</th>
-              <th className="pr-4 py-1 font-semibold">{t('kebun.label.high')}</th>
-              <th className="pr-4 py-1 font-semibold">{t('kebun.label.skip')}</th>
-            </tr>
-          </thead>
-          <tbody className="tabular">
-            <tr>
-              <th className="pr-4 py-1 text-left font-semibold">{t('kebun.lab.batang')}</th>
-              <td className="pr-4">≤ {LABEL_RULES.batang.lowMax}</td>
-              <td className="pr-4">≤ {LABEL_RULES.batang.midMax}</td>
-              <td className="pr-4">&gt; {LABEL_RULES.batang.midMax}</td>
-              <td className="pr-4">≤ {LABEL_RULES.batang.skipMax}</td>
-            </tr>
-            <tr>
-              <th className="pr-4 py-1 text-left font-semibold">{t('kebun.lab.tajuk')}</th>
-              <td className="pr-4">≤ {LABEL_RULES.tajuk.lowMax}</td>
-              <td className="pr-4">≤ {LABEL_RULES.tajuk.midMax}</td>
-              <td className="pr-4">&gt; {LABEL_RULES.tajuk.midMax}</td>
-              <td className="pr-4">—</td>
-            </tr>
-            <tr>
-              <th className="pr-4 py-1 text-left font-semibold">{t('kebun.lab.est')}</th>
-              <td className="pr-4">≤ {LABEL_RULES.est.lowMax}</td>
-              <td className="pr-4">≤ {LABEL_RULES.est.midMax}</td>
-              <td className="pr-4">&gt; {LABEL_RULES.est.midMax}</td>
-              <td className="pr-4">≤ {LABEL_RULES.est.skipMax}</td>
-            </tr>
-            <tr>
-              <th className="pr-4 py-1 text-left font-semibold">{t('kebun.lab.fruitset')}</th>
-              <td className="pr-4">≤ {LABEL_RULES.fruitset.lowMax}</td>
-              <td className="pr-4">≤ {LABEL_RULES.fruitset.midMax}</td>
-              <td className="pr-4">&gt; {LABEL_RULES.fruitset.midMax}</td>
-              <td className="pr-4">0</td>
-            </tr>
-          </tbody>
-        </table>
-        <p className="mt-2 text-xs text-slate-600">
-          {t('kebun.rules.dose', {
-            fl: LABEL_RULES.dose.fruiting.low,
-            fm: LABEL_RULES.dose.fruiting.mid,
-            fh: LABEL_RULES.dose.fruiting.high,
-            pf: LABEL_RULES.products.fruiting,
-            vh: LABEL_RULES.dose.vegetative.high,
-            vo: LABEL_RULES.dose.vegetative.other,
-            pv: LABEL_RULES.products.vegetative,
-            y: LABEL_RULES.dose.young,
-          })}
-        </p>
-      </details>
+      <LabelRulesPanel stored={stored} samples={samples} />
 
       {pasting && <KebunPasteSheet onClose={() => setPasting(false)} />}
     </div>

@@ -1,7 +1,7 @@
 // Shared contract (src/shared): triage of worker words and the owner's label/dose rule, checked on real rows.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { triageText, workerReply, labelBatang, labelTajuk, labelEst, labelFruitset, doseSuggestion, stageMismatch, healthOf, FARM_STAGES, ISSUES } from '../src/shared';
+import { triageText, workerReply, labelBatang, labelTajuk, labelEst, labelFruitset, doseSuggestion, stageMismatch, healthOf, FARM_STAGES, ISSUES, DEFAULT_LABEL_RULES, mergeLabelRules, checkLabelRules } from '../src/shared';
 
 const t = (s: string) => triageText(s);
 const issues = (s: string) => t(s).issues.map((i) => i.code).sort();
@@ -85,4 +85,23 @@ test('label and dose rule reproduces the sheet', () => {
     assert.deepEqual(got, labels, id);
     assert.deepEqual(doseSuggestion({ batang: got[0], tajuk: got[1], fruitset: got[3] }), { product, dose }, id);
   }
+});
+
+test('label rules are editable: stored values override the defaults, bad ones are ignored', () => {
+  const r = mergeLabelRules({ batang: { midMax: 60, lowMax: 'x' }, dose: { fruiting: { high: 1.5 }, unit: 'kg' }, products: { fruiting: '' }, confirmed: true, extra: 1 });
+  assert.equal(r.batang.midMax, 60);
+  assert.equal(r.batang.lowMax, DEFAULT_LABEL_RULES.batang.lowMax);
+  assert.equal(r.dose.fruiting.high, 1.5);
+  assert.equal(r.dose.unit, 'kg');
+  assert.equal(r.products.fruiting, 'NPK Perfect'); // empty text keeps the default
+  assert.equal(r.confirmed, true);
+  assert.equal(labelBatang(58, r), 'mid'); // 58 was "high" with the sheet's 55
+  assert.deepEqual(doseSuggestion({ fruitset: 'high' }, r), { product: 'NPK Perfect', dose: 1.5 });
+  assert.deepEqual(mergeLabelRules(null), DEFAULT_LABEL_RULES);
+});
+
+test('label rules with thresholds out of order are refused', () => {
+  assert.deepEqual(checkLabelRules(DEFAULT_LABEL_RULES), []);
+  const bad = mergeLabelRules({ tajuk: { lowMax: 600, midMax: 549 }, dose: { young: 500 } });
+  assert.deepEqual(checkLabelRules(bad).map((e) => e.key), ['rules.err.order', 'rules.err.dose']);
 });
