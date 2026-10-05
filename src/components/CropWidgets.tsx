@@ -1,7 +1,7 @@
 import { SourceBadge } from './SourceBadge';
 import { PhotoStrip } from './PhotoStrip';
 import React, { useMemo, useState } from 'react';
-import { BookOpen, ChevronRight, ClipboardList, ClipboardPlus, Plus, Trash2, Wheat } from 'lucide-react';
+import { ArrowRight, BookOpen, ChevronRight, ClipboardList, ClipboardPlus, Plus, Trash2, Wheat } from 'lucide-react';
 import { STAGES, STAGE_ORDER, StageId, TOPIC_BY_ID, pick } from '../lib/guide';
 import { useGuideOn } from '../lib/guideMode';
 import { useFarm } from '../context/FarmContext';
@@ -524,7 +524,11 @@ export const HarvestHomeCard: React.FC = () => {
           <Wheat className="w-6 h-6 text-emerald-600" />
           {t('hh.title')}
         </h2>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <Link to="/harvest" className="text-xs font-semibold text-emerald-700 hover:text-emerald-800 flex items-center gap-1 min-h-8">
+            {t('hh.open')}
+            <ArrowRight className="w-3.5 h-3.5" />
+          </Link>
           <button type="button" onClick={() => setCounting(true)} className={`${btnSecondary} min-h-10 px-3`}>
             <ClipboardPlus className="w-4 h-4 text-emerald-700" />
             {t('crop.count')}
@@ -610,10 +614,6 @@ export const HarvestHomeCard: React.FC = () => {
         )}
       </div>
 
-      <Link to="/harvest" className="flex items-center justify-between px-4 py-2.5 border-t border-slate-100 text-sm font-semibold text-emerald-700 hover:bg-emerald-50/50">
-        {t('hh.open')}
-        <ChevronRight className="w-4 h-4" />
-      </Link>
       {counting && <CropCountSheet crops={crops} onClose={() => setCounting(false)} onSaved={setMsg} />}
       {harvesting && <HarvestSheet onClose={() => setHarvesting(false)} onSaved={setMsg} />}
     </section>

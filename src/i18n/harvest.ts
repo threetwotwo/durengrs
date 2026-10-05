@@ -26,7 +26,7 @@ export const harvest: Bundle = {
     'hp.trees.help': 'Angka abu-abu berasal dari data pohon (laporan WhatsApp atau formulir pohon), bukan hitungan di sini. Kolom "Di pohon" = hitungan terakhir dikurangi buah yang sudah dipetik.',
 
     'hh.title': 'Panen',
-    'hh.open': 'Buka halaman panen',
+    'hh.open': 'Buka panen',
     'hh.toCount': 'Pohon perlu dihitung',
     'hh.toCount.sub': 'Hitungan tahap ini belum ada atau sudah lebih dari 2 minggu',
     'hh.toCount.short': 'Belum dihitung untuk tahapnya',
@@ -136,7 +136,7 @@ export const harvest: Bundle = {
     'hp.trees.help': 'Grey numbers come from the tree record (WhatsApp report or tree form), not a count made here. "On tree" = the last fruit count minus fruit already picked.',
 
     'hh.title': 'Harvest',
-    'hh.open': 'Open harvest page',
+    'hh.open': 'Open harvest',
     'hh.toCount': 'Trees to count',
     'hh.toCount.sub': 'No count for their stage yet, or fruit not recounted for 2 weeks',
     'hh.toCount.short': 'Not counted for their stage yet',

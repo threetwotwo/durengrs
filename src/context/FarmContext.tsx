@@ -63,7 +63,10 @@ interface FarmContextType {
   slowConnection: boolean;
 }
 
-const FarmContext = createContext<FarmContextType | null>(null);
+// One context object for the whole page life. A hot reload re-runs this module; with a fresh context object the
+// already-mounted Provider and the re-imported useFarm would disagree ("useFarm must be used within a FarmProvider").
+const FARM_CTX_KEY = '__cilowongFarmContext';
+const FarmContext: React.Context<FarmContextType | null> = ((globalThis as any)[FARM_CTX_KEY] ??= createContext<FarmContextType | null>(null));
 
 export const FarmProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [allTrees, setAllTrees] = useState<DurianTree[]>([]);
