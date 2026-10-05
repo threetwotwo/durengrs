@@ -87,12 +87,12 @@ export const TOPICS: TopicMeta[] = [
   },
   {
     id: 'fruit',
-    title: { id: 'Bakal buah & penjarangan', en: 'Fruit set & thinning' },
+    title: { id: 'Buah jadi & buang buah berlebih', en: 'Fruit set & thinning' },
     summary: {
-      id: 'Berapa buah yang dipertahankan, kapan menjarangkan, dan kenapa buah rontok.',
+      id: 'Berapa buah yang disisakan, kapan membuang buah berlebih, dan kenapa buah rontok.',
       en: 'How many fruit to keep, when to thin, and why fruit drops.',
     },
-    keywords: ['buah rontok', 'rontok buah', 'buah gugur', 'pentil', 'buah kecil', 'penjarangan', 'jarangkan', 'retak', 'buah pecah', 'fruit drop', 'fruitlet', 'thinning', 'small fruit', 'crack'],
+    keywords: ['buah rontok', 'rontok buah', 'buah gugur', 'pentil', 'buah kecil', 'penjarangan', 'jarangkan', 'buang buah', 'buah berlebih', 'disisakan', 'retak', 'buah pecah', 'fruit drop', 'fruitlet', 'thinning', 'small fruit', 'crack'],
   },
   {
     id: 'water',
@@ -437,7 +437,7 @@ export const STAGES: Record<StageId, StageInfo> = {
       },
       {
         text: {
-          id: 'Saat kuncup selebar ±1 cm, petani Thailand menjarangkan kuncup bunga (berapa banyak tergantung varietas) agar buah lebih besar dan seragam.',
+          id: 'Saat kuncup selebar ±1 cm, petani Thailand membuang sebagian kuncup bunga (berapa banyak tergantung varietas) agar buah lebih besar dan seragam.',
           en: 'When buds are about 1 cm across, Thai growers thin the flower buds (how much depends on the variety) for bigger, more even fruit.',
         },
         topic: 'fruit',
@@ -527,7 +527,7 @@ export const STAGES: Record<StageId, StageInfo> = {
       },
       {
         text: {
-          id: 'Penjarangan pertama bisa dimulai minggu ke-4: buang buah cacat dan bertangkai kecil lebih dulu.',
+          id: 'Buang buah berlebih bisa dimulai minggu ke-4: buang buah cacat dan bertangkai kecil lebih dulu.',
           en: 'The first thinning can start in week 4: remove deformed fruit and fruit on thin stalks first.',
         },
         topic: 'fruit',
@@ -535,12 +535,12 @@ export const STAGES: Record<StageId, StageInfo> = {
     ],
   },
   thin: {
-    title: { id: 'Penjarangan & brongsong', en: 'Thinning & bagging' },
+    title: { id: 'Buang buah berlebih & brongsong', en: 'Thinning & bagging' },
     when: { id: 'Hari 28-60 (minggu 4 sampai ±9)', en: 'Days 28-60 (week 4 to about 9)' },
     actions: [
       {
         text: {
-          id: 'Jarangkan bertahap (minggu 4-6, sekitar hari ke-45, terakhir sekitar hari ke-60) sampai 1 buah (paling banyak 2) per tangkai; buang buah kecil, cacat dan tidak simetris.',
+          id: 'Buang buah berlebih bertahap (minggu 4-6, sekitar hari ke-45, terakhir sekitar hari ke-60) sampai 1 buah (paling banyak 2) per tangkai; buang buah kecil, cacat dan tidak simetris.',
           en: 'Thin in rounds (weeks 4-6, around day 45, last around day 60) down to 1 fruit (at most 2) per cluster; remove small, deformed and lopsided fruit.',
         },
         topic: 'fruit',
@@ -563,7 +563,7 @@ export const STAGES: Record<StageId, StageInfo> = {
       },
       {
         text: {
-          id: 'Setelah penjarangan, isi "Perkiraan jumlah buah" per pohon; perkiraan panen memakai angka ini.',
+          id: 'Setelah buah berlebih dibuang, isi "Perkiraan jumlah buah" per pohon; perkiraan panen memakai angka ini.',
           en: 'After thinning, fill in "Estimated fruit count" per tree; the harvest forecast uses it.',
         },
         topic: 'records',

@@ -21,7 +21,7 @@ export interface SeasonTaskDef {
 /** Windows from the Guide research: pollinate in bloom week, thin in rounds days 28-60, bag by week 6 after fruit set. */
 export const SEASON_TASKS: Record<SeasonTaskId, SeasonTaskDef> = {
   hand_pollination: { title: { id: 'Penyerbukan tangan', en: 'Hand pollination' }, topic: 'pollination', from: 0, to: 7, optional: true },
-  fruit_thinning: { title: { id: 'Penjarangan buah', en: 'Fruit thinning' }, topic: 'fruit', from: 28, to: 60 },
+  fruit_thinning: { title: { id: 'Buang buah berlebih', en: 'Fruit thinning' }, topic: 'fruit', from: 28, to: 60 },
   bagging: { title: { id: 'Brongsong buah', en: 'Bagging fruit' }, topic: 'pests', from: 28, to: 49 },
   ca_mg_spray: { title: { id: 'Semprot Ca + Mg', en: 'Ca + Mg spray' }, topic: 'nutrition', from: 45, to: 60 },
   fruit_tying: { title: { id: 'Ikat tangkai buah', en: 'Tie fruit stalks' }, topic: 'harvest', from: 61, to: (ripeMin) => Math.max(75, ripeMin - 14) },

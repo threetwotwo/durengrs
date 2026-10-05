@@ -234,7 +234,7 @@ export const TOPIC_CONTENT: Record<TopicId, TopicContent> = {
       {
         heading: { id: 'Menanam', en: 'Planting' },
         points: [
-          { id: 'Jarak rapat memberi hasil awal lebih banyak per hektar, tapi pohon perlu dijarangkan setelah 8-10 tahun.', en: 'Close spacing gives more early yield per hectare, but trees need thinning out after 8-10 years.' },
+          { id: 'Jarak rapat memberi hasil awal lebih banyak per hektar, tapi sebagian pohon perlu ditebang setelah 8-10 tahun.', en: 'Close spacing gives more early yield per hectare, but trees need thinning out after 8-10 years.' },
           { id: 'Lindungi dari angin kencang dengan pemecah angin alami atau buatan.', en: 'Protect from strong wind with natural or artificial windbreaks.' },
           { id: 'Di kebun muda, lahan antar baris bisa ditanami pisang, pepaya atau tanaman semusim; durian juga sering ditanam di bawah kelapa.', en: 'In a young orchard the space between rows can carry banana, papaya or annual crops; durian is also commonly grown under coconut.' },
           { id: 'Di persemaian, mati pucuk bibit karena Phytophthora bisa mencapai 50% bila kebersihan buruk; infeksi sering mulai di batang muda atau di sambungan. Beli bibit sehat dan periksa sambungannya.', en: 'In nurseries, Phytophthora seedling dieback can reach 50% losses where hygiene is poor; infection often starts at the young stem or the graft union. Buy healthy plants and check the union.' },
@@ -342,19 +342,19 @@ export const TOPIC_CONTENT: Record<TopicId, TopicContent> = {
   fruit: {
     targets: [
       { label: { id: 'Buah per tangkai', en: 'Fruit per cluster' }, value: { id: '1 (paling banyak 2)', en: '1 (at most 2)' }, confidence: 'strong' },
-      { label: { id: 'Waktu penjarangan', en: 'When to thin' }, value: { id: '5-8 minggu setelah mekar, saat rontok alami paling sedikit; di Thailand bertahap: minggu 4-6, ±hari 45, terakhir ±hari 60', en: '5-8 weeks after bloom, when natural drop is lowest; in Thailand in rounds: weeks 4-6, ~day 45, last ~day 60' }, confidence: 'strong' },
-      { label: { id: 'Penjarangan kuncup', en: 'Bud thinning' }, value: { id: 'Di Thailand saat kuncup ±1 cm; banyaknya tergantung varietas', en: 'In Thailand when buds are ~1 cm across; how much depends on the variety' }, confidence: 'rule' },
+      { label: { id: 'Kapan buang buah berlebih', en: 'When to thin' }, value: { id: '5-8 minggu setelah mekar, saat rontok alami paling sedikit; di Thailand bertahap: minggu 4-6, ±hari 45, terakhir ±hari 60', en: '5-8 weeks after bloom, when natural drop is lowest; in Thailand in rounds: weeks 4-6, ~day 45, last ~day 60' }, confidence: 'strong' },
+      { label: { id: 'Buang sebagian kuncup', en: 'Bud thinning' }, value: { id: 'Di Thailand saat kuncup ±1 cm; banyaknya tergantung varietas', en: 'In Thailand when buds are ~1 cm across; how much depends on the variety' }, confidence: 'rule' },
       { label: { id: 'Daun per buah', en: 'Leaves per fruit' }, value: { id: '150-200 daun untuk satu buah 2 kg', en: '150-200 leaves for one 2 kg fruit' }, confidence: 'rule' },
-      { label: { id: 'Buah per pohon dewasa', en: 'Fruit per mature tree' }, value: { id: 'Biasanya 50-100 per tahun; 70-80 di Malaysia; 50-150 setelah penjarangan di Thailand', en: 'Usually 50-100 a year; 70-80 in Malaysia; 50-150 after thinning in Thailand' }, confidence: 'rule' },
+      { label: { id: 'Buah per pohon dewasa', en: 'Fruit per mature tree' }, value: { id: 'Biasanya 50-100 per tahun; 70-80 di Malaysia; 50-150 setelah buah berlebih dibuang di Thailand', en: 'Usually 50-100 a year; 70-80 in Malaysia; 50-150 after thinning in Thailand' }, confidence: 'rule' },
       { label: { id: 'Hasil menurut umur (okulasi)', en: 'Yield by age (grafted)' }, value: { id: 'Tahun berbuah pertama 10-40; ±100 di tahun berbuah ke-6; sampai 200 setelah tahun ke-10', en: 'First fruiting year 10-40; ~100 by the 6th fruiting year; up to 200 after the 10th' }, confidence: 'rule' },
     ],
     sections: [
       {
-        heading: { id: 'Kenapa menjarangkan', en: 'Why thin' },
+        heading: { id: 'Kenapa buah berlebih dibuang', en: 'Why thin' },
         points: [
           { id: 'Terlalu banyak bakal buah menghasilkan buah kecil dan tidak seragam, dan menguras pohon untuk musim berikutnya.', en: 'Too much fruit set gives small, uneven fruit and drains the tree for next season.' },
-          { id: 'Dalam uji penjarangan 25% dan 50%, buah lebih berat, lingkarnya lebih besar dan lebih panjang daripada tanpa penjarangan.', en: 'In a trial, thinning by 25% and 50% gave heavier, wider and longer fruit than no thinning.' },
-          { id: 'Buah tunggal kurang disukai penggerek untuk bertelur; penjarangan juga mengurangi hama.', en: 'Single fruit are less attractive to borers for egg laying; thinning also reduces pests.' },
+          { id: 'Dalam uji membuang 25% dan 50% buah, buah yang tersisa lebih berat, lingkarnya lebih besar dan lebih panjang daripada tanpa dibuang.', en: 'In a trial, thinning by 25% and 50% gave heavier, wider and longer fruit than no thinning.' },
+          { id: 'Buah tunggal kurang disukai penggerek untuk bertelur; membuang buah berlebih juga mengurangi hama.', en: 'Single fruit are less attractive to borers for egg laying; thinning also reduces pests.' },
         ],
       },
       {
@@ -367,7 +367,7 @@ export const TOPIC_CONTENT: Record<TopicId, TopicContent> = {
         ],
       },
       {
-        heading: { id: 'Cara menjarangkan', en: 'How to thin' },
+        heading: { id: 'Cara membuang buah berlebih', en: 'How to thin' },
         points: [
           { id: 'Buang buah kecil, cacat dan tidak simetris; sisakan buah yang seragam.', en: 'Remove small, damaged and lopsided fruit; keep uniform ones.' },
           { id: 'Sesuaikan jumlah buah dengan ukuran cabang dan jumlah daunnya, bukan hanya jumlah tangkai.', en: 'Match fruit numbers to the size of the branch and its leaves, not just the number of clusters.' },
@@ -378,7 +378,7 @@ export const TOPIC_CONTENT: Record<TopicId, TopicContent> = {
     ],
     questions: [
       { id: 'Berapa buah per pohon yang menghasilkan ukuran terbaik di kebun ini, per varietas?', en: 'How many fruit per tree give the best size on this farm, per variety?' },
-      { id: 'Berapa persen bakal buah yang rontok sebelum penjarangan?', en: 'What share of fruitlets drop before thinning?' },
+      { id: 'Berapa persen bakal buah yang rontok sebelum buah berlebih dibuang?', en: 'What share of fruitlets drop before thinning?' },
       { id: 'Pada umur dan ukuran berapa pohon di kebun ini boleh mulai dibiarkan berbuah penuh?', en: 'At what age and size should trees on this farm be allowed to carry a full crop?' },
     ],
     related: ['pollination', 'nutrition', 'pests', 'records'],
@@ -608,7 +608,7 @@ export const TOPIC_CONTENT: Record<TopicId, TopicContent> = {
       {
         heading: { id: 'Pengendalian', en: 'Control' },
         points: [
-          { id: 'Jarangkan buah lalu brongsong: buah tunggal kurang disukai untuk bertelur, dan brongsong mengurangi kebutuhan insektisida.', en: 'Thin, then bag: single fruit are less attractive for egg laying, and bagging cuts insecticide needs.' },
+          { id: 'Buang buah berlebih lalu brongsong: buah tunggal kurang disukai untuk bertelur, dan brongsong mengurangi kebutuhan insektisida.', en: 'Thin, then bag: single fruit are less attractive for egg laying, and bagging cuts insecticide needs.' },
           { id: 'Sanitasi: buang dan musnahkan buah yang terserang dan yang jatuh.', en: 'Sanitation: remove and destroy infested and fallen fruit.' },
           { id: 'Utamakan musuh alami, jamur entomopatogen dan formulasi nimba.', en: 'Favour natural enemies, entomopathogenic fungi and neem formulations.' },
           { id: 'Jangan semprot insektisida ke bunga yang mekar; jaga kelelawar dan lebah penyerbuk.', en: 'No insecticide on open flowers; protect pollinating bats and bees.' },
@@ -668,7 +668,7 @@ export const TOPIC_CONTENT: Record<TopicId, TopicContent> = {
     targets: [
       { label: { id: 'Tanggal mekar per blok', en: 'Bloom date per block' }, value: { id: 'Setiap musim (Jadwal → Panen)', en: 'Every season (Schedule → Harvest)' }, confidence: 'strong' },
       { label: { id: 'Lama matang per varietas', en: 'Ripening days per variety' }, value: { id: 'Diperbarui dari panen nyata (Varietas)', en: 'Updated from real harvests (Variants)' }, confidence: 'strong' },
-      { label: { id: 'Jumlah buah per pohon', en: 'Fruit per tree' }, value: { id: 'Setelah penjarangan', en: 'After thinning' }, confidence: 'rule' },
+      { label: { id: 'Jumlah buah per pohon', en: 'Fruit per tree' }, value: { id: 'Setelah buah berlebih dibuang', en: 'After thinning' }, confidence: 'rule' },
       { label: { id: 'Lingkar batang & lebar tajuk', en: 'Trunk girth & canopy width' }, value: { id: 'Setahun sekali', en: 'Once a year' }, confidence: 'rule' },
       { label: { id: 'Analisis daun & pH tanah', en: 'Leaf analysis & soil pH' }, value: { id: 'Setahun sekali, sebelum berbunga', en: 'Once a year, before flowering' }, confidence: 'study' },
       { label: { id: 'Hujan harian', en: 'Daily rain' }, value: { id: 'Penakar hujan sederhana', en: 'A simple rain gauge' }, confidence: 'rule' },

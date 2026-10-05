@@ -141,7 +141,7 @@ export const trees: Bundle = {
     'tree.v.range': 'Isi antara {min} dan {max}.',
     'tree.v.future': 'Tanggal tanam tidak boleh di masa depan.',
     'tree.v.tooOld': 'Tanggal tanam tidak boleh sebelum 1990.',
-    'tree.v.fruitHigh': '{n} buah di atas kebiasaan untuk pohon umur {age} tahun (biasanya ≤ {max}). Boleh disimpan; pertimbangkan penjarangan.',
+    'tree.v.fruitHigh': '{n} buah di atas kebiasaan untuk pohon umur {age} tahun (biasanya ≤ {max}). Boleh disimpan; pertimbangkan membuang sebagian buah.',
     'tree.v.fix': 'Perbaiki isian yang ditandai merah, lalu simpan lagi.',
     'tree.remote.updated': 'Pohon ini baru diperbarui (misalnya oleh laporan baru) saat Anda mengubah data. Isian yang tidak Anda ubah sudah diperbarui; perubahan Anda tetap ada.',
     'tree.remote.conflicts': 'Juga diubah di tempat lain: {fields}. Nilai Anda yang akan disimpan.',
