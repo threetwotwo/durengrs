@@ -7,6 +7,7 @@ import { useGuideOn } from '../lib/guideMode';
 import { Sheet, fieldInput, fieldLabel } from './Sheet';
 import { Link } from './Link';
 import { SourceBadge } from './SourceBadge';
+import { MissedLink, ViaWhatsApp } from './FieldFirst';
 import { PhotoLightbox } from './PhotoLightbox';
 import {
   GRADES,
@@ -60,6 +61,7 @@ export const SeasonTaskChips: React.FC<{ task: SeasonTaskId; seasons: BlockSeaso
   const { seasonTasksDone } = useFarm();
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
   // One chip per block, or per flowering wave when trees or branches flowered apart.
   const rows = seasons.flatMap((s) =>
     blockTasks(s, seasonTasksDone)
@@ -90,7 +92,23 @@ export const SeasonTaskChips: React.FC<{ task: SeasonTaskId; seasons: BlockSeaso
       {rows.map(({ s, bt, key, label }) => {
         const done = bt.status === 'done';
         const late = bt.status === 'late';
-        return (
+        const tone = done
+          ? 'bg-emerald-50 border-emerald-300 text-emerald-800'
+          : late
+          ? 'bg-amber-50 border-amber-300 text-amber-900'
+          : 'bg-white border-slate-300 text-slate-800';
+        const text = (
+          <>
+            {done && <Check className="w-3.5 h-3.5" />}
+            {done
+              ? t('rec.task.done', { block: label, date: formatShortDate(bt.doneDate!) })
+              : late
+              ? t('rec.task.late', { block: label })
+              : t('rec.task.todo', { block: label })}
+          </>
+        );
+        // Workers report finished tasks on WhatsApp; the chips only become buttons while marking by hand.
+        return editing ? (
           <button
             key={key}
             type="button"
@@ -98,23 +116,17 @@ export const SeasonTaskChips: React.FC<{ task: SeasonTaskId; seasons: BlockSeaso
             onClick={() => toggle(s, bt, key)}
             aria-pressed={done}
             title={done ? t('rec.task.undo') : t('rec.task.mark')}
-            className={`${chip} ${
-              done
-                ? 'bg-emerald-50 border-emerald-300 text-emerald-800'
-                : late
-                ? 'bg-amber-50 border-amber-300 text-amber-900 hover:bg-amber-100'
-                : 'bg-white border-slate-300 text-slate-800 hover:border-emerald-500'
-            }`}
+            className={`${chip} ${tone} ring-1 ring-offset-1 ring-slate-300 hover:border-emerald-500`}
           >
-            {done && <Check className="w-3.5 h-3.5" />}
-            {done
-              ? t('rec.task.done', { block: label, date: formatShortDate(bt.doneDate!) })
-              : late
-              ? t('rec.task.late', { block: label })
-              : t('rec.task.todo', { block: label })}
+            {text}
           </button>
+        ) : (
+          <span key={key} className={`${chip} ${tone}`}>
+            {text}
+          </span>
         );
       })}
+      <MissedLink onClick={() => setEditing((v) => !v)} plain={editing} label={editing ? t('ff.doneEditing') : t('ff.missedTask')} />
       {error && <span role="alert" className="basis-full text-xs text-rose-700">{error}</span>}
     </span>
   );
@@ -131,6 +143,7 @@ export const RainCard: React.FC<{ className?: string }> = ({ className = '' }) =
   const [date, setDate] = useState(today);
   const [mm, setMm] = useState('');
   const [state, setState] = useState<{ kind: 'idle' | 'saving' | 'saved' | 'error'; msg?: string }>({ kind: 'idle' });
+  const [editing, setEditing] = useState(false);
   const summary = useMemo(() => rainSummary(rain, today), [rain, today]);
   const max = Math.max(10, ...summary.last14.map((d) => d.mm || 0));
   const recordedToday = rain.find((d) => d.date === date);
@@ -182,6 +195,11 @@ export const RainCard: React.FC<{ className?: string }> = ({ className = '' }) =
         </p>
       )}
 
+      <div className="flex flex-wrap items-center justify-between gap-x-3">
+        <ViaWhatsApp text={t('ff.viaFarm')} />
+        <MissedLink onClick={() => setEditing((v) => !v)} plain={editing} label={editing ? t('ff.doneEditing') : t('ff.missedRain')} />
+      </div>
+      {editing && (
       <div className="flex flex-wrap items-end gap-2">
         <div>
           <label htmlFor="rain-date" className={fieldLabel}>{t('rec.date')}</label>
@@ -210,6 +228,7 @@ export const RainCard: React.FC<{ className?: string }> = ({ className = '' }) =
           {t('rec.rain.none')}
         </button>
       </div>
+      )}
       {state.kind === 'saved' && <p role="status" className="text-xs text-emerald-700">{t('rec.rain.saved', { date: formatShortDate(date) })}</p>}
       {state.kind === 'error' && <p role="alert" className="text-xs text-rose-700">{state.msg}</p>}
       {recordedToday && state.kind !== 'saved' && (
@@ -223,7 +242,7 @@ export const RainCard: React.FC<{ className?: string }> = ({ className = '' }) =
 
 export const HarvestLog: React.FC = () => {
   const { t } = useT();
-  const { harvests, variants } = useFarm();
+  const { harvests, variants, workerLabel } = useFarm();
   const [open, setOpen] = useState(false);
   const [viewer, setViewer] = useState<{ h: Harvest; index: number } | null>(null);
   // A harvest with photos also loses its files in Cloud Storage (the storage code loads only when needed).
@@ -245,10 +264,7 @@ export const HarvestLog: React.FC = () => {
           </h2>
           <p className="text-xs text-slate-600">{t('rec.hv.help')}</p>
         </div>
-        <button type="button" onClick={() => setOpen(true)} className={primaryBtn}>
-          <Plus className="w-4 h-4" />
-          {t('rec.hv.add')}
-        </button>
+        <MissedLink onClick={() => setOpen(true)} label={t('ff.missedHarvest')} />
       </div>
 
       {quality.size > 0 && (
@@ -299,6 +315,7 @@ export const HarvestLog: React.FC = () => {
                 <span className="font-semibold text-slate-900">
                   {formatShortDate(h.date)} · {h.treeId ? t('rep.treeN', { id: h.treeId }) : t('common.blockN', { n: h.block })} · {nameOf(h.variant)}
                 </span>{' '}
+                {h.workerPhone ? <span className="text-xs text-slate-500">· {workerLabel(h.workerPhone)}</span> : null}
                 <SourceBadge source={h.source} />
                 <span className="block text-xs text-slate-600 tabular">
                   {t('rec.hv.line', { n: h.fruits })}
@@ -362,7 +379,7 @@ export const HarvestSheet: React.FC<{ onClose: () => void; initialBlock?: string
   initialTree,
   onSaved,
 }) => {
-  const { t } = useT();
+  const { t, locale } = useT();
   const { variants, trees, blocks, harvestCycles: cycles, treeBlooms } = useFarm();
   const today = todayStr();
   const [date, setDate] = useState(today);
@@ -382,6 +399,7 @@ export const HarvestSheet: React.FC<{ onClose: () => void; initialBlock?: string
   const [grades, setGrades] = useState<Record<Grade, string>>({ extra: '', class1: '', class2: '', reject: '' });
   const [weight, setWeight] = useState('');
   const [problems, setProblems] = useState<HarvestProblem[]>([]);
+  const [problemFruits, setProblemFruits] = useState('');
   const [notes, setNotes] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -404,10 +422,20 @@ export const HarvestSheet: React.FC<{ onClose: () => void; initialBlock?: string
   const save = async () => {
     const w = weight.trim() ? Number(weight.replace(',', '.')) : undefined;
     if (!block || !chosenVariant) return setError(t('rec.hv.e.block'));
+    if (!tree) return setError(t('crop.e.tree'));
     if (!date || date > today) return setError(t('rec.e.date'));
-    if (nums.some((n) => !Number.isInteger(n) || n < 0 || n > 5000)) return setError(t('rec.hv.e.grade'));
-    if (total < 1 || total > 5000) return setError(t('rec.hv.e.fruits'));
-    if (w !== undefined && (!Number.isFinite(w) || w <= 0 || w > 20000)) return setError(t('rec.hv.e.weight'));
+    // Same limits as the WhatsApp Flow for one tree's harvest.
+    const maxFruits = 500;
+    const maxKg = 2000;
+    if (nums.some((n) => !Number.isInteger(n) || n < 0 || n > maxFruits)) return setError(t('rec.hv.e.grade', { max: maxFruits.toLocaleString(locale) }));
+    if (total < 1 || total > maxFruits) return setError(t('rec.hv.e.fruits', { max: maxFruits.toLocaleString(locale) }));
+    if (w !== undefined && (!Number.isFinite(w) || w < 0.5 || w > maxKg)) return setError(t('rec.hv.e.weight', { max: maxKg.toLocaleString(locale) }));
+    // Same rule as the Flow: a quality problem needs the number of fruit that had one, and that number fits the harvest.
+    const pf = problemFruits.trim() ? Number(problemFruits) : 0;
+    if (problems.length) {
+      if (!problemFruits.trim()) return setError(t('rec.hv.e.problemFruitsNeeded'));
+      if (!Number.isInteger(pf) || pf < 1 || pf > total) return setError(t('rec.hv.e.problemFruits'));
+    }
     const days = floweredOn && date >= floweredOn ? diffDays(date, floweredOn) : undefined;
     const graded = Object.fromEntries(GRADES.map((g, i) => [g, nums[i]]).filter(([, n]) => (n as number) > 0)) as Partial<Record<Grade, number>>;
     setSaving(true);
@@ -422,7 +450,7 @@ export const HarvestSheet: React.FC<{ onClose: () => void; initialBlock?: string
         weightKg: w,
         grades: graded,
         problems: problems.filter((p) => p),
-        problemFruits: graded.reject || undefined,
+        problemFruits: problems.length ? pf : undefined,
         floweredOn: days !== undefined ? floweredOn : undefined,
         daysFromBloom: days,
         notes: notes.trim() || undefined,
@@ -450,6 +478,7 @@ export const HarvestSheet: React.FC<{ onClose: () => void; initialBlock?: string
         </div>
       }
     >
+      <p className="text-xs text-amber-900 bg-amber-50 border border-amber-200 rounded-lg p-2.5">{t('ff.sheetNote')}</p>
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label htmlFor="hv-date" className={fieldLabel}>{t('rec.date')}</label>
@@ -476,7 +505,7 @@ export const HarvestSheet: React.FC<{ onClose: () => void; initialBlock?: string
         <div>
           <label htmlFor="hv-tree" className={fieldLabel}>{t('rec.hv.tree')}</label>
           <select id="hv-tree" value={treeId} onChange={(e) => setTreeId(e.target.value)} className={fieldInput}>
-            <option value="">{t('rec.hv.wholeBlock')}</option>
+            <option value="" disabled>{t('crop.e.tree')}</option>
             {blockTrees.map((x) => (
               <option key={x.id} value={x.id}>{x.id}{x.variant ? ` · ${x.variant}` : ''}</option>
             ))}
@@ -528,7 +557,7 @@ export const HarvestSheet: React.FC<{ onClose: () => void; initialBlock?: string
                 type="number"
                 inputMode="numeric"
                 min={0}
-                max={5000}
+                max={500}
                 value={grades[g]}
                 onChange={(e) => setGrades((prev) => ({ ...prev, [g]: e.target.value }))}
                 placeholder="0"
@@ -554,7 +583,7 @@ export const HarvestSheet: React.FC<{ onClose: () => void; initialBlock?: string
         <label htmlFor="hv-weight" className={fieldLabel}>{t('rec.hv.weight')}</label>
         <input id="hv-weight" type="text" inputMode="decimal" value={weight} onChange={(e) => setWeight(e.target.value)} className={fieldInput} />
       </div>
-      {(Number(grades.reject) > 0 || problems.length > 0) && (
+      {(
         <div>
           <span className={fieldLabel}>{t('rec.hv.problems')}</span>
           <div className="flex flex-wrap gap-2">
@@ -573,6 +602,12 @@ export const HarvestSheet: React.FC<{ onClose: () => void; initialBlock?: string
               );
             })}
           </div>
+          {problems.length > 0 && (
+            <div className="mt-2 max-w-48">
+              <label htmlFor="hv-pf" className={fieldLabel}>{t('rec.hv.problemFruits')}</label>
+              <input id="hv-pf" type="number" inputMode="numeric" min={1} max={total || undefined} value={problemFruits} onChange={(e) => setProblemFruits(e.target.value)} className={fieldInput} />
+            </div>
+          )}
         </div>
       )}
       <div>

@@ -15,6 +15,7 @@ import {
 import { HarvestCycle } from '../lib/insights';
 import { TreatmentPlan, Treatment, ScheduleTask, computeTasks, rebuildLastDone, addDays, todayStr } from '../lib/treatments';
 import type { CropCount, Harvest, LabResult, RainDay, SeasonTaskDone, TreeBloom } from '../lib/fieldData';
+import { type Worker, workerLabel } from '../lib/workers';
 
 import { AppTab, useRoute } from '../lib/router';
 export type { AppTab };
@@ -47,7 +48,10 @@ interface FarmContextType {
   deleteVariant: (code: string, reassignTo?: string) => Promise<void>;
   totalFruits: number;
   /** Farm records for the Guide (see lib/fieldData.ts). */
+  /** Harvest log (an archived test tree's harvests left out). */
   harvests: Harvest[];
+  /** Archived trees (not test trees) whose harvests still count in the season totals. */
+  archivedHarvestTrees: Set<string>;
   seasonTasksDone: SeasonTaskDone[];
   /** Trees (or branches) that flowered apart from their block's bloom date. */
   treeBlooms: TreeBloom[];
@@ -55,6 +59,10 @@ interface FarmContextType {
   cropCounts: CropCount[];
   rain: RainDay[];
   labResults: LabResult[];
+  /** Field workers (WhatsApp number -> name). */
+  workers: Worker[];
+  /** A worker's name, else their masked number; text typed by hand is returned as is. */
+  workerLabel: (who?: string) => string;
   /** YYYY-MM-DD of the last weekly farm check, if any. */
   weeklyReviewDate: string | null;
   /** Set when Firestore refuses the farm-record collections (rules not published yet). */
@@ -154,10 +162,11 @@ export const FarmProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   // Farm records the Guide reads: harvests, season tasks, rain (last 120 days), lab results, weekly review.
-  const [harvests, setHarvests] = useState<Harvest[]>([]);
+  const [allHarvests, setHarvests] = useState<Harvest[]>([]);
   const [seasonTasksDone, setSeasonTasksDone] = useState<SeasonTaskDone[]>([]);
   const [rain, setRain] = useState<RainDay[]>([]);
   const [labResults, setLabResults] = useState<LabResult[]>([]);
+  const [workers, setWorkers] = useState<Worker[]>([]);
   const [weeklyReviewDate, setWeeklyReviewDate] = useState<string | null>(null);
   const [treeBlooms, setTreeBlooms] = useState<TreeBloom[]>([]);
   const [cropCounts, setCropCounts] = useState<CropCount[]>([]);
@@ -205,6 +214,11 @@ export const FarmProvider: React.FC<{ children: React.ReactNode }> = ({ children
         query(collection(db, 'cropCounts'), where('season', '>=', seasonsSince)),
         (s) => setCropCounts(s.docs.map((d) => ({ id: d.id, ...(d.data() as any) }) as CropCount)),
         onErr('Crop counts')
+      ),
+      onSnapshot(
+        collection(db, 'workers'),
+        (s) => setWorkers(s.docs.map((d) => ({ phone: d.id, name: String(d.data().name || '') }))),
+        onErr('Workers')
       ),
       onSnapshot(
         doc(db, 'farmMeta', 'weeklyReview'),
@@ -404,6 +418,20 @@ export const FarmProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await deleteVariantFromFirestore(code, allTrees.filter((t) => t.variant === code), reassignTo);
   };
 
+  // A test tree's harvests leave every total and list once it is archived; a tree archived for a real reason (died,
+  // removed...) keeps its harvests in the season totals, since that fruit was really picked.
+  const harvests = useMemo(() => {
+    const test = new Set(allTrees.filter((t) => t.active === false && t.archivedReason === 'test').map((t) => t.id));
+    return test.size ? allHarvests.filter((h) => !h.treeId || !test.has(h.treeId)) : allHarvests;
+  }, [allHarvests, allTrees]);
+  const archivedHarvestTrees = useMemo(
+    () => new Set(archivedTrees.filter((t) => t.archivedReason !== 'test').map((t) => t.id)),
+    [archivedTrees]
+  );
+
+  const workerNames = useMemo(() => new Map(workers.filter((w) => w.name).map((w) => [w.phone, w.name])), [workers]);
+  const whoLabel = useCallback((who?: string) => workerLabel(workerNames, who), [workerNames]);
+
   const totalFruits = trees.reduce((acc, t) => acc + (t.estimatedFruitCount || 0), 0);
 
   return (
@@ -430,6 +458,9 @@ export const FarmProvider: React.FC<{ children: React.ReactNode }> = ({ children
         saveVariant,
         deleteVariant,
         harvests,
+        archivedHarvestTrees,
+        workers,
+        workerLabel: whoLabel,
         seasonTasksDone,
         treeBlooms,
         cropCounts,

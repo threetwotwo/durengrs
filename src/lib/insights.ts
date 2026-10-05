@@ -1,4 +1,4 @@
-import { deleteDoc, doc, serverTimestamp, setDoc } from 'firebase/firestore';
+import { collection, deleteDoc, doc, getDoc, getDocs, query, serverTimestamp, setDoc, where, writeBatch } from 'firebase/firestore';
 import { db } from './firebase';
 import { DurianTree, DurianVariant, TreeReport } from '../types';
 import { locale, translate } from '../i18n';
@@ -131,10 +131,73 @@ export function fruitsByMonth(rows: HarvestRow[]): Array<{ month: string; label:
     }));
 }
 
-export async function saveHarvestCycle(block: string, floweredOn: string | null) {
+/** A new date this close to the old one is a correction of the same flowering; further apart, it is a new season. */
+export const BLOOM_CORRECTION_DAYS = 45;
+export const isBloomCorrection = (old: string | undefined, next: string) =>
+  !!old && old !== next && Math.abs(diffDays(next, old)) <= BLOOM_CORRECTION_DAYS;
+
+/**
+ * Set (or clear) a block's bloom date. Correcting the date (within BLOOM_CORRECTION_DAYS) moves what was recorded against
+ * the old one (fruit counts and season tasks, from WhatsApp or here) to the new date, so nothing drops off the harvest
+ * page. A new season's date moves nothing: last season's records stay with last season. Returns how many records moved.
+ */
+export async function saveHarvestCycle(block: string, floweredOn: string | null): Promise<number> {
   const ref = doc(db, 'harvestCycles', block);
-  if (!floweredOn) return deleteDoc(ref);
+  if (!floweredOn) {
+    await deleteDoc(ref);
+    return 0;
+  }
+  const before = await getDoc(ref);
+  const old: string | undefined = before.exists() ? before.data().floweredOn : undefined;
+  const moved = isBloomCorrection(old, floweredOn) ? await moveSeason(block, old!, floweredOn) : 0;
   await setDoc(ref, { block, floweredOn, updatedAt: serverTimestamp() });
+  return moved;
+}
+
+type Rec = { id: string; [k: string]: any };
+
+/**
+ * What a block-date correction moves: counts and season tasks recorded against the old date, re-keyed to the new one.
+ * Pure, so it can be tested.
+ * - A tree that flowered WHOLE on its own exactly on the old date keeps its counts there (they belong to that flowering),
+ *   and then the block's season tasks stay too, since that date is still a flowering of the block.
+ * - A record that already exists at the new id is never overwritten (the first record stands); the old one stays.
+ */
+export function seasonMovePlan(block: string, from: string, to: string, counts: Rec[], tasks: Rec[], blooms: Rec[]) {
+  const wholeOnOldDate = new Set(blooms.filter((b) => b.block === block && b.date === from && b.part === 'whole').map((b) => b.treeId as string));
+  const taken = new Set([...counts, ...tasks].map((r) => r.id));
+  const moves: Array<{ collection: 'cropCounts' | 'seasonTasks'; from: string; to: string; data: Record<string, any> }> = [];
+  for (const { id, ...c } of counts) {
+    if (c.block !== block || c.season !== from || wholeOnOldDate.has(c.treeId)) continue;
+    const target = `${c.treeId}_${to}_${c.stage}_${c.date}`;
+    if (!taken.has(target)) moves.push({ collection: 'cropCounts', from: id, to: target, data: { ...c, season: to } });
+  }
+  if (!wholeOnOldDate.size) {
+    for (const { id, ...s } of tasks) {
+      if (s.block !== block || s.season !== from) continue;
+      const target = `${block}_${to}_${s.task}`;
+      if (!taken.has(target)) moves.push({ collection: 'seasonTasks', from: id, to: target, data: { ...s, season: to } });
+    }
+  }
+  return moves;
+}
+
+async function moveSeason(block: string, from: string, to: string): Promise<number> {
+  const [counts, tasks, blooms] = await Promise.all(
+    ['cropCounts', 'seasonTasks', 'bloomWaves'].map((c) => getDocs(query(collection(db, c), where('block', '==', block))))
+  );
+  const rows = (snap: Awaited<ReturnType<typeof getDocs>>) => snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
+  const moves = seasonMovePlan(block, from, to, rows(counts), rows(tasks), rows(blooms));
+  // Firestore allows 500 writes per batch; each move is 2 (write the new record, delete the old).
+  for (let i = 0; i < moves.length; i += 200) {
+    const batch = writeBatch(db);
+    for (const m of moves.slice(i, i + 200)) {
+      batch.set(doc(db, m.collection, m.to), m.data);
+      batch.delete(doc(db, m.collection, m.from));
+    }
+    await batch.commit();
+  }
+  return moves.length;
 }
 
 // ---------- activity ----------

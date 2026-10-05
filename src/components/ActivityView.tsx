@@ -3,7 +3,8 @@ import { collection, getDocs, limit, orderBy, query, Timestamp, where } from 'fi
 import { db, parseReportDoc } from '../lib/firebase';
 import { TreeReport } from '../types';
 import { useFarm } from '../context/FarmContext';
-import { summariseActivity, maskPhone } from '../lib/insights';
+import { summariseActivity } from '../lib/insights';
+import { WorkersCard } from './WorkersCard';
 import { Link } from './Link';
 import { treesUrl } from '../lib/router';
 import { formatTimeAgo, normalizeTimestamp } from '../context/FarmContext';
@@ -15,7 +16,7 @@ const PERIODS = [7, 14, 30] as const;
 
 /** Who is reporting, how often, and which blocks nobody has looked at. */
 export const ActivityView: React.FC = () => {
-  const { trees } = useFarm();
+  const { trees, workerLabel, cropCounts, harvests } = useFarm();
   const { t, lang } = useT();
   const guideOn = useGuideOn();
   const [reports, setReports] = useState<TreeReport[]>([]);
@@ -134,7 +135,7 @@ export const ActivityView: React.FC = () => {
               <tbody className="divide-y divide-slate-100">
                 {summary.perWorker.map((w) => (
                   <tr key={w.phone}>
-                    <td className="px-4 py-2.5 font-mono text-slate-900">{maskPhone(w.phone)}</td>
+                    <td className={`px-4 py-2.5 text-slate-900 ${workerLabel(w.phone).startsWith('••••') ? 'font-mono' : 'font-semibold'}`}>{workerLabel(w.phone)}</td>
                     <td className="px-3 py-2.5 text-right tabular font-semibold">{w.reports}</td>
                     <td className="px-3 py-2.5 text-right tabular">{w.trees}</td>
                     <td className="px-3 py-2.5 text-slate-600 tabular">{formatTimeAgo(w.lastAt)}</td>
@@ -199,6 +200,14 @@ export const ActivityView: React.FC = () => {
         <p className="text-xs text-slate-500">{t('act.topics.hint')}</p>
       </section>
       )}
+
+      <WorkersCard
+        seenPhones={[
+          ...summary.perWorker.map((w) => w.phone),
+          ...cropCounts.filter((c) => c.source === 'whatsapp' && c.by).map((c) => c.by!),
+          ...harvests.map((h) => h.workerPhone || ''),
+        ]}
+      />
     </div>
   );
 };

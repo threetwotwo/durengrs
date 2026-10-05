@@ -256,7 +256,13 @@ export function treeWaves(
   const hasWhole = own.some((b) => b.part === 'whole');
   const blockCurrent = blockDate && diffDays(today, blockDate) <= 365;
   const all = !hasWhole && blockCurrent ? [{ date: blockDate!, part: 'whole' as BloomPart, fromBlock: true }, ...own] : own;
-  return all.sort((a, b) => a.date.localeCompare(b.date));
+  // One flowering per date (same as the WhatsApp bot): a "whole" outranks a partial record on the same day.
+  const byDate = new Map<string, (typeof all)[number]>();
+  for (const w of all) {
+    const prev = byDate.get(w.date);
+    if (!prev || (w.part === 'whole' && prev.part !== 'whole')) byDate.set(w.date, w);
+  }
+  return Array.from(byDate.values()).sort((a, b) => a.date.localeCompare(b.date));
 }
 
 export interface BlockSeason {

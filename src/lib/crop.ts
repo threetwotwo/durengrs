@@ -105,6 +105,7 @@ export function treeCrops(
     const season = seasonByBlock.get(tree.block);
     const ripeMin = season?.ripeMin ?? 120;
     const ripeMax = season?.ripeMax ?? 120;
+    // One crop per flowering date (treeWaves merges same-day records, as the WhatsApp bot does).
     const tw = season ? treeWaves(tree, cycleByBlock.get(tree.block), blooms, ripeMax + 90, today) : [];
     const waves = tw.map((w) => {
       const day = diffDays(today, w.date);
@@ -184,14 +185,13 @@ export interface Funnel {
 
 /**
  * Add up tree crops. `blockHarvests` are whole-block harvest entries (no tree), counted from the start of each
- * block's season.
+ * block's season, plus the harvests of `archivedTrees` (trees taken out of service after their fruit was picked).
  */
-export function cropFunnel(crops: TreeCrop[], seasons: BlockSeason[], blockHarvests: Harvest[] = []): Funnel {
+export function cropFunnel(crops: TreeCrop[], seasons: BlockSeason[], blockHarvests: Harvest[] = [], archivedTrees: Set<string> = new Set()): Funnel {
   const stages = Object.fromEntries(CROP_STAGES.map((s) => [s, { total: 0, trees: 0 }])) as Funnel['stages'];
   const harvested = emptyHarvest();
   let remaining = 0;
   let toCount = 0;
-  const blocks = new Set<string>();
   const pairs = { setPerCluster: [0, 0], keptOfSet: [0, 0], onTreeOfKept: [0, 0] };
   const pair = (key: keyof typeof pairs, a?: StageCount, b?: StageCount) => {
     if (a && b && b.count > 0) {
@@ -203,7 +203,6 @@ export function cropFunnel(crops: TreeCrop[], seasons: BlockSeason[], blockHarve
     pair('setPerCluster', c.counts.set, c.counts.clusters);
     pair('keptOfSet', c.counts.kept, c.counts.set);
     if (c.remaining !== undefined && c.counts.kept) pair('onTreeOfKept', { count: c.remaining, date: '' }, c.counts.kept);
-    blocks.add(c.tree.block);
     for (const st of CROP_STAGES) {
       const v = c.counts[st];
       if (v) {
@@ -222,7 +221,7 @@ export function cropFunnel(crops: TreeCrop[], seasons: BlockSeason[], blockHarve
   const startOf = new Map(seasons.map((s) => [s.block, s.waves[0]?.date]));
   for (const h of blockHarvests) {
     const start = startOf.get(h.block);
-    if (h.treeId || !blocks.has(h.block) || !start || h.date < start) continue;
+    if ((h.treeId && !archivedTrees.has(h.treeId)) || !start || h.date < start) continue;
     addHarvest(harvested, h);
   }
   const ratio = (k: keyof typeof pairs) => (pairs[k][1] ? pairs[k][0] / pairs[k][1] : null);

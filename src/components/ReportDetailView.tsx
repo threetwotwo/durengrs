@@ -5,7 +5,7 @@ import { db, parseReportDoc } from '../lib/firebase';
 import { normalizeTimestamp, useFarm } from '../context/FarmContext';
 import { goBack, navigate, treeUrl } from '../lib/router';
 import { cachedReport, rememberReport } from '../lib/reportCache';
-import { FOLLOW_UP_LIMIT_DAYS, maskPhone } from '../lib/insights';
+import { FOLLOW_UP_LIMIT_DAYS } from '../lib/insights';
 import { STAGES, STAGE_ORDER, TOPIC_BY_ID, pick, topicsForText, treeStages } from '../lib/guide';
 import { useSeasons } from './useSeasons';
 import { useGuideOn } from '../lib/guideMode';
@@ -32,7 +32,7 @@ const h2 = 'text-sm font-bold text-slate-900';
 export const ReportDetailView: React.FC<{ reportId: string }> = ({ reportId }) => {
   const { t, lang, locale } = useT();
   const guideOn = useGuideOn();
-  const { trees, variants, harvestCycles, treeBlooms } = useFarm();
+  const { trees, variants, harvestCycles, treeBlooms, workerLabel } = useFarm();
   // Same style as ReportDate ("04 Oct 2026").
   const day = (v: any) => new Date(normalizeTimestamp(v)).toLocaleDateString(locale, { day: '2-digit', month: 'short', year: 'numeric' });
   const [report, setReport] = useState<TreeReport | null | undefined>(() => cachedReport(reportId));
@@ -87,7 +87,7 @@ export const ReportDetailView: React.FC<{ reportId: string }> = ({ reportId }) =
 
   const ts = normalizeTimestamp(report.createdAt);
   const photos = report.photos || [];
-  const phone = maskPhone(report.workerPhone);
+  const phone = workerLabel(report.workerPhone);
   const last4 = (report.workerPhone || '').replace(/\D/g, '').slice(-4);
   const changed = report.conditionChanged && report.conditionBefore && report.conditionBefore !== report.conditionAfter;
   const variantName = variants.find((v) => v.code === tree?.variant)?.name || tree?.variant;
@@ -188,7 +188,7 @@ export const ReportDetailView: React.FC<{ reportId: string }> = ({ reportId }) =
               {phone && (
                 <span className="inline-flex items-center gap-1.5">
                   <User className="w-4 h-4 text-slate-400" aria-hidden />
-                  {t('rep.reportedBy')} <span className="font-mono">{phone}</span>
+                  {t('rep.reportedBy')} <span className={phone.startsWith('••••') ? 'font-mono' : 'font-semibold text-slate-800'}>{phone}</span>
                 </span>
               )}
               {last4 && (

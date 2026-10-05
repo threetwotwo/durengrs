@@ -1,13 +1,14 @@
 import React, { useMemo, useState } from 'react';
-import { CalendarClock, CheckCircle2, ClipboardPlus, Plus } from 'lucide-react';
+import { CalendarClock, CheckCircle2 } from 'lucide-react';
 import { useFarm } from '../context/FarmContext';
 import { useT } from '../i18n';
 import { useQueryParams } from '../lib/router';
 import { CROP_STAGES, CropStage } from '../lib/fieldData';
-import { TreeCrop, cropFunnel } from '../lib/crop';
+import { cropFunnel } from '../lib/crop';
 import { diffDays, formatShortDate, todayStr } from '../lib/treatments';
-import { PageHeader, btnPrimary, btnSecondary } from './PageHeader';
-import { CropCountSheet, FunnelStrip, GradeBar, GradingCriteria, TreeLink, nextLabel } from './CropWidgets';
+import { PageHeader } from './PageHeader';
+import { DuePill, MissedLink, ViaWhatsApp } from './FieldFirst';
+import { CropCountSheet, FunnelStrip, GradeBar, GradingCriteria, TreeLink } from './CropWidgets';
 import { HarvestLog, HarvestSheet } from './FieldRecords';
 import { HarvestView } from './HarvestView';
 import { StagePill } from './GuideWidgets';
@@ -22,7 +23,7 @@ import { useCrops } from './useCrops';
  */
 export const HarvestPage: React.FC = () => {
   const { t } = useT();
-  const { blocks, harvests } = useFarm();
+  const { blocks, harvests, archivedHarvestTrees } = useFarm();
   const { crops, seasons } = useCrops();
   const [params, setParams] = useQueryParams();
   const block = params.get('block') || 'all';
@@ -34,8 +35,8 @@ export const HarvestPage: React.FC = () => {
 
   const inBlock = useMemo(() => crops.filter((c) => block === 'all' || c.tree.block === block), [crops, block]);
   const funnel = useMemo(
-    () => cropFunnel(inBlock, seasons, harvests.filter((h) => block === 'all' || h.block === block)),
-    [inBlock, seasons, harvests, block]
+    () => cropFunnel(inBlock, seasons, harvests.filter((h) => block === 'all' || h.block === block), archivedHarvestTrees),
+    [inBlock, seasons, harvests, block, archivedHarvestTrees]
   );
   const toCount = inBlock.filter((c) => c.next && c.next.kind !== 'harvest' && c.next.overdue);
   const toPick = inBlock.filter((c) => c.next?.kind === 'harvest');
@@ -51,17 +52,11 @@ export const HarvestPage: React.FC = () => {
       return {
         s,
         remaining: blockCrops.reduce((n, c) => n + (c.remaining || 0), 0),
-        picked: cropFunnel(blockCrops, seasons, harvests.filter((h) => h.block === s.block)).harvested.fruits,
+        picked: cropFunnel(blockCrops, seasons, harvests.filter((h) => h.block === s.block), archivedHarvestTrees).harvested.fruits,
         days: diffDays(s.harvestFrom!, today),
       };
     })
     .sort((a, b) => a.s.harvestFrom!.localeCompare(b.s.harvestFrom!));
-
-  const step = (c: TreeCrop) => {
-    if (!c.next) return setCounting({ treeId: c.tree.id });
-    if (c.next.kind === 'harvest') return setHarvesting({ treeId: c.tree.id });
-    setCounting({ treeId: c.tree.id, stage: c.next.kind });
-  };
 
   return (
     <div className="space-y-4">
@@ -69,16 +64,13 @@ export const HarvestPage: React.FC = () => {
         title={t('hp.title')}
         description={t('hp.desc')}
         actions={
-          <>
-            <button type="button" onClick={() => setCounting({})} className={btnSecondary}>
-              <ClipboardPlus className="w-4 h-4 text-emerald-700" />
-              {t('crop.count')}
-            </button>
-            <button type="button" onClick={() => setHarvesting({})} className={btnPrimary}>
-              <Plus className="w-4 h-4" />
-              {t('crop.logHarvest')}
-            </button>
-          </>
+          <div className="flex flex-col items-start sm:items-end gap-0.5">
+            <ViaWhatsApp text={t('ff.viaTree')} />
+            <span className="flex flex-wrap gap-x-3">
+              <MissedLink onClick={() => setCounting({})} label={t('ff.missedCount')} />
+              <MissedLink onClick={() => setHarvesting({})} label={t('ff.missedHarvest')} />
+            </span>
+          </div>
         }
       />
 
@@ -133,9 +125,7 @@ export const HarvestPage: React.FC = () => {
                       ))}
                     </span>
                   </span>
-                  <button type="button" onClick={() => step(c)} className={`${c.next?.kind === 'harvest' ? btnPrimary : btnSecondary} min-h-10 px-3 text-xs`}>
-                    {nextLabel(c, t)}
-                  </button>
+                  <DuePill crop={c} />
                 </li>
               ))}
             </ul>
@@ -240,15 +230,7 @@ export const HarvestPage: React.FC = () => {
                     )}
                   </td>
                   <td className="px-3 py-2.5 text-right whitespace-nowrap">
-                    <button
-                      type="button"
-                      onClick={() => step(c)}
-                      className={`min-h-9 px-3 rounded-lg border text-xs font-semibold ${
-                        c.next?.kind === 'harvest' ? 'bg-emerald-600 border-emerald-600 text-white' : c.next?.overdue ? 'bg-white border-amber-400 text-amber-900' : 'bg-white border-slate-300 text-slate-700'
-                      }`}
-                    >
-                      {nextLabel(c, t)}
-                    </button>
+                    {c.next && <DuePill crop={c} />}
                   </td>
                 </tr>
               ))}

@@ -1,14 +1,15 @@
 import { SourceBadge } from './SourceBadge';
+import { DuePill, MissedLink, ViaWhatsApp } from './FieldFirst';
 import { PhotoStrip } from './PhotoStrip';
 import React, { useMemo, useState } from 'react';
-import { ArrowRight, BookOpen, ChevronRight, ClipboardList, ClipboardPlus, Plus, Trash2, Wheat } from 'lucide-react';
+import { ArrowRight, BookOpen, ChevronRight, ClipboardList, Trash2, Wheat } from 'lucide-react';
 import { STAGES, STAGE_ORDER, StageId, TOPIC_BY_ID, pick } from '../lib/guide';
 import { useGuideOn } from '../lib/guideMode';
 import { useFarm } from '../context/FarmContext';
 import { useT } from '../i18n';
 import { Sheet, fieldInput, fieldLabel } from './Sheet';
 import { Link } from './Link';
-import { btnPrimary, btnSecondary } from './PageHeader';
+import { btnPrimary } from './PageHeader';
 import { CROP_STAGES, CropStage, GRADES, removeCropCount, saveCropCount } from '../lib/fieldData';
 import { Funnel, GradeTotals, TreeCrop, topGradeShare } from '../lib/crop';
 import { TREE_LIMITS } from '../lib/trees';
@@ -105,12 +106,6 @@ export const FunnelStrip: React.FC<{ funnel: Funnel; compact?: boolean; hints?: 
     </ol>
   );
 };
-
-/** Button label for a tree's next step. */
-export function nextLabel(crop: TreeCrop, t: (k: string, v?: Record<string, string | number>) => string): string {
-  if (!crop.next) return t('crop.count');
-  return crop.next.kind === 'harvest' ? t('crop.logHarvest') : t('crop.countStage', { stage: t(`crop.stage.${crop.next.kind}`) });
-}
 
 // ---------- count sheet ----------
 
@@ -209,6 +204,7 @@ export const CropCountSheet: React.FC<{
         </div>
       }
     >
+      <p className="text-xs text-amber-900 bg-amber-50 border border-amber-200 rounded-lg p-2.5">{t('ff.sheetNote')}</p>
       {!initialTree && (
         <div className="grid grid-cols-2 gap-3">
           <div>
@@ -316,7 +312,7 @@ export const CropCountSheet: React.FC<{
 /** One tree's crop this season: each step with its latest count, what to count next, and graded harvest. */
 export const TreeCropCard: React.FC<{ tree: DurianTree }> = ({ tree }) => {
   const { t } = useT();
-  const { cropCounts } = useFarm();
+  const { cropCounts, workerLabel } = useFarm();
   const { crops } = useCrops();
   const crop = crops.find((c) => c.tree.id === tree.id);
   const [counting, setCounting] = useState<CropStage | 'next' | null>(null);
@@ -346,16 +342,10 @@ export const TreeCropCard: React.FC<{ tree: DurianTree }> = ({ tree }) => {
         <p className="text-sm text-slate-600">{t('crop.tree.noBloom', { block: tree.block })}</p>
       ) : (
         <>
-          {next && (
-            <button
-              type="button"
-              onClick={() => (next.kind === 'harvest' ? setHarvesting(true) : setCounting('next'))}
-              className={`${next.overdue || next.kind === 'harvest' ? btnPrimary : btnSecondary} w-full`}
-            >
-              {next.kind === 'harvest' ? <Wheat className="w-4 h-4" /> : <ClipboardPlus className="w-4 h-4" />}
-              {nextLabel(crop, t)}
-            </button>
-          )}
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            {next ? <DuePill crop={crop} /> : <span />}
+            <ViaWhatsApp text={t('ff.viaTree')} />
+          </div>
           <ol className="divide-y divide-slate-100">
             {CROP_STAGES.map((st) => {
               const c = crop.counts[st];
@@ -368,14 +358,6 @@ export const TreeCropCard: React.FC<{ tree: DurianTree }> = ({ tree }) => {
                     </span>
                   </span>
                   <span className="text-xl font-bold tabular text-slate-900">{c ? c.count : '—'}</span>
-                  <button
-                    type="button"
-                    onClick={() => setCounting(st)}
-                    className="min-h-10 min-w-10 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 inline-flex items-center justify-center"
-                    aria-label={t('crop.countStage', { stage: t(`crop.stage.${st}`) })}
-                  >
-                    <Plus className="w-4 h-4" />
-                  </button>
                 </li>
               );
             })}
@@ -389,20 +371,16 @@ export const TreeCropCard: React.FC<{ tree: DurianTree }> = ({ tree }) => {
                   </span>
                 </span>
                 <span className="text-xl font-bold tabular text-slate-900">{crop.harvested.fruits || '—'}</span>
-                <button
-                  type="button"
-                  onClick={() => setHarvesting(true)}
-                  className="min-h-10 min-w-10 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 inline-flex items-center justify-center"
-                  aria-label={t('crop.logHarvest')}
-                >
-                  <Plus className="w-4 h-4" />
-                </button>
               </div>
               <GradeBar grades={crop.harvested.grades} legend />
             </li>
           </ol>
           {crop.waves.length > 1 && <p className="text-xs text-slate-600">{t('crop.tree.waves', { n: crop.waves.length })}</p>}
           {msg && <p role="status" className="text-xs text-emerald-700">{msg}</p>}
+          <div className="flex flex-wrap gap-x-3">
+            <MissedLink onClick={() => setCounting('next')} label={t('ff.missedCount')} />
+            <MissedLink onClick={() => setHarvesting(true)} label={t('ff.missedHarvest')} />
+          </div>
           {history.length > 0 && (
             <div>
               <button type="button" onClick={() => setShowHistory((v) => !v)} className="text-xs font-semibold text-slate-600 underline min-h-8">
@@ -414,7 +392,7 @@ export const TreeCropCard: React.FC<{ tree: DurianTree }> = ({ tree }) => {
                     <li key={h.id} className="flex items-center gap-2 py-1.5 text-sm">
                       <span className="min-w-0 flex-1">
                         {formatShortDate(h.date)} · {t(`crop.stage.${h.stage}`)} <span className="font-semibold tabular">{h.count}</span>
-                        {h.by ? <span className="text-xs text-slate-500"> · {h.by}</span> : null}{' '}
+                        {h.by ? <span className="text-xs text-slate-500"> · {workerLabel(h.by)}</span> : null}{' '}
                         <SourceBadge source={h.source} />
                         {h.note ? <span className="block text-xs text-slate-500">{h.note}</span> : null}
                         <PhotoStrip photos={h.photos} caption={`${h.treeId} · ${t(`crop.stage.${h.stage}`)} · ${formatShortDate(h.date)}`} />
@@ -494,9 +472,6 @@ export const HarvestHomeCard: React.FC = () => {
   const { t, lang } = useT();
   const guideOn = useGuideOn();
   const { crops, funnel, seasons } = useCrops();
-  const [counting, setCounting] = useState(false);
-  const [harvesting, setHarvesting] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
   const today = todayStr();
   const toPick = crops.filter((c) => c.next?.kind === 'harvest').length;
   const noDate = seasons.filter((s) => !s.floweredOn || s.outdated);
@@ -529,19 +504,10 @@ export const HarvestHomeCard: React.FC = () => {
             {t('hh.open')}
             <ArrowRight className="w-3.5 h-3.5" />
           </Link>
-          <button type="button" onClick={() => setCounting(true)} className={`${btnSecondary} min-h-10 px-3`}>
-            <ClipboardPlus className="w-4 h-4 text-emerald-700" />
-            {t('crop.count')}
-          </button>
-          <button type="button" onClick={() => setHarvesting(true)} className={`${btnPrimary} min-h-10 px-3`}>
-            <Plus className="w-4 h-4" />
-            {t('crop.logHarvest')}
-          </button>
         </div>
       </div>
 
       <div className="p-4 space-y-3">
-        {msg && <p role="status" className="text-sm text-emerald-800">{msg}</p>}
         <FunnelStrip funnel={funnel} hints={hints} />
 
         {/* One row: what to do now, and when the next harvests are. */}
@@ -614,8 +580,6 @@ export const HarvestHomeCard: React.FC = () => {
         )}
       </div>
 
-      {counting && <CropCountSheet crops={crops} onClose={() => setCounting(false)} onSaved={setMsg} />}
-      {harvesting && <HarvestSheet onClose={() => setHarvesting(false)} onSaved={setMsg} />}
     </section>
   );
 };

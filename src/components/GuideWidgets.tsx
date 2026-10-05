@@ -1,4 +1,5 @@
 import { SourceBadge } from './SourceBadge';
+import { MissedLink, ViaWhatsApp } from './FieldFirst';
 import { PhotoStrip } from './PhotoStrip';
 import React, { useMemo, useState } from 'react';
 import {
@@ -602,9 +603,10 @@ export const TreeBloomRecorder: React.FC<{ tree: DurianTree }> = ({ tree }) => {
     if (!date || date > todayStr()) return setState({ kind: 'error', msg: t('sched.hv.future') });
     setState({ kind: 'saving' });
     try {
-      const id = await addTreeBloom({ treeId: tree.id, block: tree.block, date, part });
+      const r = await addTreeBloom({ treeId: tree.id, block: tree.block, date, part });
       setOpen(false);
-      setState({ kind: 'saved', id });
+      // Undo only removes a record made here, never one a worker already sent.
+      setState(r.created ? { kind: 'saved', id: r.id } : { kind: 'saved', msg: t('guide.tree.bloomExists') });
     } catch (e: any) {
       console.error('Saving tree bloom failed:', e);
       setState({ kind: 'error', msg: e?.code === 'permission-denied' ? t('err.rulesRecords') : t('sched.hv.saveError') });
@@ -616,16 +618,18 @@ export const TreeBloomRecorder: React.FC<{ tree: DurianTree }> = ({ tree }) => {
       <div className="pt-1 border-t border-slate-100 space-y-1">
         {state.kind === 'saved' && (
           <p role="status" className="text-xs text-emerald-800 flex flex-wrap items-center gap-2">
-            {t('guide.tree.bloomSaved')}
-            <button type="button" onClick={() => state.id && removeTreeBloom(state.id).then(() => setState({ kind: 'idle' }))} className="font-semibold underline min-h-8">
-              {t('sched.undo')}
-            </button>
+            {state.msg || t('guide.tree.bloomSaved')}
+            {state.id && (
+              <button type="button" onClick={() => state.id && removeTreeBloom(state.id).then(() => setState({ kind: 'idle' }))} className="font-semibold underline min-h-8">
+                {t('sched.undo')}
+              </button>
+            )}
           </p>
         )}
-        <button type="button" onClick={() => setOpen(true)} className={`${smallBtn} bg-white border-slate-300 text-slate-800 hover:bg-slate-50`}>
-          <Flower2 className="w-3.5 h-3.5 text-emerald-600" />
-          {t('guide.tree.addBloom')}
-        </button>
+        <div className="flex flex-wrap items-center justify-between gap-x-3">
+          <ViaWhatsApp text={t('ff.viaTree')} />
+          <MissedLink onClick={() => setOpen(true)} label={t('ff.missedBloom')} />
+        </div>
       </div>
     );
   }

@@ -28,7 +28,7 @@ export const dashboard: Bundle = {
     'dash.today.unseen.sub': '{a} dari {b} pohon dilaporkan dalam 7 hari',
     'dash.today.rain': 'Hujan hari ini',
     'dash.today.rain.done': 'Sudah dicatat',
-    'dash.today.rain.todo': 'Belum dicatat · ketuk untuk mengisi',
+    'dash.today.rain.todo': 'Belum dikirim hari ini',
 
     'dash.att.title': 'Perlu perhatian',
     'dash.att.overdue': '{n} terlambat dicek',
@@ -106,7 +106,7 @@ export const dashboard: Bundle = {
     'dash.today.unseen.sub': '{a} of {b} trees reported in 7 days',
     'dash.today.rain': 'Rain today',
     'dash.today.rain.done': 'Recorded',
-    'dash.today.rain.todo': 'Not recorded · tap to enter',
+    'dash.today.rain.todo': 'Not sent yet today',
 
     'dash.att.title': 'Needs attention',
     'dash.att.overdue': '{n} overdue for a check',

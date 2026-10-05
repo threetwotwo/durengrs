@@ -103,7 +103,7 @@ export const harvest: Bundle = {
     'grade.reject.criteria': 'Tidak memenuhi syarat minimum: busuk, daging basah, retak terbuka, lubang penggerek, belum matang atau jatuh terlalu awal.',
     'grade.source': 'Berdasarkan standar Codex untuk durian (CXS 317-2014) dan standar durian ASEAN (Rev. 2012). Kelas berat tergantung varietas; ikuti juga syarat pembeli Anda.',
 
-    'rec.hv.e.grade': 'Isi jumlah bulat per mutu (0 sampai 5000).',
+    'rec.hv.e.grade': 'Isi jumlah bulat per mutu (0 sampai {max}).',
     'rec.hv.saved': '{n} buah dicatat ({where}).',
     'rec.hv.saveN': 'Simpan {n} buah',
     'rec.hv.tree': 'Pohon',
@@ -213,7 +213,7 @@ export const harvest: Bundle = {
     'grade.reject.criteria': 'Fails the minimum: rot, wet core, cracked open, borer holes, immature or dropped too early.',
     'grade.source': 'Based on the Codex standard for durian (CXS 317-2014) and the ASEAN durian standard (Rev. 2012). Weight classes depend on the variety; follow your buyer\'s requirements too.',
 
-    'rec.hv.e.grade': 'Enter a whole number per grade (0 to 5000).',
+    'rec.hv.e.grade': 'Enter a whole number per grade (0 to {max}).',
     'rec.hv.saved': '{n} fruit logged ({where}).',
     'rec.hv.saveN': 'Save {n} fruit',
     'rec.hv.tree': 'Tree',

@@ -16,6 +16,7 @@ export const HarvestView: React.FC = () => {
   const { trees, variants, harvestCycles, blocks, scheduleError, treeBlooms } = useFarm();
   const [saving, setSaving] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const seasons = useSeasons();
   const rows = useMemo(() => {
@@ -41,8 +42,10 @@ export const HarvestView: React.FC = () => {
     if (value && value > todayStr()) return setError(t('sched.hv.future'));
     setSaving(block);
     setError(null);
+    setNotice(null);
     try {
-      await saveHarvestCycle(block, value);
+      const moved = await saveHarvestCycle(block, value);
+      if (moved) setNotice(t('sched.hv.moved', { n: moved, block }));
     } catch (e: any) {
       setError(t('sched.hv.saveError'));
     } finally {
@@ -52,6 +55,9 @@ export const HarvestView: React.FC = () => {
 
   return (
     <div className="space-y-4">
+      {notice && (
+        <p role="status" className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-sm text-emerald-900">{notice}</p>
+      )}
       {(scheduleError || error) && (
         <div role="alert" className="flex items-start gap-2 p-3 rounded-xl bg-amber-50 border border-amber-200 text-sm text-amber-900">
           <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />

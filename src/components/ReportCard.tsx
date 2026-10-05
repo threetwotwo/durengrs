@@ -4,7 +4,7 @@ import { ConditionBadge } from './ConditionBadge';
 import { ReportDate } from './ReportDate';
 import { Link } from './Link';
 import { reportUrl, treeUrl } from '../lib/router';
-import { maskPhone } from '../lib/insights';
+import { useFarm } from '../context/FarmContext';
 import { rememberReport } from '../lib/reportCache';
 import { formatDate } from '../context/FarmContext';
 import { useT } from '../i18n';
@@ -44,7 +44,8 @@ export const ReportCard: React.FC<{
   const block = report.block || tree?.block;
   const worded = hasWords(report.description);
   const reaction = !worded && report.description?.trim() ? report.description.trim() : '';
-  const phone = maskPhone(report.workerPhone);
+  const { workerLabel } = useFarm();
+  const phone = workerLabel(report.workerPhone);
   const emergency = (report.conditionAfter || '').toLowerCase() === 'emergency';
   const changed = report.conditionChanged && report.conditionBefore && report.conditionBefore !== report.conditionAfter;
   const guideOn = useGuideOn();
@@ -87,7 +88,7 @@ export const ReportCard: React.FC<{
           <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500">
             {showTree && <ReportDate value={report.createdAt} />}
             {phone && (
-              <span className="inline-flex items-center gap-1 font-mono">
+              <span className={`inline-flex items-center gap-1 ${phone.startsWith('••••') ? 'font-mono' : ''}`}>
                 <User className="w-3 h-3" aria-hidden />
                 {phone}
               </span>

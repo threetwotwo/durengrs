@@ -1,4 +1,4 @@
-import { Timestamp, collection, deleteDoc, deleteField, doc, runTransaction, serverTimestamp, setDoc, writeBatch } from 'firebase/firestore';
+import { Timestamp, collection, deleteDoc, deleteField, doc, getDoc, runTransaction, serverTimestamp, setDoc, writeBatch } from 'firebase/firestore';
 import { db } from './firebase';
 import type { BloomPart, TreeBloom } from './guide';
 import type { ReportPhoto } from '../types';
@@ -44,6 +44,8 @@ export interface Harvest {
   daysFromBloom?: number;
   notes?: string;
   source?: 'webapp' | 'whatsapp';
+  /** The WhatsApp number that sent it (shown by name via the Workers list). */
+  workerPhone?: string;
   /** Photos sent with the harvest report on WhatsApp (same three sizes as report photos). */
   photos?: ReportPhoto[];
 }
@@ -95,9 +97,11 @@ export async function removeHarvest(id: string): Promise<void> {
 
 export const seasonTaskId = (block: string, season: string, task: SeasonTaskId) => `${block}_${season}_${task}`;
 
-/** One record per block, season and task: tapping Done twice keeps one record. */
+/** One record per block, season and task. The first record stands (same as WhatsApp): marking it again changes nothing. */
 export async function markSeasonTask(block: string, season: string, task: SeasonTaskId, date: string): Promise<void> {
-  await setDoc(doc(db, 'seasonTasks', seasonTaskId(block, season, task)), {
+  const ref = doc(db, 'seasonTasks', seasonTaskId(block, season, task));
+  if ((await getDoc(ref)).exists()) return;
+  await setDoc(ref, {
     block,
     season,
     task,
@@ -167,10 +171,15 @@ export async function removeCropCount(id: string, photos?: ReportPhoto[]): Promi
 // ---------- tree bloom waves ----------
 
 /** A tree flowered on its own date: the whole tree (replaces the block date for it) or only some branches. */
-export async function addTreeBloom(b: { treeId: string; block: string; date: string; part: BloomPart; note?: string }): Promise<string> {
-  const ref = doc(collection(db, 'bloomWaves'));
+export const bloomWaveId = (treeId: string, date: string, part: BloomPart) => `${treeId}_${date}_${part}`;
+
+/** Same id the WhatsApp bot uses, so one flowering reported in both places stays one record (not a duplicate wave). */
+export async function addTreeBloom(b: { treeId: string; block: string; date: string; part: BloomPart; note?: string }): Promise<{ id: string; created: boolean }> {
+  const id = bloomWaveId(b.treeId, b.date, b.part);
+  const ref = doc(db, 'bloomWaves', id);
+  if ((await getDoc(ref)).exists()) return { id, created: false };
   await setDoc(ref, stripUndefined({ ...b, source: 'webapp', createdAt: serverTimestamp() }));
-  return ref.id;
+  return { id, created: true };
 }
 
 export async function removeTreeBloom(id: string, photos?: ReportPhoto[]): Promise<void> {
