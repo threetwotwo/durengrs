@@ -1,0 +1,332 @@
+{
+  "version": "7.3",
+  "data_api_version": "3.0",
+  "routing_model": {
+    "FARM_HOME": [
+      "KERJA",
+      "HUJAN"
+    ],
+    "KERJA": [
+      "DONE"
+    ],
+    "HUJAN": [
+      "DONE"
+    ],
+    "DONE": []
+  },
+  "screens": [
+    {
+      "id": "FARM_HOME",
+      "title": "Catatan Kebun",
+      "data": {},
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "Form",
+            "name": "farm_form",
+            "children": [
+              {
+                "type": "TextHeading",
+                "text": "Catatan Kebun"
+              },
+              {
+                "type": "TextBody",
+                "text": "Catat hujan atau pekerjaan yang sudah selesai di kebun. Tidak perlu memilih pohon."
+              },
+              {
+                "type": "RadioButtonsGroup",
+                "name": "choice",
+                "label": "Apa yang ingin dicatat?",
+                "required": true,
+                "data-source": [
+                  {
+                    "id": "rain",
+                    "title": "🌧️ Curah Hujan",
+                    "description": "Angka dari penakar hujan, dalam milimeter (mm)."
+                  },
+                  {
+                    "id": "work",
+                    "title": "✅ Pekerjaan Selesai",
+                    "description": "Penyerbukan, buang buah berlebih, brongsong, dll. per blok."
+                  }
+                ]
+              },
+              {
+                "type": "Footer",
+                "label": "Lanjut",
+                "on-click-action": {
+                  "name": "data_exchange",
+                  "payload": {
+                    "choice": "${form.choice}"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "KERJA",
+      "title": "Pekerjaan Selesai",
+      "data": {
+        "work_title": {
+          "type": "string",
+          "__example__": "Pekerjaan Selesai"
+        },
+        "block_options": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              }
+            }
+          },
+          "__example__": [
+            {
+              "id": "A",
+              "title": "Blok A"
+            }
+          ]
+        },
+        "min_date": {
+          "type": "string",
+          "__example__": "2026-08-01"
+        },
+        "max_date": {
+          "type": "string",
+          "__example__": "2026-10-04"
+        },
+        "init_values": {
+          "type": "object",
+          "properties": {
+            "date": {
+              "type": "string"
+            }
+          },
+          "__example__": {
+            "date": "2026-10-04"
+          }
+        }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "Form",
+            "name": "work_form",
+            "children": [
+              {
+                "type": "TextHeading",
+                "text": "${data.work_title}"
+              },
+              {
+                "type": "TextBody",
+                "text": "Catat pekerjaan yang sudah selesai di satu blok. Cukup sekali per pekerjaan untuk musim ini."
+              },
+              {
+                "type": "Dropdown",
+                "name": "block",
+                "label": "Blok",
+                "required": true,
+                "data-source": "${data.block_options}"
+              },
+              {
+                "type": "CheckboxGroup",
+                "name": "tasks",
+                "label": "Pekerjaan yang selesai",
+                "required": true,
+                "min-selected-items": 1,
+                "data-source": [
+                  {
+                    "id": "hand_pollination",
+                    "title": "Penyerbukan tangan"
+                  },
+                  {
+                    "id": "fruit_thinning",
+                    "title": "Buang buah berlebih"
+                  },
+                  {
+                    "id": "bagging",
+                    "title": "Brongsong buah"
+                  },
+                  {
+                    "id": "ca_mg_spray",
+                    "title": "Semprot Ca + Mg"
+                  },
+                  {
+                    "id": "fruit_tying",
+                    "title": "Ikat tangkai buah"
+                  }
+                ]
+              },
+              {
+                "type": "DatePicker",
+                "name": "date",
+                "label": "Tanggal selesai",
+                "required": true,
+                "helper-text": "Boleh sampai 30 hari ke belakang.",
+                "min-date": "${data.min_date}",
+                "max-date": "${data.max_date}"
+              },
+              {
+                "type": "Footer",
+                "label": "Simpan",
+                "on-click-action": {
+                  "name": "data_exchange",
+                  "payload": {
+                    "block": "${form.block}",
+                    "tasks": "${form.tasks}",
+                    "date": "${form.date}"
+                  }
+                }
+              }
+            ],
+            "init-values": "${data.init_values}"
+          }
+        ]
+      }
+    },
+    {
+      "id": "HUJAN",
+      "title": "Curah Hujan",
+      "data": {
+        "rain_title": {
+          "type": "string",
+          "__example__": "Curah Hujan"
+        },
+        "min_date": {
+          "type": "string",
+          "__example__": "2026-08-01"
+        },
+        "max_date": {
+          "type": "string",
+          "__example__": "2026-10-04"
+        },
+        "init_values": {
+          "type": "object",
+          "properties": {
+            "date": {
+              "type": "string"
+            }
+          },
+          "__example__": {
+            "date": "2026-10-04"
+          }
+        },
+        "needs_confirm": {
+          "type": "boolean",
+          "__example__": false
+        },
+        "warned": {
+          "type": "string",
+          "__example__": ""
+        }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "Form",
+            "name": "rain_form",
+            "children": [
+              {
+                "type": "TextHeading",
+                "text": "${data.rain_title}"
+              },
+              {
+                "type": "TextBody",
+                "text": "Baca penakar hujan, lalu tulis angkanya dalam milimeter (mm). Isi 0 jika tidak hujan."
+              },
+              {
+                "type": "DatePicker",
+                "name": "date",
+                "label": "Tanggal",
+                "required": true,
+                "helper-text": "Boleh sampai 7 hari ke belakang.",
+                "min-date": "${data.min_date}",
+                "max-date": "${data.max_date}"
+              },
+              {
+                "type": "TextInput",
+                "name": "mm",
+                "label": "Curah hujan (mm)",
+                "label-variant": "large",
+                "input-type": "number",
+                "helper-text": "Angka 0 sampai 400. Contoh: 12,5.",
+                "required": true
+              },
+              {
+                "type": "OptIn",
+                "name": "confirm",
+                "label": "Ya, angka sudah benar",
+                "required": false,
+                "visible": "${data.needs_confirm}"
+              },
+              {
+                "type": "Footer",
+                "label": "Simpan",
+                "on-click-action": {
+                  "name": "data_exchange",
+                  "payload": {
+                    "date": "${form.date}",
+                    "mm": "${form.mm}",
+                    "confirm": "${form.confirm}",
+                    "warned": "${data.warned}"
+                  }
+                }
+              }
+            ],
+            "init-values": "${data.init_values}"
+          }
+        ]
+      }
+    },
+    {
+      "id": "DONE",
+      "title": "Selesai",
+      "terminal": true,
+      "success": true,
+      "data": {
+        "title": {
+          "type": "string",
+          "__example__": "✅ Laporan tersimpan"
+        },
+        "message": {
+          "type": "string",
+          "__example__": "Laporan untuk A1 tersimpan."
+        }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "TextHeading",
+            "text": "${data.title}"
+          },
+          {
+            "type": "TextBody",
+            "text": "${data.message}"
+          },
+          {
+            "type": "Footer",
+            "label": "Tutup",
+            "on-click-action": {
+              "name": "complete",
+              "payload": {}
+            }
+          }
+        ]
+      }
+    }
+  ]
+}
