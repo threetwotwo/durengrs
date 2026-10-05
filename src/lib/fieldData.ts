@@ -1,4 +1,4 @@
-import { collection, deleteDoc, doc, serverTimestamp, setDoc, writeBatch } from 'firebase/firestore';
+import { Timestamp, collection, deleteDoc, doc, runTransaction, serverTimestamp, setDoc, writeBatch } from 'firebase/firestore';
 import { db } from './firebase';
 import type { BloomPart, TreeBloom } from './guide';
 import type { ReportPhoto } from '../types';
@@ -205,4 +205,27 @@ export async function removeLabResult(id: string): Promise<void> {
 
 export async function markWeeklyReview(date: string): Promise<void> {
   await setDoc(doc(db, 'farmMeta', 'weeklyReview'), { date, at: serverTimestamp() });
+}
+
+// ---------- new tree ----------
+
+/** Creates trees/{id}. Never overwrites: an ID that already exists is refused. */
+export async function createTree(t: { id: string; block: string; number: number; variant: string; datePlanted?: string }): Promise<'created' | 'exists'> {
+  const ref = doc(db, 'trees', t.id);
+  return runTransaction(db, async (tx) => {
+    if ((await tx.get(ref)).exists()) return 'exists' as const;
+    tx.set(ref, {
+      id: t.id,
+      block: t.block,
+      treeNumber: t.number,
+      variant: t.variant,
+      condition: 'not_assessed',
+      active: true,
+      ...(t.datePlanted ? { datePlanted: Timestamp.fromDate(new Date(`${t.datePlanted}T00:00:00`)) } : {}),
+      source: 'webapp',
+      dateCreated: serverTimestamp(),
+      dateUpdated: serverTimestamp(),
+    });
+    return 'created' as const;
+  });
 }

@@ -69,3 +69,65 @@ export function checkTreeForm(values: TreeFormValues, initial: TreeFormValues, t
   }
   return { errors, fruitWarning };
 }
+
+// ---------- adding a tree ----------
+
+/** Same shape the WhatsApp bot accepts as a tree ID: 1-3 letters (the block) then a number. */
+export const NEW_TREE_BLOCK = /^[A-Z]{1,3}$/;
+export const MAX_TREE_NUMBER = 999;
+
+export interface NewTreeValues {
+  block: string;
+  number: string;
+  variant: string;
+  datePlanted: string;
+}
+
+export interface NewTreeCheck {
+  /** The ID the tree will get (e.g. "A25"), when block and number are valid. */
+  id?: string;
+  errors: Partial<Record<keyof NewTreeValues, { key: string; vars?: Record<string, string | number> }>>;
+}
+
+export const normalizeBlock = (v: string) => v.replace(/[^a-zA-Z]/g, '').toUpperCase().slice(0, 3);
+
+/** Highest tree number used in a block, so the form can suggest the next free one. */
+export function nextTreeNumber(trees: Array<{ id: string; block: string }>, block: string): number {
+  let max = 0;
+  for (const t of trees) {
+    if (t.block !== block) continue;
+    const m = t.id.match(/(\d+)$/);
+    if (m) max = Math.max(max, Number(m[1]));
+  }
+  return max + 1;
+}
+
+export function checkNewTree(
+  values: NewTreeValues,
+  existingIds: string[],
+  knownVariants: string[],
+  today = todayStr()
+): NewTreeCheck {
+  const errors: NewTreeCheck['errors'] = {};
+  const block = values.block.trim().toUpperCase();
+  const numRaw = values.number.trim();
+  const num = Number(numRaw);
+
+  if (!NEW_TREE_BLOCK.test(block)) errors.block = { key: 'tree.new.e.block' };
+  if (!/^\d+$/.test(numRaw) || num < 1 || num > MAX_TREE_NUMBER) errors.number = { key: 'tree.new.e.number', vars: { max: MAX_TREE_NUMBER } };
+
+  let id: string | undefined;
+  if (!errors.block && !errors.number) {
+    id = `${block}${num}`;
+    if (existingIds.some((x) => x.toUpperCase() === id)) errors.number = { key: 'tree.new.e.exists', vars: { id } };
+  }
+
+  if (!values.variant || !knownVariants.includes(values.variant)) errors.variant = { key: 'tree.new.e.variant' };
+
+  const d = values.datePlanted;
+  if (d) {
+    if (d > today) errors.datePlanted = { key: 'tree.v.future' };
+    else if (d < EARLIEST_PLANTING) errors.datePlanted = { key: 'tree.v.tooOld' };
+  }
+  return { id: errors.block || errors.number ? undefined : id, errors };
+}

@@ -1,14 +1,15 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useT } from '../i18n';
 import { useFarm, formatDateTime, formatDate, normalizeTimestamp, formatTimeAgo } from '../context/FarmContext';
 import { ConditionBadge } from './ConditionBadge';
 import { Link } from './Link';
-import { PageHeader, btnSecondary, inputCls } from './PageHeader';
+import { PageHeader, btnPrimary, btnSecondary, inputCls } from './PageHeader';
+import { AddTreeSheet } from './AddTreeSheet';
 import { navigate, treeUrl, useQueryParams } from '../lib/router';
 import { followUpOf, waitingLabel } from '../lib/insights';
 import { formatShortDate } from '../lib/treatments';
 import { DurianTree } from '../types';
-import { Search, Download, ArrowUpDown, ArrowUp, ArrowDown, RotateCcw, TreeDeciduous, Clock, ChevronLeft, ChevronRight, Columns3 } from 'lucide-react';
+import { Search, Download, ArrowUpDown, ArrowUp, ArrowDown, RotateCcw, TreeDeciduous, Clock, ChevronLeft, ChevronRight, Columns3, Plus } from 'lucide-react';
 
 const ROWS_PER_PAGE = 50;
 type SortField = keyof DurianTree;
@@ -26,6 +27,7 @@ export const TreesTable: React.FC = () => {
   const { t, locale } = useT();
   const { trees, variants, treatments } = useFarm();
   const [params, setParams] = useQueryParams();
+  const [adding, setAdding] = useState(false);
 
   const search = params.get('q') || '';
   const filterBlock = params.get('block') || 'all';
@@ -226,12 +228,19 @@ export const TreesTable: React.FC = () => {
           </span>
         }
         actions={
+          <>
+          <button onClick={() => setAdding(true)} className={btnPrimary}>
+            <Plus className="w-4 h-4" />
+            <span>{t('tree.new.button')}</span>
+          </button>
           <button onClick={handleExportCSV} disabled={sortedTrees.length === 0} className={`${btnSecondary} disabled:opacity-50`} title={t('trees.exportTitle')}>
             <Download className="w-4 h-4" />
             <span className="hidden sm:inline">{t('trees.export')}</span>
           </button>
+          </>
         }
       />
+      {adding && <AddTreeSheet onClose={() => setAdding(false)} />}
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-xs p-3 sm:p-4 space-y-3">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
