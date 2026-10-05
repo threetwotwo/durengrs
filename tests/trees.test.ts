@@ -25,7 +25,8 @@ test('block and number formats', () => {
   assert.ok(checkNewTree({ ...ok, block: 'ABCD' }, trees, V, today).errors.block);
   assert.ok(checkNewTree({ ...ok, block: 'A1' }, trees, V, today).errors.block);
   assert.ok(checkNewTree({ ...ok, number: '' }, trees, V, today).errors.number);
-  assert.ok(checkNewTree({ ...ok, number: '0' }, trees, V, today).errors.number);
+  assert.equal(checkNewTree({ ...ok, number: '0' }, trees, V, today).id, 'A0'); // test tree, no warnings
+  assert.deepEqual(checkNewTree({ ...ok, number: '0' }, trees, V, today).warnings, []);
   assert.ok(checkNewTree({ ...ok, number: '1000' }, trees, V, today).errors.number);
   assert.ok(checkNewTree({ ...ok, number: '2.5' }, trees, V, today).errors.number);
   assert.ok(checkNewTree({ ...ok, number: '-3' }, trees, V, today).errors.number);

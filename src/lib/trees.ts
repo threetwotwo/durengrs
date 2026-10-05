@@ -75,6 +75,7 @@ export function checkTreeForm(values: TreeFormValues, initial: TreeFormValues, t
 /** Same shape the WhatsApp bot accepts as a tree ID: 1-3 letters (the block) then a number. */
 export const TREE_ID_PATTERN = /^[A-Z]{1,3}\d{1,3}$/;
 export const NEW_TREE_BLOCK = /^[A-Z]{1,3}$/;
+/** Number 0 is allowed so the farm can keep a test tree (e.g. A0) next to the real ones. */
 export const MAX_TREE_NUMBER = 999;
 /** A number this far past the next free one is probably a typo (e.g. 250 instead of 25). */
 export const NUMBER_GAP_WARNING = 10;
@@ -129,7 +130,7 @@ export function checkNewTree(
   const num = Number(numRaw);
 
   if (!NEW_TREE_BLOCK.test(block)) errors.block = { key: 'tree.new.e.block' };
-  if (!/^\d+$/.test(numRaw) || num < 1 || num > MAX_TREE_NUMBER) errors.number = { key: 'tree.new.e.number', vars: { max: MAX_TREE_NUMBER } };
+  if (!/^\d+$/.test(numRaw) || num > MAX_TREE_NUMBER) errors.number = { key: 'tree.new.e.number', vars: { max: MAX_TREE_NUMBER } };
 
   let id: string | undefined;
   if (!errors.block && !errors.number) {
