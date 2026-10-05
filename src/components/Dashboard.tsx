@@ -404,6 +404,8 @@ export const Dashboard: React.FC = () => {
                               </span>
                             )}
                           </Link>
+                        ) : s?.young ? (
+                          <span className="text-slate-500">{t('dash.col.young')}</span>
                         ) : (
                           <Link to={guideOn ? '/guide' : '/harvest'} className="text-amber-800 font-semibold hover:underline">{t('dash.col.noBloom')}</Link>
                         )}

@@ -474,7 +474,8 @@ export const HarvestHomeCard: React.FC = () => {
   const { crops, funnel, seasons } = useCrops();
   const today = todayStr();
   const toPick = crops.filter((c) => c.next?.kind === 'harvest').length;
-  const noDate = seasons.filter((s) => !s.floweredOn || s.outdated);
+  // Newly planted blocks are not expected to flower yet.
+  const noDate = seasons.filter((s) => (!s.floweredOn || s.outdated) && !s.young);
   const windows = seasons
     .filter((s) => s.harvestFrom && s.harvestTo && !s.outdated && diffDays(s.harvestTo, today) >= 0)
     .sort((a, b) => a.harvestFrom!.localeCompare(b.harvestFrom!))

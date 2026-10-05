@@ -123,7 +123,7 @@ export function groupByStage(seasons: BlockSeason[]): { groups: StageGroup[]; no
   }).filter((g) => g.blocks.length > 0);
   // The active part of the cycle first; blocks waiting for their next bloom last.
   groups.sort((a, b) => (a.stage === 'preflower' ? 1 : 0) - (b.stage === 'preflower' ? 1 : 0));
-  return { groups, noDate: seasons.filter((s) => !s.floweredOn) };
+  return { groups, noDate: seasons.filter((s) => !s.floweredOn && !s.young) };
 }
 
 // ---------- template sheet ----------

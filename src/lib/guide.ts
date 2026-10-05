@@ -292,6 +292,20 @@ export interface BlockSeason {
   harvestTo?: string;
   /** The last flowering date is more than a year old: a season was probably not recorded. */
   outdated: boolean;
+  /**
+   * Every tree in the block is younger than YOUNG_YEARS (newly planted, not bearing yet). A young block has no
+   * season to record, so it is left out of bloom-date reminders and harvest windows.
+   */
+  young: boolean;
+}
+
+/** Grafted durian starts bearing at 4-6 years (see typicalMaxFruit); younger trees are not expected to flower. */
+export const YOUNG_YEARS = 4;
+
+/** Planted less than YOUNG_YEARS ago. Unknown planting date counts as not young. */
+export function isYoungTree(tree: DurianTree, now = Date.now()): boolean {
+  const age = treeAgeYears(tree, now);
+  return age !== null && age < YOUNG_YEARS;
 }
 
 export function blockSeasons(
@@ -323,7 +337,8 @@ export function blockSeasons(
       const ripeningAssumed = days.length === 0;
       const ripeMin = ripeningAssumed ? DEFAULT_RIPENING_DAYS : Math.min(...days);
       const ripeMax = ripeningAssumed ? DEFAULT_RIPENING_DAYS : Math.max(...days);
-      const base = { block, variants: codes, ripeMin, ripeMax, ripeningAssumed };
+      const young = list.every((t) => isYoungTree(t, Date.parse(`${today}T12:00:00`)));
+      const base = { block, variants: codes, ripeMin, ripeMax, ripeningAssumed, young };
       const blockDate = cycleByBlock.get(block);
       // A tree record counts this season until the block's recovery stage would end.
       const horizon = ripeMax + 90;
@@ -806,7 +821,8 @@ export function buildChecks({
   const active = plans.filter((p) => p.active);
 
   // 1. Flowering date per block: every stage, harvest date and action on the Guide depends on it.
-  const noDate = seasons.filter((s) => !s.floweredOn).map((s) => s.block);
+  // Young blocks (newly planted) have no season to record yet.
+  const noDate = seasons.filter((s) => !s.floweredOn && !s.young).map((s) => s.block);
   const outdated = seasons.filter((s) => s.outdated).map((s) => s.block);
   checks.push(
     noDate.length + outdated.length > 0

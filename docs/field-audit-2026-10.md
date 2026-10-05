@@ -196,3 +196,14 @@ own words map onto that. **Proposed farm scale** (codes are internal, labels are
 5. Should there be 390 trees? The sheet has about 199 in blocks A–D. What is block E?
 6. Can we get an Anthropic API key and billing for triage (about $15–20 per month at 500 reports)?
 7. Do workers prefer voice notes to typing?
+
+### Answers (5 Oct 2026) and decisions taken
+
+| # | Answer | Decision |
+|---|---|---|
+| 1 | Bot code can move into this repo | Waiting for `index.js` and the tree Flow JSON. Until then the contract lives in `src/shared/` and the bot is told what to import. |
+| 2 | Stage words: not sure | Use the §5 scale. Reviewers can always choose "tidak yakin", and the scale is one list in `src/shared/stages.ts` that's easy to rename. Calibrate it from confirmed photos. |
+| 3 | Fertiliser rule: not sure | Show the §3 labels and doses as **suggestions marked "to confirm"**, with thresholds in one place. Nothing is applied automatically. |
+| 4 | Who approves: not sure | Default: whoever uses the web app (William) confirms in the "Perlu dicek" inbox. Nothing about disease or health changes without that tap. |
+| 5 | Block E = newly planted, may be reorganised | **Done:** a block whose trees are all under 4 years old is "Belum berbuah". It's left out of bloom-date reminders, the farm check and the harvest card. |
+| 6 | API key: perhaps; is there something cheaper? | **Start at $0:** rule-based triage of the worker's words (stage words, issue words, numbers), shared with the bot for an instant reply, plus one-tap human review. Add photo AI later behind the same interface. Claude Haiku 4.5 is about $0.005 per report (≈ $2.50/month at 500 reports); Claude Opus 5.5 is about $0.025 (≈ $12.50/month) and more accurate on disease photos. |

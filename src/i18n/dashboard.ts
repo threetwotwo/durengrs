@@ -77,6 +77,7 @@ export const dashboard: Bundle = {
     'dash.col.minorShort': 'ringan',
     'dash.col.allHealthy': 'semua sehat',
     'dash.col.noBloom': 'Isi tanggal mekar',
+    'dash.col.young': 'Belum berbuah (pohon muda)',
     'dash.col.notAssessedN': '{n} belum dinilai',
   },
   en: {
@@ -155,6 +156,7 @@ export const dashboard: Bundle = {
     'dash.col.minorShort': 'minor',
     'dash.col.allHealthy': 'all healthy',
     'dash.col.noBloom': 'Set bloom date',
+    'dash.col.young': 'Not bearing yet (young trees)',
     'dash.col.notAssessedN': '{n} not assessed',
   },
 };

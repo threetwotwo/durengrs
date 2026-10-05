@@ -67,6 +67,15 @@ Judge every decision by that. When a feature doesn't move a tree toward better c
 | Catatan Kebun Flow (rain, season tasks) | `docs/flows/flow-farm.json` |
 | Tree Flow ("Panen & Data Pohon", "Laporan Pohon") and bot endpoint | **Not in this repo.** Ask the owner (step 0). |
 
+## Decisions already taken (5 Oct 2026)
+
+- The bot code will move in; until it does, build the shared contract here.
+- Stage words, dose rule and approver are not confirmed. Build them as editable suggestions (see the audit answers).
+- Block E is young: done.
+- **Triage starts at $0.** A rule-based text triage in `src/shared/triage.ts` (the same code the bot uses for its
+  instant reply) plus human review. The Claude photo triage in Phase 2 is added later, behind the same `triage`
+  shape, when an API key is available. Claude Haiku 4.5 is the cheap option, Claude Opus 5.5 the accurate one.
+
 ## Phase 0: Unblock and agree (ask only what blocks you)
 
 1. Get the bot code (`index.js`, the tree Flow JSON) into this repository under `bot/`, or get read access to it.
