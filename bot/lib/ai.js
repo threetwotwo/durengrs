@@ -33,10 +33,22 @@ const SCHEMA = {
       type: 'ARRAY',
       items: {
         type: 'OBJECT',
-        properties: { code: { type: 'STRING', enum: [...S.ISSUES] }, confidence: { type: 'NUMBER' }, evidence: { type: 'STRING' } },
-        required: ['code', 'confidence', 'evidence'],
+        properties: {
+          code: { type: 'STRING', enum: [...S.ISSUES] },
+          name: { type: 'STRING' },
+          confidence: { type: 'NUMBER' },
+          evidence: { type: 'STRING' },
+          photo: { type: 'INTEGER' },
+          action: { type: 'STRING' },
+        },
+        required: ['code', 'name', 'confidence', 'evidence', 'action'],
       },
     },
+    photos_seen: {
+      type: 'ARRAY',
+      items: { type: 'OBJECT', properties: { photo: { type: 'INTEGER' }, seen: { type: 'STRING' } }, required: ['photo', 'seen'] },
+    },
+    summary: { type: 'STRING' },
     health: { type: 'STRING', enum: ['hijau', 'kuning', 'merah'] },
     urgent: { type: 'BOOLEAN' },
     improving: { type: 'BOOLEAN' },
@@ -51,7 +63,7 @@ const SCHEMA = {
     photo_ok: { type: 'BOOLEAN' },
     photo_request: { type: 'STRING' },
   },
-  required: ['stages', 'bloom_part', 'issues', 'health', 'urgent', 'improving', 'counts', 'photo_ok', 'photo_request'],
+  required: ['photos_seen', 'stages', 'bloom_part', 'issues', 'summary', 'health', 'urgent', 'improving', 'counts', 'photo_ok', 'photo_request'],
 };
 
 function prompt(tree, description, today) {
@@ -59,12 +71,23 @@ function prompt(tree, description, today) {
 A worker photographed tree ${tree.id} (variety ${tree.variant || '?'}, block ${tree.block || '?'}) on ${today} and wrote, in Indonesian:
 """${description}"""
 
+The photos are numbered in the order given (Foto 1, Foto 2, ...). Look at EVERY photo on its own: each may show a
+different part of the tree and a different problem. Report everything found in any photo.
+
 Return JSON only.
+- photos_seen: for each photo, a few words in Indonesian of what it shows (e.g. "daun dengan serangga putih berlilin").
 - stages: every growth stage you can SEE in the photos or that the words state. A tree can show two at once (e.g. flowers on one branch, young fruit on another). Codes:
 ${STAGE_LIST}
 - bloom_part: if flowers are open ("bloom"), which part of the tree; else "none".
-- issues: problems you can see or the words state. Only real evidence; none is fine. Codes:
+- issues: every pest, disease or problem you can see in any photo or the words state. Identify it as precisely as you
+  would for a durian grower: put the specific pest or disease in "name", in Indonesian with the scientific name when
+  you know it (e.g. "Kutu loncat durian (Allocaridara malayensis)", "Kutu putih (Pseudococcidae)", "Kanker batang
+  (Phytophthora palmivora)"). "code" is the farm's category: use one ONLY when it is that same problem; whitefly is
+  not a psyllid or a mealybug, so for anything without its own code use "other". "photo": the photo number it is in
+  (0 if only in the words). "action": the first thing the worker should do, one short sentence in simple Indonesian.
+  Only real evidence; no issues is fine. Codes:
 ${ISSUE_LIST}
+- summary: one or two short sentences in simple Indonesian for the worker: what you see overall.
 - health: hijau = fine, kuning = a problem to watch or treat, merah = serious (stem canker, dying tree, fallen tree).
 - urgent: true ONLY if the tree is in danger right now (dying, fallen, broken trunk, heavy active canker), and the worker does not say it is getting better.
 - improving: the worker says it is getting better ("membaik", "sembuh").
@@ -128,8 +151,15 @@ function toTriage(a, model = MODEL()) {
     .sort((x, y) => y.confidence - x.confidence);
   const issues = [];
   for (const x of Array.isArray(a?.issues) ? a.issues : []) {
-    if (!S.isIssue(x.code) || clamp01(x.confidence) < 0.4 || issues.some((i) => i.code === x.code)) continue;
-    issues.push({ code: x.code, confidence: clamp01(x.confidence), evidence: evid(x.evidence) });
+    const name = String(x.name || '').trim().slice(0, 120);
+    if (!S.isIssue(x.code) || clamp01(x.confidence) < 0.4) continue;
+    if (issues.some((i) => i.code === x.code && (x.code !== 'other' || i.name === name))) continue;
+    const issue = { code: x.code, confidence: clamp01(x.confidence), evidence: evid(x.evidence) };
+    if (name) issue.name = name;
+    const action = String(x.action || '').trim().slice(0, 200);
+    if (action) issue.action = action;
+    if (Number.isInteger(x.photo) && x.photo > 0) issue.photo = x.photo;
+    issues.push(issue);
   }
   const health = ['hijau', 'kuning', 'merah'].includes(a?.health) ? a.health : issues.length ? 'kuning' : 'hijau';
   const improving = a?.improving === true;
@@ -151,6 +181,12 @@ function toTriage(a, model = MODEL()) {
     photoOk,
   };
   if (stages[0]) out.stage = stages[0];
+  const summary = String(a?.summary || '').trim().slice(0, 400);
+  if (summary) out.summary = summary;
+  const seen = (Array.isArray(a?.photos_seen) ? a.photos_seen : [])
+    .filter((x) => Number.isInteger(x.photo) && String(x.seen || '').trim())
+    .map((x) => ({ photo: x.photo, seen: String(x.seen).trim().slice(0, 160) }));
+  if (seen.length) out.photosSeen = seen;
   const req = String(a?.photo_request || '').trim().slice(0, 200);
   if (!photoOk && req) out.photoRequest = req;
   if (['whole', 'lower', 'middle', 'upper', 'some'].includes(a?.bloom_part)) out.bloomPart = a.bloom_part;
@@ -205,6 +241,19 @@ async function markUrgent(reportRef, treeId, workerPhone) {
   });
 }
 
+/** The worker's reply in Gemini's own words: what it saw, each problem by its specific name with the first step. */
+function aiReply(t) {
+  const out = [];
+  if (t.summary) out.push(t.summary);
+  if (t.stages.length) out.push(`Tahap: ${t.stages.map((s) => S.FARM_STAGE_INFO[s.code].label.id).join(', ')}.`);
+  for (const i of t.issues) {
+    const name = i.name || S.ISSUE_INFO[i.code].label.id;
+    out.push(`• ${name}${i.photo ? ` (foto ${i.photo})` : ''}${i.action ? `: ${i.action}` : ''}`);
+  }
+  out.push(`Status: ${S.HEALTH_INFO[t.health].label.id}.${t.needsReview ? ' Admin akan cek laporan ini.' : ''}`);
+  return out.join('\n');
+}
+
 /**
  * Reads one saved report with Gemini and updates it. Returns the chat message for the worker, or null when there is
  * nothing to add (no key, already read, report missing). Never throws.
@@ -223,7 +272,7 @@ async function analyzeReport(reportId, { tree, workerPhone, today = R.todayStr()
     if (!claimed) return null;
 
     const photos = (await Promise.all((claimed.photos || []).slice(0, 3).map((p) => fetchPhoto(p).catch(() => null)))).filter(Boolean);
-    const parts = [{ text: prompt(tree, claimed.description || '', today) }, ...photos.map((data) => ({ inlineData: { mimeType: 'image/jpeg', data } }))];
+    const parts = [{ text: prompt(tree, claimed.description || '', today) }, ...photos.flatMap((data, i) => [{ text: `Foto ${i + 1}:` }, { inlineData: { mimeType: 'image/jpeg', data } }])];
     const triage = toTriage(await callGemini(parts));
 
     const update = { triage };
@@ -241,7 +290,7 @@ async function analyzeReport(reportId, { tree, workerPhone, today = R.todayStr()
     await ref.update({ ai: { status: 'done', model: MODEL(), photos: photos.length, recorded: recorded.done, at: now() } });
     console.log(`AI ${reportId} ${tree.id}: stages=${triage.stages.map((s) => s.code).join(',') || '-'} issues=${triage.issues.map((i) => i.code).join(',') || '-'} health=${triage.health} photoOk=${triage.photoOk} recorded=${recorded.done.length}`);
 
-    const msg = [`🔎 Hasil pemeriksaan laporan ${tree.id}:`, S.workerReply(triage), ...lines, ...recorded.lines];
+    const msg = [`🔎 Hasil pemeriksaan laporan ${tree.id} (${photos.length} foto):`, aiReply(triage), ...lines, ...recorded.lines];
     if (!triage.photoOk) msg.push('', `📷 Mohon kirim foto yang lebih jelas: ${triage.photoRequest || 'foto lebih dekat dan terang.'}`, 'Ketuk tombol di bawah untuk kirim laporan baru.');
     return msg.filter((x) => x !== undefined).join('\n');
   } catch (err) {

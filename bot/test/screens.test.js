@@ -551,6 +551,11 @@ test('Gemini reading: replaces the suggestion, records the flowering and a writt
 });
 
 test('Gemini answer is cleaned: unknown codes and weak guesses dropped, no undefined fields', () => {
+  const named = toTriage({ stages: [], issues: [{ code: 'other', name: 'Kutu loncat durian (Allocaridara malayensis)', confidence: 0.9, evidence: 'lilin putih', photo: 2, action: 'Potong tunas yang terserang.' }, { code: 'other', name: 'Kutu putih', confidence: 0.7, evidence: 'x', action: '' }], photos_seen: [{ photo: 1, seen: 'batang' }, { photo: 2, seen: 'daun' }], summary: 'Ada hama di daun.', health: 'kuning', counts: [], photo_ok: true }, 'm');
+  assert.deepEqual(named.issues.map((i) => i.name), ['Kutu loncat durian (Allocaridara malayensis)', 'Kutu putih']); // both "other", both kept
+  assert.equal(named.issues[0].photo, 2);
+  assert.equal(named.photosSeen.length, 2);
+  assert.equal(named.summary, 'Ada hama di daun.');
   const t = toTriage({ stages: [{ code: 'xx', confidence: 1 }, { code: 'egg', confidence: 0.2 }], issues: [{ code: 'borer', confidence: 0.8, evidence: 'lubang' }], health: 'kuning', urgent: true, improving: true, counts: [{ kind: 'fruit', value: 12, evidence: '12 buah' }], photo_ok: true, photo_request: '' }, 'm');
   assert.equal(t.stage, undefined);
   assert.deepEqual(t.issues.map((i) => i.code), ['borer']);
