@@ -83,10 +83,11 @@ async function fetchPhoto(p) {
   return Buffer.from(await res.arrayBuffer()).toString('base64');
 }
 
-// Two kinds of key: Google AI Studio ("AIza…") and Vertex AI express mode ("AQ.…"). Same request, different address.
+// Google AI Studio keys (both "AIza…" and the newer "AQ.…") use the Gemini API address. A Vertex AI express key needs
+// GEMINI_ENDPOINT=vertex. Same request either way.
 function endpoint() {
   const key = String(process.env.GEMINI_API_KEY || '');
-  const vertex = process.env.GEMINI_ENDPOINT === 'vertex' || key.startsWith('AQ.');
+  const vertex = process.env.GEMINI_ENDPOINT === 'vertex';
   const url = vertex
     ? `https://aiplatform.googleapis.com/v1/publishers/google/models/${MODEL()}:generateContent`
     : `https://generativelanguage.googleapis.com/v1beta/models/${MODEL()}:generateContent`;
@@ -253,7 +254,7 @@ async function analyzeReport(reportId, { tree, workerPhone, today = R.todayStr()
 /** One tiny call to see whether the key and model work: { ok, model, endpoint, error? }. */
 async function checkGemini() {
   const { url, vertex } = endpoint();
-  const base = { model: MODEL(), endpoint: vertex ? 'Vertex AI (AQ. key)' : 'Google AI Studio', keySet: !!process.env.GEMINI_API_KEY };
+  const base = { model: MODEL(), endpoint: vertex ? 'Vertex AI' : 'Google AI Studio (Gemini API)', keySet: !!process.env.GEMINI_API_KEY };
   if (!process.env.GEMINI_API_KEY) return { ok: false, ...base, error: 'GEMINI_API_KEY is not set on the service' };
   try {
     const r = await callGemini([{ text: 'Reply with {"ok": true}.' }], { timeoutMs: 15000, schema: { type: 'OBJECT', properties: { ok: { type: 'BOOLEAN' } }, required: ['ok'] } });
