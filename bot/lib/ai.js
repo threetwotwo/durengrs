@@ -83,20 +83,31 @@ async function fetchPhoto(p) {
   return Buffer.from(await res.arrayBuffer()).toString('base64');
 }
 
-async function callGemini(parts, { timeoutMs = 25000 } = {}) {
+// Two kinds of key: Google AI Studio ("AIza…") and Vertex AI express mode ("AQ.…"). Same request, different address.
+function endpoint() {
+  const key = String(process.env.GEMINI_API_KEY || '');
+  const vertex = process.env.GEMINI_ENDPOINT === 'vertex' || key.startsWith('AQ.');
+  const url = vertex
+    ? `https://aiplatform.googleapis.com/v1/publishers/google/models/${MODEL()}:generateContent`
+    : `https://generativelanguage.googleapis.com/v1beta/models/${MODEL()}:generateContent`;
+  return { url, vertex, key };
+}
+
+async function callGemini(parts, { timeoutMs = 25000, schema = SCHEMA } = {}) {
   const ctl = new AbortController();
   const timer = setTimeout(() => ctl.abort(), timeoutMs);
+  const { url, vertex, key } = endpoint();
   try {
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL()}:generateContent`, {
+    const res = await fetch(url, {
       method: 'POST',
       signal: ctl.signal,
-      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': process.env.GEMINI_API_KEY },
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
       body: JSON.stringify({
         contents: [{ role: 'user', parts }],
-        generationConfig: { responseMimeType: 'application/json', responseSchema: SCHEMA, temperature: 0.2 },
+        generationConfig: { responseMimeType: 'application/json', responseSchema: schema, temperature: 0.2 },
       }),
     });
-    if (!res.ok) throw new Error(`Gemini ${res.status}: ${(await res.text()).slice(0, 300)}`);
+    if (!res.ok) throw new Error(`Gemini (${vertex ? 'Vertex' : 'AI Studio'} ${MODEL()}) ${res.status}: ${(await res.text()).slice(0, 300)}`);
     const body = await res.json();
     const text = body?.candidates?.[0]?.content?.parts?.map((x) => x.text || '').join('') || '';
     return JSON.parse(text);
@@ -211,7 +222,7 @@ async function analyzeReport(reportId, { tree, workerPhone, today = R.todayStr()
     if (!claimed) return null;
 
     const photos = (await Promise.all((claimed.photos || []).slice(0, 3).map((p) => fetchPhoto(p).catch(() => null)))).filter(Boolean);
-    const parts = [{ text: prompt(tree, claimed.description || '', today) }, ...photos.map((data) => ({ inline_data: { mime_type: 'image/jpeg', data } }))];
+    const parts = [{ text: prompt(tree, claimed.description || '', today) }, ...photos.map((data) => ({ inlineData: { mimeType: 'image/jpeg', data } }))];
     const triage = toTriage(await callGemini(parts));
 
     const update = { triage };
@@ -239,4 +250,17 @@ async function analyzeReport(reportId, { tree, workerPhone, today = R.todayStr()
   }
 }
 
-module.exports = { analyzeReport, toTriage, prompt, SCHEMA };
+/** One tiny call to see whether the key and model work: { ok, model, endpoint, error? }. */
+async function checkGemini() {
+  const { url, vertex } = endpoint();
+  const base = { model: MODEL(), endpoint: vertex ? 'Vertex AI (AQ. key)' : 'Google AI Studio', keySet: !!process.env.GEMINI_API_KEY };
+  if (!process.env.GEMINI_API_KEY) return { ok: false, ...base, error: 'GEMINI_API_KEY is not set on the service' };
+  try {
+    const r = await callGemini([{ text: 'Reply with {"ok": true}.' }], { timeoutMs: 15000, schema: { type: 'OBJECT', properties: { ok: { type: 'BOOLEAN' } }, required: ['ok'] } });
+    return { ok: r && r.ok === true, ...base, url };
+  } catch (err) {
+    return { ok: false, ...base, url, error: String(err.message || err).slice(0, 400) };
+  }
+}
+
+module.exports = { analyzeReport, toTriage, prompt, SCHEMA, checkGemini };

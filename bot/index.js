@@ -4,7 +4,7 @@ const { decryptRequest, encryptResponse } = require('./lib/encryption');
 const { getTreeById, getTreeRecord, isArchived, getLastReport } = require('./lib/trees');
 const { getCollageUrl, CONDITION_LABELS } = require('./lib/reports');
 const { route } = require('./lib/flowScreens');
-const { analyzeReport } = require('./lib/ai');
+const { analyzeReport, checkGemini } = require('./lib/ai');
 
 const app = express();
 app.use(express.json());
@@ -305,6 +305,12 @@ app.post('/send-tree-lookup', async (req, res) => {
   const tree = await getTreeById(treeId.toUpperCase());
   if (!tree) return res.status(404).json({ error: `Pohon ${treeId} tidak ditemukan` });
   res.json(await sendTreeFlow(to, tree));
+});
+
+// Open https://<service>/ai-check?token=<VERIFY_TOKEN> in a browser: says whether the Gemini key and model work.
+app.get('/ai-check', async (req, res) => {
+  if (!VERIFY_TOKEN || req.query.token !== VERIFY_TOKEN) return res.sendStatus(403);
+  res.json(await checkGemini());
 });
 
 app.post('/send-farm-flow', async (req, res) => {
