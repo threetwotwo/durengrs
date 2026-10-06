@@ -13,6 +13,7 @@ reports.processPhotos = async (items, treeId, id) => {
 };
 const R = require('../lib/rules');
 const { route } = require('../lib/flowScreens');
+const { analyzeReport, toTriage } = require('../lib/ai');
 const { check } = require('./contract');
 
 const today = R.todayStr();
@@ -502,4 +503,58 @@ test('photos of a flowering that was already recorded under an older id are not 
   photoCalls = [];
   await send('BLOOM', { date: d, part: 'upper', photos: [{ cdn_url: 'u1', file_name: 'a.jpg' }] });
   assert.equal(photoCalls.length, 0);
+});
+
+test('unified report: opens on photo + words, saves, and hands the report id to the chat', async () => {
+  seed();
+  const t = 'lapor:A1:628111886551:3000';
+  const first = check('report', null, await route({ kind: 'report', action: 'INIT', flowToken: t, treeId: 'A1', workerPhone: '628111886551' }));
+  assert.equal(first.screen, 'REPORT');
+  const r = check('report', 'REPORT', await route({ kind: 'report', action: 'data_exchange', screen: 'REPORT', flowToken: t, treeId: 'A1', workerPhone: '628111886551', data: { description: 'bunga mulai mekar', photos: [{ cdn_url: 'z' }] } }));
+  assert.equal(r.screen, 'DONE');
+  assert.ok(fake.get('reports', r.data.report_id));
+  assert.equal(check('report', null, await route({ kind: 'report', action: 'INIT', flowToken: 'lapor:Z9:1:1', treeId: 'Z9' })).data.saved, false);
+});
+
+test('Gemini reading: replaces the suggestion, records the flowering and a written count, asks for a better photo, once', async () => {
+  seed({ blockBloomDaysAgo: null });
+  process.env.GEMINI_API_KEY = 'test';
+  const realFetch = global.fetch;
+  let gemini = 0;
+  global.fetch = async (url) => {
+    if (String(url).includes('generativelanguage')) {
+      gemini++;
+      const answer = { stages: [{ code: 'bloom', confidence: 0.9, evidence: 'bunga mekar' }], bloom_part: 'lower', issues: [], health: 'hijau', urgent: false, improving: false, counts: [{ kind: 'clusters', value: 30, evidence: '30 tandan' }], photo_ok: false, photo_request: 'Foto lebih dekat ke bunga.' };
+      return { ok: true, json: async () => ({ candidates: [{ content: { parts: [{ text: JSON.stringify(answer) }] } }] }) };
+    }
+    return { ok: true, arrayBuffer: async () => new ArrayBuffer(4) };
+  };
+  try {
+    const r = await route({ kind: 'report', action: 'data_exchange', screen: 'REPORT', flowToken: 'lapor:A1:628111886551:4000', treeId: 'A1', workerPhone: '628111886551', data: { description: 'bunga mulai mekar, 30 tandan', photos: [{ cdn_url: 'q' }] } });
+    assert.match(r.data.message, /sedang memeriksa/);
+    const msg = await analyzeReport(r.data.report_id, { tree: fake.get('trees', 'A1'), workerPhone: '628111886551' });
+    assert.match(msg, /Tanggal bunga mekar dicatat/);
+    assert.match(msg, /Foto lebih dekat ke bunga/);
+    const rep = fake.get('reports', r.data.report_id);
+    assert.equal(rep.triage.source, 'ai');
+    assert.equal(rep.triage.stage.code, 'bloom');
+    assert.equal(rep.triageRules.source, 'rules');
+    assert.equal(rep.ai.status, 'done');
+    assert.ok(fake.all('bloomWaves').some((b) => b.date === today && b.part === 'lower'));
+    assert.ok(fake.all('cropCounts').some((c) => c.stage === 'clusters' && c.count === 30));
+    assert.equal(await analyzeReport(r.data.report_id, { tree: fake.get('trees', 'A1') }), null);
+    assert.equal(gemini, 1);
+  } finally {
+    global.fetch = realFetch;
+    delete process.env.GEMINI_API_KEY;
+  }
+});
+
+test('Gemini answer is cleaned: unknown codes and weak guesses dropped, no undefined fields', () => {
+  const t = toTriage({ stages: [{ code: 'xx', confidence: 1 }, { code: 'egg', confidence: 0.2 }], issues: [{ code: 'borer', confidence: 0.8, evidence: 'lubang' }], health: 'kuning', urgent: true, improving: true, counts: [{ kind: 'fruit', value: 12, evidence: '12 buah' }], photo_ok: true, photo_request: '' }, 'm');
+  assert.equal(t.stage, undefined);
+  assert.deepEqual(t.issues.map((i) => i.code), ['borer']);
+  assert.equal(t.urgent, false); // "membaik" wins
+  assert.deepEqual(t.numbers, [{ value: 12, kind: 'fruit', evidence: '12 buah' }]);
+  assert.ok(!JSON.stringify(t).includes('undefined') && Object.values(t).every((v) => v !== undefined));
 });

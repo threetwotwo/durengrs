@@ -2,7 +2,7 @@
 // the screen exists, every data field the screen declares is present with the right type, and the move
 // from one screen to the next is allowed by routing_model. Used by screens.test.js on every scenario.
 const assert = require('node:assert/strict');
-const flows = { tree: require('../flows/flow.json'), farm: require('../flows/flow-farm.json') };
+const flows = { tree: require('../flows/flow.json'), farm: require('../flows/flow-farm.json'), report: require('../flows/flow-lapor.json') };
 
 const typeOf = (v) => (Array.isArray(v) ? 'array' : v === null ? 'null' : typeof v);
 

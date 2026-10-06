@@ -38,8 +38,9 @@ function formatDate(ts) {
 const screen = (name, data) => ({ version: '3.0', screen: name, data });
 const withError = (res, message) => ({ ...res, data: { ...res.data, error_message: message } });
 // `saved` goes back to WhatsApp with the completion, so the chat message after the Flow can say what really happened.
-const done = (message, title = '✅ Laporan tersimpan') => screen('DONE', { title, message, saved: true });
-const notSaved = (message) => screen('DONE', { title: '⚠️ Gagal', message, saved: false });
+// report_id goes back to the chat with the completion, so the bot can read the photos (lib/ai.js) and reply.
+const done = (message, title = '✅ Laporan tersimpan', reportId = '') => screen('DONE', { title, message, saved: true, report_id: reportId });
+const notSaved = (message) => screen('DONE', { title: '⚠️ Gagal', message, saved: false, report_id: '' });
 const treeGone = (treeId) => notSaved(`Pohon ${treeId || ''} tidak ditemukan atau sudah tidak aktif, tidak ada yang disimpan.`);
 
 // ---------- season helpers ----------
@@ -521,7 +522,7 @@ async function handleReport({ data = {}, flowToken, treeId, workerPhone }) {
       reportId, treeId, workerPhone, condition, conditionSource: chosen ? 'worker' : 'triage', description, photos: saved, triage,
     });
     console.log(`Report ${reportId} for ${treeId}: duplicate=${!!result.duplicate} changed=${!!result.changed} photos=${saved.length} failedPhotos=${failed} health=${(triage && triage.health) || '-'}`);
-    return done(reportSummary(treeId, result, failed, triage));
+    return done(reportSummary(treeId, result, failed, triage), undefined, result.duplicate ? '' : reportId);
   } catch (err) {
     console.error('Saving report failed:', err);
     return withError(res, 'Laporan tidak dapat disimpan. Silakan coba lagi.');
@@ -533,7 +534,8 @@ function reportSummary(treeId, result, failedPhotos, triage) {
   const parts = [`Laporan untuk ${treeId} tersimpan${result.photoCount ? ` dengan ${result.photoCount} foto` : ''}.`];
   if (failedPhotos) parts.push(`${failedPhotos} foto gagal disimpan.`);
   if (result.changed) parts.push(`Kondisi pohon: ${conditionLabel(result.before)} → ${conditionLabel(result.after)}.`);
-  if (triage) parts.push('', S.workerReply(triage));
+  if (process.env.GEMINI_API_KEY) parts.push('', 'Sistem sedang memeriksa foto Anda. Hasilnya dikirim lewat chat sebentar lagi.');
+  else if (triage) parts.push('', S.workerReply(triage));
   return parts.join('\n');
 }
 
@@ -618,6 +620,12 @@ const FARM_HANDLERS = { FARM_HOME: handleFarmHome, KERJA: handleWork, HUJAN: han
 
 // kind: 'tree' | 'farm' (from the flow token, see index.js parseFlowToken)
 async function route({ kind = 'tree', action, screen: name, data, flowToken, treeId, workerPhone }) {
+  // The unified report Flow (flow-lapor.json): photos + words, nothing to choose. Gemini reads it after saving.
+  if (kind === 'report') {
+    if (action === 'data_exchange' && name === 'REPORT') return handleReport({ data, flowToken, treeId, workerPhone });
+    const tree = treeId ? await getTreeById(treeId) : null;
+    return tree ? issueScreen(treeId, tree) : treeGone(treeId);
+  }
   if (kind === 'farm') {
     if (action === 'data_exchange' && FARM_HANDLERS[name]) return FARM_HANDLERS[name]({ data, flowToken, workerPhone });
     return farmHomeScreen();

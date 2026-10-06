@@ -4,6 +4,7 @@ const { decryptRequest, encryptResponse } = require('./lib/encryption');
 const { getTreeById, getTreeRecord, isArchived, getLastReport } = require('./lib/trees');
 const { getCollageUrl, CONDITION_LABELS } = require('./lib/reports');
 const { route } = require('./lib/flowScreens');
+const { analyzeReport } = require('./lib/ai');
 
 const app = express();
 app.use(express.json());
@@ -47,8 +48,9 @@ function sendText(to, text) {
 // The flow token is echoed back on every Flow endpoint request, so it carries what the endpoint needs:
 //   tree:<treeId>:<workerPhone>:<time>   the tree Flow (which tree, which worker)
 //   farm:<workerPhone>:<time>            the farm Flow (rain and finished work)
+//   lapor:<treeId>:<workerPhone>:<time>  the unified report Flow (photos + words; Gemini reads it afterwards)
 function makeTreeToken(treeId, workerPhone) {
-  return `tree:${treeId}:${workerPhone}:${Date.now()}`;
+  return `lapor:${treeId}:${workerPhone}:${Date.now()}`;
 }
 
 function makeFarmToken(workerPhone) {
@@ -59,6 +61,7 @@ function parseFlowToken(flowToken) {
   const parts = String(flowToken || '').split(':');
   if (parts[0] === 'farm') return { kind: 'farm', treeId: '', workerPhone: parts[1] || '' };
   if (parts[0] === 'tree') return { kind: 'tree', treeId: parts[1] || '', workerPhone: parts[2] || '' };
+  if (parts[0] === 'lapor') return { kind: 'report', treeId: parts[1] || '', workerPhone: parts[2] || '' };
   return { kind: 'tree', treeId: '', workerPhone: '' };
 }
 
@@ -70,7 +73,7 @@ const HELP_BODY = [
   'Pilih salah satu:',
   '',
   '🌳 *Laporan pohon*',
-  'Masalah pohon, bunga, hitung buah, panen, ukuran pohon.',
+  'Foto + keterangan: bunga, buah, hama, penyakit, panen.',
   'Kirim ID pohon, contoh: *A1*',
   '',
   '🌧️ *Hujan & pekerjaan kebun*',
@@ -135,7 +138,7 @@ function sendTreeFlow(to, tree, intro) {
       body: {
         text: intro
           ? `${intro}\n\nKetuk tombol di bawah untuk lapor lagi untuk pohon ini. Untuk pohon lain, kirim ID-nya. Untuk hujan atau pekerjaan kebun, kirim *KEBUN*.`
-          : 'Ketuk tombol di bawah untuk melihat info pohon dan mengirim laporan.',
+          : 'Ketuk tombol di bawah, ambil foto, lalu tulis apa yang Anda lihat.',
       },
       action: {
         name: 'flow',
@@ -143,7 +146,7 @@ function sendTreeFlow(to, tree, intro) {
           flow_message_version: '3',
           flow_token: makeTreeToken(tree.id, to),
           flow_id: FLOW_ID,
-          flow_cta: 'Buka Laporan Pohon',
+          flow_cta: 'Kirim Laporan',
           flow_action: 'data_exchange',
         },
       },
@@ -184,14 +187,20 @@ async function reopenAfterCompletion(to, message) {
   } catch (_) {}
   const { kind, treeId } = parseFlowToken(token);
   let saved = true; // the older published Flows don't send it
+  let reportId = '';
   try {
     const r = JSON.parse(message.interactive?.nfm_reply?.response_json || '{}');
     if (r.saved === false || r.saved === 'false') saved = false;
+    reportId = typeof r.report_id === 'string' ? r.report_id : '';
   } catch (_) {}
   const thanks = saved ? '✅ Terima kasih, laporan sudah tersimpan.' : '⚠️ Laporan belum tersimpan. Coba lagi lewat tombol di bawah, atau kirim ID pohon lain.';
-  if (kind === 'tree' && treeId) {
+  if ((kind === 'tree' || kind === 'report') && treeId) {
     const tree = await getTreeById(treeId);
-    if (tree) return sendTreeFlow(to, tree, thanks);
+    if (tree) {
+      // Gemini reads the photos and words before the answer (Cloud Run throttles work left after the response).
+      const ai = saved && reportId ? await analyzeReport(reportId, { tree, workerPhone: to }) : null;
+      return sendTreeFlow(to, tree, ai ? `✅ Laporan tersimpan.\n\n${ai}`.slice(0, 850) : thanks);
+    }
   }
   if (kind === 'farm' && FARM_FLOW_ID) return sendFarmFlow(to, thanks);
   return sendHelp(to, thanks);

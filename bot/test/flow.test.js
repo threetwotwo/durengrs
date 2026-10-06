@@ -2,7 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
-const flows = { 'flow.json': require('../flows/flow.json'), 'flow-farm.json': require('../flows/flow-farm.json') };
+const flows = { 'flow.json': require('../flows/flow.json'), 'flow-farm.json': require('../flows/flow-farm.json'), 'flow-lapor.json': require('../flows/flow-lapor.json') };
 
 const walk = (node, fn) => {
   if (Array.isArray(node)) return node.forEach((n) => walk(n, fn));
@@ -122,6 +122,7 @@ test('every screen with a data_exchange is one the endpoint handles', () => {
   const handled = {
     'flow.json': ['TREE_LOOKUP', 'MENU', 'PANEN_MENU', 'BLOOM', 'COUNT', 'HARVEST_A', 'HARVEST_B', 'REPORT', 'EDIT_TREE'],
     'flow-farm.json': ['FARM_HOME', 'KERJA', 'HUJAN'],
+    'flow-lapor.json': ['REPORT'],
   };
   for (const [file, flow] of Object.entries(flows))
     for (const s of flow.screens) {
@@ -132,7 +133,7 @@ test('every screen with a data_exchange is one the endpoint handles', () => {
 });
 
 test('flow files are up to date with scripts/build-flow.js', () => {
-  const read = () => ['flow.json', 'flow-farm.json'].map((f) => fs.readFileSync(require.resolve('../flows/' + f), 'utf8'));
+  const read = () => ['flow.json', 'flow-farm.json', 'flow-lapor.json'].map((f) => fs.readFileSync(require.resolve('../flows/' + f), 'utf8'));
   const before = read();
   require('child_process').execFileSync('node', [require.resolve('../scripts/build-flow.js')]);
   assert.deepEqual(read(), before);

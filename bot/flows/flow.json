@@ -1071,6 +1071,10 @@
         "saved": {
           "type": "boolean",
           "__example__": true
+        },
+        "report_id": {
+          "type": "string",
+          "__example__": ""
         }
       },
       "layout": {
@@ -1090,7 +1094,8 @@
             "on-click-action": {
               "name": "complete",
               "payload": {
-                "saved": "${data.saved}"
+                "saved": "${data.saved}",
+                "report_id": "${data.report_id}"
               }
             }
           }

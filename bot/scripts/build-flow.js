@@ -60,9 +60,10 @@ const DATE_DATA = { min_date: str('2026-08-01'), max_date: str('2026-10-04') };
 const DONE = screen(
   'DONE',
   'Selesai',
-  { title: str('✅ Laporan tersimpan'), message: str('Laporan untuk A1 tersimpan.'), saved: bool(true) },
-  // `saved` is sent back with the completion, so the chat message that follows can tell "saved" from "not saved".
-  [heading('${data.title}'), body('${data.message}'), footer('Tutup', { name: 'complete', payload: { saved: '${data.saved}' } })],
+  { title: str('✅ Laporan tersimpan'), message: str('Laporan untuk A1 tersimpan.'), saved: bool(true), report_id: str('') },
+  // `saved` and `report_id` go back with the completion: the chat message that follows can tell "saved" from "not
+  // saved", and the bot reads the saved report's photos with Gemini (lib/ai.js) before answering.
+  [heading('${data.title}'), body('${data.message}'), footer('Tutup', { name: 'complete', payload: { saved: '${data.saved}', report_id: '${data.report_id}' } })],
   { terminal: true, success: true }
 );
 
@@ -482,6 +483,47 @@ const farmFlow = {
 };
 
 const root = path.join(__dirname, '..');
+// =====================================================================================================
+// Flow 3: Laporan (unified): photos + words, one screen. Gemini reads it after saving (lib/ai.js). Use as FLOW_ID.
+// =====================================================================================================
+const LAPOR = screen(
+  'REPORT',
+  'Laporan Pohon',
+  { report_title: str('Laporan untuk A1 · MK · Blok A'), condition_caption: str('Kondisi saat ini: Hijau') },
+  [
+    form('report_form', [
+      heading('${data.report_title}'),
+      caption('${data.condition_caption}'),
+      body('Foto pohon, lalu tulis apa yang Anda lihat: bunga, buah, hama, penyakit, atau panen. Sistem membaca foto dan tulisan Anda.'),
+      sub('1. Foto'),
+      caption('Satu foto dari dekat, satu foto seluruh pohon. Terang dan tidak buram.'),
+      {
+        type: 'PhotoPicker',
+        name: 'photos',
+        label: 'Ambil atau pilih foto',
+        description: 'Minimal 1 foto',
+        'photo-source': 'camera_gallery',
+        'max-file-size-kb': 10240,
+        'min-uploaded-photos': 1,
+        'max-uploaded-photos': 3,
+      },
+      sub('2. Apa yang Anda lihat?'),
+      {
+        type: 'TextArea',
+        name: 'description',
+        label: 'Tulis dengan kata-kata Anda',
+        'label-variant': 'large',
+        'helper-text': 'Contoh: bunga mulai mekar; 40 buah sebesar telor; getah di batang',
+        required: true,
+        'max-length': 600,
+      },
+      footer('Kirim Laporan', exchange({ description: '${form.description}', photos: '${form.photos}' })),
+    ]),
+  ]
+);
+const reportFlow = { version: '7.3', data_api_version: '3.0', routing_model: { REPORT: ['DONE'], DONE: [] }, screens: [LAPOR, DONE] };
+
 fs.writeFileSync(path.join(root, 'flows', 'flow.json'), JSON.stringify(treeFlow, null, 2) + '\n');
+fs.writeFileSync(path.join(root, 'flows', 'flow-lapor.json'), JSON.stringify(reportFlow, null, 2) + '\n');
 fs.writeFileSync(path.join(root, 'flows', 'flow-farm.json'), JSON.stringify(farmFlow, null, 2) + '\n');
 console.log(`flow.json: ${treeFlow.screens.length} screens, flow-farm.json: ${farmFlow.screens.length} screens`);
