@@ -2,6 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { caseTitle, closeOrReopen, isDue, isOpen, parseCase, sortCases } from '../src/lib/cases';
+import { treatmentsInText } from '../src/shared';
 import { parseHash } from '../src/lib/router';
 import type { ProblemCase } from '../src/types';
 
@@ -80,4 +81,22 @@ test('old addresses still open the right page', () => {
   assert.equal(parseHash('#/trees/A12').treeId, 'A12');
   assert.equal(parseHash('#/reports/abc').reportId, 'abc');
   assert.equal(parseHash('#/nope').known, false);
+});
+
+test('treatment done is read from words, never from what still needs doing', () => {
+  const kinds = (text: string, issues: Parameters<typeof treatmentsInText>[1]) => treatmentsInText(text, issues).map((a) => `${a.type}:${a.issue}${a.product ? `:${a.product}` : ''}`);
+  // Scrape and paint with a fungicide paste is one treatment, not also a spray.
+  assert.deepEqual(kinds('Batang dikerok hingga jaringan kayu dan diolesi pasta fungisida', ['phytophthora_canker']), ['canker_treatment:phytophthora_canker']);
+  assert.deepEqual(kinds('Luka pada batang pohon sedang dioles fungisida Ridomil', ['phytophthora_canker']), ['canker_treatment:phytophthora_canker:Ridomil']);
+  assert.deepEqual(kinds('Luka memanjang pada kulit batang, dikikis pisau', ['stem_fungus']), ['canker_treatment:stem_fungus']);
+  assert.deepEqual(kinds('disemprot Confidor di pucuk', ['whitefly']), ['insecticide:whitefly:Confidor']);
+  assert.deepEqual(kinds('daun disemprot fungisida', ['leaf_blight']), ['fungicide:leaf_blight']);
+  // Not done yet, or a treatment for none of the report's problems.
+  assert.deepEqual(kinds('perlu dikerok dan dioles', ['phytophthora_canker']), []);
+  assert.deepEqual(kinds('belum disemprot insektisida', ['whitefly']), []);
+  assert.deepEqual(kinds('Getah merah. Harus segera dioles', ['phytophthora_canker']), []);
+  assert.deepEqual(kinds('dioles pasta', ['whitefly']), []);
+  assert.deepEqual(kinds('getah merah di batang', ['phytophthora_canker']), []);
+  // A new phrase starts after a full stop or comma.
+  assert.deepEqual(kinds('Belum ada jamur lain, sudah dioles', ['phytophthora_canker']), ['canker_treatment:phytophthora_canker']);
 });

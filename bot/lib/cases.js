@@ -47,7 +47,9 @@ function casesForPrompt(cases) {
 /**
  * What a report gives to file, when it is not Gemini's fresh answer (a failed reading, or the backfill of older
  * reports): the owner's check when there is one, else the stored reading. Case numbers are dropped, since they
- * pointed at a list of open cases that no longer holds. Null when the owner dismissed the report.
+ * pointed at a list of open cases that no longer holds. A reading without a list of actions (words only, or Gemini
+ * before it was asked for them) gets the treatments its words and photo notes describe. Null when the owner
+ * dismissed the report.
  */
 function problemsOf(report) {
   if (report.review && report.review.decision === 'dismissed') return null;
@@ -56,7 +58,16 @@ function problemsOf(report) {
   const issues = report.review
     ? (Array.isArray(report.issues) ? report.issues : []).filter(S.isIssue).map((code) => read.find((i) => i.code === code) || { code })
     : read;
-  const actions = tr.source === 'ai' && Array.isArray(tr.actions) ? tr.actions.filter((a) => a && ACTIONS.includes(a.type)).map(({ case: _n, ...a }) => a) : [];
+  let actions;
+  if (tr.source === 'ai' && Array.isArray(tr.actions)) {
+    actions = tr.actions.filter((a) => a && ACTIONS.includes(a.type)).map(({ case: _n, ...a }) => a);
+  } else {
+    // What was seen, not what to do: the worker's words, and Gemini's notes on the problems and photos.
+    const text = [report.description, ...read.map((i) => i.evidence), ...(Array.isArray(tr.photosSeen) ? tr.photosSeen.map((p) => p && p.seen) : [])]
+      .filter((x) => typeof x === 'string' && x.trim())
+      .join('. ');
+    actions = S.treatmentsInText(text, [...new Set(issues.map((i) => i.code))]);
+  }
   return { issues, actions };
 }
 
@@ -74,9 +85,9 @@ async function applyToCases({ tree, reportId, triage, today, workerPhone, open, 
   const lines = [];
 
   const nextStatus = { treated: 'treated', improving: 'improving', worse: 'worse', resolved: 'resolved' };
-  // What this report changes on each case: its new events, and the status when an event sets one. Only these are
-  // written, onto the case as it is at write time (the owner may have closed or reopened it meanwhile).
-  const change = new Map(); // id -> { events: [], status?, lastAction? }
+  // What this report adds to each case: its new events, written onto the case as it is at write time (the owner may
+  // have closed or reopened it meanwhile). `c.status` is kept up to date for the rest of this reading.
+  const change = new Map(); // id -> { events: [] }
   const addEvent = (c, type, extra = {}) => {
     const events = c.events || [];
     if (events.some((e) => e.reportId === reportId && e.type === type)) return;
@@ -85,8 +96,7 @@ async function applyToCases({ tree, reportId, triage, today, workerPhone, open, 
     c.events = [...events, ev];
     const ch = change.get(c.id) || { events: [] };
     ch.events.push(ev);
-    if (nextStatus[type]) c.status = ch.status = nextStatus[type];
-    if (type === 'treated') ch.lastAction = [ACTION_INFO[extra.action] ? actionLabel(extra.action) : 'Dirawat', extra.product].filter(Boolean).join(' · ');
+    if (nextStatus[type]) c.status = nextStatus[type];
     change.set(c.id, ch);
     touched.set(c.id, c);
   };
@@ -124,7 +134,7 @@ async function applyToCases({ tree, reportId, triage, today, workerPhone, open, 
   const caseIds = [];
   for (const c of touched.values()) {
     const isNew = created.includes(c);
-    const saved = await saveCase(c, change.get(c.id), isNew, { today, reportId });
+    const saved = await saveCase(c, change.get(c.id), isNew);
     if (!saved) continue;
     caseIds.push(saved.id);
     const tail = saved.status === 'resolved' ? '' : ` Foto lagi tgl ${R.dateLabel(saved.nextCheck)} untuk cek perkembangan.`;
@@ -148,13 +158,43 @@ async function applyToCases({ tree, reportId, triage, today, workerPhone, open, 
   return { caseIds, lines: [...new Set(lines)] };
 }
 
+/** Where a case stands, from its events in date order (the latest one that sets a status wins). */
+const STATUS_OF_EVENT = { treated: 'treated', improving: 'improving', worse: 'worse', resolved: 'resolved', reopened: 'open' };
+function summarize(events) {
+  const sorted = events
+    .map((e, i) => [e, i])
+    .sort((a, b) => String(a[0].date).localeCompare(String(b[0].date)) || a[1] - b[1])
+    .map(([e]) => e);
+  let status = 'open';
+  let closedOn = null;
+  let lastAction;
+  for (const e of sorted) {
+    if (STATUS_OF_EVENT[e.type]) status = STATUS_OF_EVENT[e.type];
+    if (e.type === 'resolved') closedOn = e.date;
+    if (e.type === 'treated') lastAction = [ACTION_INFO[e.action] ? actionLabel(e.action) : 'Dirawat', e.product].filter(Boolean).join(' · ');
+  }
+  const last = sorted[sorted.length - 1];
+  const lastReport = [...sorted].reverse().find((e) => e.reportId);
+  const out = {
+    events: sorted,
+    status,
+    closedOn: status === 'resolved' ? closedOn : null,
+    lastOn: last ? last.date : null,
+    nextCheck: status === 'resolved' || !last ? null : R.addDays(last.date, RECHECK_DAYS),
+  };
+  if (lastReport) out.lastReportId = lastReport.reportId;
+  if (lastAction) out.lastAction = lastAction;
+  return out;
+}
+
 /**
  * Writes one case in a transaction. A new case never replaces another one (a problem solved by hand earlier today
- * keeps its record; this one gets the next free id). An existing case gets this report's events and status on top
- * of what it holds now, so a close or reopen in the web app while Gemini was reading is kept; one deleted meanwhile
- * stays deleted (null).
+ * keeps its record; this one gets the next free id). An existing case gets this report's events on top of what it
+ * holds now, so a close or reopen in the web app while Gemini was reading is kept; one deleted meanwhile stays
+ * deleted (null). Status, dates and the last action always follow the events in date order, so filing an older
+ * report later (the backfill) never moves a case back in time.
  */
-async function saveCase(c, ch, isNew, { today, reportId }) {
+async function saveCase(c, ch, isNew) {
   return db.runTransaction(async (tx) => {
     if (isNew) {
       const { id: wanted, ...data } = c;
@@ -162,18 +202,9 @@ async function saveCase(c, ch, isNew, { today, reportId }) {
         const id = n === 1 ? wanted : `${wanted}_${n}`;
         const ref = db.collection('cases').doc(id);
         if ((await tx.get(ref)).exists) continue;
-        const status = data.status;
-        const nextCheck = status === 'resolved' ? null : R.addDays(today, RECHECK_DAYS);
-        tx.set(ref, {
-          ...data,
-          ...(ch.lastAction ? { lastAction: ch.lastAction } : {}),
-          lastOn: today,
-          lastReportId: reportId,
-          nextCheck,
-          ...(status === 'resolved' ? { closedOn: today } : {}),
-          updatedAt: now(),
-        });
-        return { id, status, nextCheck };
+        const sum = summarize(data.events || []);
+        tx.set(ref, { ...data, ...sum, updatedAt: now() });
+        return { id, status: sum.status, nextCheck: sum.nextCheck };
       }
       throw new Error(`No free case id for ${wanted}`);
     }
@@ -183,14 +214,9 @@ async function saveCase(c, ch, isNew, { today, reportId }) {
     const fresh = cur.data();
     const events = [...(fresh.events || [])];
     for (const ev of ch.events) if (!events.some((e) => e.reportId === ev.reportId && e.type === ev.type)) events.push(ev);
-    const status = ch.status || fresh.status || 'open';
-    const nextCheck = status === 'resolved' ? null : R.addDays(today, RECHECK_DAYS);
-    const update = { events, status, lastOn: today, lastReportId: reportId, nextCheck, updatedAt: now() };
-    if (ch.lastAction) update.lastAction = ch.lastAction;
-    if (ch.status === 'resolved') update.closedOn = today;
-    else if (status !== 'resolved' && fresh.closedOn) update.closedOn = null; // reopened by this report
-    tx.set(ref, { ...fresh, ...update });
-    return { id: c.id, status, nextCheck };
+    const sum = summarize(events);
+    tx.set(ref, { ...fresh, ...sum, updatedAt: now() });
+    return { id: c.id, status: sum.status, nextCheck: sum.nextCheck };
   });
 }
 

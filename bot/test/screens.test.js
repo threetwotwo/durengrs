@@ -528,3 +528,45 @@ test('backfill: older reports file their problems once, the owner\'s check wins,
   assert.equal(again.alreadyFiled, 3);
   assert.equal(again.casesAfter, 2);
 });
+
+test('backfill: treatments in older readings are recognised, also on problems filed before, without going back in time', async () => {
+  seed();
+  const at = (daysAgo) => ({ seconds: Math.floor((Date.now() - daysAgo * 86400e3) / 1000) });
+  const dayAgo = (n) => R.todayStr(new Date(Date.now() - n * 86400e3));
+  // Gemini readings from before it was asked for actions: no `actions` list at all.
+  const olderAi = (code, name, evidence) => ({ source: 'ai', version: 'gemini-p2', issues: [{ code, name, confidence: 0.9, evidence }], improving: false, numbers: [], needsReview: true });
+  fake.seed('reports', 'p1', { treeId: 'A1', block: 'A', description: 'B36 sudah dikerok, dioles Ridomil', createdAt: at(3),
+    triage: olderAi('phytophthora_canker', 'Kanker batang (Phytophthora palmivora)', 'Batang dikerok hingga jaringan kayu') });
+  fake.seed('reports', 'p2', { treeId: 'A2', block: 'A', description: 'getah merah, perlu dioles', createdAt: at(3),
+    triage: olderAi('phytophthora_canker', 'Kanker batang (Phytophthora palmivora)', 'Getah merah keluar dari batang') });
+
+  // A problem filed earlier from a later report (day 1), whose older report (day 2, already linked) said it was treated.
+  fake.seed('reports', 'q1', { treeId: 'B1', block: 'B', description: 'jamur batang, sudah dikikis', createdAt: at(2), caseIds: ['B1_stem_fungus_x'],
+    triage: olderAi('stem_fungus', 'Jamur upas', 'kulit dikikis') });
+  fake.seed('reports', 'q2', { treeId: 'B1', block: 'B', description: 'jamur batang', createdAt: at(1), caseIds: ['B1_stem_fungus_x'],
+    triage: olderAi('stem_fungus', 'Jamur upas', 'kulit pecah') });
+  fake.seed('cases', 'B1_stem_fungus_x', { treeId: 'B1', block: 'B', issue: 'stem_fungus', name: 'Jamur upas', status: 'open', openedOn: dayAgo(2),
+    events: [{ date: dayAgo(2), reportId: 'q1', type: 'seen' }, { date: dayAgo(1), reportId: 'q2', type: 'seen' }], lastOn: dayAgo(1), lastReportId: 'q2', nextCheck: R.addDays(dayAgo(1), 7) });
+
+  const dry = await backfillCases({ days: 30 });
+  assert.deepEqual(dry.toFile.map((x) => [x.report, x.actions]), [['p1', ['canker_treatment']], ['p2', []]]);
+  assert.deepEqual(dry.toTreat.map((x) => x.report), ['q1']);
+  assert.equal(dry.alreadyFiled, 1);
+
+  await backfillCases({ days: 30, apply: true });
+  const p1 = fake.get('cases', fake.get('reports', 'p1').caseIds[0]);
+  assert.equal(p1.status, 'treated');
+  assert.equal(p1.lastAction, 'Kerok & oles batang · Ridomil');
+  assert.deepEqual(p1.events.map((e) => e.type), ['seen', 'treated']);
+  assert.equal(fake.get('cases', fake.get('reports', 'p2').caseIds[0]).status, 'open'); // "perlu dioles": not done yet
+
+  const b1 = fake.get('cases', 'B1_stem_fungus_x');
+  assert.equal(b1.status, 'treated');
+  assert.deepEqual(b1.events.map((e) => [e.reportId, e.type]), [['q1', 'seen'], ['q1', 'treated'], ['q2', 'seen']]);
+  assert.equal(b1.lastOn, dayAgo(1)); // the later report stays the last one
+  assert.equal(b1.lastReportId, 'q2');
+  assert.equal(b1.nextCheck, R.addDays(dayAgo(1), 7));
+
+  const again = await backfillCases({ days: 30, apply: true });
+  assert.equal(again.toFile.length + again.toTreat.length, 0);
+});

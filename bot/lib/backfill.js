@@ -41,6 +41,8 @@ async function backfillCases({ days = 30, apply = false } = {}) {
     dismissed: 0,
     treeGone: 0,
     toFile: [],
+    // Reports filed before whose treatment was missed: it is added to their problems now.
+    toTreat: [],
   };
   for (const r of reports) {
     const st = r.ai && r.ai.status;
@@ -48,22 +50,44 @@ async function backfillCases({ days = 30, apply = false } = {}) {
   }
 
   for (const r of reports) {
-    if ((Array.isArray(r.caseIds) && r.caseIds.length) || filedReports.has(r.id)) { out.alreadyFiled++; continue; }
     const tree = trees.get(r.treeId);
     if (!tree || tree.active === false) { out.treeGone++; continue; }
     const triage = K.problemsOf(r);
     if (!triage) { out.dismissed++; continue; }
-    if (!triage.issues.length && !triage.actions.length) { out.noProblem++; continue; }
     const date = R.todayStr(new Date(ms(r.createdAt)));
-    const row = { report: r.id, tree: tree.id, date, issues: triage.issues.map((i) => i.name || i.code), actions: triage.actions.map((a) => a.type) };
+    const workerPhone = r.workerPhone || null;
+    const filed = (Array.isArray(r.caseIds) && r.caseIds.length > 0) || filedReports.has(r.id);
+
+    if (!filed) {
+      if (!triage.issues.length && !triage.actions.length) { out.noProblem++; continue; }
+      const row = { report: r.id, tree: tree.id, date, issues: triage.issues.map((i) => i.name || i.code), actions: triage.actions.map((a) => a.type) };
+      if (apply) {
+        const open = await K.openCases(tree.id);
+        // Season jobs are not filed from old reports: the season they belonged to may be over.
+        const { caseIds } = await K.applyToCases({ tree, reportId: r.id, triage, today: date, workerPhone, open, seasonTasks: false });
+        if (caseIds.length) await db.collection('reports').doc(r.id).update({ caseIds });
+        row.cases = caseIds;
+      }
+      out.toFile.push(row);
+      continue;
+    }
+
+    // Already filed: only the treatments its filing missed (it was read before treatments were recognised), on the
+    // problems still open. A problem deleted or solved since is left alone.
+    const open = await K.openCases(tree.id);
+    const missed = triage.actions.filter((a) => {
+      const c = open.find((x) => x.issue === a.issue);
+      return c && !(c.events || []).some((e) => e.reportId === r.id && e.type === 'treated');
+    });
+    if (!missed.length) { out.alreadyFiled++; continue; }
+    const row = { report: r.id, tree: tree.id, date, treated: missed.map((a) => `${a.type} (${a.issue})${a.product ? ` ${a.product}` : ''}`) };
     if (apply) {
-      const open = await K.openCases(tree.id);
-      // Season jobs are not filed from old reports: the season they belonged to may be over.
-      const { caseIds } = await K.applyToCases({ tree, reportId: r.id, triage, today: date, workerPhone: r.workerPhone || null, open, seasonTasks: false });
-      if (caseIds.length) await db.collection('reports').doc(r.id).update({ caseIds });
+      const { caseIds } = await K.applyToCases({ tree, reportId: r.id, triage: { issues: [], actions: missed }, today: date, workerPhone, open, seasonTasks: false });
+      const all = [...new Set([...(Array.isArray(r.caseIds) ? r.caseIds : []), ...caseIds])];
+      await db.collection('reports').doc(r.id).update({ caseIds: all });
       row.cases = caseIds;
     }
-    out.toFile.push(row);
+    out.toTreat.push(row);
   }
   if (apply) out.casesAfter = (await db.collection('cases').get()).docs.length;
   return out;

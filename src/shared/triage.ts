@@ -2,7 +2,7 @@ import { FARM_STAGES, FARM_STAGE_INFO, type FarmStage } from './stages';
 import { ISSUES, ISSUE_INFO, type Issue } from './issues';
 import { HEALTH_INFO, worstHealth, type Health } from './health';
 import { normalize, wordHits } from './text';
-import type { Action, CaseUpdate } from './actions';
+import { TREATMENT_PRODUCTS, TREATMENT_WORDS, TREATS, type Action, type CaseUpdate } from './actions';
 
 /**
  * Field report triage: what a worker's report is probably about. The worker only sends tree + photo + words;
@@ -165,6 +165,48 @@ export function triageText(raw: string | undefined): Triage {
   const out: Triage = { source: 'rules', version: TRIAGE_RULES_VERSION, issues, improving, urgent, numbers, needsReview };
   if (stage) out.stage = stage;
   if (health) out.health = health;
+  return out;
+}
+
+/** Words that mean a treatment is not done (yet) when they come earlier in the same phrase: "perlu dikerok". */
+const NOT_DONE = [...NEGATIONS, 'perlu', 'harus', 'sebaiknya', 'segera', 'disarankan', 'butuh', 'akan', 'rencana', 'nanti', 'mau', 'jika', 'kalau'];
+
+/**
+ * Treatment done on the tree, from words ("batang dikerok dan dioles Ridomil"), for each of `issues` it treats. Used
+ * when Gemini's reading has no list of actions (a failed or older reading). A treatment word with "belum", "perlu",
+ * "harus"… earlier in its phrase is not counted. Scraping and painting a canker with a fungicide paste is one
+ * treatment (canker_treatment, with the product), not also a fungicide spray.
+ */
+export function treatmentsInText(raw: string | undefined, issues: Issue[]): Array<{ type: Action; issue: Issue; evidence: string; product?: string }> {
+  const text = normalize((raw || '').replace(/[\r\n!?]+/g, '. '));
+  const done = (kw: string) =>
+    wordHits(text, kw).some((at) => {
+      const phrase = text.slice(Math.max(0, at - 80), at).split(/[.,;]/).pop() || '';
+      return !phrase.split(' ').some((w) => NOT_DONE.includes(w));
+    });
+  // The phrase the word sits in, as the evidence ("batang dikerok hingga jaringan kayu dan diolesi pasta").
+  const phraseOf = (kw: string) => {
+    const at = wordHits(text, kw)[0];
+    const start = Math.max(text.lastIndexOf('.', at), text.lastIndexOf(',', at), text.lastIndexOf(';', at)) + 1;
+    const ends = ['.', ',', ';'].map((p) => text.indexOf(p, at)).filter((i) => i >= 0);
+    return text.slice(start, ends.length ? Math.min(...ends) : text.length).trim().slice(0, 120);
+  };
+  const found = new Map<Action, string>();
+  for (const [type, words] of Object.entries(TREATMENT_WORDS) as Array<[Action, string[]]>) {
+    const kw = words.find(done);
+    if (kw) found.set(type, phraseOf(kw));
+  }
+  if (found.has('canker_treatment')) found.delete('fungicide');
+  const product = TREATMENT_PRODUCTS.find(done);
+  const out: Array<{ type: Action; issue: Issue; evidence: string; product?: string }> = [];
+  for (const [type, evidence] of found) {
+    for (const issue of issues) {
+      if (!(TREATS[type] || []).includes(issue)) continue;
+      const a: { type: Action; issue: Issue; evidence: string; product?: string } = { type, issue, evidence };
+      if (product && type !== 'sanitation') a.product = product[0].toUpperCase() + product.slice(1);
+      out.push(a);
+    }
+  }
   return out;
 }
 

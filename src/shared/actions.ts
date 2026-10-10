@@ -1,4 +1,5 @@
 import type { L } from './text';
+import type { Issue } from './issues';
 
 /**
  * What workers do on a tree, and how a problem on a tree is followed over time ("cases"). Shared by the bot, which
@@ -50,6 +51,29 @@ export const ACTION_INFO: Record<Action, { label: L; kind: 'treatment' | 'care' 
   mulching: { label: { id: 'Mulsa / bahan organik', en: 'Mulch / organic matter' }, kind: 'care' },
   harvest: { label: { id: 'Panen', en: 'Harvest' }, kind: 'care' },
   other: { label: { id: 'Pekerjaan lain', en: 'Other work' }, kind: 'care' },
+};
+
+/**
+ * Words a worker (or Gemini, describing a photo) uses for treatment done on a tree, for reading a report without
+ * Gemini's list of actions (`treatmentsInText`). Each form is listed: a keyword matches a whole word ("oles" is not
+ * found in "dioles").
+ */
+export const TREATMENT_WORDS: Partial<Record<Action, string[]>> = {
+  canker_treatment: ['kerok', 'dikerok', 'dikeroki', 'kerokan', 'mengerok', 'kikis', 'dikikis', 'mengikis', 'oles', 'dioles', 'diolesi', 'olesi', 'mengoles', 'mengolesi', 'pengolesan', 'pasta', 'bubur bordo', 'bordo', 'labur', 'dilabur'],
+  fungicide: ['fungisida', 'ridomil', 'antracol', 'dithane', 'mankozeb', 'mancozeb', 'metalaksil', 'aliette', 'fosetil', 'amistar', 'nordox', 'kocide', 'agrifos', 'fosfit'],
+  insecticide: ['insektisida', 'confidor', 'imidakloprid', 'imidacloprid', 'abamektin', 'abamectin', 'decis', 'curacron', 'regent', 'furadan', 'karbofuran', 'lannate', 'marshal'],
+  trunk_injection: ['injeksi', 'diinjeksi', 'infus', 'diinfus', 'suntik', 'disuntik'],
+  sanitation: ['dipotong', 'dipangkas', 'dibuang', 'dibakar', 'dimusnahkan'],
+};
+/** Product names among those words, shown as the product used. */
+export const TREATMENT_PRODUCTS = ['ridomil', 'antracol', 'dithane', 'aliette', 'amistar', 'nordox', 'kocide', 'agrifos', 'confidor', 'decis', 'curacron', 'regent', 'furadan', 'lannate', 'marshal'];
+/** The problems each treatment is done against (a treatment for none of the report's problems is left out). */
+export const TREATS: Partial<Record<Action, Issue[]>> = {
+  canker_treatment: ['phytophthora_canker', 'stem_fungus'],
+  fungicide: ['phytophthora_canker', 'stem_fungus', 'leaf_blight', 'fruit_drop'],
+  insecticide: ['whitefly', 'borer'],
+  trunk_injection: ['phytophthora_canker', 'stem_fungus', 'borer'],
+  sanitation: ['stem_fungus', 'leaf_blight', 'phytophthora_canker', 'borer'],
 };
 
 /** Work that is also a season job of the block (`seasonTasks`). */

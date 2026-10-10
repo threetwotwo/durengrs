@@ -78,7 +78,9 @@ Problems (`cases`) are filed when Gemini reads a report, or from the words when 
 that have none. Open `https://<service>/cases-backfill?token=<VERIFY_TOKEN>` to see what the last 30 days of reports
 would file (nothing is written; it also counts how many reports Gemini read), then add `&apply=1` to file them
 (`&days=60` to look further back). The owner's check in the web app wins over the reading; dismissed reports and
-archived trees are skipped. Safe to run again: a report already filed is left alone.
+archived trees are skipped. Treatment written in a report read before treatments were recognised ("dikerok, dioles
+Ridomil") is found in its words (`treatmentsInText`, src/shared/triage.ts); running it again adds such treatments to
+problems already filed (`toTreat`). Safe to run again: nothing is filed twice.
 
 ## Files
 
