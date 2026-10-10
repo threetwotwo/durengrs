@@ -2,6 +2,7 @@ import { FARM_STAGES, FARM_STAGE_INFO, type FarmStage } from './stages';
 import { ISSUES, ISSUE_INFO, type Issue } from './issues';
 import { HEALTH_INFO, worstHealth, type Health } from './health';
 import { normalize, wordHits } from './text';
+import type { Action, CaseUpdate } from './actions';
 
 /**
  * Field report triage: what a worker's report is probably about. The worker only sends tree + photo + words;
@@ -19,7 +20,11 @@ export interface Triage {
   /** Rules version, or model + prompt version for 'ai'. */
   version: string;
   stage?: { code: FarmStage; confidence: number; evidence: string };
-  issues: Array<{ code: Issue; confidence: number; evidence: string }>;
+  /**
+   * Problems seen. A Gemini reading also names the specific pest or disease (`name`), the first step for the worker
+   * (`action`) and the photo it is in.
+   */
+  issues: Array<{ code: Issue; confidence: number; evidence: string; name?: string; action?: string; photo?: number }>;
   health?: Health;
   /** The worker says it is getting better ("membaik"). */
   improving: boolean;
@@ -31,6 +36,23 @@ export interface Triage {
   numbers: Array<{ value: number; kind?: NumberKind; evidence: string }>;
   /** False only for a plain "all fine" report: nothing for a person to decide. */
   needsReview: boolean;
+
+  // ---- Gemini reading only (source 'ai', bot/lib/ai.js) ----
+  /** Every stage seen (a tree can show two at once); `stage` is the most likely one. */
+  stages?: Array<{ code: FarmStage; confidence: number; evidence: string }>;
+  /** One or two sentences in Indonesian: what the photos and words show. */
+  summary?: string;
+  /** What each photo shows, by photo number. */
+  photosSeen?: Array<{ photo: number; seen: string }>;
+  photoOk?: boolean;
+  /** When a photo is not good enough: what to photograph instead (Indonesian). */
+  photoRequest?: string;
+  /** Work the worker did: treatments against a problem and routine care. */
+  actions?: Array<{ type: Action; issue: Issue | 'none'; evidence: string; product?: string; target?: string; case?: number; photo?: number }>;
+  /** Progress on the tree's open cases, numbered as Gemini was shown them. */
+  caseUpdates?: Array<{ case: number; status: CaseUpdate; evidence: string }>;
+  /** Fruit picked, as the worker wrote it (also saved as a harvest record). */
+  harvest?: { fruits: number; weightKg?: number; grades?: Partial<Record<'extra' | 'class1' | 'class2' | 'reject', number>> };
 }
 
 // Not "no": workers write it for "nomor" ("pohon no 12").

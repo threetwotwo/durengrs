@@ -3,9 +3,6 @@ import type { Bundle } from './index';
 /** Kebun: the farm as one sheet (one row per tree), like the owner's Google Sheet. */
 export const kebun: Bundle = {
   id: {
-    'nav.kebun': 'Kebun',
-    'kebun.title': 'Kebun',
-    'kebun.desc': '{n} pohon dalam satu lembar, seperti di Google Sheets. Ketik di sel untuk mengubah; setiap perubahan tersimpan dan tercatat.',
     'kebun.paste': 'Tempel dari Sheets',
     'kebun.csv': 'Unduh CSV',
     'kebun.search': 'Cari ID pohon, mis. A12',
@@ -92,9 +89,6 @@ export const kebun: Bundle = {
     'kebun.paste.failed': '{n} pohon gagal disimpan; coba tempel lagi.',
   },
   en: {
-    'nav.kebun': 'Farm sheet',
-    'kebun.title': 'Farm sheet',
-    'kebun.desc': '{n} trees in one sheet, like Google Sheets. Type into a cell to change it; every change is saved and logged.',
     'kebun.paste': 'Paste from Sheets',
     'kebun.csv': 'Download CSV',
     'kebun.search': 'Search tree ID, e.g. A12',

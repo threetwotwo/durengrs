@@ -69,6 +69,12 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
+    // Problems on trees, followed from the first report that shows them until solved (written by the bot after
+    // Gemini reads a report; the web app closes, reopens or deletes one)
+    match /cases/{id} {
+      allow read, write: if true;
+    }
+
     // Field workers: WhatsApp number -> name (the webapp shows names instead of numbers)
     match /workers/{phone} {
       allow read, write: if true;

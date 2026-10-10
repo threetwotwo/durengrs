@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowDown, ArrowUp, ClipboardPaste, Columns3, Download, Search } from 'lucide-react';
-import { useFarm } from '../context/FarmContext';
+import { Archive, ArrowDown, ArrowUp, ClipboardPaste, Columns3, Download, Plus, Search } from 'lucide-react';
+import { formatDate, normalizeTimestamp, useFarm } from '../context/FarmContext';
 import { useT } from '../i18n';
 import { treeUrl, useQueryParams } from '../lib/router';
 import { formatShortDate } from '../lib/treatments';
@@ -24,7 +24,7 @@ import {
   ENGINE_STAGE_WORDS,
 } from '../shared';
 import type { DurianTree } from '../types';
-import { PageHeader, btnSecondary, inputCls } from './PageHeader';
+import { PageHeader, btnPrimary, btnSecondary, inputCls } from './PageHeader';
 import { Link } from './Link';
 import { TreeStageCell, observedNow } from './StageBoard';
 import { HealthPill } from './FieldStage';
@@ -32,12 +32,21 @@ import { useCrops } from './useCrops';
 import { KebunPasteSheet } from './KebunPaste';
 import { LabelRulesPanel, type RuleSample } from './LabelRulesPanel';
 import { useLabelRules } from '../lib/labelRules';
+import { isDue, isOpen } from '../lib/cases';
+import { followUpOf } from '../lib/insights';
+import { AddTreeSheet } from './AddTreeSheet';
 
 /**
- * Kebun: the whole farm as one sheet, one row per tree, in the owner's columns (size, flowering and fruit, dated
+ * Trees: the whole farm as one sheet, one row per tree, in the owner's columns (size, flowering and fruit, dated
  * counts, stage, health, labels, dose, notes). Type into a cell like in Google Sheets; every change is saved and
  * logged like the tree form. Paste from Google Sheets to update many cells at once; export what's shown as CSV.
+ * Quick views: trees with an open problem, a problem due for a photo check, no report for a week, archived trees.
  */
+
+/** Quick views (`?show=`). Older links (?followup=1, ?stale=1) still land on the right one. */
+type Show = 'all' | 'problems' | 'due' | 'stale' | 'archived';
+const WEEK = 7 * 24 * 60 * 60 * 1000;
+const CONDITION_TO_HEALTH: Record<string, string> = { healthy: 'hijau', minor: 'kuning', emergency: 'merah', not_assessed: 'none' };
 
 type Group = 'tree' | 'size' | 'crop' | 'counts' | 'stage' | 'health' | 'label' | 'dose' | 'notes';
 const GROUPS: Group[] = ['tree', 'size', 'crop', 'counts', 'stage', 'health', 'label', 'dose', 'notes'];
@@ -87,9 +96,10 @@ const LABEL_CLS: Record<Label, string> = {
   skip: 'bg-slate-100 text-slate-500 border-slate-200',
 };
 
-export const KebunPage: React.FC = () => {
+export const TreesPage: React.FC = () => {
   const { t, lang } = useT();
-  const { trees, cropCounts, updateTree } = useFarm();
+  const { trees, archivedTrees, cropCounts, updateTree, cases } = useFarm();
+  const [adding, setAdding] = useState(false);
   const { crops } = useCrops();
   const [params, setParams] = useQueryParams();
   const [hidden, setHidden] = useState<Set<Group>>(readHidden);
@@ -105,7 +115,11 @@ export const KebunPage: React.FC = () => {
   const q = (params.get('q') || '').trim().toUpperCase();
   const block = params.get('block') || '';
   const stage = params.get('stage') || '';
-  const health = params.get('health') || '';
+  const health = params.get('health') || CONDITION_TO_HEALTH[params.get('condition') || ''] || '';
+  const variant = params.get('variant') || '';
+  const missing = params.get('missing');
+  const show: Show = (['problems', 'due', 'stale', 'archived'] as const).find((x) => x === params.get('show'))
+    || (params.get('followup') === '1' ? 'due' : params.get('stale') === '1' ? 'stale' : params.get('archived') === '1' ? 'archived' : 'all');
   const sortKey = params.get('sort') || '';
   const desc = params.get('dir') === 'desc';
 
@@ -252,8 +266,42 @@ export const KebunPage: React.FC = () => {
   const shownCols = cols.filter((c) => !hidden.has(c.group));
   const editCols = shownCols.map((c, i) => (c.edit ? i : -1)).filter((i) => i >= 0);
 
+  // Problems per tree (open and due for a photo check), for the quick views and the dot next to the ID.
+  const problemsByTree = useMemo(() => {
+    const m = new Map<string, { open: number; due: number }>();
+    for (const c of cases) {
+      if (!isOpen(c)) continue;
+      const x = m.get(c.treeId) || { open: 0, due: 0 };
+      x.open++;
+      if (isDue(c)) x.due++;
+      m.set(c.treeId, x);
+    }
+    return m;
+  }, [cases]);
+  const inView = (tree: DurianTree, v: Show) => {
+    const p = problemsByTree.get(tree.id);
+    if (v === 'problems') return !!p?.open;
+    // Due: a problem's photo check has come, or the Guide's re-check rule (Red within 2 days, Yellow within 7).
+    if (v === 'due') return !!p?.due || followUpOf(tree, normalizeTimestamp(tree.lastReportAt)).needs;
+    if (v === 'stale') return normalizeTimestamp(tree.lastReportAt) < Date.now() - WEEK;
+    return true;
+  };
+  const viewCounts = useMemo(
+    () => ({
+      problems: trees.filter((x) => inView(x, 'problems')).length,
+      due: trees.filter((x) => inView(x, 'due')).length,
+      stale: trees.filter((x) => inView(x, 'stale')).length,
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [trees, problemsByTree]
+  );
+
   const filtered = useMemo(() => {
     let list = rows.filter((r) => {
+      if (show !== 'all' && show !== 'archived' && !inView(r.tree, show)) return false;
+      if (variant && r.tree.variant !== variant) return false;
+      if (missing === 'size' && r.tree.trunkSize !== undefined && r.tree.canopySize !== undefined && r.tree.canopySize !== '') return false;
+      if (missing === 'fruit' && r.tree.estimatedFruitCount !== undefined) return false;
       if (block && r.tree.block !== block) return false;
       if (q && !r.tree.id.toUpperCase().includes(q)) return false;
       if (health && (r.health || 'none') !== health) return false;
@@ -283,7 +331,8 @@ export const KebunPage: React.FC = () => {
       });
     }
     return list;
-  }, [rows, cols, block, q, health, stage, sortKey, desc]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows, cols, block, q, health, stage, sortKey, desc, show, variant, missing, problemsByTree]);
 
   const blocks = useMemo(() => Array.from(new Set(trees.map((x) => x.block).filter(Boolean))).sort(), [trees]);
   const sum = (f: (r: Row) => number | undefined) => filtered.reduce((acc, r) => acc + (f(r) || 0), 0);
@@ -344,10 +393,14 @@ export const KebunPage: React.FC = () => {
   return (
     <div className="space-y-4">
       <PageHeader
-        title={t('kebun.title')}
-        description={t('kebun.desc', { n: trees.length })}
+        title={t('nav.trees')}
+        description={t('trees.page.desc', { n: trees.length, b: blocks.length })}
         actions={
           <>
+            <button type="button" onClick={() => setAdding(true)} className={btnPrimary}>
+              <Plus className="w-4 h-4" />
+              <span>{t('trees.add')}</span>
+            </button>
             <button type="button" onClick={() => setPasting(true)} className={btnSecondary} aria-label={t('kebun.paste')}>
               <ClipboardPaste className="w-4 h-4" />
               <span className="hidden sm:inline">{t('kebun.paste')}</span>
@@ -386,7 +439,7 @@ export const KebunPage: React.FC = () => {
             ))}
             <option value="unseen">{t('stage.unseen')}</option>
           </select>
-          <select value={health} onChange={(e) => setParams({ health: e.target.value || null })} aria-label={t('kebun.col.health')} className={inputCls}>
+          <select value={health} onChange={(e) => setParams({ health: e.target.value || null, condition: null })} aria-label={t('kebun.col.health')} className={inputCls}>
             <option value="">{t('common.allConditions')}</option>
             {HEALTH.map((h) => (
               <option key={h} value={h}>{HEALTH_INFO[h].label[lang]}</option>
@@ -397,6 +450,46 @@ export const KebunPage: React.FC = () => {
             <Columns3 className="w-4 h-4" />
             {t('kebun.columns')}
           </button>
+        </div>
+        <div className="flex flex-wrap gap-1.5" role="group" aria-label={t('trees.show')}>
+          {(
+            [
+              ['all', t('common.all'), trees.length],
+              ['problems', t('trees.show.problems'), viewCounts.problems],
+              ['due', t('trees.show.due'), viewCounts.due],
+              ['stale', t('trees.show.stale'), viewCounts.stale],
+              ['archived', t('trees.show.archived'), archivedTrees.length],
+            ] as Array<[Show, string, number]>
+          )
+            .filter(([id, , n]) => id === 'all' || n > 0 || show === id)
+            .map(([id, label, n]) => {
+              const on = show === id;
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  aria-pressed={on}
+                  onClick={() => setParams({ show: id === 'all' ? null : id, followup: null, stale: null, archived: null })}
+                  className={`min-h-9 px-3 rounded-full border text-sm font-semibold inline-flex items-center gap-1.5 ${
+                    on ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                  }`}
+                >
+                  {id === 'archived' && <Archive className="w-3.5 h-3.5" />}
+                  {label}
+                  <span className={`tabular text-xs ${on ? 'text-slate-300' : id === 'due' ? 'text-rose-700 font-bold' : 'text-slate-500'}`}>{n}</span>
+                </button>
+              );
+            })}
+          {(missing === 'size' || missing === 'fruit') && (
+            <button
+              type="button"
+              onClick={() => setParams({ missing: null })}
+              className="min-h-9 px-3 rounded-full border border-amber-300 bg-amber-50 text-amber-900 text-sm font-semibold inline-flex items-center gap-1.5"
+              aria-label={t('trees.filter.remove', { name: t(missing === 'size' ? 'trees.filter.missing.size' : 'trees.filter.missing.fruit') })}
+            >
+              {t(missing === 'size' ? 'trees.filter.missing.size' : 'trees.filter.missing.fruit')} <span aria-hidden>×</span>
+            </button>
+          )}
         </div>
         {showCols && (
           <div className="flex flex-wrap gap-1.5" role="group" aria-label={t('kebun.columns')}>
@@ -428,12 +521,15 @@ export const KebunPage: React.FC = () => {
         </p>
       </div>
 
-      {cellError && (
+      {show === 'archived' && <ArchivedList />}
+
+      {show !== 'archived' && cellError && (
         <p role="alert" className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-sm text-rose-800">
           <strong>{cellError.treeId}</strong> · {cols.find((c) => c.edit === cellError.field)?.label}: {cellError.msg}
         </p>
       )}
 
+      {show !== 'archived' && (
       <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-auto max-h-[calc(100vh-240px)] min-h-[320px]">
         <table className="text-sm border-separate border-spacing-0 min-w-full">
           <thead>
@@ -480,8 +576,16 @@ export const KebunPage: React.FC = () => {
             {filtered.map((r, ri) => (
               <tr key={r.tree.id} className="group">
                 <th scope="row" className="sticky left-0 z-10 bg-white group-hover:bg-slate-50 px-2.5 py-1.5 text-left border-b border-r border-slate-200 whitespace-nowrap">
-                  <Link to={treeUrl(r.tree.id)} className="font-mono font-bold text-emerald-800 hover:underline">
+                  <Link to={treeUrl(r.tree.id)} className="font-mono font-bold text-emerald-800 hover:underline inline-flex items-center gap-1.5">
                     {r.tree.id}
+                    {problemsByTree.get(r.tree.id)?.open ? (
+                      <span
+                        className={`min-w-4 h-4 px-1 rounded-full text-[10px] leading-4 text-center font-sans font-bold ${problemsByTree.get(r.tree.id)!.due ? 'bg-rose-600 text-white' : 'bg-amber-400 text-slate-900'}`}
+                        title={t('trees.problemsN', { n: problemsByTree.get(r.tree.id)!.open })}
+                      >
+                        {problemsByTree.get(r.tree.id)!.open}
+                      </span>
+                    ) : null}
                   </Link>
                 </th>
                 {shownCols.map((c, ci) => {
@@ -609,10 +713,35 @@ export const KebunPage: React.FC = () => {
         </table>
         {filtered.length === 0 && <p className="p-8 text-center text-sm text-slate-600">{t('kebun.empty')}</p>}
       </div>
+      )}
 
-      <LabelRulesPanel stored={stored} samples={samples} />
+      {show !== 'archived' && <LabelRulesPanel stored={stored} samples={samples} />}
 
       {pasting && <KebunPasteSheet onClose={() => setPasting(false)} />}
+      {adding && <AddTreeSheet onClose={() => setAdding(false)} />}
     </div>
+  );
+};
+
+/** Archived trees: kept for their history, their IDs never reused. */
+const ArchivedList: React.FC = () => {
+  const { t } = useT();
+  const { archivedTrees, variants } = useFarm();
+  const name = (code: string) => variants.find((v) => v.code === code)?.name || code;
+  if (!archivedTrees.length) return <p className="p-8 text-center text-sm text-slate-600 bg-white rounded-xl border border-slate-200">{t('trees.arch.none')}</p>;
+  return (
+    <ul className="bg-white rounded-xl border border-slate-200 shadow-xs divide-y divide-slate-100">
+      {archivedTrees.map((tree) => (
+        <li key={tree.id}>
+          <Link to={treeUrl(tree.id)} className="flex flex-wrap items-center gap-x-4 gap-y-1 p-3.5 hover:bg-slate-50">
+            <span className="font-mono font-bold text-slate-900 min-w-12">{tree.id}</span>
+            <span className="text-sm text-slate-700">{[name(tree.variant), tree.block ? t('common.blockN', { n: tree.block }) : null].filter(Boolean).join(' · ')}</span>
+            <span className="text-xs text-slate-500 ml-auto">
+              {[tree.archivedReason ? t(`tree.arch.r.${tree.archivedReason}`) : null, tree.archivedAt ? formatDate(tree.archivedAt) : null].filter(Boolean).join(' · ')}
+            </span>
+          </Link>
+        </li>
+      ))}
+    </ul>
   );
 };

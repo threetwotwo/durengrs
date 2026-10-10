@@ -1,18 +1,13 @@
-// lib/reports.js — saves worker reports: photos to Cloud Storage, the report
-// to `reports`, and any condition change onto the tree, all consistently.
+// lib/reports.js — saves worker reports: photos to Cloud Storage (three sizes), the report to `reports`, and the
+// tree's last report (plus a condition change, when urgent words call for one) onto the tree, all consistently.
+// The report id is chosen by the caller (rules.js idFromToken), so a retried submit finds the report already saved.
 const crypto = require('crypto');
 const sharp = require('sharp');
 const { admin, db, getBucket } = require('./firestore');
 const { decryptFlowMedia, ALLOWED_TYPES } = require('./media');
+const { CONDITIONS } = require('./rules');
 
-const { CONDITIONS, CONDITION_LABELS } = require('./rules');
 const MAX_PHOTOS = 3;
-
-// One flow session = one report. Deriving the document ID from the flow token
-// means a retried submission overwrites instead of creating a duplicate.
-function reportIdFromToken(flowToken) {
-  return crypto.createHash('sha1').update(String(flowToken)).digest('hex').slice(0, 20);
-}
 
 // Stored copy: max 1600px on the long side, JPEG q75 — typically 150–350 KB
 // instead of several MB, and still sharp enough to read leaf damage.
@@ -99,9 +94,7 @@ async function getCollageUrl(reportId, report) {
     resumable: false,
     metadata: { contentType: 'image/jpeg', cacheControl: CACHE_CONTROL, metadata: { firebaseStorageDownloadTokens: token } },
   });
-  const url =
-    `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/` +
-    `${encodeURIComponent(filePath)}?alt=media&token=${token}`;
+  const url = downloadUrl(bucket, filePath, token);
   await db.collection('reports').doc(reportId).update({ collageUrl: url });
   return url;
 }
@@ -207,13 +200,14 @@ async function processPhotos(items, treeId, reportId) {
   return { saved, failed };
 }
 
-// `condition`: the worker's choice (older Flow) or 'emergency' when the words read as urgent (triage), else none.
-// `triage`: what the system read from the words (lib/shared.js); a suggestion until someone checks it in the webapp.
 async function reportExists(reportId) {
   return (await db.collection('reports').doc(reportId).get()).exists;
 }
 
-async function createReport({ reportId, treeId, workerPhone, condition, conditionSource, description, photos, triage }) {
+// `condition`: 'emergency' when the words read as urgent (triage), else none: the tree's condition stays as it is.
+// `triage`: what the system read from the words (lib/shared.js); a suggestion until someone checks it in the webapp.
+// Gemini's reading replaces it later (lib/ai.js).
+async function createReport({ reportId, treeId, workerPhone, condition, description, photos, triage }) {
   const treeRef = db.collection('trees').doc(treeId);
   const reportRef = db.collection('reports').doc(reportId);
   const now = admin.firestore.FieldValue.serverTimestamp();
@@ -239,9 +233,8 @@ async function createReport({ reportId, treeId, workerPhone, condition, conditio
       conditionBefore: before,
       conditionAfter: after,
       conditionChanged: changed,
-      // Who decided the condition: kept whenever a worker chose it (even the same as before, so a review proposes their
-      // choice rather than a reading of their words), and for the triage only when it changed the tree.
-      ...(conditionSource && CONDITIONS.includes(condition) && (changed || conditionSource === 'worker') ? { conditionSource } : {}),
+      // Who changed the condition: only the triage does now (older reports may say 'worker').
+      ...(changed ? { conditionSource: 'triage' } : {}),
       ...(triage ? { triage } : {}),
       createdAt: now,
     });
@@ -260,4 +253,4 @@ async function createReport({ reportId, treeId, workerPhone, condition, conditio
   });
 }
 
-module.exports = { getCollageUrl, reportIdFromToken, processPhotos, createReport, CONDITION_LABELS, reportExists };
+module.exports = { getCollageUrl, processPhotos, createReport, reportExists };

@@ -165,7 +165,6 @@ export function checkNewTree(
 }
 
 export const ARCHIVE_REASONS = ['died', 'removed', 'replaced', 'test', 'other'] as const;
-export type ArchiveReason = (typeof ARCHIVE_REASONS)[number];
 export const ARCHIVE_NOTE_MAX = 200;
 
 export interface ArchiveCheck {

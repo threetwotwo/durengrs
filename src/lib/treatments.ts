@@ -22,15 +22,6 @@ export function typeLabel(type: TreatmentType): string {
   return translate(`sched.type.${type}`);
 }
 
-/** Object with getters, so the label is looked up (and translated) at the moment it is read. */
-export const TREATMENT_TYPE_LABELS = (() => {
-  const o = {} as Record<TreatmentType, string>;
-  for (const k of ['fertilizer', 'spray', 'pruning', 'irrigation', 'other'] as TreatmentType[]) {
-    Object.defineProperty(o, k, { enumerable: true, get: () => typeLabel(k) });
-  }
-  return o;
-})();
-
 const MONTHS_EN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 /** Short month name (1-12) in the current language. */

@@ -36,7 +36,7 @@ export const DuePill: React.FC<{ crop: TreeCrop; className?: string }> = ({ crop
   const overdue = !!crop.next?.overdue;
   return (
     <span
-      className={`inline-flex items-center gap-1.5 min-h-8 px-2.5 rounded-full border text-xs font-semibold whitespace-nowrap ${
+      className={`inline-flex items-center gap-1.5 min-h-8 px-2.5 rounded-full border text-xs font-semibold whitespace-nowrap ${className} ${
         harvest ? 'bg-emerald-50 border-emerald-300 text-emerald-900' : overdue ? 'bg-amber-50 border-amber-300 text-amber-900' : 'bg-white border-slate-300 text-slate-700'
       }`}
     >

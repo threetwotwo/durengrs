@@ -1,11 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, ArrowRight, BookOpen, CalendarClock, CheckCircle2, Clock, Trash2, User } from 'lucide-react';
+import { ArrowLeft, ArrowRight, BookOpen, Trash2, User } from 'lucide-react';
 import { collection, doc, limit, onSnapshot, orderBy, query, where } from 'firebase/firestore';
 import { db, parseReportDoc } from '../lib/firebase';
 import { normalizeTimestamp, useFarm } from '../context/FarmContext';
 import { goBack, navigate, treeUrl } from '../lib/router';
 import { cachedReport, rememberReport } from '../lib/reportCache';
-import { FOLLOW_UP_LIMIT_DAYS } from '../lib/insights';
 import { reportCondition } from '../lib/review';
 import { STAGES, STAGE_ORDER, TOPIC_BY_ID, pick, topicsForText, treeStages } from '../lib/guide';
 import { useSeasons } from './useSeasons';
@@ -23,21 +22,20 @@ import { PhotoLightbox, photoItems, type GalleryItem } from './PhotoLightbox';
 import { BloomQuickSet, StagePill, TOPIC_ICON, blockLine } from './GuideWidgets';
 import { SeasonTaskChips } from './FieldRecords';
 import { Link } from './Link';
+import { ReportFindings } from './ReportFindings';
+import { ReportProblems } from './Problems';
 
-const DAY = 24 * 60 * 60 * 1000;
 const card = 'bg-white rounded-xl border border-slate-200 p-4 space-y-3';
 const h2 = 'text-sm font-bold text-slate-900';
 
 /**
- * One field report: everything the worker sent, and what the Guide says to do about it: the follow-up the
- * condition calls for, the Guide topics the note is about, and where the block is in its season.
+ * One field report: everything the worker sent and what was read from it (Gemini's findings, the review), the
+ * problems it belongs to with their history, the Guide topics the note is about, and where the block is in its season.
  */
 export const ReportDetailView: React.FC<{ reportId: string }> = ({ reportId }) => {
   const { t, lang, locale } = useT();
   const guideOn = useGuideOn();
   const { trees, variants, harvestCycles, treeBlooms, workerLabel } = useFarm();
-  // Same style as ReportDate ("04 Oct 2026").
-  const day = (v: any) => new Date(normalizeTimestamp(v)).toLocaleDateString(locale, { day: '2-digit', month: 'short', year: 'numeric' });
   const [report, setReport] = useState<TreeReport | null | undefined>(() => cachedReport(reportId));
   const [loadError, setLoadError] = useState(false);
   const [others, setOthers] = useState<TreeReport[]>([]);
@@ -99,14 +97,7 @@ export const ReportDetailView: React.FC<{ reportId: string }> = ({ reportId }) =
   const older = idx >= 0 ? others[idx + 1] : undefined;
   const otherReports = others.filter((r) => r.id !== report.id).slice(0, 5);
 
-  // Follow-up rule from the Guide: emergency re-checked within 2 days, minor within 7.
-  // What the owner confirmed in the review counts over what the report first set.
   const cond = reportCondition(report);
-  const limitDays = cond === 'emergency' ? FOLLOW_UP_LIMIT_DAYS.emergency : cond === 'minor' ? FOLLOW_UP_LIMIT_DAYS.minor : 0;
-  // The first report on this tree after this one (others is newest first).
-  const nextReport = [...others].reverse().find((r) => normalizeTimestamp(r.createdAt) > ts);
-  const due = ts + limitDays * DAY;
-  const followed = nextReport ? normalizeTimestamp(nextReport.createdAt) : 0;
 
   // Stages of this tree (it may have flowered apart from its block, or in waves), else of the whole block.
   const tws = tree && season ? treeStages(tree, season, treeBlooms, harvestCycles) : [];
@@ -177,6 +168,7 @@ export const ReportDetailView: React.FC<{ reportId: string }> = ({ reportId }) =
               )}
             </div>
 
+            <ReportFindings report={report} />
             <ReportReviewPanel report={report} tree={tree} />
           </div>
 
@@ -216,33 +208,7 @@ export const ReportDetailView: React.FC<{ reportId: string }> = ({ reportId }) =
 
         {/* What the Guide says */}
         <div className="lg:col-span-5 space-y-4">
-          {limitDays > 0 && (
-            <section className={card} aria-labelledby="rd-fu">
-              <h2 id="rd-fu" className={`${h2} flex items-center gap-2`}>
-                <CalendarClock className="w-4 h-4 text-emerald-600" />
-                {t('rep.detail.followUp')}
-              </h2>
-              <p className="text-sm text-slate-700">{t('rep.detail.followRule', { n: limitDays })}</p>
-              {followed ? (
-                <p className="flex items-start gap-2 text-sm text-emerald-800">
-                  <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0" />
-                  <span>
-                    {t(followed - ts <= limitDays * DAY ? 'rep.detail.followedOnTime' : 'rep.detail.followedLate', { date: day(nextReport!.createdAt) })}{' '}
-                    <Link to={`/reports/${encodeURIComponent(nextReport!.id)}`} className="font-semibold underline underline-offset-2">
-                      {t('rep.detail.openNext')}
-                    </Link>
-                  </span>
-                </p>
-              ) : (
-                <p className={`flex items-start gap-2 text-sm ${Date.now() > due ? 'text-rose-700 font-semibold' : 'text-amber-800'}`}>
-                  <Clock className="w-4 h-4 mt-0.5 shrink-0" />
-                  {Date.now() > due
-                    ? t('rep.detail.overdue', { date: day(due), n: Math.floor((Date.now() - due) / DAY) })
-                    : t('rep.detail.dueBy', { date: day(due) })}
-                </p>
-              )}
-            </section>
-          )}
+          <ReportProblems treeId={report.treeId} reportId={report.id} caseIds={report.caseIds} />
 
           {guideOn && (
           <section className={card} aria-labelledby="rd-guide">

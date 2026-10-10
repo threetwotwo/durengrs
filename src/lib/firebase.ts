@@ -12,15 +12,9 @@ import {
   serverTimestamp,
   collection,
   getCountFromServer,
-  query,
-  orderBy,
-  limit,
-  where,
-  getDocs,
   DocumentSnapshot,
-  startAfter,
 } from 'firebase/firestore';
-import { DurianTree, DurianVariant, ReportPhoto, TreeCondition, TreeReport } from '../types';
+import { DurianTree, DurianVariant, ReportPhoto, TreeReport } from '../types';
 import rawConfig from '../../firebase-applet-config.json';
 
 export enum OperationType {
@@ -192,6 +186,8 @@ export function parseReportDoc(docSnap: DocumentSnapshot): TreeReport {
     health: data.health === 'hijau' || data.health === 'kuning' || data.health === 'merah' ? data.health : undefined,
     improving: data.improving === true ? true : undefined,
     conditionSource: data.conditionSource === 'worker' || data.conditionSource === 'triage' ? data.conditionSource : undefined,
+    caseIds: Array.isArray(data.caseIds) ? data.caseIds.filter((x: unknown) => typeof x === 'string') : undefined,
+    ai: data.ai && typeof data.ai.status === 'string' ? { status: data.ai.status, model: data.ai.model, error: data.ai.error } : undefined,
   };
 }
 
@@ -206,41 +202,6 @@ export async function getReportsCount(): Promise<number> {
   } catch (error) {
     console.error('Failed to get reports count:', error);
     return 0;
-  }
-}
-
-/**
- * Fetch latest N reports (used for Dashboard).
- */
-export async function fetchLatestReports(limitCount = 8): Promise<TreeReport[]> {
-  const path = 'reports';
-  try {
-    const q = query(collection(db, 'reports'), orderBy('createdAt', 'desc'), limit(limitCount));
-    const snapshot = await getDocs(q);
-    return snapshot.docs.map(parseReportDoc);
-  } catch (error) {
-    handleFirestoreError(error, OperationType.LIST, path);
-    return [];
-  }
-}
-
-/**
- * Fetch reports for a specific tree with limit.
- */
-export async function fetchTreeReports(treeId: string, limitCount = 20): Promise<TreeReport[]> {
-  const path = `reports?treeId=${treeId}`;
-  try {
-    const q = query(
-      collection(db, 'reports'),
-      where('treeId', '==', treeId),
-      orderBy('createdAt', 'desc'),
-      limit(limitCount)
-    );
-    const snapshot = await getDocs(q);
-    return snapshot.docs.map(parseReportDoc);
-  } catch (error) {
-    handleFirestoreError(error, OperationType.LIST, path);
-    return [];
   }
 }
 
@@ -340,13 +301,10 @@ export async function saveTreeChanges(
   // Condition
   const origCondition = originalTree.condition || 'not_assessed';
   const draftCondition = draft.condition || 'not_assessed';
-  let conditionDidUpdate = false;
-
   if (origCondition !== draftCondition) {
     changes.condition = { from: origCondition, to: draftCondition };
     payload.condition = draftCondition;
     payload.conditionUpdatedAt = serverTimestamp();
-    conditionDidUpdate = true;
   }
 
   // If no fields changed, exit early

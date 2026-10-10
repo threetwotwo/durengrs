@@ -2,9 +2,7 @@ import { SourceBadge } from './SourceBadge';
 import { DuePill, MissedLink, ViaWhatsApp } from './FieldFirst';
 import { PhotoStrip } from './PhotoStrip';
 import React, { useMemo, useState } from 'react';
-import { ArrowRight, BookOpen, ChevronRight, ClipboardList, Trash2, Wheat } from 'lucide-react';
-import { STAGES, STAGE_ORDER, StageId, TOPIC_BY_ID, pick } from '../lib/guide';
-import { useGuideOn } from '../lib/guideMode';
+import { ClipboardList, Trash2, Wheat } from 'lucide-react';
 import { useFarm } from '../context/FarmContext';
 import { useT } from '../i18n';
 import { Sheet, fieldInput, fieldLabel } from './Sheet';
@@ -13,7 +11,7 @@ import { btnPrimary } from './PageHeader';
 import { CROP_STAGES, CropStage, GRADES, removeCropCount, saveCropCount } from '../lib/fieldData';
 import { Funnel, GradeTotals, TreeCrop, topGradeShare } from '../lib/crop';
 import { TREE_LIMITS } from '../lib/trees';
-import { diffDays, formatShortDate, todayStr } from '../lib/treatments';
+import { formatShortDate, todayStr } from '../lib/treatments';
 import { treeUrl } from '../lib/router';
 import type { DurianTree } from '../types';
 import { StagePill } from './GuideWidgets';
@@ -57,7 +55,6 @@ export const GradeBar: React.FC<{ grades: GradeTotals; legend?: boolean; classNa
     </div>
   );
 };
-
 
 /** Flower clusters → fruit set → kept → on the trees → harvested, with the ratio between steps. */
 export const FunnelStrip: React.FC<{ funnel: Funnel; compact?: boolean; hints?: Partial<Record<string, React.ReactNode>> }> = ({ funnel, hints = {} }) => {
@@ -461,126 +458,3 @@ export const TreeLink: React.FC<{ id: string }> = ({ id }) => (
     {id}
   </Link>
 );
-
-// ---------- Dashboard ----------
-
-/** Which funnel step each stage of the season fills, for the Guide hints. */
-const STAGE_STEP: Partial<Record<StageId, string>> = { bloom: 'clusters', set: 'set', thin: 'kept', grow: 'onTree', mature: 'onTree', harvest: 'harvested' };
-
-/** Harvest at a glance on the homepage: one funnel strip, one action row, and (Guide on) what the stages call for. */
-export const HarvestHomeCard: React.FC = () => {
-  const { t, lang } = useT();
-  const guideOn = useGuideOn();
-  const { crops, funnel, seasons } = useCrops();
-  const today = todayStr();
-  const toPick = crops.filter((c) => c.next?.kind === 'harvest').length;
-  // Newly planted blocks are not expected to flower yet.
-  const noDate = seasons.filter((s) => (!s.floweredOn || s.outdated) && !s.young);
-  const windows = seasons
-    .filter((s) => s.harvestFrom && s.harvestTo && !s.outdated && diffDays(s.harvestTo, today) >= 0)
-    .sort((a, b) => a.harvestFrom!.localeCompare(b.harvestFrom!))
-    .slice(0, 3);
-
-  // Guide: blocks per stage right now, the stage's first action, and a hint on the funnel step it fills.
-  const now = guideOn
-    ? STAGE_ORDER.filter((st) => st !== 'preflower' && st !== 'recovery')
-        .map((st) => ({ st, blocks: seasons.filter((s) => s.stages.includes(st) && !s.outdated).map((s) => s.block) }))
-        .filter((x) => x.blocks.length)
-    : [];
-  const hints: Record<string, React.ReactNode> = {};
-  for (const n of now) {
-    const step = STAGE_STEP[n.st];
-    if (step && !hints[step]) hints[step] = <span className="text-emerald-700 font-medium">{t('hh.stageNow', { blocks: n.blocks.join(', ') })}</span>;
-  }
-
-  return (
-    <section className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden" aria-labelledby="hh-h">
-      <div className="px-4 py-3 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2">
-        <h2 id="hh-h" className="text-lg font-bold text-slate-900 flex items-center gap-2">
-          <Wheat className="w-6 h-6 text-emerald-600" />
-          {t('hh.title')}
-        </h2>
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-          <Link to="/harvest" className="text-xs font-semibold text-emerald-700 hover:text-emerald-800 flex items-center gap-1 min-h-8">
-            {t('hh.open')}
-            <ArrowRight className="w-3.5 h-3.5" />
-          </Link>
-        </div>
-      </div>
-
-      <div className="p-4 space-y-3">
-        <FunnelStrip funnel={funnel} hints={hints} />
-
-        {/* One row: what to do now, and when the next harvests are. */}
-        <div className="grid sm:grid-cols-3 rounded-xl border border-slate-200 divide-y sm:divide-y-0 sm:divide-x divide-slate-200">
-          <Link to="/harvest?todo=1" className="group flex items-center gap-3 p-3 hover:bg-slate-50">
-            <span className={`text-2xl font-bold tabular ${funnel.toCount ? 'text-amber-700' : 'text-slate-900'}`}>{funnel.toCount}</span>
-            <span className="min-w-0 flex-1">
-              <span className="block text-sm font-semibold text-slate-900">{t('hh.toCount')}</span>
-              <span className="block text-xs text-slate-500">{funnel.toCount ? t('hh.toCount.short') : t('hp.todo.none')}</span>
-            </span>
-            <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-slate-700" />
-          </Link>
-          <Link to="/harvest?todo=1" className="group flex items-center gap-3 p-3 hover:bg-slate-50">
-            <span className={`text-2xl font-bold tabular ${toPick ? 'text-emerald-700' : 'text-slate-900'}`}>{toPick}</span>
-            <span className="min-w-0 flex-1">
-              <span className="block text-sm font-semibold text-slate-900">{t('hh.toPick')}</span>
-              <span className="block text-xs text-slate-500">{t('hh.toPick.sub')}</span>
-            </span>
-            <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-slate-700" />
-          </Link>
-          <div className="p-3">
-            <span className="block text-sm font-semibold text-slate-900">{t('hh.next')}</span>
-            {windows.length === 0 ? (
-              <span className="block text-xs text-slate-500">{t('hp.windows.none')}</span>
-            ) : (
-              <ul className="mt-0.5 space-y-0.5">
-                {windows.map((s) => {
-                  const d = diffDays(s.harvestFrom!, today);
-                  return (
-                    <li key={s.block} className="flex items-baseline justify-between gap-2 text-xs">
-                      <span className="font-semibold text-slate-800">{t('common.blockN', { n: s.block })}</span>
-                      <span className="text-slate-600 tabular">
-                        {formatShortDate(s.harvestFrom!)} · <span className={d <= 0 ? 'text-emerald-700 font-semibold' : ''}>{d <= 0 ? t('hp.win.now') : t('sched.hv.in', { n: d })}</span>
-                      </span>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </div>
-        </div>
-
-        {now.length > 0 && (
-          <ul className="space-y-1 text-sm" aria-label={t('hh.guideNow')}>
-            {now.slice(0, 3).map(({ st, blocks }) => {
-              const a = [...STAGES[st].actions].sort((x, y) => (x.task ? 0 : 1) - (y.task ? 0 : 1))[0];
-              return (
-                <li key={st} className="flex items-start gap-2 text-slate-700">
-                  <BookOpen className="w-4 h-4 mt-0.5 shrink-0 text-emerald-600" aria-hidden />
-                  <span className="line-clamp-2 sm:line-clamp-none">
-                    <span className="font-semibold text-slate-900">
-                      {pick(STAGES[st].title, lang)} · {blocks.map((b) => t('common.blockN', { n: b })).join(', ')}:
-                    </span>{' '}
-                    {pick(a.text, lang)}{' '}
-                    <Link to={`/guide/${a.topic}`} className="text-xs font-semibold text-emerald-700 whitespace-nowrap hover:underline">
-                      {pick(TOPIC_BY_ID.get(a.topic)!.title, lang)} →
-                    </Link>
-                  </span>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-
-        {noDate.length > 0 && (
-          <p className="text-xs text-amber-900">
-            {t('hh.noDate', { blocks: noDate.map((s) => s.block).join(', ') })}{' '}
-            <Link to="/harvest" className="font-semibold underline">{t('hh.setDates')}</Link>
-          </p>
-        )}
-      </div>
-
-    </section>
-  );
-};

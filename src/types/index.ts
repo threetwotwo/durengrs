@@ -75,21 +75,45 @@ export interface TreeReport {
   improving?: boolean;
   /** Who changed the tree's condition with this report: the worker's own choice (older Flow) or the urgent words. */
   conditionSource?: 'worker' | 'triage';
+  /** The problems (cases) this report opened, treated or re-checked. */
+  caseIds?: string[];
+  /** Gemini's reading of the photos and words: done, still running, or failed (then `triage` is the word-only one). */
+  ai?: { status: 'running' | 'done' | 'failed' | string; model?: string; error?: string };
 }
 
-export interface TreeEditAudit {
+/** One step in a problem's history: the report that saw, treated or re-checked it. */
+export interface CaseEvent {
+  date: string;
+  /** The report; 'webapp' events (closed or reopened by hand) have none. */
+  reportId?: string;
+  type: import('../shared').CaseEventType;
+  action?: string;
+  product?: string;
+  note?: string;
+  photo?: number;
+  by?: string;
+}
+
+/**
+ * One problem on one tree, followed from the first report that showed it until it is solved (`cases/{id}`, written
+ * by the bot; see docs/data-contract.md).
+ */
+export interface ProblemCase {
+  id: string;
   treeId: string;
-  changes: Record<string, { from: any; to: any }>;
-  at: any;
-  source: 'webapp';
-}
-
-export interface FirebaseConfig {
-  apiKey: string;
-  authDomain: string;
-  projectId: string;
-  databaseId?: string;
-  storageBucket: string;
-  messagingSenderId: string;
-  appId: string;
+  block?: string;
+  /** Issue code (src/shared/issues.ts). */
+  issue: string;
+  /** The specific pest or disease, when Gemini named it. */
+  name?: string;
+  status: import('../shared').CaseStatus;
+  openedOn: string;
+  openedReportId?: string;
+  lastOn?: string;
+  lastReportId?: string;
+  lastAction?: string;
+  /** Next photo check (YYYY-MM-DD); none once solved. */
+  nextCheck?: string | null;
+  closedOn?: string;
+  events: CaseEvent[];
 }

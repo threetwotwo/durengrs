@@ -1,474 +1,262 @@
-import React, { useState, useMemo, useEffect } from 'react';
-import { useFarm, normalizeTimestamp } from '../context/FarmContext';
-import { ConditionBadge } from './ConditionBadge';
-import { improvingNow } from '../lib/trees';
-import { ReportCard } from './ReportCard';
-import { Link } from './Link';
-import { treeUrl, treesUrl } from '../lib/router';
-import { followUpOf, waitingLabel } from '../lib/insights';
-import { TaskRow } from './TaskRow';
-import { MarkDoneSheet, UndoToast, undoLogged, useUndoToast } from './TreatmentSheets';
-import { ScheduleTask, formatShortDate, relativeDue, todayStr } from '../lib/treatments';
+import React, { useMemo } from 'react';
+import { AlertOctagon, ArrowRight, CalendarCheck, CalendarClock, Check, ChevronRight, ClipboardCheck, ClipboardList, CloudRain, EyeOff, Stethoscope, Wheat } from 'lucide-react';
+import { normalizeTimestamp, useFarm } from '../context/FarmContext';
 import { useT } from '../i18n';
-import { DashboardSeasonCard, StagePill, TOPIC_ICON, topicUrl, useGuideData } from './GuideWidgets';
-import { HarvestHomeCard } from './CropWidgets';
-import { StageBoard } from './StageBoard';
+import { isDue, isOpen, sortCases } from '../lib/cases';
+import { needsReview } from '../lib/review';
+import { diffDays, formatShortDate, todayStr } from '../lib/treatments';
+import { reportUrl } from '../lib/router';
+import { rememberReport } from '../lib/reportCache';
 import { useGuideOn } from '../lib/guideMode';
-import { RainCard, WeeklyReview } from './FieldRecords';
-import { STAGES, TOPIC_BY_ID, pick, topicsForText } from '../lib/guide';
-import { TreeReport } from '../types';
-import { db, parseReportDoc } from '../lib/firebase';
-import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
-import { Check, AlertTriangle, AlertOctagon, ArrowRight, ArrowUpDown, Calendar, CalendarCheck, ClipboardCheck, CloudRain } from 'lucide-react';
+import type { TreeReport } from '../types';
+import { useRecentReports } from './ReviewInbox';
+import { useCrops } from './useCrops';
+import { useGuideData, StagePill } from './GuideWidgets';
+import { CaseCard } from './Problems';
+import { ReportReading } from './FieldStage';
+import { ActionChips } from './ReportFindings';
+import { ReportDate } from './ReportDate';
+import { Link } from './Link';
 
 /**
- * Daily view: what needs doing today to keep the trees in ideal condition.
- *   0. Harvest (top): farm funnel, trees to count or pick, next windows
- *   1. Today: re-checks overdue, trees not inspected in 7 days, rain recorded, Guide farm check (Guide on)
- *   3. Trees needing attention (with the Guide topic their notes point to, Guide on) + routine work
- *   4. This season per block (Guide stages, one-tap bloom dates and season tasks; Guide on)
- *   5. Blocks (health, stage, harvest window, fruit, inspection coverage) + rain
- *   6. Latest field reports (compact; photos live on the Reports page)
+ * Today: one screen that answers "what needs me now?".
+ *   1. Needs you: reports to check, problems due for a photo check, trees to count or pick, routines due, trees
+ *      nobody reported on this week (only what isn't zero)
+ *   2. Problems on the farm, most urgent first
+ *   3. Latest reports, with what was read from them
+ *   4. The season per block: stages, harvest window, fruit on the trees, rain
  */
 
-type BlockSort = 'block' | 'total' | 'attention' | 'fruits';
 const WEEK = 7 * 24 * 60 * 60 * 1000;
+const card = 'bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden';
+
+type Tone = 'danger' | 'warn' | 'good' | 'info';
+const TONE: Record<Tone, string> = {
+  danger: 'text-rose-700 bg-rose-50',
+  warn: 'text-amber-800 bg-amber-50',
+  good: 'text-emerald-700 bg-emerald-50',
+  info: 'text-sky-800 bg-sky-50',
+};
+
+const NeedRow: React.FC<{ icon: React.ComponentType<{ className?: string }>; tone: Tone; n: number; title: string; sub?: string; to: string }> = ({
+  icon: Icon,
+  tone,
+  n,
+  title,
+  sub,
+  to,
+}) => (
+  <li>
+    <Link to={to} className="group flex items-center gap-3 px-4 py-3 hover:bg-slate-50">
+      <span className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${TONE[tone]}`}>
+        <Icon className="w-5 h-5" />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-semibold text-slate-900">{title}</span>
+        {sub && <span className="block text-xs text-slate-600 truncate">{sub}</span>}
+      </span>
+      <span className="text-2xl font-bold tabular text-slate-900">{n}</span>
+      <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-slate-700 shrink-0" />
+    </Link>
+  </li>
+);
+
+const SectionHead: React.FC<{ id: string; title: string; to?: string; more?: string }> = ({ id, title, to, more }) => (
+  <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between gap-2">
+    <h2 id={id} className="text-base font-bold text-slate-900">
+      {title}
+    </h2>
+    {to && more && (
+      <Link to={to} className="text-xs font-semibold text-emerald-700 hover:text-emerald-800 inline-flex items-center gap-1 min-h-8">
+        {more}
+        <ArrowRight className="w-3.5 h-3.5" />
+      </Link>
+    )}
+  </div>
+);
 
 export const Dashboard: React.FC = () => {
-  const { trees, totalReportsCount, loading: treesLoading, plans, scheduleTasks, recordsError, rain } = useFarm();
-  const { t, locale, lang } = useT();
-  const { seasons, checks } = useGuideData();
-  // Guide off = the plain app: no farm-check tile, season action plans, advice lines or topic links.
+  const { t, locale } = useT();
+  const { trees, allTrees, cases, scheduleTasks, rain, recordsError, loading } = useFarm();
+  const { reports, loading: reportsLoading } = useRecentReports();
+  const { crops, funnel, seasons } = useCrops();
+  const { checks } = useGuideData();
   const guideOn = useGuideOn();
-  const [doneTask, setDoneTask] = useState<ScheduleTask | null>(null);
-  const { toast, show: showToast, clear: clearToast } = useUndoToast();
-  const [latestReports, setLatestReports] = useState<TreeReport[]>([]);
-  const [reportsLoading, setReportsLoading] = useState(true);
-  const [sort, setSort] = useState<{ field: BlockSort; asc: boolean }>({ field: 'block', asc: true });
+  const today = todayStr();
 
-  // Six newest reports, live. Small: the Reports page has the full feed with photos.
-  useEffect(() => {
-    const q = query(collection(db, 'reports'), orderBy('createdAt', 'desc'), limit(6));
-    return onSnapshot(
-      q,
-      (snapshot) => {
-        setLatestReports(snapshot.docs.map(parseReportDoc));
-        setReportsLoading(false);
-      },
-      (err) => {
-        console.error('Failed to stream latest reports:', err);
-        setReportsLoading(false);
-      }
-    );
-  }, []);
-
-  const treeById = useMemo(() => new Map(trees.map((tr) => [tr.id, tr])), [trees]);
-
-  // One pass over the trees for every count on this page.
-  const { counts, blockStats } = useMemo(() => {
-    const weekAgo = Date.now() - WEEK;
-    const c = { healthy: 0, minor: 0, emergency: 0, notAssessed: 0, reported7d: 0, total: trees.length };
-    const blocks = new Map<string, { block: string; total: number; healthy: number; minor: number; emergency: number; notAssessed: number; fruits: number; reported7d: number }>();
-    for (const tr of trees) {
-      const key = tr.condition === 'healthy' ? 'healthy' : tr.condition === 'minor' ? 'minor' : tr.condition === 'emergency' ? 'emergency' : 'notAssessed';
-      c[key]++;
-      const recent = normalizeTimestamp(tr.lastReportAt) >= weekAgo;
-      if (recent) c.reported7d++;
-      const b = tr.block || '—';
-      const row = blocks.get(b) || { block: b, total: 0, healthy: 0, minor: 0, emergency: 0, notAssessed: 0, fruits: 0, reported7d: 0 };
-      row.total++;
-      row[key]++;
-      row.fruits += tr.estimatedFruitCount || 0;
-      if (recent) row.reported7d++;
-      blocks.set(b, row);
-    }
-    return { counts: c, blockStats: Array.from(blocks.values()) };
-  }, [trees]);
-
-  const seasonByBlock = useMemo(() => new Map(seasons.map((s) => [s.block, s])), [seasons]);
-  const sortedBlocks = useMemo(() => {
-    const val = (r: (typeof blockStats)[number]) =>
-      sort.field === 'attention' ? r.emergency * 1000 + r.minor : sort.field === 'block' ? 0 : r[sort.field];
-    return [...blockStats].sort((a, b) => {
-      const d = sort.field === 'block' ? a.block.localeCompare(b.block, undefined, { numeric: true }) : val(a) - val(b);
-      return sort.asc ? d : -d;
-    });
-  }, [blockStats, sort]);
-  const sortBy = (field: BlockSort) =>
-    setSort((s) => (s.field === field ? { field, asc: !s.asc } : { field, asc: field === 'block' }));
-
-  const dueSoon = useMemo(() => scheduleTasks.filter((x) => x.status !== 'upcoming'), [scheduleTasks]);
-  const overdueCount = dueSoon.filter((x) => x.status === 'overdue').length;
-  const nextTask = scheduleTasks.find((x) => x.status === 'upcoming');
+  const testTrees = useMemo(() => new Set(allTrees.filter((x) => x.active === false && x.archivedReason === 'test').map((x) => x.id)), [allTrees]);
+  const toCheck = useMemo(() => reports.filter((r) => !r.review && !testTrees.has(r.treeId) && needsReview(r)), [reports, testTrees]);
+  const openCases = useMemo(() => sortCases(cases.filter(isOpen), today), [cases, today]);
+  const dueCases = openCases.filter((c) => isDue(c, today));
+  const worse = openCases.filter((c) => c.status === 'worse');
+  const untreated = openCases.filter((c) => c.status === 'open');
+  const toPick = crops.filter((c) => c.next?.kind === 'harvest').length;
+  const routinesDue = scheduleTasks.filter((x) => x.status === 'overdue').length;
+  const stale = trees.filter((x) => normalizeTimestamp(x.lastReportAt) < Date.now() - WEEK).length;
   const checkGaps = guideOn ? checks.filter((c) => c.status === 'gap').length : 0;
-  const checkWarn = checks.filter((c) => c.status === 'warn').length;
 
-  // Needs attention: trees overdue for a re-check first (emergency before minor, longest wait first).
-  const attentionItems = useMemo(() => {
-    const now = Date.now();
-    const items = trees
-      .filter((tr) => tr.condition === 'emergency' || tr.condition === 'minor')
-      .map((tree) => ({ tree, fu: followUpOf(tree, normalizeTimestamp(tree.lastReportAt), now), topics: topicsForText(tree.conditionNotes).slice(0, 2) }));
-    items.sort((a, b) => {
-      if (a.fu.needs !== b.fu.needs) return a.fu.needs ? -1 : 1;
-      if (a.tree.condition !== b.tree.condition) return a.tree.condition === 'emergency' ? -1 : 1;
-      return (b.fu.waitingDays ?? 9999) - (a.fu.waitingDays ?? 9999);
-    });
-    return items;
-  }, [trees]);
-  const followUpCount = attentionItems.filter((i) => i.fu.needs).length;
-  const notSeen = counts.total - counts.reported7d;
-  const rainToday = rain.find((r) => r.date === todayStr());
+  const allNeeds: Array<React.ComponentProps<typeof NeedRow> & { key: string }> = [
+    { key: 'check', icon: ClipboardList, tone: 'info', n: toCheck.length, title: t('today.need.check'), sub: t('today.need.check.sub'), to: '/reports' },
+    { key: 'worse', icon: AlertOctagon, tone: 'danger', n: worse.length, title: t('today.need.worse'), sub: worse.map((c) => c.treeId).join(', '), to: '/reports?view=problems' },
+    { key: 'due', icon: CalendarClock, tone: 'danger', n: dueCases.length, title: t('today.need.due'), sub: t('today.need.due.sub'), to: '/reports?view=problems&show=due' },
+    { key: 'untreated', icon: Stethoscope, tone: 'warn', n: untreated.length, title: t('today.need.untreated'), sub: untreated.slice(0, 6).map((c) => c.treeId).join(', '), to: '/reports?view=problems' },
+    { key: 'pick', icon: Wheat, tone: 'good', n: toPick, title: t('today.need.pick'), sub: t('hh.toPick.sub'), to: '/harvest?todo=1' },
+    { key: 'count', icon: ClipboardCheck, tone: 'warn', n: funnel.toCount, title: t('today.need.count'), sub: t('hh.toCount.short'), to: '/harvest?todo=1' },
+    { key: 'routines', icon: CalendarCheck, tone: 'danger', n: routinesDue, title: t('today.need.routines'), to: '/schedule' },
+    { key: 'stale', icon: EyeOff, tone: 'warn', n: stale, title: t('today.need.stale'), sub: t('today.need.stale.sub', { n: trees.length }), to: '/trees?show=stale' },
+    { key: 'guide', icon: ClipboardCheck, tone: 'warn', n: checkGaps, title: t('today.need.guide'), to: '/guide' },
+  ];
+  const needs = allNeeds.filter((x) => x.n > 0);
 
   const hour = new Date().getHours();
-  const greeting = t(
-    hour < 11 ? 'dash.greet.morning' : hour < 15 ? 'dash.greet.noon' : hour < 17 ? 'dash.greet.afternoon' : hour < 18 ? 'dash.greet.late' : 'dash.greet.evening'
-  );
-  const todayLabel = new Date().toLocaleDateString(locale, { weekday: 'long', day: 'numeric', month: 'long' });
-  const urgent = counts.emergency + overdueCount + checkGaps;
+  const greeting = t(hour < 11 ? 'dash.greet.morning' : hour < 15 ? 'dash.greet.noon' : hour < 17 ? 'dash.greet.afternoon' : hour < 18 ? 'dash.greet.late' : 'dash.greet.evening');
+  const dateLabel = new Date().toLocaleDateString(locale, { weekday: 'long', day: 'numeric', month: 'long' });
 
-  if (treesLoading) {
-    return (
-      <div className="space-y-6">
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          {[...Array(4)].map((_, i) => (
-            <div key={i} className="h-24 bg-white rounded-xl border border-slate-200 p-4 animate-pulse" />
-          ))}
-        </div>
-        <div className="h-96 bg-white rounded-xl border border-slate-200 animate-pulse" />
-      </div>
-    );
-  }
+  // The season per block: stages now, the harvest window, fruit still on the trees.
+  const fruitByBlock = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const c of crops) m.set(c.tree.block, (m.get(c.tree.block) || 0) + (c.remaining ?? c.tree.estimatedFruitCount ?? 0));
+    return m;
+  }, [crops]);
+  const rain30 = rain.filter((r) => diffDays(today, r.date) <= 30);
+  const rainTotal = Math.round(rain30.reduce((n, r) => n + r.rainMm, 0));
+  const lastRain = [...rain30].sort((a, b) => b.date.localeCompare(a.date))[0];
 
-  const tile = 'text-left p-4 rounded-xl border bg-white shadow-xs hover:shadow-sm transition-shadow focus-visible:outline-2 focus-visible:outline-emerald-500 block';
-  const th = 'py-2.5 px-3 font-semibold';
-  const sortTh = (field: BlockSort, label: string, align = 'text-right') => (
-    <th className={`${th} ${align}`} aria-sort={sort.field === field ? (sort.asc ? 'ascending' : 'descending') : undefined}>
-      <button type="button" onClick={() => sortBy(field)} className={`inline-flex items-center gap-1 ${align === 'text-right' ? 'flex-row-reverse' : ''}`}>
-        <ArrowUpDown className="w-3 h-3 text-slate-400" />
-        <span>{label}</span>
-      </button>
-    </th>
-  );
+  if (loading) return <div className="h-96 bg-white rounded-xl border border-slate-200 animate-pulse" />;
 
   return (
-    <div className="space-y-6">
-      {/* Today: the question this screen answers */}
+    <div className="space-y-5">
       <div>
         <h1 className="text-xl font-bold text-slate-900">{greeting}</h1>
         <p className="text-sm text-slate-600">
-          {todayLabel} · {urgent === 0 ? t('dash.nothingUrgent') : t(urgent === 1 ? 'dash.attention.one' : 'dash.attention.other', { n: urgent })}
+          {dateLabel} · {needs.length === 0 ? t('today.allClear') : t(needs.length === 1 ? 'today.needs.one' : 'today.needs.other', { n: needs.length })}
         </p>
       </div>
 
       {recordsError && (
-        <p role="alert" className="flex items-start gap-2 p-3 rounded-xl bg-amber-50 border border-amber-200 text-sm text-amber-900">
-          <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+        <p role="alert" className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-sm text-amber-900">
           {recordsError}
         </p>
       )}
 
-      {/* Harvest first: the farm's crop from flowers to graded fruit, and what to count or pick today. */}
-      <HarvestHomeCard />
-
-      {/* Today: what still needs doing, not repeats of the lists below (those show the trees and routines). */}
-      <div className={`grid grid-cols-2 gap-3 ${guideOn ? 'lg:grid-cols-4' : 'lg:grid-cols-3'}`}>
-        <Link to={treesUrl({ followup: '1' })} className={`${tile} ${followUpCount > 0 ? 'border-rose-300' : 'border-slate-200'}`}>
-          <span className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-slate-700">
-            <AlertOctagon className={`w-5 h-5 ${followUpCount > 0 ? 'text-rose-600' : 'text-slate-400'}`} />
-            {t('dash.today.recheck')}
-          </span>
-          <span className={`block mt-2 text-3xl font-bold tabular ${followUpCount > 0 ? 'text-rose-700' : 'text-slate-900'}`}>{followUpCount}</span>
-          <span className="block text-xs text-slate-600 mt-0.5">{followUpCount ? t('dash.today.recheck.sub') : t('dash.today.recheck.none')}</span>
-        </Link>
-
-        <Link to={treesUrl({ stale: '1' })} className={`${tile} ${notSeen > 0 ? 'border-amber-300' : 'border-slate-200'}`}>
-          <span className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-slate-700">
-            <AlertTriangle className={`w-5 h-5 ${notSeen > 0 ? 'text-amber-600' : 'text-slate-400'}`} />
-            {t('dash.today.unseen')}
-          </span>
-          <span className="block mt-2 text-3xl font-bold tabular text-slate-900">{notSeen}</span>
-          <span className="block text-xs text-slate-600 mt-0.5 tabular">{t('dash.today.unseen.sub', { a: counts.reported7d, b: counts.total })}</span>
-        </Link>
-
-        <button
-          type="button"
-          onClick={() => document.getElementById('rain-h')?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
-          className={`${tile} w-full flex flex-col items-start justify-start ${rainToday ? 'border-slate-200' : 'border-amber-300'} ${guideOn ? '' : 'col-span-2 lg:col-span-1'}`}
-        >
-          <span className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-slate-700">
-            <CloudRain className={`w-5 h-5 ${rainToday ? 'text-slate-400' : 'text-amber-600'}`} />
-            {t('dash.today.rain')}
-          </span>
-          <span className="block mt-2 text-3xl font-bold tabular text-slate-900">{rainToday ? `${rainToday.rainMm} mm` : '—'}</span>
-          <span className="block text-xs text-slate-600 mt-0.5">{rainToday ? t('dash.today.rain.done') : t('dash.today.rain.todo')}</span>
-        </button>
-
-        {/* The Guide's farm check: best practice vs this farm. Opening it weekly is the A7 habit. */}
-        {guideOn && (
-        <div className={`${tile} ${checkGaps > 0 ? 'border-rose-300' : 'border-slate-200'}`}>
-          <Link to="/guide" className="block">
-            <span className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-slate-700">
-              <ClipboardCheck className={`w-5 h-5 ${checkGaps > 0 ? 'text-rose-600' : 'text-slate-400'}`} />
-              {t('dash.kpi.check')}
-            </span>
-            <span className={`block mt-2 text-3xl font-bold tabular ${checkGaps > 0 ? 'text-rose-700' : 'text-slate-900'}`}>{checkGaps}</span>
-            <span className="block text-xs text-slate-600 mt-0.5 tabular">{t('dash.kpi.check.sub', { warn: checkWarn })}</span>
-          </Link>
-          <span className="block mt-1.5">
-            <WeeklyReview compact />
-          </span>
-        </div>
-        )}
-      </div>
-
-      {/* What stage the trees are at, as seen in the field (checked reports), next to what the bloom date predicts. */}
-      <StageBoard />
-
-      {/* Attention (trees) + Routine work (schedule) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-        <section className="lg:col-span-7 bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden" aria-labelledby="att-h">
-          <div className="p-4 border-b border-slate-200 flex items-center justify-between gap-2">
-            <h2 id="att-h" className="text-base font-bold text-slate-900">
-              {t('dash.att.title')} <span className="text-slate-500 font-medium tabular">({attentionItems.length})</span>
-              {followUpCount > 0 && (
-                <span className="ml-2 px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200 text-xs font-semibold">
-                  {t('dash.att.overdue', { n: followUpCount })}
-                </span>
-              )}
-            </h2>
-            {attentionItems.length > 6 && (
-              <Link
-                to={followUpCount > 0 ? treesUrl({ followup: '1' }) : treesUrl({ condition: counts.emergency > 0 ? 'emergency' : 'minor' })}
-                className="text-xs font-semibold text-emerald-700 hover:text-emerald-800 flex items-center gap-1 min-h-8"
-              >
-                {t('dash.att.viewAll', { n: followUpCount > 0 ? followUpCount : attentionItems.length })}
-                <ArrowRight className="w-3.5 h-3.5" />
-              </Link>
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-12 items-start">
+        <div className="min-w-0 lg:col-span-7 space-y-5">
+          <section className={card} aria-labelledby="need-h">
+            <SectionHead id="need-h" title={t('today.need.title')} />
+            {needs.length === 0 ? (
+              <p className="p-6 text-center">
+                <Check className="w-8 h-8 text-emerald-500 mx-auto mb-2" />
+                <span className="block text-sm font-semibold text-slate-800">{t('today.allClear')}</span>
+                <span className="block text-xs text-slate-600 mt-0.5">{t('today.allClear.sub')}</span>
+              </p>
+            ) : (
+              <ul className="divide-y divide-slate-100">
+                {needs.map(({ key, ...row }) => (
+                  <NeedRow key={key} {...row} />
+                ))}
+              </ul>
             )}
-          </div>
-          {attentionItems.length === 0 ? (
-            <div className="p-8 text-center">
-              <Check className="w-8 h-8 text-emerald-500 mx-auto mb-2" />
-              <p className="text-sm font-semibold text-slate-800">{t('dash.att.clear')}</p>
-              <p className="text-xs text-slate-600 mt-0.5">{t('dash.att.clear.sub')}</p>
-            </div>
-          ) : (
+          </section>
+
+          <section className={card} aria-labelledby="prob-h">
+            <SectionHead id="prob-h" title={t('today.problems')} to="/reports?view=problems" more={t('today.problems.all', { n: openCases.length })} />
+            {openCases.length === 0 ? (
+              <p className="p-5 text-sm text-slate-600 flex items-center gap-2">
+                <Check className="w-4 h-4 text-emerald-600" />
+                {t('case.empty.open')}
+              </p>
+            ) : (
+              <div className="p-3 space-y-2">
+                {openCases.slice(0, 5).map((c) => (
+                  <CaseCard key={c.id} c={c} showTree />
+                ))}
+              </div>
+            )}
+          </section>
+        </div>
+
+        <div className="min-w-0 lg:col-span-5 space-y-5">
+          <section className={card} aria-labelledby="latest-h">
+            <SectionHead id="latest-h" title={t('dash.latest.title')} to="/reports?view=log" more={t('today.latest.all')} />
+            {reportsLoading ? (
+              <div className="p-4 space-y-2">
+                {[0, 1, 2].map((i) => (
+                  <div key={i} className="h-14 bg-slate-100 rounded-lg animate-pulse" />
+                ))}
+              </div>
+            ) : reports.length === 0 ? (
+              <p className="p-5 text-sm text-slate-600">{t('dash.latest.empty')}</p>
+            ) : (
+              <ul className="divide-y divide-slate-100">
+                {reports.slice(0, 5).map((r) => (
+                  <LatestRow key={r.id} report={r} />
+                ))}
+              </ul>
+            )}
+          </section>
+
+          <section className={card} aria-labelledby="season-h">
+            <SectionHead id="season-h" title={t('today.season')} to="/harvest" more={t('hh.open')} />
             <ul className="divide-y divide-slate-100">
-              {attentionItems.slice(0, 6).map(({ tree, fu, topics }) => (
-                <li key={tree.id} className="p-3.5 hover:bg-slate-50 flex items-start justify-between gap-3">
-                  <Link to={treeUrl(tree.id)} className="flex items-center gap-3 min-w-0 flex-1">
-                    <span className="text-sm font-bold font-mono text-slate-900 bg-slate-100 px-2 py-1 rounded shrink-0 min-w-12 text-center">{tree.id}</span>
-                    <span className="min-w-0">
-                      <span className="block text-sm font-semibold text-slate-900">
-                        {tree.variant} · {t('common.blockN', { n: tree.block || '—' })}
+              {seasons.map((s) => (
+                <li key={s.block} className="px-4 py-3 space-y-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-sm font-bold text-slate-900 min-w-16">{t('common.blockN', { n: s.block })}</span>
+                    {s.floweredOn && !s.outdated ? (
+                      (s.stages.length ? s.stages : [s.stage]).map((st) => <StagePill key={st} stage={st} />)
+                    ) : (
+                      <span className="text-xs text-slate-500">{s.young ? t('dash.col.young') : t('dash.col.noBloom')}</span>
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-600 tabular flex flex-wrap gap-x-3">
+                    {s.harvestFrom && s.harvestTo && !s.outdated && (
+                      <span>
+                        {t('today.season.harvest', {
+                          when: s.harvestFrom === s.harvestTo ? formatShortDate(s.harvestFrom) : `${formatShortDate(s.harvestFrom)} – ${formatShortDate(s.harvestTo)}`,
+                        })}
                       </span>
-                      <span className="block text-xs text-slate-600 truncate">{tree.conditionNotes || tree.notes || t('dash.att.noNotes')}</span>
-                    </span>
-                  </Link>
-                  <span className="flex flex-col items-end gap-1 shrink-0">
-                    <ConditionBadge condition={tree.condition} improving={improvingNow(tree)} size="sm" />
-                    <span className={`text-xs tabular ${fu.needs ? 'text-rose-700 font-semibold' : 'text-slate-500'}`}>{waitingLabel(fu)}</span>
-                    {/* What the notes point to in the Guide (e.g. "getah" -> Phytophthora). */}
-                    {guideOn && topics.map((id) => {
-                      const Icon = TOPIC_ICON[id];
-                      return (
-                        <Link key={id} to={topicUrl(id)} className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 hover:text-emerald-800">
-                          <Icon className="w-3.5 h-3.5" />
-                          {pick(TOPIC_BY_ID.get(id)!.title, lang)}
-                        </Link>
-                      );
-                    })}
-                  </span>
+                    )}
+                    {(fruitByBlock.get(s.block) || 0) > 0 && <span>{t('today.season.fruit', { n: (fruitByBlock.get(s.block) || 0).toLocaleString(locale) })}</span>}
+                  </p>
                 </li>
               ))}
+              <li className="px-4 py-3 flex items-center gap-2 text-xs text-slate-600">
+                <CloudRain className="w-4 h-4 text-sky-600" aria-hidden />
+                {rain30.length
+                  ? t('today.rain', { mm: rainTotal, date: lastRain ? formatShortDate(lastRain.date) : '—' })
+                  : t('today.rain.none')}
+              </li>
             </ul>
-          )}
-        </section>
-
-        <section className="lg:col-span-5 bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden" aria-labelledby="wk-h">
-          <div className="p-4 border-b border-slate-200 flex items-center justify-between gap-2">
-            <h2 id="wk-h" className="text-base font-bold text-slate-900">{t('dash.wk.title')}</h2>
-            <Link to="/schedule" className="text-xs font-semibold text-emerald-700 hover:text-emerald-800 flex items-center gap-1 min-h-8">
-              {t('dash.wk.open')}
-              <ArrowRight className="w-3.5 h-3.5" />
-            </Link>
-          </div>
-          {plans.length === 0 ? (
-            <div className="p-6 text-center">
-              <CalendarCheck className="w-8 h-8 text-slate-400 mx-auto mb-2" />
-              <p className="text-sm font-semibold text-slate-800">{t('dash.wk.empty')}</p>
-              <p className="text-xs text-slate-600 mt-0.5 mb-3">{t('dash.wk.empty.sub')}</p>
-              <Link to="/schedule?view=routines" className="inline-flex items-center min-h-11 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold">
-                {t('dash.wk.setup')}
-              </Link>
-            </div>
-          ) : dueSoon.length === 0 ? (
-            <div className="p-6 text-center">
-              <Check className="w-8 h-8 text-emerald-500 mx-auto mb-2" />
-              <p className="text-sm font-semibold text-slate-800">{t('dash.wk.none')}</p>
-              {nextTask && (
-                <p className="text-xs text-slate-600 mt-0.5">{t('dash.wk.next', { name: nextTask.plan.name, when: relativeDue(nextTask.days).toLowerCase() })}</p>
-              )}
-            </div>
-          ) : (
-            <div className="divide-y divide-slate-100">
-              {dueSoon.slice(0, 5).map((task) => (
-                <TaskRow key={task.plan.id} task={task} compact onDone={setDoneTask} seasons={guideOn ? seasons : undefined} />
-              ))}
-              {dueSoon.length > 5 && (
-                <Link to="/schedule" className="block w-full p-3 text-center text-xs font-semibold text-emerald-700 hover:bg-slate-50 min-h-11">
-                  {t('dash.wk.more', { n: dueSoon.length - 5 })}
-                </Link>
-              )}
-            </div>
-          )}
-        </section>
-      </div>
-
-      {/* This season per block: Guide stages, one-tap bloom dates and season tasks */}
-      {guideOn && <DashboardSeasonCard />}
-
-      {doneTask && (
-        <MarkDoneSheet task={doneTask} onClose={() => setDoneTask(null)} onSaved={(id, message) => showToast({ message, undo: () => undoLogged(id) })} />
-      )}
-      <UndoToast toast={toast} onClear={clearToast} />
-
-      {/* Blocks (health + season + harvest + coverage in one table) and rain */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-        <section className="lg:col-span-8 bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden" aria-labelledby="blk-h">
-          <div className="p-4 border-b border-slate-200 flex flex-wrap items-baseline justify-between gap-2">
-            <div>
-              <h2 id="blk-h" className="text-base font-bold text-slate-900">{t('dash.blocks.title')}</h2>
-              <p className="text-xs text-slate-600 mt-0.5">{t('dash.blocks.sub')}</p>
-            </div>
-            <span className="text-xs text-slate-600 tabular">
-              {t('dash.health.total', { n: counts.total })} · {t('dash.blocks.coverage', { a: counts.reported7d, b: counts.total })}
-            </span>
-          </div>
-          <div className="px-4 pt-3">
-            <div className="flex h-2.5 rounded-full overflow-hidden bg-slate-100" role="img" aria-label={t('dash.health.aria', { h: counts.healthy, m: counts.minor, e: counts.emergency, n: counts.notAssessed })}>
-              {[
-                { n: counts.healthy, cls: 'bg-emerald-500' },
-                { n: counts.minor, cls: 'bg-amber-400' },
-                { n: counts.emergency, cls: 'bg-rose-500' },
-                { n: counts.notAssessed, cls: 'bg-slate-300' },
-              ].map((s, i) => (s.n > 0 ? <div key={i} className={s.cls} style={{ width: `${(s.n / Math.max(counts.total, 1)) * 100}%` }} /> : null))}
-            </div>
-            <p className="mt-1.5 text-xs text-slate-600 tabular flex flex-wrap gap-x-3">
-              <Link to={treesUrl({ condition: 'healthy' })} className="hover:underline">{t('cond.healthy')} {counts.healthy}</Link>
-              <Link to={treesUrl({ condition: 'minor' })} className="hover:underline">{t('dash.health.minor')} {counts.minor}</Link>
-              <Link to={treesUrl({ condition: 'emergency' })} className="hover:underline">{t('cond.emergency')} {counts.emergency}</Link>
-              <Link to={treesUrl({ condition: 'not_assessed' })} className="hover:underline">{t('cond.not_assessed')} {counts.notAssessed}</Link>
-            </p>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs mt-2">
-              <thead className="bg-slate-50 text-slate-700 border-y border-slate-200 uppercase tracking-wide">
-                <tr>
-                  {sortTh('block', t('common.block'), 'text-left')}
-                  {sortTh('total', t('common.trees'))}
-                  {sortTh('attention', t('dash.col.health'))}
-                  <th className={th}>{t('dash.col.season')}</th>
-                  <th className={th}>{t('dash.col.harvest')}</th>
-                  {sortTh('fruits', t('dash.col.fruits'))}
-                  <th className={`${th} text-right`}>{t('dash.col.checked')}</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {sortedBlocks.map((row) => {
-                  const s = seasonByBlock.get(row.block);
-                  const pct = row.total ? Math.round((row.reported7d / row.total) * 100) : 0;
-                  return (
-                    <tr key={row.block} className="hover:bg-slate-50/80">
-                      <td className="py-2.5 px-3 font-bold text-slate-900">
-                        <Link to={treesUrl({ block: row.block })} className="hover:underline">{t('common.blockN', { n: row.block })}</Link>
-                      </td>
-                      <td className="py-2.5 px-3 text-right tabular font-semibold text-slate-800">{row.total}</td>
-                      <td className="py-2.5 px-3 text-right tabular">
-                        {row.emergency > 0 && <span className="text-rose-700 font-bold">{row.emergency} {t('dash.col.emergShort')} </span>}
-                        {row.minor > 0 && <span className="text-amber-700 font-semibold">{row.minor} {t('dash.col.minorShort')} </span>}
-                        {row.emergency + row.minor === 0 &&
-                          (row.notAssessed > 0 ? (
-                            <span className="text-slate-500">{t('dash.col.notAssessedN', { n: row.notAssessed })}</span>
-                          ) : (
-                            <span className="text-emerald-700">{t('dash.col.allHealthy')}</span>
-                          ))}
-                      </td>
-                      <td className="py-2.5 px-3">
-                        {s?.floweredOn ? (
-                          <Link to={guideOn ? '/guide' : '/harvest'} className="inline-flex flex-wrap items-center gap-1.5">
-                            {/* Every stage the block's trees are in: trees and branches can flower apart. */}
-                            {(s.stages.length ? s.stages : [s.stage]).map((st) => (
-                              <StagePill key={st} stage={st} />
-                            ))}
-                            {s.stages.some((st) => st !== 'preflower') && s.dayMax !== undefined && s.dayMin !== undefined && (
-                              <span className="text-slate-500 tabular">
-                                {s.dayMax === s.dayMin ? t('guide.season.day', { n: s.dayMax }) : t('guide.season.days', { a: s.dayMin, b: s.dayMax })}
-                              </span>
-                            )}
-                          </Link>
-                        ) : s?.young ? (
-                          <span className="text-slate-500">{t('dash.col.young')}</span>
-                        ) : (
-                          <Link to={guideOn ? '/guide' : '/harvest'} className="text-amber-800 font-semibold hover:underline">{t('dash.col.noBloom')}</Link>
-                        )}
-                      </td>
-                      <td className="py-2.5 px-3 tabular text-slate-700">
-                        {s?.harvestFrom && s.harvestTo && s.stages.some((st) => st !== 'preflower' && st !== 'recovery')
-                          ? s.harvestFrom === s.harvestTo
-                            ? formatShortDate(s.harvestFrom)
-                            : `${formatShortDate(s.harvestFrom)} - ${formatShortDate(s.harvestTo)}`
-                          : '—'}
-                      </td>
-                      <td className="py-2.5 px-3 text-right tabular font-bold text-emerald-800">{row.fruits.toLocaleString(locale)}</td>
-                      <td className={`py-2.5 px-3 text-right tabular ${pct < 50 ? 'text-amber-800 font-semibold' : 'text-slate-600'}`}>{pct}%</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </section>
-
-        <RainCard className="lg:col-span-4" />
-      </div>
-
-      {/* Latest field reports: the shared report card, small; each opens its report page */}
-      <section className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden" aria-labelledby="rep-h">
-        <div className="p-4 border-b border-slate-200 flex items-center justify-between gap-2">
-          <div>
-            <h2 id="rep-h" className="text-base font-bold text-slate-900">{t('dash.latest.title')}</h2>
-            <span className="text-xs text-slate-600">{t('dash.latest.live')}</span>
-          </div>
-          <Link to="/reports" className="text-xs font-semibold text-emerald-700 hover:text-emerald-800 flex items-center gap-1">
-            {t('dash.latest.all', { n: totalReportsCount })}
-            <ArrowRight className="w-3.5 h-3.5" />
-          </Link>
+          </section>
         </div>
-        {reportsLoading ? (
-          <div className="p-4 grid md:grid-cols-2 gap-3">
-            {[...Array(4)].map((_, i) => (
-              <div key={i} className="h-20 bg-slate-100 rounded-lg animate-pulse" />
-            ))}
-          </div>
-        ) : latestReports.length === 0 ? (
-          <div className="p-8 text-center">
-            <Calendar className="w-8 h-8 text-slate-400 mx-auto mb-2" />
-            <p className="text-sm font-medium text-slate-700">{t('dash.latest.empty')}</p>
-            <p className="text-xs text-slate-500 mt-1">{t('dash.latest.empty.sub')}</p>
-          </div>
-        ) : (
-          <div className="p-4 grid md:grid-cols-2 gap-3">
-            {latestReports.map((report) => (
-              <ReportCard key={report.id} report={report} tree={treeById.get(report.treeId)} size="sm" />
-            ))}
-          </div>
-        )}
-      </section>
+      </div>
     </div>
   );
 };
 
-/** Exported for tests and other pages that want the stage label without the full card. */
-export const stageLabel = (stage: keyof typeof STAGES, lang: 'id' | 'en') => pick(STAGES[stage].title, lang);
+/** One recent report: photo, tree, when, and what was read from it (Gemini's summary, else the worker's words). */
+const LatestRow: React.FC<{ report: TreeReport }> = ({ report }) => {
+  const { t } = useT();
+  const text = report.triage?.source === 'ai' && report.triage.summary ? report.triage.summary : report.description;
+  const photo = report.photos?.[0];
+  return (
+    <li>
+      <Link to={reportUrl(report.id)} onClick={() => rememberReport(report)} className="flex gap-3 px-4 py-3 hover:bg-slate-50">
+        {photo ? (
+          <img src={photo.thumb || photo.medium || photo.url} alt="" loading="lazy" referrerPolicy="no-referrer" className="w-12 h-12 rounded-lg object-cover border border-slate-200 bg-slate-100 shrink-0" />
+        ) : (
+          <span className="w-12 h-12 rounded-lg bg-slate-100 shrink-0" aria-hidden />
+        )}
+        <span className="min-w-0 flex-1 space-y-1">
+          <span className="flex flex-wrap items-center gap-x-2 text-sm">
+            <span className="font-bold text-slate-900">{t('rep.treeN', { id: report.treeId })}</span>
+            <ReportDate value={report.createdAt} />
+          </span>
+          {text && <span className="block text-xs text-slate-700 line-clamp-2">{text}</span>}
+          <ReportReading report={report} health />
+          <ActionChips report={report} />
+        </span>
+      </Link>
+    </li>
+  );
+};

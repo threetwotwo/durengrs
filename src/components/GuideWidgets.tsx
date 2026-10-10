@@ -77,7 +77,7 @@ export const topicUrl = (id: TopicId) => `/guide/${id}`;
 
 /** Seasons, checks and note mentions from live farm data. Shared by the Guide, Dashboard and tree pages. */
 export function useGuideData() {
-  const { trees, variants, harvestCycles, plans, scheduleTasks, harvests, seasonTasksDone, rain, labResults } = useFarm();
+  const { trees, variants, plans, scheduleTasks, harvests, seasonTasksDone, rain, labResults } = useFarm();
   const { lang } = useT();
   const seasons = useSeasons();
   const checks = useMemo(
@@ -426,43 +426,6 @@ export const CycleStrip: React.FC<{ seasons: BlockSeason[] }> = ({ seasons }) =>
 };
 
 // ---------- Dashboard ----------
-
-export const DashboardSeasonCard: React.FC = () => {
-  const { t } = useT();
-  const { seasons, checks } = useGuideData();
-  const { groups, noDate } = groupByStage(seasons);
-  const gaps = checks.filter((c) => c.status === 'gap').length;
-  if (seasons.length === 0) return null;
-
-  return (
-    <section className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden" aria-labelledby="season-h">
-      <div className="p-4 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2">
-        <h2 id="season-h" className="text-sm font-bold text-slate-900 flex items-center gap-2">
-          <BookOpen className="w-4 h-4 text-emerald-600" />
-          {t('guide.dash.title')}
-        </h2>
-        <div className="flex items-center gap-3">
-          {gaps > 0 && (
-            <Link to="/guide" className="text-xs font-semibold text-rose-700 hover:text-rose-800">
-              {t('guide.dash.gaps', { n: gaps })}
-            </Link>
-          )}
-          <Link to="/guide" className="text-xs font-semibold text-emerald-700 hover:text-emerald-800 flex items-center gap-1 min-h-8">
-            {t('guide.dash.open')}
-            <ArrowRight className="w-3.5 h-3.5" />
-          </Link>
-        </div>
-      </div>
-      <div className="p-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        {/* Blocks without a bloom date come first: one tap there unlocks everything else. */}
-        {noDate.length > 0 && <NoDateCard blocks={noDate} />}
-        {groups.slice(0, noDate.length > 0 ? 2 : 3).map((g) => (
-          <StageGroupCard key={g.stage} group={g} maxActions={2} />
-        ))}
-      </div>
-    </section>
-  );
-};
 
 // ---------- Tree page ----------
 

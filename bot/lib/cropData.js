@@ -1,6 +1,7 @@
 // lib/cropData.js — reads and writes the season records the webapp already shows:
-//   bloomWaves, cropCounts, harvests, seasonTasks, weather  (see durengrs src/lib/fieldData.ts)
-// All writes use deterministic ids, so a retried Flow submit overwrites instead of duplicating.
+//   bloomWaves, cropCounts, harvests (written after Gemini reads a report, lib/ai.js),
+//   seasonTasks, weather (the farm Flow, and season jobs seen in a report)   (see durengrs src/lib/fieldData.ts)
+// All writes use deterministic ids, so a retry overwrites or skips instead of duplicating.
 const { admin, db } = require('./firestore');
 const R = require('./rules');
 const { treeSeason, treeWaves, DEFAULT_RIPENING_DAYS } = require('./season');
@@ -23,7 +24,6 @@ async function blockBloomDate(block, today) {
   return d && R.diffDays(today, d) <= 365 ? d : undefined;
 }
 
-// Ripening range across the block's varieties (as the webapp's blockSeasons does).
 const activeTreesOf = async (block) =>
   (await db.collection('trees').where('block', '==', block).get()).docs.map((d) => ({ id: d.id, ...d.data() })).filter((t) => t.active !== false);
 
@@ -38,14 +38,7 @@ async function variantRipening(code) {
 async function blockRipening(block) {
   const trees = await activeTreesOf(block);
   const codes = [...new Set(trees.map((t) => t.variant).filter(Boolean))];
-  const days = [];
-  await Promise.all(
-    codes.map(async (code) => {
-      const v = await db.collection('variants').doc(code).get();
-      const n = Number(v.exists ? v.data().ripeningDays : undefined);
-      if (Number.isFinite(n) && n > 0) days.push(n);
-    })
-  );
+  const days = (await Promise.all(codes.map(variantRipening))).filter(Boolean);
   return days.length ? { ripeMin: Math.min(...days), ripeMax: Math.max(...days) } : { ripeMin: DEFAULT_RIPENING_DAYS, ripeMax: DEFAULT_RIPENING_DAYS };
 }
 
@@ -54,18 +47,17 @@ async function byTree(collection, treeId) {
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 }
 
-// Everything needed to know where one tree is in the season.
+// Everything a report needs about the tree's season: its flowerings (`waves`), its counts, and ripening times
+// (`treeRipening` for its own variety, `ripeMin` / `ripeMax` across the block).
 async function loadTreeSeason(tree, today) {
-  const [blockDate, ripening, blooms, counts, harvests, treeRipening] = await Promise.all([
+  const [blockDate, ripening, blooms, counts, treeRipening] = await Promise.all([
     blockBloomDate(tree.block, today),
     blockRipening(tree.block),
     byTree('bloomWaves', tree.id),
     byTree('cropCounts', tree.id),
-    byTree('harvests', tree.id),
     variantRipening(tree.variant),
   ]);
-  const season = treeSeason({ blockDate, blooms, counts, ...ripening }, today);
-  return { ...season, blooms, counts, harvests, blockDate, treeRipening };
+  return { ...treeSeason({ blockDate, blooms, ...ripening }, today), counts, treeRipening };
 }
 
 // The season of a block, used to file season tasks. Same rule as the webapp (guide.ts blockSeasons):
@@ -95,22 +87,21 @@ async function bloomExists(treeId, date, part) {
   return sameTree.docs.some((d) => d.data().date === date && d.data().part === part);
 }
 
-async function saveBloom({ treeId, block, date, part, note, photos, workerPhone }) {
+async function saveBloom({ treeId, block, date, part, note, workerPhone }) {
   const id = R.bloomWaveId(treeId, date, part);
-  const ref = db.collection('bloomWaves').doc(id);
   if (await bloomExists(treeId, date, part)) return { duplicate: true, id };
-  await ref.set(strip({ treeId, block, date, part, note, photos: photos && photos.length ? photos : undefined, source: 'whatsapp', workerPhone: workerPhone || undefined, createdAt: now() }));
+  await db.collection('bloomWaves').doc(id).set(strip({ treeId, block, date, part, note, source: 'whatsapp', workerPhone: workerPhone || undefined, createdAt: now() }));
   return { duplicate: false, id };
 }
 
 // Counting again on the same day replaces the count. The tree record is kept current only with the newest
 // count of its kind, and only for a tree with a single flowering (same rule as the webapp).
-async function saveCount({ tree, season, stage, count, note, photos, date, workerPhone, wavesCount, existing }) {
+async function saveCount({ tree, season, stage, count, note, date, workerPhone, wavesCount, existing }) {
   const id = R.cropCountId({ treeId: tree.id, season, stage, date });
   const batch = db.batch();
   batch.set(
     db.collection('cropCounts').doc(id),
-    strip({ treeId: tree.id, block: tree.block, season, stage, count, date, by: workerPhone || undefined, note, photos: photos && photos.length ? photos : undefined, source: 'whatsapp', createdAt: now() })
+    strip({ treeId: tree.id, block: tree.block, season, stage, count, date, by: workerPhone || undefined, note, source: 'whatsapp', createdAt: now() })
   );
 
   const field = R.COUNT_STAGES[stage].treeField;
@@ -133,11 +124,9 @@ async function saveCount({ tree, season, stage, count, note, photos, date, worke
   return { id, treeUpdated };
 }
 
-async function harvestExists(id) {
-  return (await db.collection('harvests').doc(id).get()).exists;
-}
-
-async function saveHarvest({ id, tree, date, fruits, weightKg, problems, problemFruits, grades, floweredOn, note, photos, workerPhone, flowToken }) {
+// A harvest the worker wrote in a report. `id` comes from the report (rules.js harvestIdForReport), so reading the
+// report again never adds a second harvest. Same shape as the webapp's harvest form; `reportId` links back.
+async function saveHarvest({ id, tree, date, fruits, weightKg, grades, floweredOn, note, workerPhone, reportId }) {
   const ref = db.collection('harvests').doc(id);
   if ((await ref.get()).exists) return { duplicate: true, id };
   await ref.set(
@@ -148,16 +137,14 @@ async function saveHarvest({ id, tree, date, fruits, weightKg, problems, problem
       date,
       fruits,
       weightKg,
-      problems: problems || [],
-      problemFruits,
+      problems: [],
       grades,
       floweredOn,
       daysFromBloom: floweredOn ? R.diffDays(date, floweredOn) : undefined,
       notes: note,
-      photos: photos && photos.length ? photos : undefined,
       source: 'whatsapp',
       workerPhone: workerPhone || undefined,
-      flowToken,
+      reportId,
       createdAt: now(),
     })
   );
@@ -189,15 +176,4 @@ async function saveRain({ date, rainMm, workerPhone }) {
   return { replaced: prev.exists ? prev.data().rainMm : null };
 }
 
-// The owner's label and dose rules (farmMeta/labelRules, edited in the webapp's Kebun page), read at most once a minute.
-let rulesCache = { at: 0, rules: null };
-async function labelRules() {
-  if (rulesCache.rules && Date.now() - rulesCache.at < 60_000) return rulesCache.rules;
-  const snap = await db.collection('farmMeta').doc('labelRules').get();
-  const { mergeLabelRules } = require('./shared');
-  rulesCache = { at: Date.now(), rules: mergeLabelRules(snap.exists ? snap.data() : null) };
-  return rulesCache.rules;
-}
-const resetLabelRulesCache = () => (rulesCache = { at: 0, rules: null });
-
-module.exports = { labelRules, resetLabelRulesCache, listBlocks, blockSeasonDate, loadTreeSeason, bloomExists, saveBloom, saveCount, harvestExists, saveHarvest, saveSeasonTasks, saveRain };
+module.exports = { listBlocks, blockSeasonDate, loadTreeSeason, saveBloom, saveCount, saveHarvest, saveSeasonTasks, saveRain };

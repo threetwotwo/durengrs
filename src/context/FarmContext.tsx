@@ -1,7 +1,8 @@
 import { translate, locale } from '../i18n';
 import React, { createContext, useContext, useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { collection, doc, onSnapshot, query, where, orderBy, limit, Timestamp } from 'firebase/firestore';
-import { DurianTree, DurianVariant, TreeReport, TreeCondition } from '../types';
+import { DurianTree, DurianVariant, TreeCondition, type ProblemCase } from '../types';
+import { parseCase } from '../lib/cases';
 import {
   db,
   activeProjectId,
@@ -61,6 +62,11 @@ interface FarmContextType {
   labResults: LabResult[];
   /** Field workers (WhatsApp number -> name). */
   workers: Worker[];
+  /**
+   * Problems on active trees, followed from first sighting to solved (written by the bot; see lib/cases.ts). An
+   * archived tree's problems leave every list: no report can move them on.
+   */
+  cases: ProblemCase[];
   /** A worker's name, else their masked number; text typed by hand is returned as is. */
   workerLabel: (who?: string) => string;
   /** YYYY-MM-DD of the last weekly farm check, if any. */
@@ -170,6 +176,7 @@ export const FarmProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [weeklyReviewDate, setWeeklyReviewDate] = useState<string | null>(null);
   const [treeBlooms, setTreeBlooms] = useState<TreeBloom[]>([]);
   const [cropCounts, setCropCounts] = useState<CropCount[]>([]);
+  const [allCases, setCases] = useState<ProblemCase[]>([]);
   const [recordsError, setRecordsError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -214,6 +221,11 @@ export const FarmProvider: React.FC<{ children: React.ReactNode }> = ({ children
         query(collection(db, 'cropCounts'), where('season', '>=', seasonsSince)),
         (s) => setCropCounts(s.docs.map((d) => ({ id: d.id, ...(d.data() as any) }) as CropCount)),
         onErr('Crop counts')
+      ),
+      onSnapshot(
+        collection(db, 'cases'),
+        (s) => setCases(s.docs.map((d) => parseCase(d.id, d.data()))),
+        onErr('Cases')
       ),
       onSnapshot(
         collection(db, 'workers'),
@@ -426,6 +438,10 @@ export const FarmProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const test = new Set(allTrees.filter((t) => t.active === false && t.archivedReason === 'test').map((t) => t.id));
     return test.size ? allHarvests.filter((h) => !h.treeId || !test.has(h.treeId)) : allHarvests;
   }, [allHarvests, allTrees]);
+  const cases = useMemo(() => {
+    const gone = new Set(archivedTrees.map((t) => t.id));
+    return gone.size ? allCases.filter((c) => !gone.has(c.treeId)) : allCases;
+  }, [allCases, archivedTrees]);
   const archivedHarvestTrees = useMemo(
     () => new Set(archivedTrees.filter((t) => t.archivedReason !== 'test').map((t) => t.id)),
     [archivedTrees]
@@ -462,6 +478,7 @@ export const FarmProvider: React.FC<{ children: React.ReactNode }> = ({ children
         harvests,
         archivedHarvestTrees,
         workers,
+        cases,
         workerLabel: whoLabel,
         seasonTasksDone,
         treeBlooms,

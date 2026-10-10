@@ -1,37 +1,40 @@
 # Cilowong Durian Farm Management
 
-A complete Durian Farm Monitoring & Inventory Management Web Application built with React 19, TypeScript, Tailwind CSS, and Google Cloud Firestore.
+The web app for the Cilowong durian farm (React 19, TypeScript, Tailwind CSS, Firestore), and the WhatsApp bot in
+[`bot/`](bot/README.md) that workers report through. Both read and write one Firestore database; the shared words and
+codes are in [`src/shared/`](src/shared/index.ts) and every field is described in
+[`docs/data-contract.md`](docs/data-contract.md).
 
-## Features
-- **Tree Inventory Management**: Real-time tracking of trees, block locations, variants, trunk girth, canopy spread, cluster counts, fruit estimates, dates planted, suppliers, and notes.
-- **Variant Catalog**: Complete database of durian varieties (e.g. Musang King, Bawor, Super Tembaga, etc.) with botanical and harvest profiles.
-- **Field Inspection Reports**: Photographic reports, health condition tracking (Healthy, Minor, Emergency), and timeline audits.
-- **Analytics & Dashboard**: Yield estimations, condition distribution charts, block-by-block breakdowns, and urgent attention feeds.
-- **Data Export**: Full CSV export of tree inventory and report data.
-- **Research Guide**: Sourced best practices (climate, flowering, pollination, thinning, water, nutrition, pruning, Phytophthora, pests, harvest) applied to live farm data: each block's stage in its fruiting cycle with what to do now, a farm check that finds gaps in records and routines, and per-topic farm notes.
+## How it works
 
-## Getting Started
+A worker sends a tree ID ("A1") on WhatsApp, adds photos and a few words, and Gemini reads the report: the stage, any
+problem (the specific pest or disease), work done (a spray, a fertiliser, a harvest) and progress on the tree's known
+problems. The bot saves what needs no person, files each problem into a **case** that is followed until it is solved,
+and replies to the worker (asking for a better photo when needed).
 
-### Prerequisites
-- Node.js 18+ or 20+
-- npm or bun
+## Pages
 
-### Installation
+- **Today**: what needs you (reports to check, problems getting worse or due for a photo check, trees to pick or
+  count, overdue routines), the farm's open problems, the latest reports and each block's season.
+- **Trees**: every tree in one sheet (type into cells like a spreadsheet; every change is logged), with quick views for
+  trees with a problem, due for a check, not reported in 7 days, or archived. Each tree has its own page: problems,
+  report history, crop, flowering, treatments and details.
+- **Reports**: To check (confirm or correct what was read), Problems (every case from first sighting to solved), All
+  records, and Workers (who reports, which blocks are missed).
+- **Harvest**, **Schedule** (routines and season work), **Varieties**, **Workers** and the **Guide** (sourced best
+  practice applied to the farm's own data).
+
+## Getting started
+
+Node.js 20+.
+
 ```bash
 git clone https://github.com/threetwotwo/durengrs.git
 cd durengrs
-bun install   # or: npm install
+npm install
+npm run dev        # http://localhost:3000
+npm test           # rules and shared vocabulary
+npm run build      # production build
 ```
 
-### Running Locally
-Start the development server:
-```bash
-npm run dev
-```
-Open [http://localhost:3000](http://localhost:3000) in your web browser.
-
-### Building for Production
-```bash
-npm run build
-npm run preview
-```
+After changing `src/shared/`, run `npm run build:bot-shared` so the bot reads words the same way.

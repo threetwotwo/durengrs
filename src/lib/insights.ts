@@ -31,12 +31,6 @@ export function followUpOf(tree: DurianTree, lastReportMs: number, now = Date.no
   return { needs: waiting > limit, waitingDays: Math.floor(waiting), limitDays: limit };
 }
 
-export function waitingLabel(f: FollowUp): string {
-  if (f.waitingDays === null) return translate('ins.neverChecked');
-  if (f.waitingDays < 1) return translate('ins.checkedToday');
-  return translate('ins.noCheck', { n: f.waitingDays });
-}
-
 // ---------- harvest outlook ----------
 
 /** The block's bloom date. Expected harvest = flowering date + the variant's ripening days. Trees can flower apart (bloomWaves). */
@@ -274,9 +268,3 @@ function localDate(ms: number): string {
   const d = new Date(ms);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
-
-export const maskPhone = (phone?: string): string => {
-  if (!phone) return '';
-  const digits = phone.replace(/\D/g, '');
-  return digits.length >= 4 ? `••••${digits.slice(-4)}` : phone;
-};

@@ -17,24 +17,9 @@ const S = require('./shared');
 const C = require('./cropData');
 
 const now = () => admin.firestore.FieldValue.serverTimestamp();
-const RECHECK_DAYS = 7;
-
-const ACTION_TYPES = [
-  'canker_treatment', 'fungicide', 'insecticide', 'trunk_injection', 'fertilizer', 'foliar_feed', 'drench', 'pruning',
-  'sanitation', 'bagging', 'fruit_thinning', 'pollination', 'fruit_tying', 'weeding', 'irrigation', 'mulching', 'harvest', 'other',
-];
-const ACTION_LABELS = {
-  canker_treatment: 'Kerok & oles batang', fungicide: 'Semprot fungisida', insecticide: 'Semprot insektisida',
-  trunk_injection: 'Infus batang', fertilizer: 'Pemupukan', foliar_feed: 'Pupuk daun', drench: 'Kocor',
-  pruning: 'Pemangkasan', sanitation: 'Buang bagian sakit / buah busuk', bagging: 'Brongsong buah',
-  fruit_thinning: 'Buang buah berlebih', pollination: 'Penyerbukan tangan', fruit_tying: 'Ikat tangkai buah',
-  weeding: 'Penyiangan', irrigation: 'Penyiraman', mulching: 'Mulsa / bahan organik', harvest: 'Panen', other: 'Pekerjaan lain',
-};
-// Work that is also a season job of the block (seasonTasks, first record wins).
-const SEASON_TASK_OF = { pollination: 'hand_pollination', fruit_thinning: 'fruit_thinning', bagging: 'bagging', fruit_tying: 'fruit_tying' };
-
-const UPDATE_STATUSES = ['treated', 'improving', 'same', 'worse', 'resolved'];
-const STATUS_LABELS = { open: 'Belum ditangani', treated: 'Sudah dirawat', improving: 'Membaik', worse: 'Memburuk', resolved: 'Selesai' };
+// The words and codes are shared with the web app (src/shared/actions.ts, generated into lib/shared.js).
+const { ACTIONS, ACTION_INFO, SEASON_TASK_OF, CASE_UPDATES, CASE_STATUS_INFO, RECHECK_DAYS } = S;
+const actionLabel = (type) => (ACTION_INFO[type] ? ACTION_INFO[type].label.id : type);
 
 const caseName = (c) => c.name || S.ISSUE_INFO[c.issue]?.label.id || c.issue;
 const slug = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 30);
@@ -73,18 +58,20 @@ async function applyToCases({ tree, reportId, triage, today, workerPhone, open }
   const lines = [];
 
   const nextStatus = { treated: 'treated', improving: 'improving', worse: 'worse', resolved: 'resolved' };
+  // What this report changes on each case: its new events, and the status when an event sets one. Only these are
+  // written, onto the case as it is at write time (the owner may have closed or reopened it meanwhile).
+  const change = new Map(); // id -> { events: [], status?, lastAction? }
   const addEvent = (c, type, extra = {}) => {
     const events = c.events || [];
     if (events.some((e) => e.reportId === reportId && e.type === type)) return;
     const ev = { date: today, reportId, type };
     for (const [k, v] of Object.entries(extra)) if (v !== undefined && v !== null && v !== '') ev[k] = v;
     c.events = [...events, ev];
-    if (nextStatus[type]) c.status = nextStatus[type];
-    if (type === 'resolved') c.closedOn = today;
-    if (type === 'treated') c.lastAction = [ACTION_LABELS[extra.action] || 'Dirawat', extra.product].filter(Boolean).join(' · ');
-    c.lastOn = today;
-    c.lastReportId = reportId;
-    c.nextCheck = c.status === 'resolved' ? null : R.addDays(today, RECHECK_DAYS);
+    const ch = change.get(c.id) || { events: [] };
+    ch.events.push(ev);
+    if (nextStatus[type]) c.status = ch.status = nextStatus[type];
+    if (type === 'treated') ch.lastAction = [ACTION_INFO[extra.action] ? actionLabel(extra.action) : 'Dirawat', extra.product].filter(Boolean).join(' · ');
+    change.set(c.id, ch);
     touched.set(c.id, c);
   };
   const create = (code, name, firstType, extra) => {
@@ -118,18 +105,21 @@ async function applyToCases({ tree, reportId, triage, today, workerPhone, open }
     else create(i.code, i.name, 'seen', { note: i.evidence, photo: i.photo });
   }
 
+  const caseIds = [];
   for (const c of touched.values()) {
-    const { id, ...data } = c;
-    await db.collection('cases').doc(id).set({ ...data, updatedAt: now() });
     const isNew = created.includes(c);
-    const tail = c.status === 'resolved' ? '' : ` Foto lagi tgl ${R.dateLabel(c.nextCheck)} untuk cek perkembangan.`;
-    lines.push(`📈 ${caseName(c)}: ${isNew && c.status === 'open' ? 'masalah baru dicatat' : STATUS_LABELS[c.status]}.${tail}`);
+    const saved = await saveCase(c, change.get(c.id), isNew, { today, reportId });
+    if (!saved) continue;
+    caseIds.push(saved.id);
+    const tail = saved.status === 'resolved' ? '' : ` Foto lagi tgl ${R.dateLabel(saved.nextCheck)} untuk cek perkembangan.`;
+    lines.push(`📈 ${caseName(c)}: ${isNew && saved.status === 'open' ? 'masalah baru dicatat' : CASE_STATUS_INFO[saved.status].label.id}.${tail}`);
   }
 
   // Work done on the tree, and season jobs of the block.
   const tasks = [...new Set((triage.actions || []).map((a) => SEASON_TASK_OF[a.type]).filter(Boolean))];
   for (const a of triage.actions || []) {
-    lines.unshift(`🧴 Dicatat: ${ACTION_LABELS[a.type] || a.type}${a.product ? ` (${a.product})` : ''}.`);
+    if (a.type === 'harvest' && triage.harvest) continue; // the harvest record has its own line (lib/ai.js)
+    lines.unshift(`🧴 Dicatat: ${actionLabel(a.type)}${a.product ? ` (${a.product})` : ''}.`);
   }
   if (tasks.length && tree.block) {
     try {
@@ -139,7 +129,53 @@ async function applyToCases({ tree, reportId, triage, today, workerPhone, open }
       console.error('Season tasks from report failed:', err);
     }
   }
-  return { caseIds: [...touched.keys()], lines: [...new Set(lines)] };
+  return { caseIds, lines: [...new Set(lines)] };
 }
 
-module.exports = { openCases, casesForPrompt, applyToCases, ACTION_TYPES, ACTION_LABELS, UPDATE_STATUSES, STATUS_LABELS, RECHECK_DAYS };
+/**
+ * Writes one case in a transaction. A new case never replaces another one (a problem solved by hand earlier today
+ * keeps its record; this one gets the next free id). An existing case gets this report's events and status on top
+ * of what it holds now, so a close or reopen in the web app while Gemini was reading is kept; one deleted meanwhile
+ * stays deleted (null).
+ */
+async function saveCase(c, ch, isNew, { today, reportId }) {
+  return db.runTransaction(async (tx) => {
+    if (isNew) {
+      const { id: wanted, ...data } = c;
+      for (let n = 1; n <= 20; n++) {
+        const id = n === 1 ? wanted : `${wanted}_${n}`;
+        const ref = db.collection('cases').doc(id);
+        if ((await tx.get(ref)).exists) continue;
+        const status = data.status;
+        const nextCheck = status === 'resolved' ? null : R.addDays(today, RECHECK_DAYS);
+        tx.set(ref, {
+          ...data,
+          ...(ch.lastAction ? { lastAction: ch.lastAction } : {}),
+          lastOn: today,
+          lastReportId: reportId,
+          nextCheck,
+          ...(status === 'resolved' ? { closedOn: today } : {}),
+          updatedAt: now(),
+        });
+        return { id, status, nextCheck };
+      }
+      throw new Error(`No free case id for ${wanted}`);
+    }
+    const ref = db.collection('cases').doc(c.id);
+    const cur = await tx.get(ref);
+    if (!cur.exists) return null; // deleted in the web app meanwhile ("not a problem")
+    const fresh = cur.data();
+    const events = [...(fresh.events || [])];
+    for (const ev of ch.events) if (!events.some((e) => e.reportId === ev.reportId && e.type === ev.type)) events.push(ev);
+    const status = ch.status || fresh.status || 'open';
+    const nextCheck = status === 'resolved' ? null : R.addDays(today, RECHECK_DAYS);
+    const update = { events, status, lastOn: today, lastReportId: reportId, nextCheck, updatedAt: now() };
+    if (ch.lastAction) update.lastAction = ch.lastAction;
+    if (ch.status === 'resolved') update.closedOn = today;
+    else if (status !== 'resolved' && fresh.closedOn) update.closedOn = null; // reopened by this report
+    tx.set(ref, { ...fresh, ...update });
+    return { id: c.id, status, nextCheck };
+  });
+}
+
+module.exports = { openCases, casesForPrompt, applyToCases, ACTIONS, CASE_UPDATES };

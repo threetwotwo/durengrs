@@ -10,6 +10,7 @@ import { guide } from './guide';
 import { records } from './records';
 import { harvest } from './harvest';
 import { kebun } from './kebun';
+import { problems } from './problems';
 
 /**
  * Tiny i18n layer. Indonesian is the default (the owner and the WhatsApp Flow speak Indonesian);
@@ -30,7 +31,8 @@ export interface Bundle {
   en: Dict;
 }
 
-const bundles: Bundle[] = [common, shell, dashboard, schedule, trees, reports, variants, guide, records, harvest, kebun];
+// Later bundles win on a shared key (problems.ts renames a few older labels).
+const bundles: Bundle[] = [common, shell, dashboard, schedule, trees, reports, variants, guide, records, harvest, kebun, problems];
 const merged: Bundle = { id: {}, en: {} };
 for (const b of bundles) {
   Object.assign(merged.id, b.id);

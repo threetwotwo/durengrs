@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import type { ReportPhoto } from '../types';
 import { useT } from '../i18n';
 import { PhotoLightbox } from './PhotoLightbox';

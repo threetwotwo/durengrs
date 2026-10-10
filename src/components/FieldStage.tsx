@@ -51,12 +51,16 @@ export const HealthPill: React.FC<{ health?: Health; improving?: boolean; classN
   );
 };
 
-export const IssueChip: React.FC<{ code: Issue; className?: string }> = ({ code, className = '' }) => {
+/** An issue in the farm's category colour; with `name` (Gemini's specific pest or disease) it shows the name. */
+export const IssueChip: React.FC<{ code: Issue; name?: string; className?: string }> = ({ code, name, className = '' }) => {
   const { lang } = useT();
   const info = ISSUE_INFO[code];
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold border whitespace-nowrap ${HEALTH_CLS[info.health]} ${className}`}>
-      {info.label[lang]}
+    <span
+      title={name ? info.label[lang] : undefined}
+      className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold border max-w-full truncate ${HEALTH_CLS[info.health]} ${className}`}
+    >
+      {name || info.label[lang]}
     </span>
   );
 };
@@ -73,6 +77,8 @@ export const ReportReading: React.FC<{ report: TreeReport; health?: boolean; cla
   const tr = checked ? null : report.triage || triageText(report.description);
   const stage = checked ? report.stage : tr?.stage?.code;
   const issues = (checked ? report.issues || [] : tr?.issues.map((i) => i.code) || []).filter(isIssue);
+  // Gemini's specific names, shown on the matching category (also after a review that kept that category).
+  const names = new Map((report.triage?.issues || []).filter((i) => i.name).map((i) => [i.code, i.name!]));
   const hp = health ? (checked ? report.health : tr?.health) : undefined;
   if (!stage && issues.length === 0 && !hp) return null;
   return (
@@ -88,7 +94,7 @@ export const ReportReading: React.FC<{ report: TreeReport; health?: boolean; cla
       )}
       <FarmStageChip code={stage} stale={!checked} title={checked ? t('stage.confirmed') : t('stage.suggested')} />
       {issues.map((c) => (
-        <IssueChip key={c} code={c} className={checked ? '' : 'opacity-75 border-dashed'} />
+        <IssueChip key={c} code={c} name={names.get(c)} className={checked ? '' : 'opacity-75 border-dashed'} />
       ))}
       {hp && <HealthPill health={hp} improving={checked ? report.improving : tr?.improving} className={checked ? '' : 'opacity-75 border-dashed'} />}
     </p>

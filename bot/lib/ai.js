@@ -1,18 +1,23 @@
 // lib/ai.js — Gemini reads a worker's report (photos + words) after it is saved:
-//   stage(s) of the tree, issues, health, numbers the worker wrote, and whether the photos are good enough.
+//   stage(s) of the tree, issues, what the worker did, progress on the tree's open cases, health, numbers and a
+//   harvest the worker wrote, and whether the photos are good enough.
 // The result replaces the rule-based suggestion on the report (kept as `triageRules`), records what can be recorded
-// without a person (flowering date, a fruit or flower count the worker wrote), turns the tree Merah only for danger
-// words or signs, and gives the worker one chat message: what was seen, the next step, and a request for a better
-// photo when needed. Everything else waits for the owner's check in the web app ("Perlu dicek").
-// Needs GEMINI_API_KEY (Google AI Studio). Optional GEMINI_MODEL (default below). Without a key nothing happens.
+// without a person (flowering date, a fruit or flower count, a harvest), files problems and treatments into `cases`
+// (lib/cases.js), turns the tree Merah only for danger seen or written, and gives the worker one chat message: what
+// was seen, the next step, what was recorded, and a request for a better photo when needed. Everything else waits for
+// the owner's check in the web app ("Perlu dicek").
+// Env: GEMINI_API_KEY (Google AI Studio; without it nothing happens), GEMINI_MODEL (default below),
+// GEMINI_ENDPOINT=vertex (a Vertex AI express key), GEMINI_TIMEOUT_MS (default 40000).
 const { admin, db } = require('./firestore');
 const R = require('./rules');
 const S = require('./shared');
 const C = require('./cropData');
 const K = require('./cases');
+const { floweredOnFor } = require('./season');
 
 const MODEL = () => process.env.GEMINI_MODEL || 'gemini-2.5-flash';
-const PROMPT_VERSION = 'p2';
+const PROMPT_VERSION = 'p3';
+const AUTO_NOTE = 'Otomatis dari laporan foto';
 const now = () => admin.firestore.FieldValue.serverTimestamp();
 
 const STAGE_LIST = S.FARM_STAGES.map((c) => `${c}: ${S.FARM_STAGE_INFO[c].label.en} (${S.FARM_STAGE_INFO[c].label.id})`).join('\n');
@@ -29,7 +34,7 @@ const SCHEMA = {
         required: ['code', 'confidence', 'evidence'],
       },
     },
-    bloom_part: { type: 'STRING', enum: ['whole', 'lower', 'middle', 'upper', 'some', 'none'] },
+    bloom_part: { type: 'STRING', enum: [...R.BLOOM_PARTS, 'none'] },
     issues: {
       type: 'ARRAY',
       items: {
@@ -50,7 +55,7 @@ const SCHEMA = {
       items: {
         type: 'OBJECT',
         properties: {
-          type: { type: 'STRING', enum: [...K.ACTION_TYPES] },
+          type: { type: 'STRING', enum: [...K.ACTIONS] },
           product: { type: 'STRING' },
           issue: { type: 'STRING', enum: [...S.ISSUES, 'none'] },
           target: { type: 'STRING' },
@@ -65,7 +70,7 @@ const SCHEMA = {
       type: 'ARRAY',
       items: {
         type: 'OBJECT',
-        properties: { case: { type: 'INTEGER' }, status: { type: 'STRING', enum: [...K.UPDATE_STATUSES] }, evidence: { type: 'STRING' } },
+        properties: { case: { type: 'INTEGER' }, status: { type: 'STRING', enum: [...K.CASE_UPDATES] }, evidence: { type: 'STRING' } },
         required: ['case', 'status', 'evidence'],
       },
     },
@@ -81,9 +86,23 @@ const SCHEMA = {
       type: 'ARRAY',
       items: {
         type: 'OBJECT',
-        properties: { kind: { type: 'STRING', enum: ['fruit', 'clusters', 'branches', 'harvested'] }, value: { type: 'INTEGER' }, evidence: { type: 'STRING' } },
+        properties: { kind: { type: 'STRING', enum: ['fruit', 'clusters', 'branches'] }, value: { type: 'INTEGER' }, evidence: { type: 'STRING' } },
         required: ['kind', 'value', 'evidence'],
       },
+    },
+    // Optional: only when the worker reports picking fruit.
+    harvest: {
+      type: 'OBJECT',
+      properties: {
+        fruits: { type: 'INTEGER' },
+        weight_kg: { type: 'NUMBER' },
+        grades: {
+          type: 'OBJECT',
+          properties: Object.fromEntries(R.GRADES.map((g) => [g, { type: 'INTEGER' }])),
+          required: [...R.GRADES],
+        },
+      },
+      required: ['fruits', 'weight_kg', 'grades'],
     },
     photo_ok: { type: 'BOOLEAN' },
     photo_request: { type: 'STRING' },
@@ -115,7 +134,7 @@ ${STAGE_LIST}
   "issue" the problem code it was for, or "none" for routine work (fertilising, bagging, pruning…); "target" the problem
   in Indonesian ("" if none); "case" the number of the open problem above it treats, or 0; "photo" the photo number.
   Scraped bark painted with a paste or fungicide is a canker_treatment, not a new canker. Action codes:
-${K.ACTION_TYPES.join(', ')}
+${K.ACTIONS.join(', ')}
 - case_updates: for each open problem above that this report shows or mentions again: its number and status:
   treated (treated in this report), improving, same, worse, resolved (healed or gone). Evidence in Indonesian.
 - issues: only NEW problems: every pest, disease or problem you can see in any photo or the words state that is NOT
@@ -131,7 +150,11 @@ ${ISSUE_LIST}
 - health: hijau = fine, kuning = a problem to watch or treat, merah = serious (stem canker, dying tree, fallen tree).
 - urgent: true ONLY if the tree is in danger right now (dying, fallen, broken trunk, heavy active canker), and the worker does not say it is getting better.
 - improving: the worker says it is getting better ("membaik", "sembuh").
-- counts: ONLY numbers the worker WROTE, with their kind: fruit on the tree, clusters (flower clusters), branches (flowering branches), harvested (fruit picked). Never estimate counts from the photo.
+- counts: ONLY numbers the worker WROTE, with their kind: fruit (fruit still on the tree), clusters (flower clusters), branches (flowering branches). Never estimate counts from the photo. Fruit picked is never a count: it goes in harvest.
+- harvest: ONLY if the worker reports picking fruit from this tree ("panen 12 buah", "dipetik 8"): fruits = the number of
+  fruit picked, as written; weight_kg = the total weight written in kg, else 0; grades = how many fruit of each grade the
+  worker wrote (extra = "Extra", class1 = "Kelas I", class2 = "Kelas II", reject = "Afkir"), 0 for any not written.
+  Only numbers the worker WROTE; never estimate them from the photo. Leave harvest out when nothing was picked.
 - evidence: a few words, in Indonesian, of what shows it (in the photo or the text).
 - photo_ok: false if the photos are blurry, too dark, too far, or do not show what the words describe (or a problem you suspect needs a closer look).
 - photo_request: if photo_ok is false, ONE short instruction in simple Indonesian for the worker (e.g. "Foto lebih dekat ke batang yang bergetah, siang hari."); else "".
@@ -209,7 +232,7 @@ function toTriage(a, model = MODEL()) {
     .map((x) => (kindMap[x.kind] ? { value: x.value, kind: kindMap[x.kind], evidence: evid(x.evidence) } : { value: x.value, evidence: evid(x.evidence) }));
   const photoOk = a?.photo_ok !== false;
   const actions = (Array.isArray(a?.actions) ? a.actions : [])
-    .filter((x) => K.ACTION_TYPES.includes(x.type))
+    .filter((x) => K.ACTIONS.includes(x.type))
     .map((x) => {
       const o = { type: x.type, issue: S.isIssue(x.issue) ? x.issue : 'none', evidence: evid(x.evidence) };
       const product = String(x.product || '').trim().slice(0, 80);
@@ -221,7 +244,7 @@ function toTriage(a, model = MODEL()) {
       return o;
     });
   const caseUpdates = (Array.isArray(a?.case_updates) ? a.case_updates : [])
-    .filter((x) => Number.isInteger(x.case) && x.case > 0 && K.UPDATE_STATUSES.includes(x.status))
+    .filter((x) => Number.isInteger(x.case) && x.case > 0 && K.CASE_UPDATES.includes(x.status))
     .map((x) => ({ case: x.case, status: x.status, evidence: evid(x.evidence) }));
   const treating = actions.some((x) => x.issue !== 'none');
   // The owner decides on new problems, things getting worse, bad photos, and plain reports that aren't fine.
@@ -252,16 +275,35 @@ function toTriage(a, model = MODEL()) {
   if (seen.length) out.photosSeen = seen;
   const req = String(a?.photo_request || '').trim().slice(0, 200);
   if (!photoOk && req) out.photoRequest = req;
-  if (['whole', 'lower', 'middle', 'upper', 'some'].includes(a?.bloom_part)) out.bloomPart = a.bloom_part;
-  const harvested = (a?.counts || []).find((x) => x.kind === 'harvested' && Number.isInteger(x.value));
-  if (harvested) out.harvestedFruits = harvested.value;
+  if (R.BLOOM_PARTS.includes(a?.bloom_part)) out.bloomPart = a.bloom_part;
+  const harvest = toHarvest(a?.harvest);
+  if (harvest) out.harvest = harvest;
+  return out;
+}
+
+/**
+ * Gemini's harvest as stored on the triage: { fruits, weightKg?, grades? } (grades only those written, as on a
+ * harvest record), or undefined when no fruit was picked or the number is out of range. Grades that add up to more
+ * than the fruit picked are dropped (the fruit count is kept).
+ */
+function toHarvest(h) {
+  const count = (v) => (Number.isInteger(v) && v > 0 ? v : 0);
+  const fruits = count(h?.fruits);
+  const { harvestFruits, harvestWeightKg } = R.LIMITS;
+  if (fruits < harvestFruits.min || fruits > harvestFruits.max) return undefined;
+  const out = { fruits };
+  const kg = Number(h.weight_kg);
+  if (Number.isFinite(kg) && kg >= harvestWeightKg.min && kg <= harvestWeightKg.max) out.weightKg = Math.round(kg * 100) / 100;
+  const grades = Object.fromEntries(R.GRADES.map((g) => [g, count(h.grades?.[g])]).filter(([, n]) => n > 0));
+  const graded = Object.values(grades).reduce((a, b) => a + b, 0);
+  if (graded > 0 && graded <= fruits) out.grades = grades;
   return out;
 }
 
 const COUNT_STAGE = { bloom: 'clusters', set: 'set', pingpong: 'kept', egg: 'onTree', grow: 'onTree', mature: 'onTree', harvest: 'onTree' };
 
-/** Records that need no person: the flowering date, and a fruit or flower count the worker wrote. */
-async function recordFromTriage(tree, triage, workerPhone, today) {
+/** Records that need no person: the flowering date, a fruit or flower count the worker wrote, and a harvest. */
+async function recordFromTriage(tree, triage, { reportId, workerPhone, today }) {
   const done = [];
   const lines = [];
   const codes = triage.stages.filter((s) => s.confidence >= 0.6).map((s) => s.code);
@@ -270,7 +312,7 @@ async function recordFromTriage(tree, triage, workerPhone, today) {
   // Flowers open and no flowering recorded in the last 30 days: today is the flowering date.
   if (codes.includes('bloom') && !(season.waves || []).some((w) => R.diffDays(today, w.date) <= 30)) {
     const part = triage.bloomPart || 'some';
-    const r = await C.saveBloom({ treeId: tree.id, block: tree.block, date: today, part, note: 'Otomatis dari laporan foto', workerPhone });
+    const r = await C.saveBloom({ treeId: tree.id, block: tree.block, date: today, part, note: AUTO_NOTE, workerPhone });
     if (!r.duplicate) {
       done.push(`bloomWaves/${r.id}`);
       lines.push(`📅 Tanggal bunga mekar dicatat: ${R.dateLabel(today)}.`);
@@ -284,9 +326,22 @@ async function recordFromTriage(tree, triage, workerPhone, today) {
   const stage = codes.map((c) => COUNT_STAGE[c]).find(Boolean);
   const n = triage.numbers.find((x) => (stage === 'clusters' ? x.kind === 'clusters' : x.kind === 'fruit'));
   if (wave && stage && n && R.COUNT_STAGES[stage]) {
-    const r = await C.saveCount({ tree, season: wave.date, stage, count: n.value, date: today, workerPhone, wavesCount: waves.length, existing: season.counts, note: 'Otomatis dari laporan foto' });
+    const r = await C.saveCount({ tree, season: wave.date, stage, count: n.value, date: today, workerPhone, wavesCount: waves.length, existing: season.counts, note: AUTO_NOTE });
     done.push(`cropCounts/${r.id}`);
-    lines.push(`🔢 ${R.COUNT_STAGES[stage].label || 'Jumlah'}: ${n.value} dicatat.`);
+    lines.push(`🔢 ${R.COUNT_STAGES[stage].label}: ${n.value} dicatat.`);
+  }
+
+  // Fruit picked today, filed like the webapp's harvest form (flowering by ripening time); one harvest per report.
+  if (triage.harvest) {
+    const h = triage.harvest;
+    const r = await C.saveHarvest({
+      id: R.harvestIdForReport(reportId), tree, date: today, fruits: h.fruits, weightKg: h.weightKg, grades: h.grades,
+      floweredOn: floweredOnFor(season, today), note: AUTO_NOTE, workerPhone, reportId,
+    });
+    if (!r.duplicate) {
+      done.push(`harvests/${r.id}`);
+      lines.push(`🧺 Panen dicatat: ${h.fruits} buah${h.weightKg !== undefined ? `, ${h.weightKg} kg` : ''}.`);
+    }
   }
   return { done, lines };
 }
@@ -347,7 +402,7 @@ async function analyzeReport(reportId, { tree, workerPhone, today = R.todayStr()
     if (triage.urgent && (await markUrgent(ref, tree.id, workerPhone))) lines.push('🔴 Kondisi pohon diubah menjadi Merah. Pemilik akan segera mengecek.');
     let recorded = { done: [], lines: [] };
     try {
-      recorded = await recordFromTriage(tree, triage, workerPhone, today);
+      recorded = await recordFromTriage(tree, triage, { reportId, workerPhone, today });
     } catch (err) {
       console.error(`AI records for ${reportId} failed:`, err);
     }
@@ -358,7 +413,7 @@ async function analyzeReport(reportId, { tree, workerPhone, today = R.todayStr()
       console.error(`Cases for ${reportId} failed:`, err);
     }
     await ref.update({ caseIds: progress.caseIds, ai: { status: 'done', model: MODEL(), photos: photos.length, recorded: recorded.done, at: now() } });
-    console.log(`AI ${reportId} ${tree.id}: stages=${triage.stages.map((s) => s.code).join(',') || '-'} issues=${triage.issues.map((i) => i.code).join(',') || '-'} health=${triage.health} photoOk=${triage.photoOk} recorded=${recorded.done.length}`);
+    console.log(`AI ${reportId} ${tree.id}: stages=${triage.stages.map((s) => s.code).join(',') || '-'} issues=${triage.issues.map((i) => i.code).join(',') || '-'} health=${triage.health} photoOk=${triage.photoOk} harvest=${triage.harvest ? triage.harvest.fruits : '-'} recorded=${recorded.done.length}`);
 
     const msg = [`🔎 Hasil pemeriksaan laporan ${tree.id} (${photos.length} foto):`, aiReply(triage), ...lines, ...progress.lines, ...recorded.lines];
     if (!triage.photoOk) msg.push('', `📷 Mohon kirim foto yang lebih jelas: ${triage.photoRequest || 'foto lebih dekat dan terang.'}`, 'Ketuk tombol di bawah untuk kirim laporan baru.');
@@ -383,4 +438,4 @@ async function checkGemini() {
   }
 }
 
-module.exports = { analyzeReport, toTriage, prompt, SCHEMA, checkGemini };
+module.exports = { analyzeReport, toTriage, checkGemini };

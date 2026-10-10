@@ -1,8 +1,11 @@
-// Structural checks on flow.json and flow-farm.json (Meta's own validator runs when you paste them into the Flow builder).
+// Structural checks on flow.json (tree report) and flow-farm.json (Meta's own validator runs when you paste them into
+// the Flow builder).
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
-const flows = { 'flow.json': require('../flows/flow.json'), 'flow-farm.json': require('../flows/flow-farm.json'), 'flow-lapor.json': require('../flows/flow-lapor.json') };
+const path = require('path');
+const FILES = ['flow.json', 'flow-farm.json'];
+const flows = Object.fromEntries(FILES.map((f) => [f, require('../flows/' + f)]));
 
 const walk = (node, fn) => {
   if (Array.isArray(node)) return node.forEach((n) => walk(n, fn));
@@ -86,44 +89,18 @@ for (const [file, flow] of Object.entries(flows)) {
   });
 }
 
-test('the tree Flow no longer holds rain or farm tasks, and the farm Flow holds only those', () => {
-  const tree = flows['flow.json'].screens.map((s) => s.id);
-  const farm = flows['flow-farm.json'].screens.map((s) => s.id);
-  for (const id of ['KERJA', 'HUJAN', 'FARM_HOME']) assert.ok(!tree.includes(id), `${id} should not be in the tree Flow`);
-  assert.deepEqual(farm.sort(), ['DONE', 'FARM_HOME', 'HUJAN', 'KERJA']);
-});
-
-test('tree data edit is a link under the tree notes on the info screen, not a menu option', () => {
-  const flow = flows['flow.json'];
-  const r = flow.routing_model;
-  assert.ok(r.TREE_LOOKUP.includes('EDIT_TREE'));
-  assert.ok(!r.MENU.includes('EDIT_TREE') && !r.PANEN_MENU.includes('EDIT_TREE'));
-  const kids = flow.screens.find((s) => s.id === 'TREE_LOOKUP').layout.children;
-  const notes = kids.findIndex((n) => n.type === 'TextSubheading' && /Catatan/.test(n.text));
-  const link = kids.findIndex((n) => n.type === 'EmbeddedLink');
-  assert.equal(link, notes + 2, 'the link sits right under the notes text');
-});
-
-test('links: text within 25 characters, at most 2 per screen', () => {
-  for (const flow of Object.values(flows))
-    for (const s of flow.screens) {
-      let links = 0;
-      walk(s.layout, (n) => {
-        if (n.type !== 'EmbeddedLink') return;
-        links++;
-        assert.ok(n.text && n.text.length <= 25, `${s.id}: link text`);
-        assert.ok(['data_exchange', 'navigate'].includes(n['on-click-action'].name), `${s.id}: link action`);
-      });
-      assert.ok(links <= 2, `${s.id}: too many links`);
-    }
+test('the tree Flow is the one report screen; the farm Flow holds rain and finished work', () => {
+  const tree = flows['flow.json'];
+  assert.deepEqual(tree.screens.map((s) => s.id), ['REPORT', 'DONE']);
+  assert.deepEqual(tree.routing_model, { REPORT: ['DONE'], DONE: [] });
+  const report = tree.screens[0];
+  const picker = JSON.stringify(report).match(/"min-uploaded-photos":(\d+)/);
+  assert.equal(picker[1], '1', 'at least one photo');
+  assert.deepEqual(flows['flow-farm.json'].screens.map((s) => s.id).sort(), ['DONE', 'FARM_HOME', 'HUJAN', 'KERJA']);
 });
 
 test('every screen with a data_exchange is one the endpoint handles', () => {
-  const handled = {
-    'flow.json': ['TREE_LOOKUP', 'MENU', 'PANEN_MENU', 'BLOOM', 'COUNT', 'HARVEST_A', 'HARVEST_B', 'REPORT', 'EDIT_TREE'],
-    'flow-farm.json': ['FARM_HOME', 'KERJA', 'HUJAN'],
-    'flow-lapor.json': ['REPORT'],
-  };
+  const handled = { 'flow.json': ['REPORT'], 'flow-farm.json': ['FARM_HOME', 'KERJA', 'HUJAN'] };
   for (const [file, flow] of Object.entries(flows))
     for (const s of flow.screens) {
       let ex = false;
@@ -132,26 +109,18 @@ test('every screen with a data_exchange is one the endpoint handles', () => {
     }
 });
 
-test('flow files are up to date with scripts/build-flow.js', () => {
-  const read = () => ['flow.json', 'flow-farm.json', 'flow-lapor.json'].map((f) => fs.readFileSync(require.resolve('../flows/' + f), 'utf8'));
+test('flow files are up to date with scripts/build-flow.js, and nothing else is in flows/', () => {
+  const dir = path.join(__dirname, '..', 'flows');
+  const read = () => FILES.map((f) => fs.readFileSync(path.join(dir, f), 'utf8'));
   const before = read();
   require('child_process').execFileSync('node', [require.resolve('../scripts/build-flow.js')]);
   assert.deepEqual(read(), before);
-});
-
-test('report option lists carry no emoji (not every option has a fitting one)', () => {
-  const tree = require('../flows/flow.json');
-  for (const id of ['MENU', 'PANEN_MENU']) {
-    const text = JSON.stringify(tree.screens.find((x) => x.id === id));
-    const titles = [...text.matchAll(/"title":"([^"]*)"/g)].map((m) => m[1]);
-    assert.ok(titles.length > 0, id);
-    for (const t of titles) assert.equal(/\p{Extended_Pictographic}/u.test(t), false, `${id}: ${t}`);
-  }
+  assert.deepEqual(fs.readdirSync(dir).sort(), [...FILES].sort());
 });
 
 test('no "penjarangan" in anything a worker reads', () => {
-  const all = [require('../flows/flow.json'), require('../flows/flow-farm.json')].map((f) => JSON.stringify(f)).join(' ')
-    + Object.values(require('../lib/rules').COUNT_STAGES).map((s) => s.title + s.label + s.help).join(' ')
+  const all = Object.values(flows).map((f) => JSON.stringify(f)).join(' ')
+    + Object.values(require('../lib/rules').COUNT_STAGES).map((s) => s.label).join(' ')
     + Object.values(require('../lib/rules').SEASON_TASK_LABELS).join(' ');
   assert.equal(/jarang/i.test(all), false);
 });

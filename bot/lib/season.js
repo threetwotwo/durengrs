@@ -1,23 +1,9 @@
-// lib/season.js — where a tree is in the season. A port of the webapp's guide.ts (stageOf, treeWaves) and
-// crop.ts (next step), kept pure so it can be tested. Keep it in step with those files.
-const { diffDays, RECOUNT_DAYS } = require('./rules');
+// lib/season.js — the flowerings that count for one tree this season, and which of them a harvest came from.
+// A port of the webapp's guide.ts (treeWaves) and its harvest form (flowering by ripening time), kept pure so it can
+// be tested. Keep it in step with those files.
+const { diffDays } = require('./rules');
 
 const DEFAULT_RIPENING_DAYS = 120;
-
-function stageOf(day, ripeMin, ripeMax) {
-  if (day < 0) return 'preflower';
-  if (day <= 7) return 'bloom';
-  if (day <= 27) return 'set';
-  if (day <= 60) return 'thin';
-  if (day < ripeMin - 30) return 'grow';
-  if (day < ripeMin - 7) return 'mature';
-  if (day <= ripeMax + 14) return 'harvest';
-  if (day <= ripeMax + 90) return 'recovery';
-  return 'preflower';
-}
-
-// Which count each stage of the season calls for.
-const STAGE_COUNT = { bloom: 'clusters', set: 'set', thin: 'kept', grow: 'onTree', mature: 'onTree', harvest: 'harvest' };
 
 // The flowerings that count for one tree this season: its own records, plus the block date
 // unless the tree flowered whole on another date.
@@ -38,41 +24,24 @@ function treeWaves(blockDate, blooms, horizonDays, today) {
 }
 
 /**
- * ctx = { blockDate, blooms[], counts[], ripeMin, ripeMax }  (counts: cropCounts docs of this tree)
- * Returns { waves[{date, part, day, stage}], next: {kind, season, overdue} | null, latest(season, stage) }
+ * ctx = { blockDate, blooms[], ripeMin, ripeMax }  (blooms: bloomWaves docs of this tree)
+ * Returns { waves[{date, part, fromBlock}] oldest first, ripeMin, ripeMax }.
  */
 function treeSeason(ctx, today) {
   const ripeMin = ctx.ripeMin ?? DEFAULT_RIPENING_DAYS;
   const ripeMax = ctx.ripeMax ?? DEFAULT_RIPENING_DAYS;
-  const waves = treeWaves(ctx.blockDate, ctx.blooms || [], ripeMax + 90, today).map((w) => {
-    const day = diffDays(today, w.date);
-    return { ...w, day, stage: stageOf(day, ripeMin, ripeMax) };
-  });
-
-  const latestMap = new Map();
-  for (const c of ctx.counts || []) {
-    const key = `${c.season}|${c.stage}`;
-    const prev = latestMap.get(key);
-    if (!prev || c.date > prev.date) latestMap.set(key, c);
-  }
-  const latest = (season, stage) => latestMap.get(`${season}|${stage}`);
-
-  let next = null;
-  for (const w of waves) {
-    const kind = STAGE_COUNT[w.stage];
-    if (!kind) continue;
-    if (kind === 'harvest') {
-      next = next || { kind, season: w.date, overdue: false };
-      continue;
-    }
-    const have = latest(w.date, kind);
-    const stale = kind === 'onTree' && have && diffDays(today, have.date) >= RECOUNT_DAYS;
-    if (!have || stale) {
-      next = { kind, season: w.date, overdue: true, sinceDays: have ? diffDays(today, have.date) : null };
-      break;
-    }
-  }
-  return { waves, next, latest, ripeMin, ripeMax };
+  return { waves: treeWaves(ctx.blockDate, ctx.blooms || [], ripeMax + 90, today), ripeMin, ripeMax };
 }
 
-module.exports = { stageOf, treeWaves, treeSeason, DEFAULT_RIPENING_DAYS, STAGE_COUNT };
+// The flowering a harvest came from: the one whose ripening time (the tree's own variety, else the block's
+// shortest) is nearest the harvest day. Same rule as the webapp's harvest form, so both agree on days from bloom.
+// `season` is what cropData.loadTreeSeason returns; undefined when no flowering came before the harvest.
+function floweredOnFor(season, date) {
+  if (!season) return undefined;
+  const ripening = season.treeRipening || season.ripeMin;
+  const earlier = (season.waves || []).filter((w) => w.date <= date);
+  if (!earlier.length) return undefined;
+  return earlier.sort((a, b) => Math.abs(diffDays(date, a.date) - ripening) - Math.abs(diffDays(date, b.date) - ripening))[0].date;
+}
+
+module.exports = { treeWaves, treeSeason, floweredOnFor, DEFAULT_RIPENING_DAYS };

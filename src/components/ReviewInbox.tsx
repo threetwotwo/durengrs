@@ -18,10 +18,12 @@ import { FarmStageChip, HealthPill, IssueChip } from './FieldStage';
 import { useCrops } from './useCrops';
 import { cropMismatch } from './StageBoard';
 import { ReportReading } from './FieldStage';
+import { ActionChips } from './ReportFindings';
 
 /**
- * "Perlu dicek": worker reports from the last 30 days that a person hasn't looked at yet, each with what the system
- * read from the words (stage, issue, health). One tap confirms; "Ubah" corrects; confirmed values update the tree.
+ * "Perlu dicek": worker reports from the last 60 days that a person hasn't looked at yet, each with what the system
+ * read from the photos and words (stage, issue, health). One tap confirms; "Ubah" corrects; confirmed values update
+ * the tree. Reports with nothing new to check (all fine, or work done on a known problem) are confirmed in one go.
  */
 
 const DAYS = 60;
@@ -88,7 +90,7 @@ export const ReviewInbox: React.FC = () => {
   const [by, setBy] = useState(readBy);
   // A few at a time, so the full list below stays in reach; one tap shows up to 20.
   const [many, setMany] = useState(false);
-  const shownN = many ? 20 : 4;
+  const shownN = many ? 100 : 12;
 
   const run = async (key: string, fn: () => Promise<void>) => {
     setBusy(key);
@@ -159,13 +161,14 @@ export const ReviewInbox: React.FC = () => {
             onClick={() => setMany(true)}
             className="w-full min-h-11 px-4 border-t border-slate-100 text-sm font-semibold text-sky-800 hover:bg-sky-50"
           >
-            {t('inbox.showMore', { n: Math.min(20, pending.length) - shownN })}
+            {t('inbox.showMore', { n: Math.min(100, pending.length) - shownN })}
           </button>
         ))}
       {fine.length > 0 && (
         <div className="px-4 py-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 bg-slate-50">
           <span className="text-sm text-slate-700">
-            <HealthPill health="hijau" /> {t('inbox.fine', { n: fine.length })}{' '}
+            <CheckCircle2 className="w-4 h-4 inline -mt-0.5 mr-1 text-emerald-600" aria-hidden />
+            {t('inbox.fine', { n: fine.length })}{' '}
             <span className="text-xs text-slate-500">{fine.slice(0, 8).map((r) => r.treeId).join(', ')}{fine.length > 8 ? '…' : ''}</span>
           </span>
           <button
@@ -240,6 +243,7 @@ const ReviewCard: React.FC<{
         <blockquote className="text-sm text-slate-800 border-l-2 border-slate-300 pl-3 whitespace-pre-line">
           {report.description?.trim() || <span className="text-slate-400">{t('inbox.noWords')}</span>}
         </blockquote>
+        {tr.source === 'ai' && tr.summary && <p className="text-sm text-slate-700">{tr.summary}</p>}
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="text-xs font-semibold text-slate-500">{tr.source === 'ai' ? t('inbox.readAi') : t('inbox.read')}</span>
           {empty ? (
@@ -247,13 +251,15 @@ const ReviewCard: React.FC<{
           ) : (
             <>
               {tr.stage && <FarmStageChip code={tr.stage.code} mismatch={mismatch} title={tr.stage.evidence} />}
-              {tr.issues.map((i) => (
-                <IssueChip key={i.code} code={i.code} />
+              {tr.issues.map((i, n) => (
+                <IssueChip key={`${i.code}-${n}`} code={i.code} name={i.name} />
               ))}
               <HealthPill health={tr.health} improving={tr.improving} />
             </>
           )}
         </div>
+        <ActionChips report={report} />
+        {tr.photoOk === false && <p className="text-xs text-amber-800">{t('ai.photoAskedShort')}</p>}
         <ConditionSourceNote report={report} />
         {expected && (
           <p className="text-xs text-slate-600 flex flex-wrap items-center gap-1.5">

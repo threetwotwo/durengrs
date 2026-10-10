@@ -1,13 +1,12 @@
 import React, { useMemo, useState } from 'react';
-import { Check, CloudRain, FlaskConical, Plus, Sun, Trash2, Wheat } from 'lucide-react';
+import { Check, FlaskConical, Plus, Trash2, Wheat } from 'lucide-react';
 import { useFarm } from '../context/FarmContext';
 import { useT } from '../i18n';
 import { useSeasons } from './useSeasons';
-import { useGuideOn } from '../lib/guideMode';
 import { Sheet, fieldInput, fieldLabel } from './Sheet';
 import { Link } from './Link';
 import { SourceBadge } from './SourceBadge';
-import { MissedLink, ViaWhatsApp } from './FieldFirst';
+import { MissedLink } from './FieldFirst';
 import { PhotoLightbox } from './PhotoLightbox';
 import {
   GRADES,
@@ -24,7 +23,6 @@ import {
   markWeeklyReview,
   removeHarvest,
   removeLabResult,
-  saveRain,
   unmarkSeasonTask,
 } from '../lib/fieldData';
 import {
@@ -36,7 +34,6 @@ import {
   harvestQuality,
   labLevel,
   latestLabByBlock,
-  rainSummary,
 } from '../lib/fieldInsights';
 import { BlockSeason, pick, treeWaves, waveWho } from '../lib/guide';
 import { diffDays, formatShortDate, todayStr } from '../lib/treatments';
@@ -133,110 +130,6 @@ export const SeasonTaskChips: React.FC<{ task: SeasonTaskId; seasons: BlockSeaso
 };
 
 // ---------- rain (A15) ----------
-
-/** Read the gauge, type one number (or tap "No rain"). Shows 14 days and the dry-spell trigger. */
-export const RainCard: React.FC<{ className?: string }> = ({ className = '' }) => {
-  const { t } = useT();
-  const guideOn = useGuideOn();
-  const { rain } = useFarm();
-  const today = todayStr();
-  const [date, setDate] = useState(today);
-  const [mm, setMm] = useState('');
-  const [state, setState] = useState<{ kind: 'idle' | 'saving' | 'saved' | 'error'; msg?: string }>({ kind: 'idle' });
-  const [editing, setEditing] = useState(false);
-  const summary = useMemo(() => rainSummary(rain, today), [rain, today]);
-  const max = Math.max(10, ...summary.last14.map((d) => d.mm || 0));
-  const recordedToday = rain.find((d) => d.date === date);
-
-  const save = async (value: number) => {
-    if (!Number.isFinite(value) || value < 0 || value > 400) {
-      setState({ kind: 'error', msg: t('rec.rain.range') });
-      return;
-    }
-    setState({ kind: 'saving' });
-    try {
-      await saveRain(date, Math.round(value * 10) / 10);
-      setMm('');
-      setState({ kind: 'saved' });
-    } catch (e) {
-      console.error('Rain save failed:', e);
-      setState({ kind: 'error', msg: errorText(e, t) });
-    }
-  };
-
-  return (
-    <section className={`bg-white rounded-xl border border-slate-200 shadow-xs p-4 space-y-3 ${className}`} aria-labelledby="rain-h">
-      <div className="flex items-center justify-between gap-2">
-        <h2 id="rain-h" className="text-base font-bold text-slate-900 flex items-center gap-2">
-          <CloudRain className="w-5 h-5 text-sky-600" />
-          {t('rec.rain.title')}
-        </h2>
-        {guideOn && <Link to="/guide/water" className="text-xs font-semibold text-emerald-700">{t('rec.why')} →</Link>}
-      </div>
-
-      <div className="flex items-end gap-1 h-16" role="img" aria-label={t('rec.rain.chart')}>
-        {summary.last14.map((d) => (
-          <span key={d.date} className="flex-1 flex flex-col items-center justify-end h-full" title={`${formatShortDate(d.date)}: ${d.mm === null ? '—' : `${d.mm} mm`}`}>
-            {d.mm === null ? (
-              <span className="w-full h-1 rounded bg-slate-200" />
-            ) : (
-              <span className="w-full rounded-t bg-sky-500" style={{ height: `${Math.max(3, (d.mm / max) * 100)}%` }} />
-            )}
-          </span>
-        ))}
-      </div>
-      <p className="text-xs text-slate-600 tabular">
-        {t('rec.rain.total30', { mm: Math.round(summary.total30) })}
-        {summary.lastDate ? ` · ${t('rec.rain.last', { date: formatShortDate(summary.lastDate) })}` : ''}
-      </p>
-      {summary.dry && summary.drySince && summary.expectedBloom && (
-        <p className="text-xs text-amber-900 bg-amber-50 border border-amber-200 rounded-lg p-2">
-          {t('rec.rain.dry', { since: formatShortDate(summary.drySince), bloom: formatShortDate(summary.expectedBloom) })}
-        </p>
-      )}
-
-      <div className="flex flex-wrap items-center justify-between gap-x-3">
-        <ViaWhatsApp text={t('ff.viaFarm')} />
-        <MissedLink onClick={() => setEditing((v) => !v)} plain={editing} label={editing ? t('ff.doneEditing') : t('ff.missedRain')} />
-      </div>
-      {editing && (
-      <div className="flex flex-wrap items-end gap-2">
-        <div>
-          <label htmlFor="rain-date" className={fieldLabel}>{t('rec.date')}</label>
-          <input id="rain-date" type="date" value={date} max={today} onChange={(e) => setDate(e.target.value)} className="min-h-11 px-2 rounded-lg border border-slate-300 text-sm" />
-        </div>
-        <div className="w-24">
-          <label htmlFor="rain-mm" className={fieldLabel}>{t('rec.rain.mm')}</label>
-          <input
-            id="rain-mm"
-            type="text"
-            inputMode="decimal"
-            value={mm}
-            placeholder={recordedToday ? String(recordedToday.rainMm) : '0'}
-            onChange={(e) => {
-              setMm(e.target.value);
-              setState({ kind: 'idle' });
-            }}
-            className="w-full min-h-11 px-2 rounded-lg border border-slate-300 text-sm font-mono"
-          />
-        </div>
-        <button type="button" disabled={!mm.trim() || state.kind === 'saving'} onClick={() => save(Number(mm.replace(',', '.')))} className={`${chip} min-h-11 bg-emerald-600 border-emerald-600 text-white disabled:opacity-50`}>
-          {t('rec.save')}
-        </button>
-        <button type="button" disabled={state.kind === 'saving'} onClick={() => save(0)} className={`${chip} min-h-11 bg-white border-slate-300 text-slate-800 hover:border-emerald-500`}>
-          <Sun className="w-3.5 h-3.5 text-amber-500" />
-          {t('rec.rain.none')}
-        </button>
-      </div>
-      )}
-      {state.kind === 'saved' && <p role="status" className="text-xs text-emerald-700">{t('rec.rain.saved', { date: formatShortDate(date) })}</p>}
-      {state.kind === 'error' && <p role="alert" className="text-xs text-rose-700">{state.msg}</p>}
-      {recordedToday && state.kind !== 'saved' && (
-        <p className="text-xs text-slate-500">{t('rec.rain.already', { mm: recordedToday.rainMm })}</p>
-      )}
-    </section>
-  );
-};
 
 // ---------- harvest log (A6) ----------
 
@@ -625,7 +518,6 @@ export const GRADE_TONE: Record<Grade, string> = {
   class2: 'bg-amber-50 border-amber-300 text-amber-900',
   reject: 'bg-rose-50 border-rose-300 text-rose-900',
 };
-
 
 // ---------- lab results (A16) ----------
 

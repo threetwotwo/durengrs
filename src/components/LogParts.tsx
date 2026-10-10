@@ -18,6 +18,7 @@ import { SourceBadge } from './SourceBadge';
 import { PhotoStrip } from './PhotoStrip';
 import { ConditionBadge } from './ConditionBadge';
 import { ReportReading } from './FieldStage';
+import { ActionChips } from './ReportFindings';
 
 /** Pieces shared by the Laporan list and the record page: icon, colour, one-line summary, delete, link. */
 
@@ -116,6 +117,7 @@ export function useLogSummary() {
           <>
             {changed && <span className="block font-semibold">{t(`cond.${normCond(r.conditionBefore)}`)} → {t(`cond.${normCond(r.conditionAfter)}`)}</span>}
             <span className="line-clamp-2">{r.description || t('log.s.noText')}</span>
+            {r.triage?.source === 'ai' && r.triage.summary && <span className="block text-slate-500 line-clamp-2">{r.triage.summary}</span>}
           </>
         );
       }
@@ -206,6 +208,7 @@ export const LogRow: React.FC<{ entry: LogEntry; dated?: boolean; busy?: boolean
         </p>
         <div className="text-sm text-slate-800 min-w-0">{summary(e)}</div>
         {e.kind === 'issue' && <ReportReading report={e.rec} />}
+        {e.kind === 'issue' && <ActionChips report={e.rec} />}
         <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500">
           {/* Rain's summary already names its day. */}
           {((dated && e.kind !== 'rain') || time) && (

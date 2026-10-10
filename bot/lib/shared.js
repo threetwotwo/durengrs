@@ -20,6 +20,13 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 // src/shared/index.ts
 var index_exports = {};
 __export(index_exports, {
+  ACTIONS: () => ACTIONS,
+  ACTION_INFO: () => ACTION_INFO,
+  CASE_EVENTS: () => CASE_EVENTS,
+  CASE_EVENT_INFO: () => CASE_EVENT_INFO,
+  CASE_STATUSES: () => CASE_STATUSES,
+  CASE_STATUS_INFO: () => CASE_STATUS_INFO,
+  CASE_UPDATES: () => CASE_UPDATES,
   DEFAULT_LABEL_RULES: () => DEFAULT_LABEL_RULES,
   ENGINE_STAGE_WORDS: () => ENGINE_STAGE_WORDS,
   FARM_STAGES: () => FARM_STAGES,
@@ -29,13 +36,14 @@ __export(index_exports, {
   IMPROVING: () => IMPROVING,
   ISSUES: () => ISSUES,
   ISSUE_INFO: () => ISSUE_INFO,
-  LABEL_RULES: () => LABEL_RULES,
+  RECHECK_DAYS: () => RECHECK_DAYS,
+  SEASON_TASK_OF: () => SEASON_TASK_OF,
   TRIAGE_RULES_VERSION: () => TRIAGE_RULES_VERSION,
   checkLabelRules: () => checkLabelRules,
   doseSuggestion: () => doseSuggestion,
   fruitRemaining: () => fruitRemaining,
-  hasWord: () => hasWord,
   healthOf: () => healthOf,
+  isAction: () => isAction,
   isFarmStage: () => isFarmStage,
   isIssue: () => isIssue,
   labelBatang: () => labelBatang,
@@ -70,7 +78,6 @@ function wordHits(text, kw) {
   }
   return out;
 }
-var hasWord = (text, kw) => wordHits(text, kw).length > 0;
 
 // src/shared/stages.ts
 var FARM_STAGES = ["veg", "rest", "bud", "bloom", "set", "pingpong", "egg", "grow", "mature", "harvest", "post"];
@@ -404,7 +411,6 @@ var DEFAULT_LABEL_RULES = {
   products: { fruiting: "NPK Perfect", vegetative: "YM Winner", young: "YM Winner" },
   confirmed: false
 };
-var LABEL_RULES = DEFAULT_LABEL_RULES;
 var band = (v, lowMax, midMax) => v === void 0 || !Number.isFinite(v) ? void 0 : v <= lowMax ? "low" : v <= midMax ? "mid" : "high";
 function labelBatang(girth, r = DEFAULT_LABEL_RULES) {
   if (girth === void 0 || !Number.isFinite(girth)) return void 0;
@@ -498,8 +504,84 @@ function fruitRemaining(counts, harvests, waveDates, treeEstimate) {
   const picked = harvests.filter((h) => h.date > from).reduce((n, h) => n + (h.fruits || 0), 0);
   return Math.max(0, last.count - picked);
 }
+
+// src/shared/actions.ts
+var ACTIONS = [
+  "canker_treatment",
+  "fungicide",
+  "insecticide",
+  "trunk_injection",
+  "fertilizer",
+  "foliar_feed",
+  "drench",
+  "pruning",
+  "sanitation",
+  "bagging",
+  "fruit_thinning",
+  "pollination",
+  "fruit_tying",
+  "weeding",
+  "irrigation",
+  "mulching",
+  "harvest",
+  "other"
+];
+var isAction = (s) => typeof s === "string" && ACTIONS.includes(s);
+var ACTION_INFO = {
+  canker_treatment: { label: { id: "Kerok & oles batang", en: "Scrape & paint canker" }, kind: "treatment" },
+  fungicide: { label: { id: "Semprot fungisida", en: "Fungicide spray" }, kind: "treatment" },
+  insecticide: { label: { id: "Semprot insektisida", en: "Insecticide spray" }, kind: "treatment" },
+  trunk_injection: { label: { id: "Infus batang", en: "Trunk injection" }, kind: "treatment" },
+  fertilizer: { label: { id: "Pemupukan", en: "Fertiliser" }, kind: "care" },
+  foliar_feed: { label: { id: "Pupuk daun", en: "Foliar feed" }, kind: "care" },
+  drench: { label: { id: "Kocor", en: "Soil drench" }, kind: "care" },
+  pruning: { label: { id: "Pemangkasan", en: "Pruning" }, kind: "care" },
+  sanitation: { label: { id: "Buang bagian sakit / buah busuk", en: "Removed diseased parts / rotten fruit" }, kind: "treatment" },
+  bagging: { label: { id: "Brongsong buah", en: "Fruit bagging" }, kind: "care" },
+  fruit_thinning: { label: { id: "Buang buah berlebih", en: "Fruit thinning" }, kind: "care" },
+  pollination: { label: { id: "Penyerbukan tangan", en: "Hand pollination" }, kind: "care" },
+  fruit_tying: { label: { id: "Ikat tangkai buah", en: "Fruit tying" }, kind: "care" },
+  weeding: { label: { id: "Penyiangan", en: "Weeding" }, kind: "care" },
+  irrigation: { label: { id: "Penyiraman", en: "Watering" }, kind: "care" },
+  mulching: { label: { id: "Mulsa / bahan organik", en: "Mulch / organic matter" }, kind: "care" },
+  harvest: { label: { id: "Panen", en: "Harvest" }, kind: "care" },
+  other: { label: { id: "Pekerjaan lain", en: "Other work" }, kind: "care" }
+};
+var SEASON_TASK_OF = {
+  pollination: "hand_pollination",
+  fruit_thinning: "fruit_thinning",
+  bagging: "bagging",
+  fruit_tying: "fruit_tying"
+};
+var CASE_STATUSES = ["open", "treated", "improving", "worse", "resolved"];
+var CASE_STATUS_INFO = {
+  open: { label: { id: "Belum ditangani", en: "Not treated yet" }, tone: "warn" },
+  treated: { label: { id: "Sudah dirawat", en: "Treated" }, tone: "info" },
+  improving: { label: { id: "Membaik", en: "Improving" }, tone: "good" },
+  worse: { label: { id: "Memburuk", en: "Getting worse" }, tone: "danger" },
+  resolved: { label: { id: "Selesai", en: "Solved" }, tone: "done" }
+};
+var CASE_EVENTS = ["seen", "treated", "checked", "improving", "worse", "resolved", "reopened"];
+var CASE_EVENT_INFO = {
+  seen: { label: { id: "Terlihat", en: "Seen" } },
+  treated: { label: { id: "Dirawat", en: "Treated" } },
+  checked: { label: { id: "Dicek, sama", en: "Checked, same" } },
+  improving: { label: { id: "Membaik", en: "Improving" } },
+  worse: { label: { id: "Memburuk", en: "Worse" } },
+  resolved: { label: { id: "Selesai", en: "Solved" } },
+  reopened: { label: { id: "Dibuka lagi", en: "Reopened" } }
+};
+var CASE_UPDATES = ["treated", "improving", "same", "worse", "resolved"];
+var RECHECK_DAYS = 7;
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
+  ACTIONS,
+  ACTION_INFO,
+  CASE_EVENTS,
+  CASE_EVENT_INFO,
+  CASE_STATUSES,
+  CASE_STATUS_INFO,
+  CASE_UPDATES,
   DEFAULT_LABEL_RULES,
   ENGINE_STAGE_WORDS,
   FARM_STAGES,
@@ -509,13 +591,14 @@ function fruitRemaining(counts, harvests, waveDates, treeEstimate) {
   IMPROVING,
   ISSUES,
   ISSUE_INFO,
-  LABEL_RULES,
+  RECHECK_DAYS,
+  SEASON_TASK_OF,
   TRIAGE_RULES_VERSION,
   checkLabelRules,
   doseSuggestion,
   fruitRemaining,
-  hasWord,
   healthOf,
+  isAction,
   isFarmStage,
   isIssue,
   labelBatang,

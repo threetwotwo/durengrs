@@ -12,22 +12,23 @@ reports.processPhotos = async (items, treeId, id) => {
   return { saved: items.slice(0, 3).map((_, i) => ({ path: `report-photos/${treeId}/${id}-${i + 1}.jpg`, url: `https://x/${i}`, thumb: `https://x/t${i}`, medium: `https://x/m${i}` })), failed: Math.max(0, items.length - 3) };
 };
 const R = require('../lib/rules');
-const { route } = require('../lib/flowScreens');
+const C = require('../lib/cropData');
+const { route, parseFlowToken, makeTreeToken } = require('../lib/flowScreens');
 const { analyzeReport, toTriage } = require('../lib/ai');
 const { check } = require('./contract');
 
 const today = R.todayStr();
-const TOKEN = 'tree:A1:628111886551:1000';
-const FARM_TOKEN = 'farm:628111886551:2000';
-const base = { flowToken: TOKEN, treeId: 'A1', workerPhone: '628111886551' };
+const PHONE = '628111886551';
+const TOKEN = `lapor:A1:${PHONE}:1000`;
+const FARM_TOKEN = `farm:${PHONE}:2000`;
 
+// What index.js does with every Flow request: the token says which Flow, tree and worker.
+const ask = (flowToken, action, screen, data) => route({ ...parseFlowToken(flowToken), flowToken, action, screen, data });
 // `screen` is the screen the worker was on when pressing the button
-const send = async (screen, data, token = TOKEN) =>
-  check('tree', screen, await route({ ...base, kind: 'tree', flowToken: token, action: 'data_exchange', screen, data }));
-const sendFarm = async (screen, data) =>
-  check('farm', screen, await route({ kind: 'farm', flowToken: FARM_TOKEN, workerPhone: '628111886551', action: 'data_exchange', screen, data }));
-const open = async () => check('tree', null, await route({ ...base, kind: 'tree', action: 'INIT' }));
-const openFarm = async () => check('farm', null, await route({ kind: 'farm', flowToken: FARM_TOKEN, workerPhone: '628111886551', action: 'INIT' }));
+const send = async (screen, data, token = TOKEN) => check('report', screen, await ask(token, 'data_exchange', screen, data));
+const sendFarm = async (screen, data) => check('farm', screen, await ask(FARM_TOKEN, 'data_exchange', screen, data));
+const open = async (token = TOKEN) => check('report', null, await ask(token, 'INIT'));
+const openFarm = async () => check('farm', null, await ask(FARM_TOKEN, 'INIT'));
 
 function seed({ blockBloomDaysAgo = 33 } = {}) {
   fake.reset();
@@ -38,202 +39,71 @@ function seed({ blockBloomDaysAgo = 33 } = {}) {
   if (blockBloomDaysAgo !== null) fake.seed('harvestCycles', 'A', { block: 'A', floweredOn: R.addDays(today, -blockBloomDaysAgo) });
 }
 
-test('opening the tree Flow shows the tree, a real menu title and a suggestion', async () => {
-  seed();
-  const r = await open();
-  assert.equal(r.screen, 'TREE_LOOKUP');
-  assert.match(r.data.title, /A1/);
-  assert.equal(r.data.menu_title, 'Pohon A1 · MK · Blok A');
-  assert.equal(r.data.has_suggestion, true);
-  assert.match(r.data.suggestion, /disisakan/); // day 33 = after removing extra fruit
-});
-
-test('nothing due: no suggestion text is shown at all', async () => {
-  seed();
-  const season = R.addDays(today, -33);
-  fake.seed('cropCounts', `A1_${season}_kept_${today}`, { treeId: 'A1', season, stage: 'kept', count: 40, date: today });
-  const r = await open();
-  assert.equal(r.data.has_suggestion, false);
-  assert.doesNotMatch(JSON.stringify(r.data), /mendesak/);
-  const menu = await send('MENU', { choice: 'harvest' });
-  assert.equal(menu.data.has_hint, false);
-  const err = await send('MENU', {});
-  assert.equal(err.data.has_suggestion, false);
-  assert.equal(err.data.menu_title, 'Pohon A1 · MK · Blok A');
-});
-
-test('no bloom date: suggestion explains, and only options that work are listed', async () => {
-  seed({ blockBloomDaysAgo: null });
-  assert.match((await open()).data.suggestion, /Mulai berbunga/);
-  const pm = await send('MENU', { choice: 'harvest' });
-  assert.deepEqual(pm.data.stage_options.map((o) => o.id), ['bloom', 'harvest']);
-  assert.deepEqual(pm.data.stage_options.map((o) => o.title), ['1. Mulai berbunga', '2. Catat panen']);
-  // a stale client that still sends a count anyway gets a friendly message
-  const stale = await send('PANEN_MENU', { stage: 'kept' });
-  assert.equal(stale.screen, 'PANEN_MENU');
-  assert.match(stale.data.error_message, /belum punya tanggal bunga/);
-});
-
-test('top menu holds the issue report and harvest; the harvest menu is numbered in season order', async () => {
-  seed();
-  assert.equal((await send('MENU', { choice: 'issue' })).screen, 'REPORT');
-  const pm = await send('MENU', { choice: 'harvest' });
-  assert.equal(pm.screen, 'PANEN_MENU');
-  assert.deepEqual(pm.data.stage_options.map((o) => o.id), ['bloom', 'clusters', 'set', 'kept', 'onTree', 'harvest']);
-  assert.deepEqual(
-    pm.data.stage_options.map((o) => o.title),
-    ['1. Mulai berbunga', '2. Hitung tandan bunga', '3. Hitung buah jadi', '4. Hitung buah yang disisakan', '5. Hitung buah di pohon', '6. Catat panen']
-  );
-  const kept = pm.data.stage_options.find((o) => o.id === 'kept');
-  assert.match(kept.description, /^Disarankan sekarang/); // the recommended step is said in words
-  // no emoji on any report option: either every option has a fitting one, or none does
-  assert.equal(pm.data.stage_options.some((o) => /\p{Extended_Pictographic}/u.test(o.title)), false);
-  // The older published Flow still lists it there (and routes it); checked without the new Flow's contract.
-  assert.equal((await route({ ...base, kind: 'tree', action: 'data_exchange', screen: 'PANEN_MENU', data: { stage: 'tree' } })).screen, 'EDIT_TREE');
-  // rain and tasks are not tree reports any more
-  assert.equal((await send('MENU', { choice: 'rain' })).data.error_message.length > 0, true);
-  const empty = await send('MENU', {});
-  assert.equal(empty.screen, 'MENU');
-  assert.match(empty.data.error_message, /Pilih salah satu/);
-});
-
-test('count: validation, save, same-day replace, tree record follows', async () => {
-  seed();
-  const season = R.addDays(today, -33);
-  const sel = await send('PANEN_MENU', { stage: 'kept' });
-  assert.equal(sel.screen, 'COUNT');
-  assert.equal(sel.data.init_values.wave, season);
-
-  for (const [count, re] of [['abc', /bukan angka/], ['501', /antara 0 dan 500/], ['', /wajib/], ['3,5', /bulat/]]) {
-    const r = await send('COUNT', { stage: 'kept', wave: season, count });
-    assert.equal(r.screen, 'COUNT');
-    assert.match(r.data.error_message, re);
-    assert.equal(r.data.stage, 'kept');
+// Gemini stubbed: each call answers the next item of `answers` (the base below plus its fields). Photos download as 4 bytes.
+const BASE_ANSWER = { stages: [], bloom_part: 'none', actions: [], case_updates: [], issues: [], summary: '', health: 'hijau', urgent: false, improving: false, counts: [], photo_ok: true, photo_request: '', photos_seen: [] };
+async function withGemini(answers, fn) {
+  process.env.GEMINI_API_KEY = 'test';
+  const realFetch = global.fetch;
+  const calls = [];
+  global.fetch = async (url, opts) => {
+    if (String(url).includes('generativelanguage')) {
+      calls.push(JSON.parse(opts.body).contents[0].parts[0].text);
+      const next = answers.shift(); // an answer, or a function that also acts while Gemini "reads"
+      const answer = typeof next === 'function' ? next() : next;
+      return { ok: true, json: async () => ({ candidates: [{ content: { parts: [{ text: JSON.stringify({ ...BASE_ANSWER, ...answer }) }] } }] }) };
+    }
+    return { ok: true, arrayBuffer: async () => new ArrayBuffer(4) };
+  };
+  try {
+    return await fn(calls);
+  } finally {
+    global.fetch = realFetch;
+    delete process.env.GEMINI_API_KEY;
   }
-  assert.equal(fake.all('cropCounts').length, 0);
+}
 
-  const ok = await send('COUNT', { stage: 'kept', wave: season, count: '50' });
-  assert.equal(ok.screen, 'DONE');
-  const id = `A1_${season}_kept_${today}`;
-  const doc = fake.get('cropCounts', id);
-  assert.equal(doc.count, 50);
-  assert.equal(doc.source, 'whatsapp');
-  assert.equal(doc.block, 'A');
-  assert.equal(fake.get('trees', 'A1').estimatedFruitCount, 50);
-  assert.equal(fake.all('treeEdits').length, 1);
+// One report sent through the Flow, then read by Gemini as the chat does when the Flow completes.
+async function reportAndRead(words, n, treeId = 'A1') {
+  const r = await send('REPORT', { description: words, photos: [{ cdn_url: words }] }, `lapor:${treeId}:${PHONE}:${n}`);
+  return { id: r.data.report_id, msg: await analyzeReport(r.data.report_id, { tree: fake.get('trees', treeId), workerPhone: PHONE }) };
+}
 
-  await send('COUNT', { stage: 'kept', wave: season, count: '45' });
-  assert.equal(fake.all('cropCounts').length, 1);
-  assert.equal(fake.get('cropCounts', id).count, 45);
-  assert.equal(fake.get('trees', 'A1').estimatedFruitCount, 45);
+// ---------- tree report Flow ----------
 
-  assert.equal((await send('COUNT', { stage: 'kept', wave: '1999-01-01', count: '5' })).data.error_message.length > 0, true);
-});
+test('tree tokens: new messages use lapor:, and old tree: messages are handled as the same report', async () => {
+  assert.match(makeTreeToken('A1', PHONE), new RegExp(`^lapor:A1:${PHONE}:\\d+$`));
+  for (const t of ['lapor:A1:628:1', 'tree:A1:628:1']) assert.deepEqual(parseFlowToken(t), { kind: 'report', treeId: 'A1', workerPhone: '628' });
+  assert.deepEqual(parseFlowToken('farm:628:1'), { kind: 'farm', treeId: '', workerPhone: '628' });
+  assert.deepEqual(parseFlowToken(''), { kind: 'report', treeId: '', workerPhone: '' });
 
-test('count: soft warning needs "Ya, sudah benar" and an unchanged number', async () => {
   seed();
-  const season = R.addDays(today, -33);
-  fake.seed('cropCounts', `A1_${season}_set_${R.addDays(today, -5)}`, { treeId: 'A1', season, stage: 'set', count: 80, date: R.addDays(today, -5) });
-  const first = await send('COUNT', { stage: 'kept', wave: season, count: '90' });
-  assert.equal(first.screen, 'COUNT');
-  assert.equal(first.data.needs_confirm, true);
-  assert.match(first.data.error_message, /Periksa lagi/);
-  assert.equal(fake.all('cropCounts').length, 1);
-
-  const ticked = { stage: 'kept', wave: season, count: '90', confirm: true, warned: first.data.warned };
-  assert.equal((await send('COUNT', { ...ticked, count: '95' })).data.needs_confirm, true); // changed number -> asked again
-  assert.equal((await send('COUNT', ticked)).screen, 'DONE');
-  assert.equal(fake.get('cropCounts', `A1_${season}_kept_${today}`).count, 90);
+  const old = `tree:A1:${PHONE}:500`;
+  const first = await open(old);
+  assert.equal(first.screen, 'REPORT');
+  assert.equal(first.data.report_title, 'Laporan untuk A1 · MK · Blok A');
+  const r = await send('REPORT', { description: 'daun kuning di dahan bawah', photos: [{ cdn_url: 'o' }] }, old);
+  assert.equal(r.screen, 'DONE');
+  assert.equal(r.data.saved, true);
+  assert.equal(fake.get('reports', r.data.report_id).treeId, 'A1');
+  // any other screen an older Flow might send lands on the report screen, never an error
+  assert.equal((await ask(old, 'data_exchange', 'MENU', { choice: 'issue' })).screen, 'REPORT');
 });
 
-test('bloom: errors, save, duplicate, partial waves create a second wave', async () => {
+test('report: opens on photo + words, saves, and hands the report id to the chat', async () => {
   seed();
-  assert.match((await send('BLOOM', { date: R.addDays(today, 1), part: 'whole' })).data.error_message, /masa depan/);
-  assert.match((await send('BLOOM', { date: R.addDays(today, -90), part: 'whole' })).data.error_message, /terlalu lama/i);
-  assert.match((await send('BLOOM', { date: today })).data.error_message, /bagian/);
-  const d = R.addDays(today, -3);
-  const ok = await send('BLOOM', { date: d, part: 'lower', note: 'dahan kiri' });
-  assert.equal(ok.screen, 'DONE');
-  assert.equal(fake.get('bloomWaves', `A1_${d}_lower`).block, 'A');
-  assert.match((await send('BLOOM', { date: d, part: 'lower' })).data.message, /sudah tercatat/);
-  assert.equal(fake.all('bloomWaves').length, 1);
-  const sel = await send('PANEN_MENU', { stage: 'clusters' });
-  assert.equal(sel.data.wave_options.length, 2);
+  const first = await open();
+  assert.equal(first.screen, 'REPORT');
+  assert.equal(first.data.condition_caption, 'Kondisi saat ini: Hijau');
+  const r = await send('REPORT', { description: 'bunga mulai mekar', photos: [{ cdn_url: 'z' }] });
+  assert.equal(r.screen, 'DONE');
+  assert.equal(r.data.saved, true);
+  const rep = fake.get('reports', r.data.report_id);
+  assert.equal(rep.description, 'bunga mulai mekar');
+  assert.equal(rep.photos.length, 1);
+  assert.equal(fake.get('trees', 'A1').lastReportId, r.data.report_id);
 });
 
-test('harvest: two steps, grades, retry does not duplicate', async () => {
-  seed({ blockBloomDaysAgo: 125 });
-  const a = await send('PANEN_MENU', { stage: 'harvest' });
-  assert.equal(a.screen, 'HARVEST_A');
-  assert.match((await send('HARVEST_A', { date: today, fruits: '0' })).data.error_message, /antara 1 dan 500/);
-  assert.match((await send('HARVEST_A', { date: R.addDays(today, 1), fruits: '4' })).data.error_message, /masa depan/);
-  const b = await send('HARVEST_A', { date: today, fruits: '12', weight: '24,5' });
-  assert.equal(b.screen, 'HARVEST_B');
-  assert.equal(b.data.fruits, '12');
-  assert.match(b.data.harvest_summary, /12 buah · 24.5 kg/);
-  assert.match(b.data.grade_help, /melebihi 12 buah/);
-
-  const carry = { date: b.data.date, fruits: b.data.fruits, weight: b.data.weight };
-  assert.match((await send('HARVEST_B', { ...carry, extra: '10', class1: '5' })).data.error_message, /lebih banyak/);
-  assert.match((await send('HARVEST_B', { ...carry, problems: ['rot'] })).data.error_message, /berapa buah/i);
-  assert.equal(fake.all('harvests').length, 0);
-
-  const full = { ...carry, extra: '6', class1: '4', problems: ['rot', 'crack'], problem_fruits: '3', note: 'ok' };
-  const ok = await send('HARVEST_B', full);
-  assert.equal(ok.screen, 'DONE');
-  const [h] = fake.all('harvests');
-  assert.deepEqual(
-    { block: h.block, treeId: h.treeId, variant: h.variant, fruits: h.fruits, weightKg: h.weightKg, grades: h.grades, problems: h.problems, problemFruits: h.problemFruits, source: h.source, floweredOn: h.floweredOn, daysFromBloom: h.daysFromBloom },
-    { block: 'A', treeId: 'A1', variant: 'MK', fruits: 12, weightKg: 24.5, grades: { extra: 6, class1: 4 }, problems: ['rot', 'crack'], problemFruits: 3, source: 'whatsapp', floweredOn: R.addDays(today, -125), daysFromBloom: 125 }
-  );
-  assert.match(ok.data.message, /2 buah belum dikelompokkan/);
-  await send('HARVEST_B', full); // network retry: identical data
-  assert.equal(fake.all('harvests').length, 1);
-});
-
-test('a Flow message opened again later still saves a NEW harvest and a NEW report', async () => {
-  seed({ blockBloomDaysAgo: 125 });
-  const h1 = { date: today, fruits: '5', weight: '10' };
-  await send('HARVEST_B', h1);
-  await send('HARVEST_B', { ...h1, fruits: '7', weight: '14' }); // same flow token, different harvest
-  assert.equal(fake.all('harvests').length, 2);
-
-  const photo = [{ cdn_url: 'p1' }];
-  await send('REPORT', { description: 'daun kuning', photos: photo });
-  const second = await send('REPORT', { description: 'ada getah di batang', photos: photo });
-  assert.match(second.data.message, /tersimpan/);
-  assert.doesNotMatch(second.data.message, /sudah tersimpan sebelumnya/);
-  assert.equal(fake.all('reports').length, 2);
-  await send('REPORT', { description: 'ada getah di batang', photos: photo }); // retry of the second one
-  assert.equal(fake.all('reports').length, 2);
-});
-
-test('harvest: photos are stored on the harvest and a retry does not upload again', async () => {
-  seed({ blockBloomDaysAgo: 125 });
-  photoCalls = [];
-  const carry = { date: today, fruits: '5', weight: '10' };
-  const photos = [{ cdn_url: 'a' }, { cdn_url: 'b' }];
-  const ok = await send('HARVEST_B', { ...carry, photos }, 'tree:A1:628:77');
-  assert.match(ok.data.message, /2 foto terlampir/);
-  const [h] = fake.all('harvests');
-  assert.equal(h.photos.length, 2);
-  assert.match(h.photos[0].path, /^report-photos\/A1\/wa/);
-  assert.equal(photoCalls.length, 1);
-  await send('HARVEST_B', { ...carry, photos }, 'tree:A1:628:77');
-  assert.equal(photoCalls.length, 1);
-  assert.equal(fake.all('harvests').length, 1);
-});
-
-test('harvest: odd weight asks for confirmation on step 1', async () => {
-  seed({ blockBloomDaysAgo: 125 });
-  const first = await send('HARVEST_A', { date: today, fruits: '10', weight: '300' });
-  assert.equal(first.screen, 'HARVEST_A');
-  assert.equal(first.data.needs_confirm, true);
-  const again = await send('HARVEST_A', { date: today, fruits: '10', weight: '300', confirm: true, warned: first.data.warned });
-  assert.equal(again.screen, 'HARVEST_B');
-});
-
-test('issue report: photo and words both required, no lists to choose from', async () => {
+test('report: photo and words both required', async () => {
   seed();
   assert.match((await send('REPORT', {})).data.error_message, /foto dan tulis/);
   assert.match((await send('REPORT', { description: 'daun kuning' })).data.error_message, /minimal satu foto/);
@@ -241,7 +111,18 @@ test('issue report: photo and words both required, no lists to choose from', asy
   assert.equal(fake.all('reports').length, 0);
 });
 
-test('issue report: the system reads the words, replies at once, and only urgent words change the tree', async () => {
+test('report: an older Flow\'s condition and problem-type fields are ignored; photos and words still save', async () => {
+  seed();
+  const ok = await send('REPORT', { condition: 'minor', problem_types: ['leaf', 'pest'], description: 'daun kuning', photos: [{ cdn_url: 'a' }] });
+  assert.equal(ok.screen, 'DONE');
+  const [r] = fake.all('reports');
+  assert.equal(r.description, 'daun kuning');
+  assert.equal(r.conditionChanged, false);
+  assert.equal(r.conditionSource, undefined);
+  assert.equal(fake.get('trees', 'A1').condition, 'healthy');
+});
+
+test('report: the system reads the words, replies at once, and only urgent words change the tree', async () => {
   seed();
   const ok = await send('REPORT', { description: 'Pp, hawar daun sedikit', photos: [{ cdn_url: 'a' }, { cdn_url: 'b' }] });
   assert.equal(ok.screen, 'DONE');
@@ -276,69 +157,39 @@ test('issue report: the system reads the words, replies at once, and only urgent
   assert.equal(fake.get('trees', 'A1').condition, 'healthy');
 });
 
-test('issue report: words with no stage or health in them still save (no undefined fields), a retry does not re-upload', async () => {
+test('report: a retry does not save or upload again; a new report from the same old message does', async () => {
   seed();
   photoCalls = [];
-  const ok = await send('REPORT', { description: 'daun kuning di dahan bawah', photos: [{ cdn_url: 'x' }] });
-  assert.equal(ok.screen, 'DONE');
+  const photo = [{ cdn_url: 'x' }];
+  const ok = await send('REPORT', { description: 'daun kuning di dahan bawah', photos: photo });
   assert.equal(ok.data.saved, true);
-  const again = await send('REPORT', { description: 'daun kuning di dahan bawah', photos: [{ cdn_url: 'x' }] });
+  const again = await send('REPORT', { description: 'daun kuning di dahan bawah', photos: photo }); // network retry
   assert.match(again.data.message, /sudah tersimpan sebelumnya/);
   assert.equal(photoCalls.length, 1);
-  assert.equal(fake.all('reports').length, 1);
-});
-
-test('older Flow: a report with only a photo, or only words, still saves', async () => {
-  seed();
-  assert.equal((await send('REPORT', { condition: 'healthy', photos: [{ cdn_url: 'p' }], description: '' })).screen, 'DONE');
-  assert.equal((await send('REPORT', { condition: 'minor', description: 'daun menguning' })).screen, 'DONE');
+  const second = await send('REPORT', { description: 'ada getah di batang', photos: photo }); // same token, new report
+  assert.doesNotMatch(second.data.message, /sudah tersimpan sebelumnya/);
   assert.equal(fake.all('reports').length, 2);
-  // The worker's choice is recorded even when it matches the tree already (the review then proposes it as is).
-  const same = fake.all('reports').find((r) => !r.description);
-  assert.equal(same.conditionChanged, false);
-  assert.equal(same.conditionSource, 'worker');
 });
 
-test('a step that ends without saving says so to the chat (saved: false)', async () => {
+test('report: an unknown or archived tree ends without saving (saved: false)', async () => {
   seed();
-  const r = await route({ kind: 'tree', action: 'data_exchange', screen: 'MENU', flowToken: 'tree:Z9:628111886551:9', treeId: 'Z9', workerPhone: '628111886551', data: { choice: 'issue' } });
-  assert.equal(r.screen, 'DONE');
-  assert.equal(r.data.saved, false);
-});
+  fake.seed('trees', 'T1', { id: 'T1', variant: 'MK', block: 'T', condition: 'not_assessed', active: false });
+  const trees = require('../lib/trees');
+  assert.equal(await trees.getTreeById('T1'), null);
+  assert.equal(trees.isArchived(await trees.getTreeRecord('T1')), true);
+  assert.equal(trees.isArchived(await trees.getTreeRecord('A1')), false); // no `active` field = active
+  assert.deepEqual(await C.listBlocks(), ['A', 'B']); // its block disappears: T1 was the only tree there
 
-test('issue report from the older Flow (condition and type lists) still saves, in the new words', async () => {
-  seed();
-  const ok = await send('REPORT', { condition: 'minor', problem_types: ['leaf', 'pest'], description: 'daun kuning', photos: [{ cdn_url: 'a' }] });
-  assert.equal(ok.screen, 'DONE');
-  const [r] = fake.all('reports');
-  assert.equal(r.description, '[Daun / tunas, Hama] daun kuning');
-  assert.equal(r.conditionSource, 'worker');
-  assert.equal(fake.get('trees', 'A1').condition, 'minor');
-  assert.match(ok.data.message, /Hijau → Kuning/);
-});
-
-test('the tree view shows the owner\'s dose, from the rules edited in the webapp', async () => {
-  seed();
-  require('../lib/cropData').resetLabelRulesCache();
-  fake.seed('trees', 'A1', { id: 'A1', variant: 'MK', block: 'A', condition: 'healthy', trunkSize: 60, canopySize: 600, estimatedFruitCount: 8 });
-  // Not shown to workers until the owner has confirmed the rules and given a unit.
-  assert.doesNotMatch((await open()).data.measurements, /Dosis/);
-  require('../lib/cropData').resetLabelRulesCache();
-  fake.seed('farmMeta', 'labelRules', { dose: { fruiting: { mid: 0.8 } }, confirmed: true });
-  assert.doesNotMatch((await open()).data.measurements, /Dosis/);
-  require('../lib/cropData').resetLabelRulesCache();
-  fake.seed('farmMeta', 'labelRules', { dose: { fruiting: { mid: 0.8 }, unit: 'kg' }, confirmed: true });
-  assert.match((await open()).data.measurements, /Dosis pupuk: \*\*0\.8 kg NPK Perfect\*\*$/m);
-});
-
-test('tree data: same limits as the webapp, with clear messages', async () => {
-  seed();
-  const ok = await send('EDIT_TREE', { trunk: '45', notes: 'ok' });
-  assert.equal(ok.screen, 'DONE');
-  assert.equal(fake.get('trees', 'A1').trunkSize, 45);
-  assert.match((await send('EDIT_TREE', { trunk: '9999' })).data.error_message, /Lingkar batang \(cm\) harus antara 1 dan 600/);
-  assert.match((await send('EDIT_TREE', { canopy: '10' })).data.error_message, /antara 50 dan 2500/);
-  assert.match((await send('EDIT_TREE', { branches: '2.5' })).data.error_message, /bulat/);
+  for (const token of [`lapor:T1:${PHONE}:5`, `lapor:Z9:${PHONE}:5`, '']) {
+    const opened = await open(token);
+    assert.equal(opened.screen, 'DONE');
+    assert.equal(opened.data.saved, false);
+    const r = await send('REPORT', { description: 'daun kuning', photos: [{ cdn_url: 'q' }] }, token);
+    assert.equal(r.data.saved, false);
+    assert.match(r.data.message, /tidak aktif/);
+  }
+  assert.equal(fake.all('reports').length, 0);
+  assert.equal(fake.get('trees', 'T1').condition, 'not_assessed');
 });
 
 // ---------- farm Flow ----------
@@ -352,8 +203,8 @@ test('farm Flow: opens on its own menu, no tree needed', async () => {
   assert.equal(work.screen, 'KERJA');
   assert.deepEqual(work.data.block_options.map((b) => b.id), ['A', 'B']);
   assert.equal((await sendFarm('FARM_HOME', { choice: 'rain' })).screen, 'HUJAN');
-  // a farm token never reaches tree screens
-  assert.equal((await route({ kind: 'farm', flowToken: FARM_TOKEN, action: 'data_exchange', screen: 'REPORT', data: {} })).screen, 'FARM_HOME');
+  // a farm token never reaches the tree report
+  assert.equal((await ask(FARM_TOKEN, 'data_exchange', 'REPORT', {})).screen, 'FARM_HOME');
 });
 
 test('farm Flow: season tasks are filed against the block season; a second report keeps the date', async () => {
@@ -382,52 +233,9 @@ test('farm Flow: rain range, soft limit, replaces the day', async () => {
   const odd = await sendFarm('HUJAN', { date: today, mm: '150' });
   assert.equal(odd.data.needs_confirm, true);
   assert.equal(fake.get('weather', today).rainMm, 0);
-});
-
-test('bloom and count reports keep their photos; a retry does not upload again', async () => {
-  seed();
-  const pics = [{ cdn_url: 'u1', file_name: 'a.jpg' }, { cdn_url: 'u2', file_name: 'b.jpg' }];
-  const d = R.addDays(today, -2);
-  photoCalls = [];
-  const ok = await send('BLOOM', { date: d, part: 'whole', photos: pics });
-  assert.match(ok.data.message, /2 foto/);
-  assert.equal(fake.get('bloomWaves', `A1_${d}_whole`).photos.length, 2);
-  await send('BLOOM', { date: d, part: 'whole', photos: pics });
-  assert.equal(photoCalls.length, 1);
-
-  const season = d; // the whole-tree bloom just saved replaces the block date
-  photoCalls = [];
-  const c = await send('COUNT', { stage: 'clusters', wave: season, count: '40', photos: pics });
-  assert.match(c.data.message, /2 foto/);
-  const saved = fake.all('cropCounts').find((x) => x.stage === 'clusters');
-  assert.equal(saved.photos.length, 2);
-  const none = await send('COUNT', { stage: 'set', wave: season, count: '10' });
-  assert.equal(none.screen, 'DONE');
-});
-
-test('an archived tree is closed to reports, and its block disappears when it was the only tree', async () => {
-  seed();
-  fake.seed('trees', 'T1', { id: 'T1', variant: 'MK', block: 'T', condition: 'not_assessed', active: false });
-  const trees = require('../lib/trees');
-  assert.equal(await trees.getTreeById('T1'), null);
-  assert.equal(trees.isArchived(await trees.getTreeRecord('T1')), true);
-  assert.equal(trees.isArchived(await trees.getTreeRecord('A1')), false); // no `active` field = active
-  assert.deepEqual(await require('../lib/cropData').listBlocks(), ['A', 'B']);
-
-  const r = await route({ kind: 'tree', action: 'data_exchange', screen: 'REPORT', flowToken: 'tree:T1:628111886551:5', treeId: 'T1', workerPhone: '628111886551', data: { description: 'daun kuning', condition: 'minor' } });
-  assert.equal(r.screen, 'DONE');
-  assert.match(r.data.message, /tidak aktif/);
-  assert.equal(fake.all('reports').length, 0);
-  assert.equal(fake.get('trees', 'T1').condition, 'not_assessed');
-});
-
-test('a flowering already recorded in the webapp under another id is not saved twice', async () => {
-  seed();
-  const d = R.addDays(today, -4);
-  fake.seed('bloomWaves', 'xyz-webapp-random', { treeId: 'A1', block: 'A', date: d, part: 'lower', source: 'webapp' });
-  const r = await send('BLOOM', { date: d, part: 'lower' });
-  assert.match(r.data.message, /sudah tercatat/);
-  assert.equal(fake.all('bloomWaves').length, 1);
+  const ticked = await sendFarm('HUJAN', { date: today, mm: '150', confirm: true, warned: odd.data.warned });
+  assert.equal(ticked.screen, 'DONE');
+  assert.equal(fake.get('weather', today).rainMm, 150);
 });
 
 test('season task: when every tree flowered on its own date, the task is filed under that flowering (as the webapp reads it)', async () => {
@@ -444,96 +252,56 @@ test('season task: when every tree flowered on its own date, the task is filed u
   assert.equal(fake.all('seasonTasks').find((t) => t.block === 'B').season, R.addDays(today, -20));
 });
 
-test('harvest: the flowering it came from is chosen with the tree variety ripening time', async () => {
-  seed({ blockBloomDaysAgo: 100 });
-  fake.seed('variants', 'ST', { ripeningDays: 100 });
-  fake.seed('trees', 'A3', { id: 'A3', variant: 'ST', block: 'A', condition: 'healthy' });
-  fake.seed('bloomWaves', 'A3_l', { treeId: 'A3', block: 'A', date: R.addDays(today, -112), part: 'lower' });
-  const carry = { date: today, fruits: '3' };
-  const ok = await route({ ...base, treeId: 'A3', flowToken: 'tree:A3:628111886551:77', kind: 'tree', action: 'data_exchange', screen: 'HARVEST_B', data: carry });
-  assert.equal(ok.screen, 'DONE');
-  const h = fake.all('harvests').find((x) => x.treeId === 'A3');
-  assert.equal(h.floweredOn, R.addDays(today, -100)); // ST ripens in 100 days: the block flowering, not the one 112 days ago
-  assert.equal(h.daysFromBloom, 100);
-});
+// ---------- season records (written after Gemini reads a report) ----------
 
-test('archived trees do not change a block ripening range or season', async () => {
+test('archived trees do not change a block ripening range', async () => {
   seed();
   fake.seed('variants', 'ST', { ripeningDays: 90 });
   fake.seed('trees', 'A9', { id: 'A9', variant: 'ST', block: 'A', condition: 'healthy', active: false });
-  const C = require('../lib/cropData');
   const s = await C.loadTreeSeason({ id: 'A1', block: 'A', variant: 'MK' }, today);
   assert.equal(s.ripeMin, 120);
+  assert.equal(s.treeRipening, 120);
+  assert.deepEqual(s.waves.map((w) => w.date), [R.addDays(today, -33)]);
 });
 
-test('"Ubah data pohon" on the tree info screen opens the edit screen with the current values', async () => {
-  seed();
-  fake.seed('trees', 'A1', { id: 'A1', variant: 'MK', block: 'A', condition: 'healthy', canopySize: 520, trunkSize: 43, notes: 'dekat parit' });
-  const info = await open();
-  assert.equal(info.data.can_edit, true);
-  const edit = check('tree', 'TREE_LOOKUP', await route({ ...base, kind: 'tree', action: 'data_exchange', screen: 'TREE_LOOKUP', data: { open: 'edit_tree' } }));
-  assert.equal(edit.screen, 'EDIT_TREE');
-  assert.deepEqual(edit.data.init_values, { canopy: '520', trunk: '43', branches: '', notes: 'dekat parit' });
-  // An unknown tree: no link, and a press that comes anyway ends without saving.
-  const gone = await route({ kind: 'tree', action: 'INIT', flowToken: 'tree:Z9:628111886551:9', treeId: 'Z9', workerPhone: '628111886551' });
-  assert.equal(gone.data.can_edit, false);
-  const late = check('tree', 'TREE_LOOKUP', await route({ kind: 'tree', action: 'data_exchange', screen: 'TREE_LOOKUP', flowToken: 'tree:Z9:628111886551:9', treeId: 'Z9', workerPhone: '628111886551', data: { open: 'edit_tree' } }));
-  assert.equal(late.screen, 'DONE');
-  assert.equal(late.data.saved, false);
-});
-
-test('Ubah data pohon no longer edits flower clusters or the fruit estimate', async () => {
-  seed();
-  fake.seed('trees', 'A1', { id: 'A1', variant: 'MK', block: 'A', condition: 'healthy', floweringClusters: 5, estimatedFruitCount: 9 });
-  const r = await send('EDIT_TREE', { canopy: '600', clusters: '50', fruits: '70' });
-  assert.equal(r.screen, 'DONE');
-  const t = fake.get('trees', 'A1');
-  assert.equal(t.canopySize, 600);
-  assert.equal(t.floweringClusters, 5);
-  assert.equal(t.estimatedFruitCount, 9);
-  const flow = require('../flows/flow.json');
-  const edit = JSON.stringify(flow.screens.find((x) => x.id === 'EDIT_TREE'));
-  assert.ok(!edit.includes('form.clusters') && !edit.includes('form.fruits'));
-});
-
-test('photos of a flowering that was already recorded under an older id are not uploaded again', async () => {
+test('a flowering already recorded in the webapp under another id is not saved twice', async () => {
   seed();
   const d = R.addDays(today, -4);
-  fake.seed('bloomWaves', 'old-webapp-id', { treeId: 'A1', block: 'A', date: d, part: 'upper' });
-  photoCalls = [];
-  await send('BLOOM', { date: d, part: 'upper', photos: [{ cdn_url: 'u1', file_name: 'a.jpg' }] });
-  assert.equal(photoCalls.length, 0);
+  fake.seed('bloomWaves', 'xyz-webapp-random', { treeId: 'A1', block: 'A', date: d, part: 'lower', source: 'webapp' });
+  const r = await C.saveBloom({ treeId: 'A1', block: 'A', date: d, part: 'lower' });
+  assert.equal(r.duplicate, true);
+  assert.equal(fake.all('bloomWaves').length, 1);
 });
 
-test('unified report: opens on photo + words, saves, and hands the report id to the chat', async () => {
+test('a count replaces the same day\'s count, and the tree record follows the newest one', async () => {
   seed();
-  const t = 'lapor:A1:628111886551:3000';
-  const first = check('report', null, await route({ kind: 'report', action: 'INIT', flowToken: t, treeId: 'A1', workerPhone: '628111886551' }));
-  assert.equal(first.screen, 'REPORT');
-  const r = check('report', 'REPORT', await route({ kind: 'report', action: 'data_exchange', screen: 'REPORT', flowToken: t, treeId: 'A1', workerPhone: '628111886551', data: { description: 'bunga mulai mekar', photos: [{ cdn_url: 'z' }] } }));
-  assert.equal(r.screen, 'DONE');
-  assert.ok(fake.get('reports', r.data.report_id));
-  assert.equal(check('report', null, await route({ kind: 'report', action: 'INIT', flowToken: 'lapor:Z9:1:1', treeId: 'Z9' })).data.saved, false);
+  const season = R.addDays(today, -33);
+  const tree = fake.get('trees', 'A1');
+  await C.saveCount({ tree, season, stage: 'kept', count: 50, date: today, workerPhone: PHONE, wavesCount: 1, existing: [] });
+  const id = `A1_${season}_kept_${today}`;
+  assert.deepEqual([fake.get('cropCounts', id).count, fake.get('cropCounts', id).source], [50, 'whatsapp']);
+  assert.equal(fake.get('trees', 'A1').estimatedFruitCount, 50);
+  assert.equal(fake.all('treeEdits').length, 1);
+  await C.saveCount({ tree: fake.get('trees', 'A1'), season, stage: 'kept', count: 45, date: today, wavesCount: 1, existing: [{ id, stage: 'kept', date: today }] });
+  assert.equal(fake.all('cropCounts').length, 1);
+  assert.equal(fake.get('trees', 'A1').estimatedFruitCount, 45);
+  // an older count, or a tree with two flowerings, leaves the tree record alone
+  await C.saveCount({ tree: fake.get('trees', 'A1'), season, stage: 'onTree', count: 30, date: R.addDays(today, -3), wavesCount: 1, existing: [{ id, stage: 'kept', date: today }] });
+  await C.saveCount({ tree: fake.get('trees', 'A1'), season, stage: 'onTree', count: 20, date: today, wavesCount: 2, existing: [] });
+  assert.equal(fake.get('trees', 'A1').estimatedFruitCount, 45);
 });
+
+// ---------- Gemini reading ----------
 
 test('Gemini reading: replaces the suggestion, records the flowering and a written count, asks for a better photo, once', async () => {
   seed({ blockBloomDaysAgo: null });
-  process.env.GEMINI_API_KEY = 'test';
-  const realFetch = global.fetch;
-  let gemini = 0;
-  global.fetch = async (url) => {
-    if (String(url).includes('generativelanguage')) {
-      gemini++;
-      const answer = { stages: [{ code: 'bloom', confidence: 0.9, evidence: 'bunga mekar' }], bloom_part: 'lower', issues: [], health: 'hijau', urgent: false, improving: false, counts: [{ kind: 'clusters', value: 30, evidence: '30 tandan' }], photo_ok: false, photo_request: 'Foto lebih dekat ke bunga.' };
-      return { ok: true, json: async () => ({ candidates: [{ content: { parts: [{ text: JSON.stringify(answer) }] } }] }) };
-    }
-    return { ok: true, arrayBuffer: async () => new ArrayBuffer(4) };
-  };
-  try {
-    const r = await route({ kind: 'report', action: 'data_exchange', screen: 'REPORT', flowToken: 'lapor:A1:628111886551:4000', treeId: 'A1', workerPhone: '628111886551', data: { description: 'bunga mulai mekar, 30 tandan', photos: [{ cdn_url: 'q' }] } });
+  const answer = { stages: [{ code: 'bloom', confidence: 0.9, evidence: 'bunga mekar' }], bloom_part: 'lower', counts: [{ kind: 'clusters', value: 30, evidence: '30 tandan' }], photo_ok: false, photo_request: 'Foto lebih dekat ke bunga.' };
+  await withGemini([answer], async (calls) => {
+    const r = await send('REPORT', { description: 'bunga mulai mekar, 30 tandan', photos: [{ cdn_url: 'q' }] }, `lapor:A1:${PHONE}:4000`);
     assert.match(r.data.message, /sedang memeriksa/);
-    const msg = await analyzeReport(r.data.report_id, { tree: fake.get('trees', 'A1'), workerPhone: '628111886551' });
+    const msg = await analyzeReport(r.data.report_id, { tree: fake.get('trees', 'A1'), workerPhone: PHONE });
     assert.match(msg, /Tanggal bunga mekar dicatat/);
+    assert.match(msg, /Jumlah tandan bunga: 30 dicatat/);
     assert.match(msg, /Foto lebih dekat ke bunga/);
     const rep = fake.get('reports', r.data.report_id);
     assert.equal(rep.triage.source, 'ai');
@@ -543,11 +311,55 @@ test('Gemini reading: replaces the suggestion, records the flowering and a writt
     assert.ok(fake.all('bloomWaves').some((b) => b.date === today && b.part === 'lower'));
     assert.ok(fake.all('cropCounts').some((c) => c.stage === 'clusters' && c.count === 30));
     assert.equal(await analyzeReport(r.data.report_id, { tree: fake.get('trees', 'A1') }), null);
-    assert.equal(gemini, 1);
-  } finally {
-    global.fetch = realFetch;
-    delete process.env.GEMINI_API_KEY;
-  }
+    assert.equal(calls.length, 1);
+  });
+});
+
+test('Gemini reading: a harvest the worker wrote is recorded once, filed under its flowering', async () => {
+  seed({ blockBloomDaysAgo: 125 });
+  const harvest = { fruits: 12, weight_kg: 30, grades: { extra: 6, class1: 4, class2: 0, reject: 0 } };
+  const answer = {
+    stages: [{ code: 'harvest', confidence: 0.9, evidence: 'buah dipanen' }],
+    actions: [{ type: 'harvest', product: '', issue: 'none', target: '', case: 0, evidence: 'panen 12 buah' }],
+    harvest,
+  };
+  await withGemini([answer, answer], async (calls) => {
+    const { id, msg } = await reportAndRead('panen 12 buah, 30 kg, extra 6, kelas 1 ada 4', 1);
+    assert.match(calls[0], /harvest: ONLY if the worker reports picking fruit/);
+    assert.match(msg, /🧺 Panen dicatat: 12 buah, 30 kg\./);
+    assert.doesNotMatch(msg, /Dicatat: Panen/); // said once, by the harvest line
+    const rep = fake.get('reports', id);
+    assert.deepEqual(rep.triage.harvest, { fruits: 12, weightKg: 30, grades: { extra: 6, class1: 4 } });
+    assert.ok(!('harvestedFruits' in rep.triage));
+    assert.ok(rep.ai.recorded.includes(`harvests/wa_${id}`));
+    const h = fake.get('harvests', `wa_${id}`);
+    assert.deepEqual(
+      { block: h.block, treeId: h.treeId, variant: h.variant, date: h.date, fruits: h.fruits, weightKg: h.weightKg, grades: h.grades, problems: h.problems, floweredOn: h.floweredOn, daysFromBloom: h.daysFromBloom, source: h.source, workerPhone: h.workerPhone, reportId: h.reportId },
+      { block: 'A', treeId: 'A1', variant: 'MK', date: today, fruits: 12, weightKg: 30, grades: { extra: 6, class1: 4 }, problems: [], floweredOn: R.addDays(today, -125), daysFromBloom: 125, source: 'whatsapp', workerPhone: PHONE, reportId: id }
+    );
+    // the fruit picked is not mistaken for a count of fruit on the tree
+    assert.equal(fake.all('cropCounts').length, 0);
+    // read again (say, after a failed run was reset): still one harvest
+    delete fake.get('reports', id).ai;
+    const again = await analyzeReport(id, { tree: fake.get('trees', 'A1'), workerPhone: PHONE });
+    assert.doesNotMatch(again, /Panen dicatat/);
+    assert.equal(fake.all('harvests').length, 1);
+  });
+});
+
+test('Gemini reading: a harvest uses the tree variety ripening time; no weight written, no weight saved', async () => {
+  seed({ blockBloomDaysAgo: 100 });
+  fake.seed('variants', 'ST', { ripeningDays: 100 });
+  fake.seed('trees', 'A3', { id: 'A3', variant: 'ST', block: 'A', condition: 'healthy' });
+  fake.seed('bloomWaves', 'A3_l', { treeId: 'A3', block: 'A', date: R.addDays(today, -112), part: 'lower' });
+  await withGemini([{ harvest: { fruits: 3, weight_kg: 0, grades: { extra: 0, class1: 0, class2: 0, reject: 0 } } }], async () => {
+    const { id, msg } = await reportAndRead('dipetik 3 buah', 1, 'A3');
+    assert.match(msg, /🧺 Panen dicatat: 3 buah\./);
+    const h = fake.get('harvests', `wa_${id}`);
+    assert.equal(h.floweredOn, R.addDays(today, -100)); // ST ripens in 100 days: the block flowering, not the one 112 days ago
+    assert.equal(h.daysFromBloom, 100);
+    assert.ok(!('weightKg' in h) && !('grades' in h));
+  });
 });
 
 test('Gemini answer is cleaned: unknown codes and weak guesses dropped, no undefined fields', () => {
@@ -561,40 +373,38 @@ test('Gemini answer is cleaned: unknown codes and weak guesses dropped, no undef
   assert.deepEqual(t.issues.map((i) => i.code), ['borer']);
   assert.equal(t.urgent, false); // "membaik" wins
   assert.deepEqual(t.numbers, [{ value: 12, kind: 'fruit', evidence: '12 buah' }]);
+  assert.equal(t.harvest, undefined);
   assert.ok(!JSON.stringify(t).includes('undefined') && Object.values(t).every((v) => v !== undefined));
+});
+
+test('Gemini harvest is cleaned: nothing picked or out of range is no harvest; grades over the fruit count are dropped', () => {
+  const h = (harvest) => toTriage({ ...BASE_ANSWER, harvest }, 'm').harvest;
+  const g = (extra, class1 = 0, class2 = 0, reject = 0) => ({ extra, class1, class2, reject });
+  assert.equal(h(undefined), undefined);
+  assert.equal(h({ fruits: 0, weight_kg: 10, grades: g(0) }), undefined);
+  assert.equal(h({ fruits: 501, weight_kg: 0, grades: g(0) }), undefined);
+  assert.equal(h({ fruits: 2.5, weight_kg: 0, grades: g(0) }), undefined);
+  assert.deepEqual(h({ fruits: 10, weight_kg: 24.456, grades: g(2, 0, 1) }), { fruits: 10, weightKg: 24.46, grades: { extra: 2, class2: 1 } });
+  assert.deepEqual(h({ fruits: 10, weight_kg: 0.1, grades: g(8, 5) }), { fruits: 10 }); // 13 graded of 10, weight below range
+  assert.deepEqual(h({ fruits: 4, weight_kg: -1, grades: g(-2, 1.5) }), { fruits: 4 });
 });
 
 test('treatment reports join the problem they treat, so progress can be followed', async () => {
   seed();
-  process.env.GEMINI_API_KEY = 'test';
-  const realFetch = global.fetch;
   const answers = [];
-  let lastPrompt = '';
-  global.fetch = async (url, opts) => {
-    if (String(url).includes('generativelanguage')) {
-      lastPrompt = JSON.parse(opts.body).contents[0].parts[0].text;
-      return { ok: true, json: async () => ({ candidates: [{ content: { parts: [{ text: JSON.stringify(answers.shift()) }] } }] }) };
-    }
-    return { ok: true, arrayBuffer: async () => new ArrayBuffer(4) };
-  };
-  const base = { stages: [], bloom_part: 'none', actions: [], case_updates: [], issues: [], summary: '', health: 'kuning', urgent: false, improving: false, counts: [], photo_ok: true, photo_request: '', photos_seen: [] };
-  const report = async (words, n) => {
-    const r = await route({ kind: 'report', action: 'data_exchange', screen: 'REPORT', flowToken: `lapor:A1:628111886551:${n}`, treeId: 'A1', workerPhone: '628111886551', data: { description: words, photos: [{ cdn_url: words }] } });
-    return { id: r.data.report_id, msg: await analyzeReport(r.data.report_id, { tree: fake.get('trees', 'A1'), workerPhone: '628111886551' }) };
-  };
-  try {
+  await withGemini(answers, async (calls) => {
     // 1. A canker is seen: a new case.
-    answers.push({ ...base, health: 'merah', issues: [{ code: 'phytophthora_canker', name: 'Kanker batang (Phytophthora palmivora)', confidence: 0.9, evidence: 'getah merah', action: 'Kerok dan oles.' }] });
-    const r1 = await report('getah merah di batang', 1);
+    answers.push({ health: 'merah', issues: [{ code: 'phytophthora_canker', name: 'Kanker batang (Phytophthora palmivora)', confidence: 0.9, evidence: 'getah merah', action: 'Kerok dan oles.' }] });
+    const r1 = await reportAndRead('getah merah di batang', 1);
     const caseId = fake.get('reports', r1.id).caseIds[0];
     assert.equal(fake.get('cases', caseId).status, 'open');
     assert.match(r1.msg, /masalah baru dicatat/);
     assert.equal(fake.get('reports', r1.id).triage.needsReview, true);
 
     // 2. "Sudah ditangani": treated. Same case, no new problem, nothing for the owner to decide.
-    answers.push({ ...base, actions: [{ type: 'canker_treatment', product: 'pasta tembaga', issue: 'phytophthora_canker', target: 'Kanker batang', case: 1, evidence: 'kulit dikerok dan dioles' }], case_updates: [{ case: 1, status: 'treated', evidence: 'dioles' }] });
-    const r2 = await report('sudah ditangani', 2);
-    assert.match(lastPrompt, /1\. Kanker batang \(Phytophthora palmivora\) \[code phytophthora_canker\]/); // Gemini was told what is open
+    answers.push({ health: 'kuning', actions: [{ type: 'canker_treatment', product: 'pasta tembaga', issue: 'phytophthora_canker', target: 'Kanker batang', case: 1, evidence: 'kulit dikerok dan dioles' }], case_updates: [{ case: 1, status: 'treated', evidence: 'dioles' }] });
+    const r2 = await reportAndRead('sudah ditangani', 2);
+    assert.match(calls[calls.length - 1], /1\. Kanker batang \(Phytophthora palmivora\) \[code phytophthora_canker\]/); // Gemini was told what is open
     assert.equal(fake.all('cases').length, 1);
     assert.deepEqual(fake.get('reports', r2.id).caseIds, [caseId]);
     const c = fake.get('cases', caseId);
@@ -608,21 +418,58 @@ test('treatment reports join the problem they treat, so progress can be followed
     assert.match(r2.msg, /Sudah dirawat\. Foto lagi tgl/);
 
     // 3. Healed: the case closes and drops off the open list.
-    answers.push({ ...base, health: 'hijau', case_updates: [{ case: 1, status: 'resolved', evidence: 'luka kering' }] });
-    await report('luka sudah kering', 3);
+    answers.push({ case_updates: [{ case: 1, status: 'resolved', evidence: 'luka kering' }] });
+    await reportAndRead('luka sudah kering', 3);
     assert.equal(fake.get('cases', caseId).status, 'resolved');
     assert.equal(fake.get('cases', caseId).closedOn, today);
     assert.equal(fake.get('cases', caseId).nextCheck, null);
 
     // 4. Routine work: bagging is the block's season job, not a problem.
-    answers.push({ ...base, health: 'hijau', actions: [{ type: 'bagging', product: '', issue: 'none', target: '', case: 0, evidence: 'buah dibrongsong' }] });
-    const r4 = await report('buah sudah dibrongsong', 4);
-    assert.match(lastPrompt, /Open problems on this tree from earlier reports \(numbered\):\nnone/);
+    answers.push({ actions: [{ type: 'bagging', product: '', issue: 'none', target: '', case: 0, evidence: 'buah dibrongsong' }] });
+    const r4 = await reportAndRead('buah sudah dibrongsong', 4);
+    assert.match(calls[calls.length - 1], /Open problems on this tree from earlier reports \(numbered\):\nnone/);
     assert.equal(fake.all('cases').length, 1);
     assert.ok(fake.all('seasonTasks').some((t) => t.task === 'bagging' && t.block === 'A'));
     assert.match(r4.msg, /Brongsong buah/);
-  } finally {
-    global.fetch = realFetch;
-    delete process.env.GEMINI_API_KEY;
-  }
+  });
+});
+
+test('a case closed in the web app while Gemini reads stays closed, and a new case never replaces a solved one', async () => {
+  seed();
+  const answers = [];
+  await withGemini(answers, async () => {
+    answers.push({ health: 'kuning', issues: [{ code: 'leaf_blight', name: 'Hawar daun', confidence: 0.8, evidence: 'bercak', action: 'Pangkas daun sakit.' }] });
+    const r1 = await reportAndRead('bercak di daun', 11);
+    const caseId = fake.get('reports', r1.id).caseIds[0];
+
+    // While Gemini reads the next report, the owner marks the problem solved in the web app.
+    answers.push(() => {
+      const c = fake.get('cases', caseId);
+      fake.seed('cases', caseId, { ...c, status: 'resolved', closedOn: today, nextCheck: null, events: [...c.events, { date: today, type: 'resolved', by: 'Gary' }] });
+      return { case_updates: [{ case: 1, status: 'same', evidence: 'bercak masih ada' }] };
+    });
+    await reportAndRead('cek bercak', 12);
+    const c = fake.get('cases', caseId);
+    assert.equal(c.status, 'resolved');
+    assert.equal(c.nextCheck, null);
+    assert.deepEqual(c.events.map((e) => e.type), ['seen', 'resolved', 'checked']);
+
+    // The same problem seen again today opens a new case beside the solved one.
+    answers.push({ health: 'kuning', issues: [{ code: 'leaf_blight', name: 'Hawar daun', confidence: 0.8, evidence: 'bercak baru' }] });
+    const r3 = await reportAndRead('bercak baru', 13);
+    const id2 = fake.get('reports', r3.id).caseIds[0];
+    assert.equal(id2, `${caseId}_2`);
+    assert.equal(fake.get('cases', caseId).status, 'resolved');
+    assert.equal(fake.get('cases', id2).status, 'open');
+    assert.equal(fake.get('cases', id2).nextCheck, R.addDays(today, 7));
+
+    // A case deleted in the web app ("not a problem") is not brought back by a later report on it.
+    answers.push(() => {
+      fake.store.get('cases').delete(id2);
+      return { case_updates: [{ case: 1, status: 'treated', evidence: 'dipangkas' }] };
+    });
+    const r4 = await reportAndRead('sudah dipangkas', 14);
+    assert.equal(fake.get('cases', id2), undefined);
+    assert.deepEqual(fake.get('reports', r4.id).caseIds || [], []);
+  });
 });

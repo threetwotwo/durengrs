@@ -2,24 +2,9 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useFarm, AppTab } from '../context/FarmContext';
 import { Link } from './Link';
 import { useT, type Lang } from '../i18n';
-import { LayoutDashboard, TableProperties, Sprout, ClipboardList, CalendarCheck, BookOpen, Wheat, Sheet as SheetIcon, MoreHorizontal, Users, ChevronDown } from 'lucide-react';
+import { LayoutDashboard, Sprout, ClipboardList, CalendarCheck, BookOpen, Wheat, Sheet as SheetIcon, MoreHorizontal, Users, ChevronDown } from 'lucide-react';
 import { setGuideOn, useGuideOn } from '../lib/guideMode';
 import { useRoute } from '../lib/router';
-
-/** Monogram "C" with a leaf at the open end. Calm and generic on purpose. */
-const BrandMark: React.FC<{ className?: string }> = ({ className }) => (
-  <svg viewBox="0 0 32 32" className={className} aria-hidden="true">
-    <defs>
-      <linearGradient id="brandGrad" x1="0" y1="0" x2="1" y2="1">
-        <stop offset="0" stopColor="#10b981" />
-        <stop offset="1" stopColor="#047857" />
-      </linearGradient>
-    </defs>
-    <rect width="32" height="32" rx="9" fill="url(#brandGrad)" />
-    <path d="M21.500 11.200A7.600 7.600 0 1 0 21.500 20.800" fill="none" stroke="#fff" strokeWidth="2.600" strokeLinecap="round" />
-    <path d="M21 9.200c3.200-.3 5.300 1.200 5.700 4-3.200.3-5.500-1.100-5.700-4Z" fill="#a7f3d0" />
-  </svg>
-);
 
 type Tone = 'new' | 'warn' | 'danger';
 interface NavItem {
@@ -40,8 +25,8 @@ const toneClass: Record<Tone, string> = {
 };
 
 /**
- * Five tabs for the daily work (Hari ini · Kebun · Laporan · Panen · Jadwal); the rest under "Lainnya":
- * the tree list, varieties, workers and, when on, the Guide.
+ * Four tabs for the daily work (Hari ini · Pohon · Laporan · Panen); the rest under "Lainnya": the schedule of
+ * routines, varieties, workers and, when on, the Guide.
  */
 export function useNavItems(): { main: NavItem[]; more: NavItem[] } {
   const { t } = useT();
@@ -57,7 +42,7 @@ export function useNavItems(): { main: NavItem[]; more: NavItem[] } {
   return {
     main: [
       { id: 'dashboard', label: t('nav.dashboard'), icon: LayoutDashboard },
-      { id: 'kebun', label: t('nav.kebun'), icon: SheetIcon },
+      { id: 'trees', label: t('nav.trees'), icon: SheetIcon },
       {
         id: 'reports',
         label: t('nav.reports'),
@@ -68,10 +53,9 @@ export function useNavItems(): { main: NavItem[]; more: NavItem[] } {
             : undefined,
       },
       { id: 'harvest', label: t('nav.harvest'), icon: Wheat },
-      { id: 'schedule', label: t('nav.schedule'), icon: CalendarCheck, badge: scheduleBadge },
     ],
     more: [
-      { id: 'trees', label: t('nav.trees'), icon: TableProperties },
+      { id: 'schedule', label: t('nav.schedule'), icon: CalendarCheck, badge: scheduleBadge },
       { id: 'variants', label: t('nav.variants'), icon: Sprout },
       { id: 'reports', label: t('nav.workers'), icon: Users, to: '/reports?view=activity', view: 'activity' },
       ...(guideOn ? [{ id: 'guide' as AppTab, label: t('nav.guide'), icon: BookOpen }] : []),
@@ -105,7 +89,8 @@ const MoreList: React.FC<{ items: NavItem[]; onPick: () => void; dark?: boolean 
               }`}
             >
               <Icon className="w-5 h-5" />
-              {item.label}
+              <span className="flex-1">{item.label}</span>
+              {item.badge && <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${toneClass[item.badge.tone]}`}>{item.badge.text}</span>}
             </Link>
           </li>
         );
@@ -139,9 +124,6 @@ export const GuideToggle: React.FC = () => {
   );
 };
 
-/** The farm name and counts at the left of the header. Hidden for now so the tab titles have room. */
-const SHOW_BRAND = false;
-
 const tabPath = (id: AppTab) => (id === 'dashboard' ? '/' : `/${id}`);
 
 /** ID | EN switch. Shows the current language; both options visible so it is obvious how to change it. */
@@ -170,10 +152,10 @@ export const LanguageToggle: React.FC = () => {
 
 export const Header: React.FC = () => {
   const { t } = useT();
-  const { trees, blocks } = useFarm();
   const { main, more } = useNavItems();
   const isActive = useIsActive();
   const [open, setOpen] = useState(false);
+  const moreBadge = more.some((i) => i.badge);
   const menuRef = useRef<HTMLDivElement>(null);
   const moreActive = more.some((i) => !i.view && isActive(i));
   useEffect(() => {
@@ -193,22 +175,6 @@ export const Header: React.FC = () => {
     <header className="sticky top-0 z-30 bg-slate-900 text-white border-b border-slate-800">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-14">
-          {SHOW_BRAND && (
-            <Link
-              to="/"
-              className="flex items-center gap-3 text-left rounded-lg focus-visible:outline-2 focus-visible:outline-emerald-400"
-              aria-label={t('brand.home')}
-            >
-              <BrandMark className="w-9 h-9 shrink-0" />
-              <span className="leading-tight">
-                <span className="block font-display text-lg font-bold tracking-tight text-white">Cilowong</span>
-                <span className="block text-xs text-slate-400 tabular whitespace-nowrap">
-                  {trees.length > 0 ? t('brand.subCounts', { trees: trees.length, blocks: blocks.length }) : t('brand.sub')}
-                </span>
-              </span>
-            </Link>
-          )}
-
           {/* Desktop navigation. On phones the bottom tab bar is used instead. Titles are always shown. */}
           <nav className="hidden md:flex items-center gap-0.5 lg:gap-1" aria-label={t('nav.main')}>
             {main.map((item) => {
@@ -248,6 +214,7 @@ export const Header: React.FC = () => {
               >
                 <MoreHorizontal className="w-4 h-4 hidden lg:block" />
                 {t('nav.more')}
+                {moreBadge && <span className="w-2 h-2 rounded-full bg-rose-500" aria-hidden />}
                 <ChevronDown className="w-3.5 h-3.5" />
               </button>
               {open && (
@@ -275,6 +242,7 @@ export const BottomNav: React.FC = () => {
   const isActive = useIsActive();
   const [open, setOpen] = useState(false);
   const moreActive = more.some((i) => !i.view && isActive(i));
+  const moreBadge = more.some((i) => i.badge);
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
@@ -334,7 +302,10 @@ export const BottomNav: React.FC = () => {
             onClick={() => setOpen((v) => !v)}
             className={`w-full min-h-14 flex flex-col items-center justify-center gap-0.5 text-xs font-semibold ${open || moreActive ? 'text-emerald-400' : 'text-slate-400'}`}
           >
-            <MoreHorizontal className="w-5 h-5" />
+            <span className="relative">
+              <MoreHorizontal className="w-5 h-5" />
+              {moreBadge && <span className="absolute -top-0.5 -right-1 w-2 h-2 rounded-full bg-rose-500" aria-hidden />}
+            </span>
             <span className="max-w-full truncate px-0.5 text-[11px] leading-tight">{t('nav.more')}</span>
           </button>
         </li>

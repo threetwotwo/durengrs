@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { ArrowRightLeft, BookOpen, Camera, User } from 'lucide-react';
 import { ConditionBadge } from './ConditionBadge';
 import { ReportReading } from './FieldStage';
+import { ActionChips } from './ReportFindings';
 import { ReportDate } from './ReportDate';
 import { Link } from './Link';
 import { reportUrl, treeUrl } from '../lib/router';
@@ -25,7 +26,9 @@ export function hasWords(text?: string): boolean {
  *   02 Oct 2026 (2h ago) · ••••2789
  *   ⇄ Was Healthy                          (only when the condition changed)
  *   Worker's note, clamped                 [photo +N]
+ *   Gemini's summary of the photos          (when it read them)
  *   ✓ Telor · Hawar daun                   (checked stage/issues, or the system's suggestion)
+ *   🩺 Kerok & oles batang                   (work the worker did)
  *   📖 Guide topics the note mentions
  *
  * The whole card opens the report page; only the tree name goes to the tree instead.
@@ -123,7 +126,11 @@ export const ReportCard: React.FC<{
             </p>
           )}
 
+          {report.triage?.source === 'ai' && report.triage.summary && (
+            <p className={`text-xs text-slate-600 ${sm ? 'line-clamp-2' : 'line-clamp-3'}`}>{report.triage.summary}</p>
+          )}
           <ReportReading report={report} />
+          <ActionChips report={report} />
 
           {topics.length > 0 && (
             <p className="flex flex-wrap gap-x-3 gap-y-1 text-xs font-semibold text-emerald-700">

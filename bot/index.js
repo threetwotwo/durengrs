@@ -1,9 +1,14 @@
+// index.js — the farm's WhatsApp bot (Cloud Run): the chat webhook, the encrypted Flow endpoint, and /ai-check.
+//   A tree ID ("A1") gets the tree's last photos and the report Flow (flows/flow.json, FLOW_ID);
+//   KEBUN (or the "Hujan & Pekerjaan" button) gets the farm Flow (flows/flow-farm.json, FARM_FLOW_ID).
+//   When a report Flow completes, Gemini reads the report (lib/ai.js) and the reply comes with a fresh Flow message.
 require('dotenv').config();
 const express = require('express');
 const { decryptRequest, encryptResponse } = require('./lib/encryption');
 const { getTreeById, getTreeRecord, isArchived, getLastReport } = require('./lib/trees');
-const { getCollageUrl, CONDITION_LABELS } = require('./lib/reports');
-const { route } = require('./lib/flowScreens');
+const { getCollageUrl } = require('./lib/reports');
+const { CONDITION_LABELS } = require('./lib/rules');
+const { route, parseFlowToken, makeTreeToken, makeFarmToken } = require('./lib/flowScreens');
 const { analyzeReport, checkGemini } = require('./lib/ai');
 
 const app = express();
@@ -43,26 +48,6 @@ async function sendWhatsAppMessage(payload) {
 
 function sendText(to, text) {
   return sendWhatsAppMessage({ messaging_product: 'whatsapp', to, type: 'text', text: { body: text } });
-}
-
-// The flow token is echoed back on every Flow endpoint request, so it carries what the endpoint needs:
-//   tree:<treeId>:<workerPhone>:<time>   the tree Flow (which tree, which worker)
-//   farm:<workerPhone>:<time>            the farm Flow (rain and finished work)
-//   lapor:<treeId>:<workerPhone>:<time>  the unified report Flow (photos + words; Gemini reads it afterwards)
-function makeTreeToken(treeId, workerPhone) {
-  return `lapor:${treeId}:${workerPhone}:${Date.now()}`;
-}
-
-function makeFarmToken(workerPhone) {
-  return `farm:${workerPhone}:${Date.now()}`;
-}
-
-function parseFlowToken(flowToken) {
-  const parts = String(flowToken || '').split(':');
-  if (parts[0] === 'farm') return { kind: 'farm', treeId: '', workerPhone: parts[1] || '' };
-  if (parts[0] === 'tree') return { kind: 'tree', treeId: parts[1] || '', workerPhone: parts[2] || '' };
-  if (parts[0] === 'lapor') return { kind: 'report', treeId: parts[1] || '', workerPhone: parts[2] || '' };
-  return { kind: 'tree', treeId: '', workerPhone: '' };
 }
 
 // ---------- messages workers read (Indonesian) ----------
@@ -181,20 +166,15 @@ function sendFarmFlow(to, intro) {
 // WhatsApp greys out a Flow message once it has been completed ("Response sent"), so after every
 // finished report we hand the worker a fresh one instead of making them type the ID again.
 async function reopenAfterCompletion(to, message) {
-  let token = '';
+  let r = {};
   try {
-    token = JSON.parse(message.interactive?.nfm_reply?.response_json || '{}').flow_token || '';
+    r = JSON.parse(message.interactive?.nfm_reply?.response_json || '{}') || {};
   } catch (_) {}
-  const { kind, treeId } = parseFlowToken(token);
-  let saved = true; // the older published Flows don't send it
-  let reportId = '';
-  try {
-    const r = JSON.parse(message.interactive?.nfm_reply?.response_json || '{}');
-    if (r.saved === false || r.saved === 'false') saved = false;
-    reportId = typeof r.report_id === 'string' ? r.report_id : '';
-  } catch (_) {}
+  const { kind, treeId } = parseFlowToken(r.flow_token);
+  const saved = r.saved !== false && r.saved !== 'false'; // a Flow published before `saved` existed doesn't send it
+  const reportId = typeof r.report_id === 'string' ? r.report_id : '';
   const thanks = saved ? '✅ Terima kasih, laporan sudah tersimpan.' : '⚠️ Laporan belum tersimpan. Coba lagi lewat tombol di bawah, atau kirim ID pohon lain.';
-  if ((kind === 'tree' || kind === 'report') && treeId) {
+  if (kind === 'report' && treeId) {
     const tree = await getTreeById(treeId);
     if (tree) {
       // Gemini reads the photos and words before the answer (Cloud Run throttles work left after the response).
@@ -275,12 +255,11 @@ async function handleIncomingMessage(body) {
 
   // Check first, so a typo gets a plain reply instead of a Flow with no
   // tree behind it (and a button that can't work).
-  const record = await getTreeRecord(compact);
-  if (isArchived(record)) {
+  const tree = await getTreeRecord(compact);
+  if (isArchived(tree)) {
     await sendText(to, `Pohon ${compact} sudah tidak aktif (diarsipkan), jadi tidak bisa dilaporkan lagi.\nJika ini keliru, hubungi pemilik kebun.`);
     return;
   }
-  const tree = record;
   if (!tree) {
     await sendText(
       to,
@@ -297,8 +276,8 @@ async function handleIncomingMessage(body) {
   }
 }
 
-// Manual triggers, for testing without texting
-app.post('/send-tree-lookup', async (req, res) => {
+// Manual triggers, for testing without texting. /send-tree-lookup is the older name of /send-tree-flow.
+app.post(['/send-tree-flow', '/send-tree-lookup'], async (req, res) => {
   const { to, treeId } = req.body;
   if (!to || !treeId) return res.status(400).json({ error: 'Need "to" and "treeId"' });
 
@@ -350,7 +329,7 @@ async function buildResponse(payload) {
   if (action === 'ping') return { data: { status: 'active' } };
 
   const { kind, treeId, workerPhone } = parseFlowToken(flow_token);
-  // All screens and rules live in lib/flowScreens.js (screens) and lib/rules.js (validation).
+  // Screens live in lib/flowScreens.js, checks in lib/rules.js.
   return route({ kind, action, screen, data: payload.data, flowToken: flow_token, treeId, workerPhone });
 }
 
@@ -359,8 +338,6 @@ async function buildResponse(payload) {
 function conditionLabel(condition) {
   return CONDITION_LABELS[condition] || 'Belum dinilai';
 }
-
-const STATUS_ICONS = { healthy: '🟢', minor: '🟠', emergency: '🔴' };
 
 function formatDate(ts) {
   if (!ts?.toDate) return '';

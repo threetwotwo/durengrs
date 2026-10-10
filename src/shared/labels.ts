@@ -31,8 +31,6 @@ export const DEFAULT_LABEL_RULES: LabelRules = {
   products: { fruiting: 'NPK Perfect', vegetative: 'YM Winner', young: 'YM Winner' },
   confirmed: false,
 };
-/** @deprecated use DEFAULT_LABEL_RULES or the stored rules */
-export const LABEL_RULES = DEFAULT_LABEL_RULES;
 
 const band = (v: number | undefined, lowMax: number, midMax: number): Label | undefined =>
   v === undefined || !Number.isFinite(v) ? undefined : v <= lowMax ? 'low' : v <= midMax ? 'mid' : 'high';

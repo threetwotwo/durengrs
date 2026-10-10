@@ -8,17 +8,17 @@ const today = '2026-10-04';
 test('ids match the webapp (fieldData.ts)', () => {
   assert.equal(R.cropCountId({ treeId: 'A1', season: '2026-08-01', stage: 'kept', date: '2026-10-04' }), 'A1_2026-08-01_kept_2026-10-04');
   assert.equal(R.seasonTaskId('A', '2026-08-01', 'fruit_thinning'), 'A_2026-08-01_fruit_thinning');
-  const h = (t, c) => R.harvestIdFromToken(t, c);
-  assert.equal(h('tree:A1:628:1', { fruits: 5 }), h('tree:A1:628:1', { fruits: 5 })); // a retry maps to the same document
-  assert.notEqual(h('tree:A1:628:1', { fruits: 5 }), h('tree:A1:628:1', { fruits: 6 })); // a new report from an old message does not
-  assert.notEqual(h('a', {}), h('b', {}));
-  assert.ok(h('t', {}).startsWith('wa') && h('t', {}).length === 20);
-  assert.equal(R.idFromToken('t', { a: 1 }).length, 20);
+  assert.equal(R.bloomWaveId('A1', '2026-08-01', 'lower'), 'A1_2026-08-01_lower');
+  const id = (t, c) => R.idFromToken(t, c);
+  assert.equal(id('lapor:A1:628:1', { description: 'x' }), id('lapor:A1:628:1', { description: 'x' })); // a retry maps to the same document
+  assert.notEqual(id('lapor:A1:628:1', { description: 'x' }), id('lapor:A1:628:1', { description: 'y' })); // a new report from an old message does not
+  assert.notEqual(id('a', {}), id('b', {}));
+  assert.equal(id('t', { a: 1 }).length, 20);
+  assert.equal(R.harvestIdForReport('abc'), 'wa_abc'); // one harvest per report
 });
 
 test('choices match the webapp', () => {
   assert.deepEqual(R.GRADES, ['extra', 'class1', 'class2', 'reject']);
-  assert.deepEqual(R.HARVEST_PROBLEMS, ['wet_core', 'uneven', 'rot', 'crack', 'borer']);
   assert.deepEqual(R.SEASON_TASKS, ['hand_pollination', 'fruit_thinning', 'bagging', 'ca_mg_spray', 'fruit_tying']);
   assert.deepEqual(R.BLOOM_PARTS, ['whole', 'lower', 'middle', 'upper', 'some']);
   assert.deepEqual(Object.keys(R.COUNT_STAGES), ['clusters', 'set', 'kept', 'onTree']);
@@ -46,52 +46,7 @@ test('numbers: comma, range, integer, empty', () => {
   assert.equal(R.parseNumber('2,5', { label: 'kg', min: 0.5, max: 10 }).value, 2.5);
 });
 
-test('count: hard range and soft cross-checks', () => {
-  assert.match(R.checkCount('clusters', { count: '2001' }).error, /antara 0 dan 2000/);
-  assert.match(R.checkCount('onTree', { count: '501' }).error, /antara 0 dan 500/);
-  assert.match(R.checkCount('set', { count: '501' }).error, /antara 0 dan 500/); // same cap as the webapp
-  assert.equal(R.checkCount('clusters', { count: '0' }).ok.count, 0);
-  assert.ok(R.checkCount('set', { count: '400' }, { clusters: 10 }).warning);
-  assert.equal(R.checkCount('set', { count: '200' }, { clusters: 10 }).warning, undefined);
-  assert.ok(R.checkCount('kept', { count: '90' }, { set: 80 }).warning);
-  assert.ok(R.checkCount('onTree', { count: '70' }, { kept: 60 }).warning);
-  assert.ok(R.checkCount('onTree', { count: '70' }, { set: 60 }).warning);
-  assert.equal(R.checkCount('onTree', { count: '50' }, { kept: 60 }).warning, undefined);
-});
-
-test('bloom: future, too old, part, near duplicate', () => {
-  const c = (d, p = 'whole', existing = []) => R.checkBloom({ date: d, part: p }, { today, existing });
-  assert.match(c('2026-10-05').error, /masa depan/);
-  assert.match(c('2026-07-01').error, /terlalu lama/i);
-  assert.match(c(null).error, /Pilih tanggal/);
-  assert.match(R.checkBloom({ date: today, part: 'x' }, { today }).error, /bagian/);
-  assert.equal(c('2026-09-20').ok.date, '2026-09-20');
-  assert.ok(c('2026-09-20', 'lower', [{ date: '2026-09-17', part: 'lower' }]).warning);
-  assert.equal(c('2026-09-20', 'upper', [{ date: '2026-09-17', part: 'lower' }]).warning, undefined);
-});
-
-test('harvest basics and quality', () => {
-  const b = (o, f) => R.checkHarvestBasics(o, { today, floweredOn: f });
-  assert.match(b({ date: today, fruits: '0' }).error, /antara 1 dan 500/);
-  assert.match(b({ date: '2026-10-05', fruits: '3' }).error, /masa depan/);
-  assert.match(b({ date: '2026-07-01', fruits: '3' }, '2026-08-01').error, /sebelum bunga/);
-  assert.match(b({ date: today, fruits: '3', weight: '0.1' }).error, /antara 0.5/);
-  assert.ok(b({ date: today, fruits: '10', weight: '200' }).warning); // 20 kg/fruit
-  assert.ok(b({ date: '2026-09-20', fruits: '3' }, '2026-09-01').warning); // 19 days after bloom
-  assert.equal(b({ date: today, fruits: '10', weight: '25' }, '2026-06-01').warning, undefined);
-
-  const q = (g, p, pf, n = 10) => R.checkHarvestQuality({ grades: g, problems: p, problemFruits: pf }, n);
-  assert.match(q({ extra: '6', class1: '5' }).error, /lebih banyak/);
-  assert.deepEqual(q({ extra: '6', class1: '2' }).ok.grades, { extra: 6, class1: 2 });
-  assert.equal(q({ extra: '6', class1: '2' }).ok.ungraded, 2);
-  assert.equal(q({}).ok.grades, undefined);
-  assert.match(q({}, ['rot'], '').error, /berapa buah/i);
-  assert.match(q({}, [], '3').error, /jenis masalah/i);
-  assert.match(q({}, ['rot'], '11').error, /tidak boleh lebih banyak/);
-  assert.deepEqual(q({}, ['rot', 'zzz'], '2').ok.problems, ['rot']);
-});
-
-test('season tasks, rain, text', () => {
+test('season tasks and rain', () => {
   const t = (o) => R.checkSeasonTasks(o, { today, blocks: ['A', 'B'] });
   assert.match(t({ block: 'Z', tasks: ['bagging'], date: today }).error, /blok/i);
   assert.match(t({ block: 'A', tasks: [], date: today }).error, /minimal satu/);
@@ -100,39 +55,23 @@ test('season tasks, rain, text', () => {
   assert.match(R.checkRain({ date: today, mm: '401' }, { today }).error, /antara 0 dan 400/);
   assert.equal(R.checkRain({ date: today, mm: '0' }, { today }).ok.rainMm, 0);
   assert.ok(R.checkRain({ date: today, mm: '150' }, { today }).warning);
-  assert.equal(R.describeWithTypes(['leaf', 'pest'], ' daun kuning '), '[Daun / tunas, Hama] daun kuning');
-  assert.equal(R.describeWithTypes([], 'x'), 'x');
 });
 
-test('season: stages and next step (port of guide.ts / crop.ts)', () => {
-  assert.equal(S.stageOf(-1, 120, 120), 'preflower');
-  assert.equal(S.stageOf(5, 120, 120), 'bloom');
-  assert.equal(S.stageOf(20, 120, 120), 'set');
-  assert.equal(S.stageOf(40, 120, 120), 'thin');
-  assert.equal(S.stageOf(80, 120, 120), 'grow');
-  assert.equal(S.stageOf(100, 120, 120), 'mature');
-  assert.equal(S.stageOf(125, 120, 120), 'harvest');
-  assert.equal(S.stageOf(200, 120, 120), 'recovery');
-
-  const base = { blockDate: '2026-09-01', blooms: [], counts: [], ripeMin: 120, ripeMax: 120 }; // day 33 -> thin
-  assert.equal(S.treeSeason(base, today).next.kind, 'kept');
-  const have = { ...base, counts: [{ season: '2026-09-01', stage: 'kept', count: 50, date: '2026-10-01' }] };
-  assert.equal(S.treeSeason(have, today).next, null);
-  // fruit on the tree is stale after 14 days
-  const grow = { ...base, blockDate: '2026-07-20', counts: [{ season: '2026-07-20', stage: 'onTree', count: 50, date: '2026-09-18' }] };
-  const n = S.treeSeason(grow, today).next;
-  assert.equal(n.kind, 'onTree');
-  assert.equal(n.sinceDays, 16);
+test('season: the flowerings of a tree (port of guide.ts treeWaves)', () => {
   // a whole-tree own bloom replaces the block date; a partial one adds a wave
   assert.deepEqual(S.treeWaves('2026-09-01', [{ date: '2026-09-10', part: 'whole' }], 150, today).map((w) => w.date), ['2026-09-10']);
   assert.deepEqual(S.treeWaves('2026-09-01', [{ date: '2026-09-10', part: 'lower' }], 150, today).map((w) => w.date), ['2026-09-01', '2026-09-10']);
   assert.deepEqual(S.treeWaves(undefined, [], 150, today), []);
+  // flowerings older than the season horizon, or a block date over a year old, no longer count
+  assert.deepEqual(S.treeWaves('2025-09-01', [{ date: '2026-01-01', part: 'lower' }], 150, today), []);
+  const s = S.treeSeason({ blockDate: '2026-09-01', blooms: [] }, today);
+  assert.deepEqual([s.ripeMin, s.ripeMax, s.waves.length], [S.DEFAULT_RIPENING_DAYS, S.DEFAULT_RIPENING_DAYS, 1]);
 });
 
-test('tree limits equal the webapp TREE_LIMITS (src/lib/trees.ts)', () => {
-  const L = R.TREE_LIMITS;
-  assert.deepEqual([L.trunkSize.min, L.trunkSize.max], [1, 600]);
-  assert.deepEqual([L.canopySize.min, L.canopySize.max], [50, 2500]);
-  assert.deepEqual([L.floweringClusters.min, L.floweringClusters.max], [0, 2000]);
-  assert.deepEqual([L.estimatedFruitCount.min, L.estimatedFruitCount.max], [0, 500]);
+test('season: a harvest belongs to the flowering nearest its ripening time (tree variety first)', () => {
+  const waves = [{ date: '2026-06-14' }, { date: '2026-06-26' }]; // 112 and 100 days before today
+  assert.equal(S.floweredOnFor({ waves, ripeMin: 120, treeRipening: 100 }, today), '2026-06-26');
+  assert.equal(S.floweredOnFor({ waves, ripeMin: 115 }, today), '2026-06-14'); // no variety time: the block's shortest
+  assert.equal(S.floweredOnFor({ waves: [{ date: '2026-10-10' }], ripeMin: 120 }, today), undefined); // none before the harvest
+  assert.equal(S.floweredOnFor(null, today), undefined);
 });

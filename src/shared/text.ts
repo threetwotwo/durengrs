@@ -34,5 +34,3 @@ export function wordHits(text: string, kw: string): number[] {
   }
   return out;
 }
-
-export const hasWord = (text: string, kw: string): boolean => wordHits(text, kw).length > 0;

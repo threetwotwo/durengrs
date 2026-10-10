@@ -3,15 +3,14 @@ import { useCallback, useSyncExternalStore } from 'react';
 /**
  * Tiny hash router. The URL is the single source of truth for where you are:
  *
- *   #/                      dashboard
- *   #/kebun                 the farm as one sheet (one row per tree), editable like Google Sheets
+ *   #/                      today: what needs the owner
+ *   #/trees?block=A&health=merah&show=problems   every tree as one sheet, editable like Google Sheets
+ *   #/trees/A12             one tree: problems, history, crop, details
+ *   #/reports               reports to check (?view=problems | log | activity)
+ *   #/reports/abc123        one report (or one record, see lib/fieldLog.ts recordKey)
  *   #/harvest               crop tracking per tree, graded harvests, forecast
- *   #/schedule
- *   #/trees?block=A&condition=emergency&q=A1&stale=1&page=2
- *   #/trees/A12             tree detail
+ *   #/schedule              routines (sprays, fertiliser rounds)
  *   #/variants
- *   #/reports?block=A&condition=minor&changed=1&q=...
- *   #/reports/abc123        one report
  *   #/guide                 research guide
  *   #/guide/phytophthora    one guide topic
  *
@@ -19,7 +18,7 @@ import { useCallback, useSyncExternalStore } from 'react';
  * gives working Back/Forward, shareable deep links, and survives reloads.
  */
 
-export type AppTab = 'dashboard' | 'kebun' | 'harvest' | 'schedule' | 'trees' | 'variants' | 'reports' | 'guide';
+export type AppTab = 'dashboard' | 'harvest' | 'schedule' | 'trees' | 'variants' | 'reports' | 'guide';
 
 export interface Route {
   tab: AppTab;
@@ -37,9 +36,10 @@ export interface Route {
   known: boolean;
 }
 
-const TABS: AppTab[] = ['dashboard', 'kebun', 'harvest', 'schedule', 'trees', 'variants', 'reports', 'guide'];
+const TABS: AppTab[] = ['dashboard', 'harvest', 'schedule', 'trees', 'variants', 'reports', 'guide'];
 
-function parseHash(hash: string): Route {
+/** The page a hash address points to. Old addresses (#/kebun) still land on the right page. */
+export function parseHash(hash: string): Route {
   const raw = hash.replace(/^#/, '') || '/';
   const [pathPart, queryPart = ''] = raw.split('?');
   const path = ('/' + pathPart.replace(/^\/+/, '')).replace(/\/+$/, '') || '/';
@@ -54,6 +54,8 @@ function parseHash(hash: string): Route {
 
   if (segs.length === 0) {
     tab = 'dashboard';
+  } else if (segs[0] === 'kebun' && segs.length === 1) {
+    tab = 'trees'; // the old address of the farm sheet
   } else if (TABS.includes(segs[0] as AppTab) && segs[0] !== 'dashboard') {
     tab = segs[0] as AppTab;
     if (tab === 'trees' && segs.length === 2) treeId = decodeURIComponent(segs[1]);
@@ -190,7 +192,6 @@ export const reportUrl = (id: string) => `/reports/${encodeURIComponent(id)}`;
 /** i18n keys, resolve with t(). */
 export const TAB_TITLES: Record<AppTab, string> = {
   dashboard: 'nav.dashboard',
-  kebun: 'nav.kebun',
   harvest: 'nav.harvest',
   schedule: 'nav.schedule',
   trees: 'nav.trees',
