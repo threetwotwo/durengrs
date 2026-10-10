@@ -563,3 +563,66 @@ test('Gemini answer is cleaned: unknown codes and weak guesses dropped, no undef
   assert.deepEqual(t.numbers, [{ value: 12, kind: 'fruit', evidence: '12 buah' }]);
   assert.ok(!JSON.stringify(t).includes('undefined') && Object.values(t).every((v) => v !== undefined));
 });
+
+test('treatment reports join the problem they treat, so progress can be followed', async () => {
+  seed();
+  process.env.GEMINI_API_KEY = 'test';
+  const realFetch = global.fetch;
+  const answers = [];
+  let lastPrompt = '';
+  global.fetch = async (url, opts) => {
+    if (String(url).includes('generativelanguage')) {
+      lastPrompt = JSON.parse(opts.body).contents[0].parts[0].text;
+      return { ok: true, json: async () => ({ candidates: [{ content: { parts: [{ text: JSON.stringify(answers.shift()) }] } }] }) };
+    }
+    return { ok: true, arrayBuffer: async () => new ArrayBuffer(4) };
+  };
+  const base = { stages: [], bloom_part: 'none', actions: [], case_updates: [], issues: [], summary: '', health: 'kuning', urgent: false, improving: false, counts: [], photo_ok: true, photo_request: '', photos_seen: [] };
+  const report = async (words, n) => {
+    const r = await route({ kind: 'report', action: 'data_exchange', screen: 'REPORT', flowToken: `lapor:A1:628111886551:${n}`, treeId: 'A1', workerPhone: '628111886551', data: { description: words, photos: [{ cdn_url: words }] } });
+    return { id: r.data.report_id, msg: await analyzeReport(r.data.report_id, { tree: fake.get('trees', 'A1'), workerPhone: '628111886551' }) };
+  };
+  try {
+    // 1. A canker is seen: a new case.
+    answers.push({ ...base, health: 'merah', issues: [{ code: 'phytophthora_canker', name: 'Kanker batang (Phytophthora palmivora)', confidence: 0.9, evidence: 'getah merah', action: 'Kerok dan oles.' }] });
+    const r1 = await report('getah merah di batang', 1);
+    const caseId = fake.get('reports', r1.id).caseIds[0];
+    assert.equal(fake.get('cases', caseId).status, 'open');
+    assert.match(r1.msg, /masalah baru dicatat/);
+    assert.equal(fake.get('reports', r1.id).triage.needsReview, true);
+
+    // 2. "Sudah ditangani": treated. Same case, no new problem, nothing for the owner to decide.
+    answers.push({ ...base, actions: [{ type: 'canker_treatment', product: 'pasta tembaga', issue: 'phytophthora_canker', target: 'Kanker batang', case: 1, evidence: 'kulit dikerok dan dioles' }], case_updates: [{ case: 1, status: 'treated', evidence: 'dioles' }] });
+    const r2 = await report('sudah ditangani', 2);
+    assert.match(lastPrompt, /1\. Kanker batang \(Phytophthora palmivora\) \[code phytophthora_canker\]/); // Gemini was told what is open
+    assert.equal(fake.all('cases').length, 1);
+    assert.deepEqual(fake.get('reports', r2.id).caseIds, [caseId]);
+    const c = fake.get('cases', caseId);
+    assert.equal(c.status, 'treated');
+    assert.deepEqual(c.events.map((e) => e.type), ['seen', 'treated']);
+    assert.equal(c.lastAction, 'Kerok & oles batang · pasta tembaga');
+    assert.equal(c.nextCheck, R.addDays(today, 7));
+    assert.equal(fake.get('reports', r2.id).triage.needsReview, false);
+    assert.equal(fake.get('trees', 'A1').condition, 'healthy'); // a treatment never raises the alarm
+    assert.match(r2.msg, /Dicatat: Kerok & oles batang \(pasta tembaga\)/);
+    assert.match(r2.msg, /Sudah dirawat\. Foto lagi tgl/);
+
+    // 3. Healed: the case closes and drops off the open list.
+    answers.push({ ...base, health: 'hijau', case_updates: [{ case: 1, status: 'resolved', evidence: 'luka kering' }] });
+    await report('luka sudah kering', 3);
+    assert.equal(fake.get('cases', caseId).status, 'resolved');
+    assert.equal(fake.get('cases', caseId).closedOn, today);
+    assert.equal(fake.get('cases', caseId).nextCheck, null);
+
+    // 4. Routine work: bagging is the block's season job, not a problem.
+    answers.push({ ...base, health: 'hijau', actions: [{ type: 'bagging', product: '', issue: 'none', target: '', case: 0, evidence: 'buah dibrongsong' }] });
+    const r4 = await report('buah sudah dibrongsong', 4);
+    assert.match(lastPrompt, /Open problems on this tree from earlier reports \(numbered\):\nnone/);
+    assert.equal(fake.all('cases').length, 1);
+    assert.ok(fake.all('seasonTasks').some((t) => t.task === 'bagging' && t.block === 'A'));
+    assert.match(r4.msg, /Brongsong buah/);
+  } finally {
+    global.fetch = realFetch;
+    delete process.env.GEMINI_API_KEY;
+  }
+});

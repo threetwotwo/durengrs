@@ -494,7 +494,7 @@ const LAPOR = screen(
     form('report_form', [
       heading('${data.report_title}'),
       caption('${data.condition_caption}'),
-      body('Foto pohon, lalu tulis apa yang Anda lihat: bunga, buah, hama, penyakit, atau panen. Sistem membaca foto dan tulisan Anda.'),
+      body('Foto pohon, lalu tulis apa yang Anda lihat atau kerjakan: bunga, buah, hama, penyakit, perawatan (semprot, oles, pupuk), atau panen. Sistem membaca foto dan tulisan Anda.'),
       sub('1. Foto'),
       caption('Satu foto dari dekat, satu foto seluruh pohon. Terang dan tidak buram.'),
       {
@@ -513,7 +513,7 @@ const LAPOR = screen(
         name: 'description',
         label: 'Tulis dengan kata-kata Anda',
         'label-variant': 'large',
-        'helper-text': 'Contoh: bunga mulai mekar; 40 buah sebesar telor; getah di batang',
+        'helper-text': 'Contoh: bunga mulai mekar; 40 buah sebesar telor; batang sudah dioles',
         required: true,
         'max-length': 600,
       },

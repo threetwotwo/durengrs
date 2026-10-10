@@ -19,7 +19,8 @@ both read and write it. Every field below has one meaning on both sides. Shared 
 |---|---|---|---|
 | `trees/{treeId}` (e.g. `A12`) | web app (form, Kebun), bot (counts → fruit estimate, condition from reports) | both | `block, variant, condition (healthy/minor/emergency/not_assessed), conditionNotes, canopySize, trunkSize, floweringBranches, floweringClusters, estimatedFruitCount, datePlanted, supplier, notes, active, lastReportAt, lastReportId, dateUpdated`; ✱`observedStage {code: FarmStage, date, reportId}`: the latest **confirmed** stage seen on the tree; ✱`improving {reportId, date}`: "membaik" from a checked report, shown only while `lastReportId` is that report |
 | `treeEdits/{auto}` | both | web app | `treeId, changes {field: {from, to}}, at, source, workerPhone?, reason?`, one per change to a tree |
-| `reports/{auto}` | bot | both | `treeId, block, workerPhone, description, photos [{url, thumb, medium}], conditionBefore, conditionAfter, conditionChanged, createdAt`; ✱`triage` (below); ✱`review {decision: accepted/corrected/dismissed, by?, at}`; ✱`stage: FarmStage`; ✱`issues: Issue[]`; ✱`health: Health`; ✱`improving: true` ("membaik"); ✱`conditionSource: 'worker' \| 'triage'`: 'worker' whenever the worker chose a condition (older Flow), 'triage' when urgent words changed it |
+| `reports/{auto}` | bot | both | `treeId, block, workerPhone, description, photos [{url, thumb, medium}], conditionBefore, conditionAfter, conditionChanged, createdAt`; ✱`triage` (below); ✱`review {decision: accepted/corrected/dismissed, by?, at}`; ✱`stage: FarmStage`; ✱`issues: Issue[]`; ✱`health: Health`; ✱`improving: true` ("membaik"); ✱`conditionSource: 'worker' \| 'triage'`: 'worker' whenever the worker chose a condition (older Flow), 'triage' when urgent words changed it; ✱`caseIds` (cases this report opened, treated or re-checked); ✱`ai {status, model, photos, recorded[], at}`; ✱`triageRules` (the word-only reading kept when Gemini's replaces it) |
+| ✱`cases/{treeId}_{issue}_{openedOn}[_{name}]` | bot (after Gemini reads a report) | both | one problem on one tree, followed over time: `treeId, block, issue (Issue code), name?, status (open/treated/improving/worse/resolved), openedOn, openedReportId, lastOn, lastReportId, lastAction?, nextCheck (date, null once resolved), closedOn?, events [{date, reportId, type (seen/treated/checked/improving/worse/resolved), action?, product?, note?, photo?}], source, updatedAt`. Reports point back with `caseIds` |
 | `harvestCycles/{block}` | web app, bot | both | `block, floweredOn` (the block's bloom date), `updatedAt` |
 | `bloomWaves/{treeId}_{date}_{part}` | bot, web app | both | `treeId, block, date, part (whole/lower/middle/upper/some), note?, photos?, source, workerPhone?` |
 | `cropCounts/{treeId}_{season}_{stage}_{date}` | bot, web app | both | `treeId, block, season (bloom date of the counted flowers), stage (clusters/set/kept/onTree), count, date, by?, note?, photos?, source` |
@@ -46,7 +47,13 @@ model. Shape (`src/shared/triage.ts` `Triage`):
   improving: boolean,                                  // "membaik"
   urgent?: boolean,                                    // danger words ("hampir mati", "tumbang") and no "membaik"
   numbers: [{ value: number, kind?: 'fruit' | 'clusters' | 'branches' | 'mm', evidence: string }],
-  needsReview: boolean                                 // false only for a plain "all fine" report
+  needsReview: boolean                                 // false for "all fine", and for treatments / progress on known problems
+  // Gemini reading only (source 'ai'):
+  stages?: [{ code, confidence, evidence }],           // every stage seen (a tree can show two)
+  summary?: string, photosSeen?: [{ photo, seen }], photoOk?: boolean, photoRequest?: string,
+  issues[].name?, issues[].action?, issues[].photo?    // the specific pest/disease, first step, photo number
+  actions?: [{ type, issue, product?, target?, case?, evidence, photo? }],  // what the worker did (lib/cases.js ACTION_TYPES)
+  caseUpdates?: [{ case, status: treated|improving|same|worse|resolved, evidence }]  // progress on the tree's open cases
 }
 ```
 

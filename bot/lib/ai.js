@@ -9,9 +9,10 @@ const { admin, db } = require('./firestore');
 const R = require('./rules');
 const S = require('./shared');
 const C = require('./cropData');
+const K = require('./cases');
 
 const MODEL = () => process.env.GEMINI_MODEL || 'gemini-2.5-flash';
-const PROMPT_VERSION = 'p1';
+const PROMPT_VERSION = 'p2';
 const now = () => admin.firestore.FieldValue.serverTimestamp();
 
 const STAGE_LIST = S.FARM_STAGES.map((c) => `${c}: ${S.FARM_STAGE_INFO[c].label.en} (${S.FARM_STAGE_INFO[c].label.id})`).join('\n');
@@ -44,6 +45,30 @@ const SCHEMA = {
         required: ['code', 'name', 'confidence', 'evidence', 'action'],
       },
     },
+    actions: {
+      type: 'ARRAY',
+      items: {
+        type: 'OBJECT',
+        properties: {
+          type: { type: 'STRING', enum: [...K.ACTION_TYPES] },
+          product: { type: 'STRING' },
+          issue: { type: 'STRING', enum: [...S.ISSUES, 'none'] },
+          target: { type: 'STRING' },
+          case: { type: 'INTEGER' },
+          evidence: { type: 'STRING' },
+          photo: { type: 'INTEGER' },
+        },
+        required: ['type', 'product', 'issue', 'target', 'case', 'evidence'],
+      },
+    },
+    case_updates: {
+      type: 'ARRAY',
+      items: {
+        type: 'OBJECT',
+        properties: { case: { type: 'INTEGER' }, status: { type: 'STRING', enum: [...K.UPDATE_STATUSES] }, evidence: { type: 'STRING' } },
+        required: ['case', 'status', 'evidence'],
+      },
+    },
     photos_seen: {
       type: 'ARRAY',
       items: { type: 'OBJECT', properties: { photo: { type: 'INTEGER' }, seen: { type: 'STRING' } }, required: ['photo', 'seen'] },
@@ -63,10 +88,10 @@ const SCHEMA = {
     photo_ok: { type: 'BOOLEAN' },
     photo_request: { type: 'STRING' },
   },
-  required: ['photos_seen', 'stages', 'bloom_part', 'issues', 'summary', 'health', 'urgent', 'improving', 'counts', 'photo_ok', 'photo_request'],
+  required: ['photos_seen', 'stages', 'bloom_part', 'actions', 'case_updates', 'issues', 'summary', 'health', 'urgent', 'improving', 'counts', 'photo_ok', 'photo_request'],
 };
 
-function prompt(tree, description, today) {
+function prompt(tree, description, today, openList = 'none') {
   return `You check field reports from a durian farm in West Java, Indonesia (Musang King and other varieties).
 A worker photographed tree ${tree.id} (variety ${tree.variant || '?'}, block ${tree.block || '?'}) on ${today} and wrote, in Indonesian:
 """${description}"""
@@ -74,12 +99,27 @@ A worker photographed tree ${tree.id} (variety ${tree.variant || '?'}, block ${t
 The photos are numbered in the order given (Foto 1, Foto 2, ...). Look at EVERY photo on its own: each may show a
 different part of the tree and a different problem. Report everything found in any photo.
 
+Open problems on this tree from earlier reports (numbered):
+${openList}
+
+A report can be about something the worker SAW, something the worker DID (a treatment or farm work), or both.
+Short words like "sudah ditangani" / "sudah dioles" / "sudah disemprot" mean the worker treated something.
+
 Return JSON only.
 - photos_seen: for each photo, a few words in Indonesian of what it shows (e.g. "daun dengan serangga putih berlilin").
 - stages: every growth stage you can SEE in the photos or that the words state. A tree can show two at once (e.g. flowers on one branch, young fruit on another). Codes:
 ${STAGE_LIST}
 - bloom_part: if flowers are open ("bloom"), which part of the tree; else "none".
-- issues: every pest, disease or problem you can see in any photo or the words state. Identify it as precisely as you
+- actions: everything the worker did or is doing in the photos or words, one item each. "type" from the codes;
+  "product" the product or material if named or visible (e.g. "Kautang", "pasta tembaga", "NPK Perfect"), else "";
+  "issue" the problem code it was for, or "none" for routine work (fertilising, bagging, pruning…); "target" the problem
+  in Indonesian ("" if none); "case" the number of the open problem above it treats, or 0; "photo" the photo number.
+  Scraped bark painted with a paste or fungicide is a canker_treatment, not a new canker. Action codes:
+${K.ACTION_TYPES.join(', ')}
+- case_updates: for each open problem above that this report shows or mentions again: its number and status:
+  treated (treated in this report), improving, same, worse, resolved (healed or gone). Evidence in Indonesian.
+- issues: only NEW problems: every pest, disease or problem you can see in any photo or the words state that is NOT
+  already in the open list (those go in case_updates). Identify it as precisely as you
   would for a durian grower: put the specific pest or disease in "name", in Indonesian with the scientific name when
   you know it (e.g. "Kutu loncat durian (Allocaridara malayensis)", "Kutu putih (Pseudococcidae)", "Kanker batang
   (Phytophthora palmivora)"). "code" is the farm's category: use one ONLY when it is that same problem; whitefly is
@@ -117,7 +157,7 @@ function endpoint() {
   return { url, vertex, key };
 }
 
-async function callGemini(parts, { timeoutMs = 25000, schema = SCHEMA } = {}) {
+async function callGemini(parts, { timeoutMs = Number(process.env.GEMINI_TIMEOUT_MS) || 40000, schema = SCHEMA } = {}) {
   const ctl = new AbortController();
   const timer = setTimeout(() => ctl.abort(), timeoutMs);
   const { url, vertex, key } = endpoint();
@@ -168,17 +208,40 @@ function toTriage(a, model = MODEL()) {
     .filter((x) => Number.isInteger(x.value) && x.value >= 0 && x.value <= 5000)
     .map((x) => (kindMap[x.kind] ? { value: x.value, kind: kindMap[x.kind], evidence: evid(x.evidence) } : { value: x.value, evidence: evid(x.evidence) }));
   const photoOk = a?.photo_ok !== false;
+  const actions = (Array.isArray(a?.actions) ? a.actions : [])
+    .filter((x) => K.ACTION_TYPES.includes(x.type))
+    .map((x) => {
+      const o = { type: x.type, issue: S.isIssue(x.issue) ? x.issue : 'none', evidence: evid(x.evidence) };
+      const product = String(x.product || '').trim().slice(0, 80);
+      if (product) o.product = product;
+      const target = String(x.target || '').trim().slice(0, 120);
+      if (target) o.target = target;
+      if (Number.isInteger(x.case) && x.case > 0) o.case = x.case;
+      if (Number.isInteger(x.photo) && x.photo > 0) o.photo = x.photo;
+      return o;
+    });
+  const caseUpdates = (Array.isArray(a?.case_updates) ? a.case_updates : [])
+    .filter((x) => Number.isInteger(x.case) && x.case > 0 && K.UPDATE_STATUSES.includes(x.status))
+    .map((x) => ({ case: x.case, status: x.status, evidence: evid(x.evidence) }));
+  const treating = actions.some((x) => x.issue !== 'none');
+  // The owner decides on new problems, things getting worse, bad photos, and plain reports that aren't fine.
+  // Treatments and progress on known problems are filed into their case instead.
+  const needsReview =
+    issues.length > 0 || caseUpdates.some((u) => u.status === 'worse') || !photoOk ||
+    (!actions.length && !caseUpdates.length && health !== 'hijau');
   const out = {
     source: 'ai',
     version: `${model}/${PROMPT_VERSION}`,
     issues,
     health,
     improving,
-    urgent: a?.urgent === true && !improving,
+    urgent: a?.urgent === true && !improving && !treating,
     numbers,
-    needsReview: !(health === 'hijau' && issues.length === 0) || !photoOk,
+    needsReview,
     stages,
     photoOk,
+    actions,
+    caseUpdates,
   };
   if (stages[0]) out.stage = stages[0];
   const summary = String(a?.summary || '').trim().slice(0, 400);
@@ -250,7 +313,7 @@ function aiReply(t) {
     const name = i.name || S.ISSUE_INFO[i.code].label.id;
     out.push(`• ${name}${i.photo ? ` (foto ${i.photo})` : ''}${i.action ? `: ${i.action}` : ''}`);
   }
-  out.push(`Status: ${S.HEALTH_INFO[t.health].label.id}.${t.needsReview ? ' Admin akan cek laporan ini.' : ''}`);
+  if (!t.actions.length || t.issues.length) out.push(`Status: ${S.HEALTH_INFO[t.health].label.id}.${t.needsReview ? ' Admin akan cek laporan ini.' : ''}`);
   return out.join('\n');
 }
 
@@ -272,7 +335,8 @@ async function analyzeReport(reportId, { tree, workerPhone, today = R.todayStr()
     if (!claimed) return null;
 
     const photos = (await Promise.all((claimed.photos || []).slice(0, 3).map((p) => fetchPhoto(p).catch(() => null)))).filter(Boolean);
-    const parts = [{ text: prompt(tree, claimed.description || '', today) }, ...photos.flatMap((data, i) => [{ text: `Foto ${i + 1}:` }, { inlineData: { mimeType: 'image/jpeg', data } }])];
+    const open = await K.openCases(tree.id).catch((err) => (console.error('Open cases failed:', err), []));
+    const parts = [{ text: prompt(tree, claimed.description || '', today, K.casesForPrompt(open)) }, ...photos.flatMap((data, i) => [{ text: `Foto ${i + 1}:` }, { inlineData: { mimeType: 'image/jpeg', data } }])];
     const triage = toTriage(await callGemini(parts));
 
     const update = { triage };
@@ -287,10 +351,16 @@ async function analyzeReport(reportId, { tree, workerPhone, today = R.todayStr()
     } catch (err) {
       console.error(`AI records for ${reportId} failed:`, err);
     }
-    await ref.update({ ai: { status: 'done', model: MODEL(), photos: photos.length, recorded: recorded.done, at: now() } });
+    let progress = { caseIds: [], lines: [] };
+    try {
+      progress = await K.applyToCases({ tree, reportId, triage, today, workerPhone, open });
+    } catch (err) {
+      console.error(`Cases for ${reportId} failed:`, err);
+    }
+    await ref.update({ caseIds: progress.caseIds, ai: { status: 'done', model: MODEL(), photos: photos.length, recorded: recorded.done, at: now() } });
     console.log(`AI ${reportId} ${tree.id}: stages=${triage.stages.map((s) => s.code).join(',') || '-'} issues=${triage.issues.map((i) => i.code).join(',') || '-'} health=${triage.health} photoOk=${triage.photoOk} recorded=${recorded.done.length}`);
 
-    const msg = [`🔎 Hasil pemeriksaan laporan ${tree.id} (${photos.length} foto):`, aiReply(triage), ...lines, ...recorded.lines];
+    const msg = [`🔎 Hasil pemeriksaan laporan ${tree.id} (${photos.length} foto):`, aiReply(triage), ...lines, ...progress.lines, ...recorded.lines];
     if (!triage.photoOk) msg.push('', `📷 Mohon kirim foto yang lebih jelas: ${triage.photoRequest || 'foto lebih dekat dan terang.'}`, 'Ketuk tombol di bawah untuk kirim laporan baru.');
     return msg.filter((x) => x !== undefined).join('\n');
   } catch (err) {
