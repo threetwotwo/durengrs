@@ -44,6 +44,22 @@ function casesForPrompt(cases) {
     .join('\n');
 }
 
+/**
+ * What a report gives to file, when it is not Gemini's fresh answer (a failed reading, or the backfill of older
+ * reports): the owner's check when there is one, else the stored reading. Case numbers are dropped, since they
+ * pointed at a list of open cases that no longer holds. Null when the owner dismissed the report.
+ */
+function problemsOf(report) {
+  if (report.review && report.review.decision === 'dismissed') return null;
+  const tr = report.triage || {};
+  const read = (Array.isArray(tr.issues) ? tr.issues : []).filter((i) => i && S.isIssue(i.code));
+  const issues = report.review
+    ? (Array.isArray(report.issues) ? report.issues : []).filter(S.isIssue).map((code) => read.find((i) => i.code === code) || { code })
+    : read;
+  const actions = tr.source === 'ai' && Array.isArray(tr.actions) ? tr.actions.filter((a) => a && ACTIONS.includes(a.type)).map(({ case: _n, ...a }) => a) : [];
+  return { issues, actions };
+}
+
 const sameProblem = (c, code, name) =>
   c.issue === code && (code !== 'other' || !c.name || !name || c.name.toLowerCase() === String(name).toLowerCase());
 
@@ -52,7 +68,7 @@ const sameProblem = (c, code, name) =>
  * `open` is the list given to the prompt, so `case: n` in Gemini's answer means open[n - 1].
  * Returns { caseIds, lines } — lines are for the worker's reply.
  */
-async function applyToCases({ tree, reportId, triage, today, workerPhone, open }) {
+async function applyToCases({ tree, reportId, triage, today, workerPhone, open, seasonTasks = true }) {
   const touched = new Map(); // id -> case (with pending changes)
   const created = [];
   const lines = [];
@@ -121,7 +137,7 @@ async function applyToCases({ tree, reportId, triage, today, workerPhone, open }
     if (a.type === 'harvest' && triage.harvest) continue; // the harvest record has its own line (lib/ai.js)
     lines.unshift(`🧴 Dicatat: ${actionLabel(a.type)}${a.product ? ` (${a.product})` : ''}.`);
   }
-  if (tasks.length && tree.block) {
+  if (seasonTasks && tasks.length && tree.block) {
     try {
       const season = await C.blockSeasonDate(tree.block, today);
       if (season) await C.saveSeasonTasks({ block: tree.block, season, tasks, date: today, workerPhone });
@@ -178,4 +194,4 @@ async function saveCase(c, ch, isNew, { today, reportId }) {
   });
 }
 
-module.exports = { openCases, casesForPrompt, applyToCases, ACTIONS, CASE_UPDATES };
+module.exports = { openCases, casesForPrompt, applyToCases, problemsOf, ACTIONS, CASE_UPDATES };

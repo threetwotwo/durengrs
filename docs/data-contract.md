@@ -94,11 +94,13 @@ When a report Flow completes, Gemini reads the report once (`reports.ai` claims 
   each path is listed in `reports.ai.recorded`;
 - turns the tree Merah when Gemini reports danger now (`conditionSource: 'triage'`, `treeEdits.reason: 'ai-urgent'`);
 - files problems, treatments and progress into `cases` (`reports.caseIds`), and the season jobs it saw into
-  `seasonTasks`;
+  `seasonTasks`; when Gemini fails, the problems the words show are filed instead;
 - replies to the worker in the chat (what was seen, first steps, what was recorded, case progress, a better-photo
   request), with a fresh Flow button.
 
 `GET /ai-check?token=<VERIFY_TOKEN>` makes one tiny Gemini call and answers `{ ok, model, endpoint, keySet, error? }`.
+`GET /cases-backfill?token=<VERIFY_TOKEN>[&days=30][&apply=1]` files `cases` from older reports that have none (the
+owner's review wins over the reading; season jobs are not filed); without `apply=1` it only reports what it would do.
 Gemini settings (env, never in the repository): `GEMINI_API_KEY` (Google AI Studio; without it nothing is sent and the
 rule-based reading stays), `GEMINI_MODEL` (default `gemini-2.5-flash`), `GEMINI_ENDPOINT=vertex` (Vertex AI express
 key only), `GEMINI_TIMEOUT_MS` (default 40000).

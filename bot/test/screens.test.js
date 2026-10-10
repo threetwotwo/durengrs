@@ -15,6 +15,7 @@ const R = require('../lib/rules');
 const C = require('../lib/cropData');
 const { route, parseFlowToken, makeTreeToken } = require('../lib/flowScreens');
 const { analyzeReport, toTriage } = require('../lib/ai');
+const { backfillCases } = require('../lib/backfill');
 const { check } = require('./contract');
 
 const today = R.todayStr();
@@ -472,4 +473,58 @@ test('a case closed in the web app while Gemini reads stays closed, and a new ca
     assert.equal(fake.get('cases', id2), undefined);
     assert.deepEqual(fake.get('reports', r4.id).caseIds || [], []);
   });
+});
+
+test('when Gemini fails, the problems the words show still become cases', async () => {
+  seed();
+  await withGemini([() => { throw new Error('402 billing'); }], async () => {
+    const r = await reportAndRead('batang keluar getah merah', 21);
+    const rep = fake.get('reports', r.id);
+    assert.equal(rep.ai.status, 'failed');
+    assert.equal(r.msg, null);
+    assert.equal(rep.caseIds.length, 1);
+    const c = fake.get('cases', rep.caseIds[0]);
+    assert.equal(c.issue, 'phytophthora_canker');
+    assert.equal(c.status, 'open');
+    assert.deepEqual(c.events.map((e) => e.type), ['seen']);
+  });
+});
+
+test('backfill: older reports file their problems once, the owner\'s check wins, and a dry run writes nothing', async () => {
+  seed();
+  const at = (daysAgo) => ({ seconds: Math.floor((Date.now() - daysAgo * 86400e3) / 1000) });
+  const words = (issues) => ({ source: 'rules', version: 'rules-1', issues: issues.map((code) => ({ code, confidence: 0.7, evidence: code })), improving: false, numbers: [], needsReview: true });
+  fake.seed('reports', 'old1', { treeId: 'A1', block: 'A', description: 'getah merah', createdAt: at(10), triage: words(['phytophthora_canker']) });
+  fake.seed('reports', 'old2', { treeId: 'A1', block: 'A', description: 'dioles', createdAt: at(8),
+    triage: { ...words([]), source: 'ai', needsReview: false, actions: [{ type: 'canker_treatment', issue: 'phytophthora_canker', product: 'Ridomil', case: 3, evidence: 'dioles' }] } });
+  fake.seed('reports', 'old3', { treeId: 'A2', block: 'A', description: 'daun kuning', createdAt: at(5), triage: words(['nutrient']), review: { decision: 'dismissed' } });
+  fake.seed('reports', 'old4', { treeId: 'B1', block: 'B', description: 'hawar?', createdAt: at(4), triage: words(['nutrient']), review: { decision: 'corrected' }, issues: ['leaf_blight'] });
+  fake.seed('reports', 'old5', { treeId: 'B1', block: 'B', description: 'bunga mekar', createdAt: at(3), triage: words([]) });
+  fake.seed('reports', 'old6', { treeId: 'A1', block: 'A', description: 'jauh', createdAt: at(90), triage: words(['borer']) });
+
+  const dry = await backfillCases({ days: 30 });
+  assert.equal(dry.applied, false);
+  assert.equal(dry.reports, 5);
+  assert.deepEqual(dry.toFile.map((x) => x.report), ['old1', 'old2', 'old4']);
+  assert.equal(dry.dismissed, 1);
+  assert.equal(dry.noProblem, 1);
+  assert.equal(dry.gemini.none, 5);
+  assert.equal(fake.all('cases').length, 0);
+
+  const done = await backfillCases({ days: 30, apply: true });
+  assert.equal(done.casesAfter, 2);
+  const cankerId = fake.get('reports', 'old1').caseIds[0];
+  const canker = fake.get('cases', cankerId);
+  assert.equal(canker.status, 'treated');
+  assert.equal(canker.openedOn, R.todayStr(new Date(Date.now() - 10 * 86400e3)));
+  assert.deepEqual(canker.events.map((e) => [e.type, e.reportId]), [['seen', 'old1'], ['treated', 'old2']]);
+  assert.equal(canker.nextCheck, R.addDays(R.todayStr(new Date(Date.now() - 8 * 86400e3)), 7));
+  assert.deepEqual(fake.get('reports', 'old2').caseIds, [cankerId]);
+  assert.equal(fake.get('cases', fake.get('reports', 'old4').caseIds[0]).issue, 'leaf_blight'); // the owner's correction
+  assert.equal(fake.all('seasonTasks').length, 0);
+
+  const again = await backfillCases({ days: 30, apply: true });
+  assert.equal(again.toFile.length, 0);
+  assert.equal(again.alreadyFiled, 3);
+  assert.equal(again.casesAfter, 2);
 });

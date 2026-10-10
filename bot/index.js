@@ -1,4 +1,5 @@
-// index.js — the farm's WhatsApp bot (Cloud Run): the chat webhook, the encrypted Flow endpoint, and /ai-check.
+// index.js — the farm's WhatsApp bot (Cloud Run): the chat webhook, the encrypted Flow endpoint, /ai-check and
+// /cases-backfill.
 //   A tree ID ("A1") gets the tree's last photos and the report Flow (flows/flow.json, FLOW_ID);
 //   KEBUN (or the "Hujan & Pekerjaan" button) gets the farm Flow (flows/flow-farm.json, FARM_FLOW_ID).
 //   When a report Flow completes, Gemini reads the report (lib/ai.js) and the reply comes with a fresh Flow message.
@@ -10,6 +11,7 @@ const { getCollageUrl } = require('./lib/reports');
 const { CONDITION_LABELS } = require('./lib/rules');
 const { route, parseFlowToken, makeTreeToken, makeFarmToken } = require('./lib/flowScreens');
 const { analyzeReport, checkGemini } = require('./lib/ai');
+const { backfillCases } = require('./lib/backfill');
 
 const app = express();
 app.use(express.json());
@@ -290,6 +292,18 @@ app.post(['/send-tree-flow', '/send-tree-lookup'], async (req, res) => {
 app.get('/ai-check', async (req, res) => {
   if (!VERIFY_TOKEN || req.query.token !== VERIFY_TOKEN) return res.sendStatus(403);
   res.json(await checkGemini());
+});
+
+// Open https://<service>/cases-backfill?token=<VERIFY_TOKEN> in a browser: what problems older reports would file
+// (add &apply=1 to file them, &days=60 to look further back). See lib/backfill.js.
+app.get('/cases-backfill', async (req, res) => {
+  if (!VERIFY_TOKEN || req.query.token !== VERIFY_TOKEN) return res.sendStatus(403);
+  try {
+    res.json(await backfillCases({ days: req.query.days, apply: req.query.apply === '1' }));
+  } catch (err) {
+    console.error('Cases backfill failed:', err);
+    res.status(500).json({ error: String(err.message || err).slice(0, 400) });
+  }
 });
 
 app.post('/send-farm-flow', async (req, res) => {

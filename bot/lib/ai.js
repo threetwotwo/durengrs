@@ -379,9 +379,10 @@ function aiReply(t) {
 async function analyzeReport(reportId, { tree, workerPhone, today = R.todayStr() } = {}) {
   if (!process.env.GEMINI_API_KEY || !reportId || !tree) return null;
   const ref = db.collection('reports').doc(reportId);
+  let claimed = null;
   try {
     // Claim the report once (WhatsApp may deliver the completion twice).
-    const claimed = await db.runTransaction(async (tx) => {
+    claimed = await db.runTransaction(async (tx) => {
       const snap = await tx.get(ref);
       if (!snap.exists || snap.data().ai) return null;
       tx.update(ref, { ai: { status: 'running', model: MODEL(), at: now() } });
@@ -421,7 +422,22 @@ async function analyzeReport(reportId, { tree, workerPhone, today = R.todayStr()
   } catch (err) {
     console.error(`AI read of ${reportId} failed:`, err);
     await ref.update({ ai: { status: 'failed', model: MODEL(), error: String(err.message || err).slice(0, 300), at: now() } }).catch(() => {});
+    // The problems the words show still become cases, so a problem is followed even when Gemini is down.
+    if (claimed) await fileWordReading(ref, claimed, { tree, workerPhone, today });
     return null;
+  }
+}
+
+/** Files the word-only reading of a report into cases (Gemini failed). Never throws. */
+async function fileWordReading(ref, report, { tree, workerPhone, today }) {
+  try {
+    const triage = K.problemsOf(report);
+    if (!triage || (!triage.issues.length && !triage.actions.length)) return;
+    const open = await K.openCases(tree.id);
+    const { caseIds } = await K.applyToCases({ tree, reportId: ref.id, triage, today, workerPhone, open });
+    if (caseIds.length) await ref.update({ caseIds });
+  } catch (err) {
+    console.error(`Cases from the words of ${ref.id} failed:`, err);
   }
 }
 
