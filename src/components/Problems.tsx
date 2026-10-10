@@ -5,10 +5,11 @@ import { useT } from '../i18n';
 import { ACTION_INFO, CASE_EVENT_INFO, CASE_STATUS_INFO, isAction, type CaseStatus } from '../shared';
 import { caseTitle, deleteCase, isDue, isOpen, lastActionLabel, setCaseStatus, sortCases } from '../lib/cases';
 import { diffDays, formatShortDate, todayStr } from '../lib/treatments';
-import { caseUrl, useQueryParams } from '../lib/router';
+import { caseUrl, treeUrl, useQueryParams } from '../lib/router';
 import type { ProblemCase } from '../types';
 import { Link } from './Link';
 import { PageHeader } from './PageHeader';
+import { ConditionBadge } from './ConditionBadge';
 import { readBy } from './ReportChange';
 
 /**
@@ -52,19 +53,20 @@ export const NextCheck: React.FC<{ c: ProblemCase }> = ({ c }) => {
   );
 };
 
-/** One problem as a row: tree, name, where it stands, when to check again. Opens the problem's page. */
-export const CaseRow: React.FC<{ c: ProblemCase; showTree?: boolean; note?: string }> = ({ c, showTree, note }) => {
+/**
+ * One problem as a row: tree, name, where it stands, when to check again. Opens the problem's page.
+ * `plain`: inside a tree's group (no card of its own).
+ */
+export const CaseRow: React.FC<{ c: ProblemCase; showTree?: boolean; note?: string; plain?: boolean }> = ({ c, showTree, note, plain }) => {
   const { t, lang } = useT();
   const due = isDue(c);
   const lastAction = lastActionLabel(c, lang);
   const last = c.events[c.events.length - 1];
+  const frame = plain
+    ? 'hover:bg-slate-50'
+    : `rounded-xl border bg-white hover:border-slate-400 ${c.status === 'worse' || due ? 'border-rose-300' : 'border-slate-200'} ${c.status === 'resolved' ? 'bg-slate-50/60' : ''}`;
   return (
-    <Link
-      to={caseUrl(c.id)}
-      className={`group flex items-start gap-3 p-3 rounded-xl border bg-white hover:border-slate-400 ${c.status === 'worse' || due ? 'border-rose-300' : 'border-slate-200'} ${
-        c.status === 'resolved' ? 'bg-slate-50/60' : ''
-      }`}
-    >
+    <Link to={caseUrl(c.id)} className={`group flex items-start gap-3 p-3 ${frame}`}>
       {showTree && <span className="text-sm font-bold font-mono text-slate-900 bg-slate-100 px-2 py-1 rounded shrink-0 min-w-12 text-center">{c.treeId}</span>}
       <span className="min-w-0 flex-1 space-y-0.5">
         <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -81,6 +83,46 @@ export const CaseRow: React.FC<{ c: ProblemCase; showTree?: boolean; note?: stri
       </span>
       <ChevronRight className="w-4 h-4 mt-1 text-slate-400 group-hover:text-slate-700 shrink-0" aria-hidden />
     </Link>
+  );
+};
+
+/**
+ * Problems grouped by tree, the tree with the most urgent problem first: the tree (its ID, block and condition), then
+ * each of its problems. `maxTrees` cuts the list (Today).
+ */
+export const ProblemsByTree: React.FC<{ cases: ProblemCase[]; maxTrees?: number; oneColumn?: boolean }> = ({ cases, maxTrees, oneColumn }) => {
+  const { t } = useT();
+  const { allTrees } = useFarm();
+  const groups = useMemo(() => {
+    const byTree = new Map<string, ProblemCase[]>();
+    for (const c of cases) byTree.set(c.treeId, [...(byTree.get(c.treeId) || []), c]); // cases come most urgent first
+    return [...byTree.entries()];
+  }, [cases]);
+  const shown = maxTrees ? groups.slice(0, maxTrees) : groups;
+  return (
+    <div className={`grid gap-3 items-start ${oneColumn ? '' : 'lg:grid-cols-2'}`}>
+      {shown.map(([treeId, list]) => {
+        const tree = allTrees.find((x) => x.id === treeId);
+        const alert = list.some((c) => c.status === 'worse' || isDue(c));
+        return (
+          <section key={treeId} className={`bg-white rounded-xl border overflow-hidden ${alert ? 'border-rose-300' : 'border-slate-200'}`} aria-label={treeId}>
+            <header className="px-3 py-2.5 flex items-center gap-2 border-b border-slate-100 bg-slate-50/60">
+              <Link to={treeUrl(treeId)} className="font-mono font-bold text-slate-900 hover:text-emerald-700 hover:underline">
+                {treeId}
+              </Link>
+              {tree?.block && <span className="text-xs text-slate-500">{t('common.blockN', { n: tree.block })}</span>}
+              {tree && <ConditionBadge condition={tree.condition} size="sm" />}
+              <span className="ml-auto text-xs text-slate-500 tabular">{t(list.length === 1 ? 'case.tree.count.one' : 'case.tree.count', { n: list.length })}</span>
+            </header>
+            <div className="divide-y divide-slate-100">
+              {list.map((c) => (
+                <CaseRow key={c.id} c={c} plain />
+              ))}
+            </div>
+          </section>
+        );
+      })}
+    </div>
   );
 };
 
@@ -301,11 +343,7 @@ export const ProblemsPage: React.FC = () => {
           <p className="text-xs text-slate-600 mt-1 max-w-md mx-auto">{t('case.empty.how')}</p>
         </div>
       ) : (
-        <div className="grid gap-2 lg:grid-cols-2 items-start">
-          {list.map((c) => (
-            <CaseRow key={c.id} c={c} showTree />
-          ))}
-        </div>
+        <ProblemsByTree cases={list} />
       )}
     </div>
   );

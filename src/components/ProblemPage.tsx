@@ -4,7 +4,7 @@ import { doc, getDoc } from 'firebase/firestore';
 import { db, parseReportDoc } from '../lib/firebase';
 import { useFarm } from '../context/FarmContext';
 import { useT } from '../i18n';
-import { goBack, navigate, treeUrl } from '../lib/router';
+import { goBack, navigate, reportUrl, treeUrl } from '../lib/router';
 import { caseTitle, isOpen, lastActionLabel, sortCases } from '../lib/cases';
 import { cachedReport, rememberReport } from '../lib/reportCache';
 import { ACTION_INFO, CASE_EVENT_INFO, ISSUE_INFO, isAction, isIssue } from '../shared';
@@ -99,7 +99,9 @@ export const ProblemPage: React.FC<{ caseId: string }> = ({ caseId }) => {
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-12 items-start">
         <article className={`min-w-0 lg:col-span-7 bg-white rounded-xl border overflow-hidden ${c.status === 'worse' ? 'border-rose-300' : 'border-slate-200'}`}>
-          {latestPhoto && <PhotoGrid photos={latestPhoto.photos!} caption={`${c.treeId}: ${caseTitle(c, lang)}`} eager className="aspect-[4/3]" />}
+          {latestPhoto && (
+            <PhotoGrid photos={latestPhoto.photos!} caption={`${c.treeId}: ${caseTitle(c, lang)}`} href={reportUrl(latestPhoto.id)} eager className="aspect-[4/3]" />
+          )}
           <div className="p-4 sm:p-5 space-y-3">
             <header className="space-y-1">
               <p className="text-sm text-slate-600">

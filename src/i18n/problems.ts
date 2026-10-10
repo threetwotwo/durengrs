@@ -23,7 +23,7 @@ export const problems: Bundle = {
     'today.season': 'Musim per blok',
     'today.season.harvest': 'Panen {when}',
     'today.season.fruit': '{n} buah di pohon',
-    'today.rain': 'Hujan 30 hari: {mm} mm · terakhir dicatat {date}',
+    'today.rain': 'Hujan 30 hari: {mm} mm, terakhir hujan {date}',
     'today.rain.none': 'Belum ada catatan hujan 30 hari terakhir.',
 
     // Reports page
@@ -98,7 +98,7 @@ export const problems: Bundle = {
     'today.season': 'Season by block',
     'today.season.harvest': 'Harvest {when}',
     'today.season.fruit': '{n} fruit on the trees',
-    'today.rain': 'Rain, 30 days: {mm} mm · last recorded {date}',
+    'today.rain': 'Rain, 30 days: {mm} mm, last rain {date}',
     'today.rain.none': 'No rain recorded in the last 30 days.',
 
     'rep.desc.problems': 'Every problem on a tree, from first sighting to solved: what was done and when to check again.',

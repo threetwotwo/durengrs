@@ -83,6 +83,7 @@ export function buildFieldLog(input: {
   }
   for (const d of input.rain || []) {
     const x = d as RainDay & { source?: string; workerPhone?: string; updatedAt?: unknown };
+    if (x.source === 'open-meteo') continue; // fetched every day by the bot, not a record from the field
     out.push({ kind: 'rain', key: `rain:${d.date}`, at: when(x.updatedAt, d.date), timed: !!normalizeTimestamp(x.updatedAt), source: src(x.source), who: x.workerPhone, rec: x });
   }
   for (const e of input.edits || []) {

@@ -33,6 +33,8 @@ export const feed: Bundle = {
     'feed.workers.desc': 'Siapa yang melapor, seberapa sering, dan blok mana yang terlewat. Beri nama untuk nomor WhatsApp pekerja.',
 
     'case.here': 'Laporan ini: {what}',
+    'case.tree.count': '{n} masalah',
+    'case.tree.count.one': '1 masalah',
     'case.page.all': 'Semua masalah',
     'case.page.missing': 'Masalah ini tidak ada lagi (sudah dihapus, atau selesai lebih dari 90 hari lalu).',
     'case.page.since': 'Pertama terlihat',
@@ -92,6 +94,8 @@ export const feed: Bundle = {
     'feed.workers.desc': 'Who reports, how often, and which blocks are missed. Give the workers\' WhatsApp numbers a name.',
 
     'case.here': 'This report: {what}',
+    'case.tree.count': '{n} problems',
+    'case.tree.count.one': '1 problem',
     'case.page.all': 'All problems',
     'case.page.missing': 'This problem is no longer here (deleted, or solved more than 90 days ago).',
     'case.page.since': 'First seen',

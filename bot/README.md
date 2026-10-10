@@ -97,6 +97,8 @@ problems already filed (`toTreat`). Safe to run again: nothing is filed twice.
 | `lib/ai.js` | Gemini: the prompt and answer schema, cleaning the answer, records, the worker's reply, `/ai-check` |
 | `lib/cases.js` | Problems followed over time (`cases`), treatments, season jobs seen in a report |
 | `lib/backfill.js` | `/cases-backfill`: files problems from older reports and moves their trees on |
+| `lib/rain.js` | The farm's daily rain from Open-Meteo (`FARM_LAT`, `FARM_LON`), nobody has to write it down |
+| `lib/rain.js` | The farm's daily rain from Open-Meteo (`FARM_LAT`, `FARM_LON`), so nobody has to write it down |
 | `lib/treeReading.js` | Every report is taken as read: its stage and health move the tree on |
 | `lib/reports.js` | Saves photos to Storage, report + tree update to Firestore; the photo collage for the chat |
 | `lib/cropData.js` | Reads the tree's season; writes flowering, counts, harvests, season tasks, rain |
@@ -130,6 +132,8 @@ See `.env.example` (placeholders only). Never set `PORT` on Cloud Run.
 | `GEMINI_MODEL` | default `gemini-2.5-flash` |
 | `GEMINI_ENDPOINT` | `vertex` only for a Vertex AI express key; otherwise leave empty (Gemini API) |
 | `GEMINI_TIMEOUT_MS` | how long to wait for Gemini, default `40000` |
+| `FARM_LAT`, `FARM_LON` | the farm's coordinates: the daily rain is fetched from Open-Meteo (free, no key) into `weather/{date}`, every few hours after a message and on `/rain-sync?token=<VERIFY_TOKEN>`; a day a person recorded is kept |
+| `FARM_LAT`, `FARM_LON` | the farm's coordinates: the daily rain is fetched from Open-Meteo (free, no key) into `weather/{date}`, every few hours after a message and on `/rain-sync?token=<VERIFY_TOKEN>`; a day a person recorded is kept |
 | `GEMINI_THINKING` | `low` for Gemini 3 models: less thinking per report, cheaper and faster; empty = the model's default |
 
 ## Deploy

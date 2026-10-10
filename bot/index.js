@@ -1,5 +1,5 @@
-// index.js — the farm's WhatsApp bot (Cloud Run): the chat webhook, the encrypted Flow endpoint, /ai-check and
-// /cases-backfill.
+// index.js — the farm's WhatsApp bot (Cloud Run): the chat webhook, the encrypted Flow endpoint, /ai-check,
+// /cases-backfill and /rain-sync (the farm's daily rain, also fetched by itself after messages).
 //   A tree ID ("A1") gets the tree's last photos and the report Flow (flows/flow.json, FLOW_ID);
 //   KEBUN (or the "Hujan & Pekerjaan" button) gets the farm Flow (flows/flow-farm.json, FARM_FLOW_ID).
 //   When a report Flow completes, Gemini reads the report (lib/ai.js) and the reply comes with a fresh Flow message.
@@ -12,6 +12,7 @@ const { CONDITION_LABELS } = require('./lib/rules');
 const { route, parseFlowToken, makeTreeToken, makeFarmToken } = require('./lib/flowScreens');
 const { analyzeReport, checkGemini } = require('./lib/ai');
 const { backfillCases } = require('./lib/backfill');
+const { syncRain } = require('./lib/rain');
 
 const app = express();
 app.use(express.json());
@@ -223,6 +224,8 @@ app.post('/webhook', async (req, res) => {
   } catch (err) {
     console.error('Failed to process webhook payload:', err);
   }
+  // The farm's daily rain, at most every few hours, after the worker has their answer (lib/rain.js).
+  if (req.body?.entry?.[0]?.changes?.[0]?.value?.messages?.length) await syncRain();
   res.sendStatus(200);
 });
 
@@ -292,6 +295,12 @@ app.post(['/send-tree-flow', '/send-tree-lookup'], async (req, res) => {
 app.get('/ai-check', async (req, res) => {
   if (!VERIFY_TOKEN || req.query.token !== VERIFY_TOKEN) return res.sendStatus(403);
   res.json(await checkGemini());
+});
+
+// Open https://<service>/rain-sync?token=<VERIFY_TOKEN> in a browser: fetches the farm's daily rain now (lib/rain.js).
+app.get('/rain-sync', async (req, res) => {
+  if (!VERIFY_TOKEN || req.query.token !== VERIFY_TOKEN) return res.sendStatus(403);
+  res.json(await syncRain({ force: true }));
 });
 
 // Open https://<service>/cases-backfill?token=<VERIFY_TOKEN> in a browser: what problems older reports would file

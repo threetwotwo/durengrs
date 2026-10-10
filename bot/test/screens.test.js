@@ -657,3 +657,36 @@ test('urgent words keep the tree Merah, an unclear photo never makes it look bet
   assert.equal(fake.get('trees', 'B1').condition, 'emergency');
   assert.equal(fake.get('trees', 'B1').observedStage.code, 'bloom');
 });
+
+test('rain: the farm\'s daily rain is filed by itself, a day a person recorded is kept, today waits', async () => {
+  const { syncRain } = require('../lib/rain');
+  seed();
+  delete process.env.FARM_LAT;
+  assert.equal((await syncRain()).ok, false); // no place, nothing fetched
+
+  process.env.FARM_LAT = '-6.1';
+  process.env.FARM_LON = '106.1';
+  const d = (n) => R.addDays(today, n);
+  fake.seed('weather', d(-2), { date: d(-2), rainMm: 7, source: 'whatsapp' });
+  const realFetch = global.fetch;
+  let calls = 0;
+  global.fetch = async (url) => {
+    calls++;
+    assert.match(String(url), /api\.open-meteo\.com.*latitude=-6\.1.*past_days=92/);
+    return { ok: true, json: async () => ({ daily: { time: [d(-3), d(-2), d(-1), today], precipitation_sum: [0, 12.34, 3.06, 5] } }) };
+  };
+  try {
+    const r = await syncRain();
+    assert.deepEqual([r.ok, r.written, r.kept], [true, 2, 1]);
+    assert.deepEqual(fake.get('weather', d(-1)), { date: d(-1), rainMm: 3.1, source: 'open-meteo', updatedAt: fake.get('weather', d(-1)).updatedAt });
+    assert.equal(fake.get('weather', d(-3)).rainMm, 0);
+    assert.equal(fake.get('weather', d(-2)).rainMm, 7); // the worker's record stays
+    assert.equal(fake.get('weather', today), undefined); // today is not over
+    assert.equal((await syncRain()).skipped, true); // ran a moment ago
+    assert.equal(calls, 1);
+  } finally {
+    global.fetch = realFetch;
+    delete process.env.FARM_LAT;
+    delete process.env.FARM_LON;
+  }
+});

@@ -64,6 +64,8 @@ export interface SeasonTaskDone {
 export interface RainDay {
   date: string;
   rainMm: number;
+  /** 'open-meteo': the bot's daily rain for the farm (bot/lib/rain.js); else recorded by a person. */
+  source?: string;
 }
 
 export const LAB_KEYS = ['ph', 'om', 'n', 'p', 'k', 'ca', 'mg', 'b', 'zn'] as const;

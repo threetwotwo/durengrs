@@ -11,7 +11,7 @@ import type { TreeReport } from '../types';
 import { useCrops } from './useCrops';
 import { fruitOnTree } from '../lib/crop';
 import { useGuideData, StagePill } from './GuideWidgets';
-import { CaseRow } from './Problems';
+import { ProblemsByTree } from './Problems';
 import { RecordCard, RecordGrid, reportEntry } from './Record';
 import { Link } from './Link';
 
@@ -140,7 +140,8 @@ export const Dashboard: React.FC = () => {
   }, [crops]);
   const rain30 = rain.filter((r) => diffDays(today, r.date) <= 30);
   const rainTotal = Math.round(rain30.reduce((n, r) => n + r.rainMm, 0));
-  const lastRain = [...rain30].sort((a, b) => b.date.localeCompare(a.date))[0];
+  // The last day it rained (the bot files every day, dry ones as 0 mm).
+  const lastRain = [...rain30].filter((r) => r.rainMm > 0).sort((a, b) => b.date.localeCompare(a.date))[0];
 
   if (loading) return <div className="h-96 bg-white rounded-xl border border-slate-200 animate-pulse" />;
 
@@ -186,10 +187,8 @@ export const Dashboard: React.FC = () => {
                 {t('case.empty.open')}
               </p>
             ) : (
-              <div className="p-3 space-y-2">
-                {openCases.slice(0, 5).map((c) => (
-                  <CaseRow key={c.id} c={c} showTree />
-                ))}
+              <div className="p-3">
+                <ProblemsByTree cases={openCases} maxTrees={4} oneColumn />
               </div>
             )}
           </section>

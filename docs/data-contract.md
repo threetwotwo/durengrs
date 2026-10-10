@@ -27,7 +27,7 @@ imports.
 | `cropCounts/{treeId}_{season}_{stage}_{date}` | bot (from a report), web app | both | `treeId, block, season (bloom date of the counted flowers), stage (clusters/set/kept/onTree), count, date, by?, note?, photos?, source` |
 | `harvests/{auto}`; bot: ✱`harvests/wa_{reportId}` | bot (from a report), web app | both | `block, treeId?, variant, date, fruits, weightKg?, grades {extra, class1, class2, reject}, problems[], problemFruits?, floweredOn?, daysFromBloom?, notes?, photos?, source, workerPhone?`; ✱`reportId?` (the report it was read from; the bot writes no `photos`, they stay on the report). Older bot harvests (`wa` + hex, two-step Flow) may also carry `problems`, `problemFruits`, `photos`, `flowToken` |
 | `seasonTasks/{block}_{season}_{task}` | bot (Catatan Kebun, and season jobs seen in a report), web app | both | `block, season, task (hand_pollination/fruit_thinning/bagging/ca_mg_spray/fruit_tying), date, source, workerPhone?`; the first record wins |
-| `weather/{date}` | bot (Catatan Kebun), web app | both | `date, rainMm, source, workerPhone?, updatedAt` |
+| `weather/{date}` | bot (Catatan Kebun; and every day by itself from Open-Meteo, `source: 'open-meteo'`, `bot/lib/rain.js`), web app | both | `date, rainMm, source, workerPhone?, updatedAt`. A day a person recorded is never replaced by the fetched one |
 | `treatmentPlans/{auto}`, `treatments/{auto}` | web app | web app (bot: planned, see audit F3) | routines and applications; `plan.lastDone {block: date}` |
 | `workers/{phone}` | web app | both | `phone, name` |
 | `variants/{code}` | web app | both | `code, name, ripeningDays, …` |

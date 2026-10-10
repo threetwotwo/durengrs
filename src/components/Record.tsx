@@ -48,9 +48,17 @@ export const Tags: React.FC<{ tags: Tag[]; className?: string }> = ({ tags, clas
 
 /**
  * The photos of a record, large: one fills the frame, two side by side, three or more as one large and two small
- * (with "+N" for the rest). Tapping opens the viewer.
+ * (with "+N" for the rest). With `href` (every list) the photos open the record's page; only a record's own page
+ * (no `href`) opens the photo viewer.
  */
-export const PhotoGrid: React.FC<{ photos: ReportPhoto[]; caption: string; eager?: boolean; className?: string }> = ({ photos, caption, eager, className = '' }) => {
+export const PhotoGrid: React.FC<{ photos: ReportPhoto[]; caption: string; href?: string; onOpen?: () => void; eager?: boolean; className?: string }> = ({
+  photos,
+  caption,
+  href,
+  onOpen,
+  eager,
+  className = '',
+}) => {
   const { t } = useT();
   const [open, setOpen] = useState<number | null>(null);
   if (!photos.length) return null;
@@ -58,36 +66,50 @@ export const PhotoGrid: React.FC<{ photos: ReportPhoto[]; caption: string; eager
   const more = photos.length - shown.length;
   const layout = shown.length === 1 ? 'grid-cols-1' : shown.length === 2 ? 'grid-cols-2' : 'grid-cols-3 grid-rows-2';
   const items: GalleryItem[] = photos.map((p, i) => ({ url: p.url, medium: p.medium, thumb: p.thumb, caption: `${caption} (${i + 1}/${photos.length})` }));
+  const tiles = shown.map((p, i) => {
+    const big = shown.length < 3 || i === 0;
+    const cls = `relative min-h-0 bg-slate-100 ${shown.length >= 3 && i === 0 ? 'col-span-2 row-span-2' : ''}`;
+    const inner = (
+      <>
+        <img
+          src={big ? p.medium || p.url : p.thumb || p.medium || p.url}
+          alt=""
+          loading={eager ? 'eager' : 'lazy'}
+          decoding="async"
+          referrerPolicy="no-referrer"
+          className="absolute inset-0 w-full h-full object-cover"
+        />
+        {more > 0 && i === shown.length - 1 && (
+          <span className="absolute inset-0 bg-slate-950/50 text-white text-lg font-bold flex items-center justify-center">+{more}</span>
+        )}
+      </>
+    );
+    return href ? (
+      <span key={p.url} className={cls}>
+        {inner}
+      </span>
+    ) : (
+      <button
+        key={p.url}
+        type="button"
+        onClick={() => setOpen(i)}
+        aria-label={t('photo.strip.n', { i: i + 1, n: photos.length })}
+        className={`${cls} focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-emerald-500`}
+      >
+        {inner}
+      </button>
+    );
+  });
+  if (href) {
+    return (
+      <Link to={href} onClick={onOpen} tabIndex={-1} aria-hidden className={`relative z-10 grid gap-0.5 bg-slate-200 overflow-hidden ${layout} ${className}`}>
+        {tiles}
+      </Link>
+    );
+  }
   return (
     <>
-      <div className={`grid gap-0.5 bg-slate-200 overflow-hidden ${layout} ${className}`}>
-        {shown.map((p, i) => {
-          const big = shown.length < 3 || i === 0;
-          return (
-            <button
-              key={p.url}
-              type="button"
-              onClick={() => setOpen(i)}
-              aria-label={t('photo.strip.n', { i: i + 1, n: photos.length })}
-              className={`relative z-10 min-h-0 bg-slate-100 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-emerald-500 ${
-                shown.length >= 3 && i === 0 ? 'col-span-2 row-span-2' : ''
-              }`}
-            >
-              <img
-                src={big ? p.medium || p.url : p.thumb || p.medium || p.url}
-                alt=""
-                loading={eager ? 'eager' : 'lazy'}
-                decoding="async"
-                referrerPolicy="no-referrer"
-                className="absolute inset-0 w-full h-full object-cover"
-              />
-              {more > 0 && i === shown.length - 1 && (
-                <span className="absolute inset-0 bg-slate-950/50 text-white text-lg font-bold flex items-center justify-center">+{more}</span>
-              )}
-            </button>
-          );
-        })}
-      </div>
+      <div className={`grid gap-0.5 bg-slate-200 overflow-hidden ${layout} ${className}`}>{tiles}</div>
       {open !== null && <PhotoLightbox items={items} index={open} onClose={() => setOpen(null)} />}
     </>
   );
@@ -253,6 +275,7 @@ export const RecordCard: React.FC<{ entry: LogEntry; filed?: LogEntry[]; timeOnl
   const view = useRecordView()(e, filed);
   const when = useWhen()(e, timeOnly);
   const hasPhoto = view.photos.length > 0;
+  const remember = () => e.kind === 'issue' && rememberReport(e.rec);
   return (
     <article
       className={`relative bg-white rounded-xl border overflow-hidden flex flex-col transition-colors hover:border-slate-400 focus-within:border-emerald-500 ${
@@ -265,7 +288,11 @@ export const RecordCard: React.FC<{ entry: LogEntry; filed?: LogEntry[]; timeOnl
         aria-label={t('log.openRow', { kind: view.kind || t('log.kind.issue'), where: view.where })}
         className="absolute inset-0 rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600"
       />
-      {hasPhoto ? <PhotoGrid photos={view.photos} caption={view.where} eager={eager} className="aspect-[4/3]" /> : <NoPhotoTile entry={e} />}
+      {hasPhoto ? (
+        <PhotoGrid photos={view.photos} caption={view.where} href={view.href} onOpen={remember} eager={eager} className="aspect-[4/3]" />
+      ) : (
+        <NoPhotoTile entry={e} />
+      )}
       <div className="p-3 flex-1 flex flex-col gap-1.5">
         <header className="flex items-baseline gap-2">
           {showTree && view.where && (
@@ -348,39 +375,29 @@ export const HistoryItem: React.FC<{
         {(title || view?.kind) && <p className="text-sm font-semibold text-slate-900">{title || view?.kind}</p>}
         {(note || view?.text) && <p className="text-sm text-slate-700 leading-snug whitespace-pre-line line-clamp-4">{note || view?.text}</p>}
         <Tags tags={tags} />
-        {view && view.photos.length > 0 && <HistoryPhotos photos={view.photos} caption={view.where} />}
+        {view && view.photos.length > 0 && <HistoryPhotos photos={view.photos} href={view.href} onOpen={() => entry?.kind === 'issue' && rememberReport(entry.rec)} />}
       </div>
     </li>
   );
 };
 
-/** A history event's photos: a row of large tiles that scrolls sideways when there are many. */
-const HistoryPhotos: React.FC<{ photos: ReportPhoto[]; caption: string }> = ({ photos, caption }) => {
+/** A history event's photos: a row of large tiles (scrolling sideways when there are many) that open its record. */
+const HistoryPhotos: React.FC<{ photos: ReportPhoto[]; href: string; onOpen?: () => void }> = ({ photos, href, onOpen }) => {
   const { t } = useT();
-  const [open, setOpen] = useState<number | null>(null);
   return (
-    <>
-      <div className="flex gap-1.5 overflow-x-auto pb-1 [scrollbar-width:thin]">
-        {photos.map((p, i) => (
-          <button
-            key={p.url}
-            type="button"
-            onClick={() => setOpen(i)}
-            aria-label={t('photo.strip.n', { i: i + 1, n: photos.length })}
-            className="shrink-0 w-40 h-32 sm:w-48 sm:h-36 rounded-lg overflow-hidden bg-slate-100 border border-slate-200 focus-visible:outline-2 focus-visible:outline-emerald-500"
-          >
-            <img src={p.medium || p.url} alt="" loading="lazy" decoding="async" referrerPolicy="no-referrer" className="w-full h-full object-cover" />
-          </button>
-        ))}
-      </div>
-      {open !== null && (
-        <PhotoLightbox
-          items={photos.map((p, i) => ({ url: p.url, medium: p.medium, thumb: p.thumb, caption: `${caption} (${i + 1}/${photos.length})` }))}
-          index={open}
-          onClose={() => setOpen(null)}
-        />
-      )}
-    </>
+    <div className="flex gap-1.5 overflow-x-auto pb-1 [scrollbar-width:thin]">
+      {photos.map((p, i) => (
+        <Link
+          key={p.url}
+          to={href}
+          onClick={onOpen}
+          aria-label={t('photo.strip.n', { i: i + 1, n: photos.length })}
+          className="shrink-0 w-40 h-32 sm:w-48 sm:h-36 rounded-lg overflow-hidden bg-slate-100 border border-slate-200 focus-visible:outline-2 focus-visible:outline-emerald-500"
+        >
+          <img src={p.medium || p.url} alt="" loading="lazy" decoding="async" referrerPolicy="no-referrer" className="w-full h-full object-cover" />
+        </Link>
+      ))}
+    </div>
   );
 };
 
