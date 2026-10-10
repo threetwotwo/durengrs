@@ -187,7 +187,15 @@ export function parseReportDoc(docSnap: DocumentSnapshot): TreeReport {
     improving: data.improving === true ? true : undefined,
     conditionSource: data.conditionSource === 'worker' || data.conditionSource === 'triage' ? data.conditionSource : undefined,
     caseIds: Array.isArray(data.caseIds) ? data.caseIds.filter((x: unknown) => typeof x === 'string') : undefined,
-    ai: data.ai && typeof data.ai.status === 'string' ? { status: data.ai.status, model: data.ai.model, error: data.ai.error } : undefined,
+    ai:
+      data.ai && typeof data.ai.status === 'string'
+        ? {
+            status: data.ai.status,
+            model: data.ai.model,
+            error: data.ai.error,
+            recorded: Array.isArray(data.ai.recorded) ? data.ai.recorded.filter((x: unknown) => typeof x === 'string') : undefined,
+          }
+        : undefined,
   };
 }
 

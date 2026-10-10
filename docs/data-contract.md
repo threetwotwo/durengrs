@@ -61,17 +61,23 @@ Gemini's reading of the photos and words (`source: 'ai'`, `bot/lib/ai.js`). Shap
 ```
 
 The bot writes it on every new report (`bot/lib/shared.js` is generated from `src/shared`, so both sides read
-words the same way). **One exception to "suggestion only":** when the words read as urgent (`urgent: true`: danger
-now, such as "hampir mati", "tumbang", "darurat"; a disease name alone is not enough), the bot turns the tree Merah at
-once (`conditionSource: 'triage'`), so an emergency never waits for the inbox. Dismissing that report in the inbox
-puts the tree back, unless someone changed the condition since.
+words the same way). When the words read as urgent (`urgent: true`: danger now, such as "hampir mati", "tumbang",
+"darurat"; a disease name alone is not enough), the tree turns Merah as soon as the report is saved.
 
 Words are matched at the start of a word ("aman" is not found in "tanaman"), a negation up to three words back
 cancels them ("tidak ada kutu"), and a full stop, comma, line break, "!" or "?" ends a negation.
 
-**A triage is a suggestion.** Only a review (`reports.review`) sets `reports.stage / issues / health`, and from
-there `trees.observedStage` and `trees.condition`, each change logged in `treeEdits`. The records Gemini's reading
-writes without a person (below) are ordinary field records the owner can edit or delete in the web app.
+**Every report is taken as read.** Once Gemini has read a report (or failed to, or there is no key), the bot moves
+the tree on (`bot/lib/treeReading.js`): `trees.observedStage` from the reading's stage unless the tree shows a stage
+seen later, and `trees.condition` (Hijau / Kuning / Merah) and `trees.improving` only from the tree's latest report,
+never over a condition set by hand after it or chosen by a worker in an older Flow; urgent words keep it Merah even
+when Gemini reads the photos more calmly, and a photo Gemini could not read well never makes it look better. A changed condition is written on the report (`conditionBefore /
+conditionAfter`, `conditionSource: 'triage'`) and every change in `treeEdits` (reason `report`). The owner can still
+**change** what was read in the web app: that is `reports.review` (`corrected`, with `stage / issues / health /
+improving`) or `dismissed` (the reading is set aside; a condition the report changed goes back), and the tree follows
+when it is the latest report. What a report stands for is the review when there is one, else the reading
+(`src/lib/feed.ts reportValues`). The records Gemini's reading writes (below) are ordinary field records the owner
+can edit or delete; each carries `reportId`, and the web app shows them on their report's card rather than twice.
 
 ## The WhatsApp bot
 
@@ -92,18 +98,21 @@ When a report Flow completes, Gemini reads the report once (`reports.ai` claims 
   `weightKg` 0.5-2000 when written, `grades` when written and not more than `fruits`, `floweredOn` = the flowering
   whose ripening time (the tree's variety, else the block's shortest) is nearest today, `daysFromBloom`, `reportId`);
   each path is listed in `reports.ai.recorded`;
-- turns the tree Merah when Gemini reports danger now (`conditionSource: 'triage'`, `treeEdits.reason: 'ai-urgent'`);
+- moves the tree on from the reading (stage seen, Hijau / Kuning / Merah, membaik: see "Every report is taken as read");
 - files problems, treatments and progress into `cases` (`reports.caseIds`), and the season jobs it saw into
   `seasonTasks`; when Gemini fails, the problems the words show are filed instead;
-- replies to the worker in the chat (what was seen, first steps, what was recorded, case progress, a better-photo
-  request), with a fresh Flow button.
+- replies to the worker in the chat (what was seen, first steps, the status, a flowering or count recorded, a
+  better-photo request), with a fresh Flow button. Everything else above is silent: the worker only ever sends one
+  report (photos and words) and gets this reply.
 
 `GET /ai-check?token=<VERIFY_TOKEN>` makes one tiny Gemini call and answers `{ ok, model, endpoint, keySet, error? }`.
 `GET /cases-backfill?token=<VERIFY_TOKEN>[&days=30][&apply=1]` files `cases` from older reports that have none (the
-owner's review wins over the reading; season jobs are not filed); without `apply=1` it only reports what it would do.
+owner's review wins over the reading; season jobs are not filed), adds treatments their words describe to problems
+filed before (`toTreat`), and lets the readings nobody checked move their trees on (`trees`); without `apply=1` it only
+reports what it would do.
 Gemini settings (env, never in the repository): `GEMINI_API_KEY` (Google AI Studio; without it nothing is sent and the
 rule-based reading stays), `GEMINI_MODEL` (default `gemini-2.5-flash`), `GEMINI_ENDPOINT=vertex` (Vertex AI express
-key only), `GEMINI_TIMEOUT_MS` (default 40000).
+key only), `GEMINI_TIMEOUT_MS` (default 40000), `GEMINI_THINKING=low` (Gemini 3 models: less thinking, cheaper).
 
 ## Shared vocabulary (`src/shared/`)
 

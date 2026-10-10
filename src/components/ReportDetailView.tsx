@@ -1,11 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, ArrowRight, BookOpen, Trash2, User } from 'lucide-react';
+import { ArrowLeft, ArrowRight, BookOpen, Trash2 } from 'lucide-react';
 import { collection, doc, limit, onSnapshot, orderBy, query, where } from 'firebase/firestore';
 import { db, parseReportDoc } from '../lib/firebase';
 import { normalizeTimestamp, useFarm } from '../context/FarmContext';
 import { goBack, navigate, treeUrl } from '../lib/router';
 import { cachedReport, rememberReport } from '../lib/reportCache';
-import { reportCondition } from '../lib/review';
 import { STAGES, STAGE_ORDER, TOPIC_BY_ID, pick, topicsForText, treeStages } from '../lib/guide';
 import { useSeasons } from './useSeasons';
 import { useGuideOn } from '../lib/guideMode';
@@ -13,12 +12,10 @@ import { useT } from '../i18n';
 import type { TreeReport } from '../types';
 import { ConditionBadge } from './ConditionBadge';
 import { improvingNow } from '../lib/trees';
-import { ReportDate } from './ReportDate';
-import { ReportCard, hasWords } from './ReportCard';
 import { ReportDeleteSheet } from './ReportDeleteSheet';
-import { ReportReviewPanel } from './ReviewInbox';
-import { PhotoAlbum } from './PhotoAlbum';
-import { PhotoLightbox, photoItems, type GalleryItem } from './PhotoLightbox';
+import { ReportChange } from './ReportChange';
+import { PhotoGrid, RecordCard, RecordGrid, reportEntry } from './Record';
+import { hasWords, reportValues } from '../lib/feed';
 import { BloomQuickSet, StagePill, TOPIC_ICON, blockLine } from './GuideWidgets';
 import { SeasonTaskChips } from './FieldRecords';
 import { Link } from './Link';
@@ -39,7 +36,6 @@ export const ReportDetailView: React.FC<{ reportId: string }> = ({ reportId }) =
   const [report, setReport] = useState<TreeReport | null | undefined>(() => cachedReport(reportId));
   const [loadError, setLoadError] = useState(false);
   const [others, setOthers] = useState<TreeReport[]>([]);
-  const [gallery, setGallery] = useState<{ items: GalleryItem[]; index: number } | null>(null);
   const [deleting, setDeleting] = useState(false);
 
   // Live: a condition fix or a deleted report shows up at once.
@@ -97,7 +93,7 @@ export const ReportDetailView: React.FC<{ reportId: string }> = ({ reportId }) =
   const older = idx >= 0 ? others[idx + 1] : undefined;
   const otherReports = others.filter((r) => r.id !== report.id).slice(0, 5);
 
-  const cond = reportCondition(report);
+  const health = reportValues(report).health;
 
   // Stages of this tree (it may have flowered apart from its block, or in waves), else of the whole block.
   const tws = tree && season ? treeStages(tree, season, treeBlooms, harvestCycles) : [];
@@ -125,31 +121,37 @@ export const ReportDetailView: React.FC<{ reportId: string }> = ({ reportId }) =
         </nav>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-12">
-        {/* The report */}
-        <article className={`lg:col-span-7 bg-white rounded-xl border overflow-hidden ${cond === 'emergency' ? 'border-rose-300 border-l-4 border-l-rose-500' : 'border-slate-200'}`}>
-          <div className="p-4 sm:p-5 space-y-3">
-            <header className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <h1 className="text-xl font-bold text-slate-900">
-                  <Link to={treeUrl(report.treeId)} className="hover:text-emerald-700 hover:underline underline-offset-2">
-                    {t('rep.treeN', { id: report.treeId })}
-                  </Link>
-                </h1>
-                <p className="text-sm text-slate-600 mt-0.5">
-                  {[variantName, block ? t('common.blockN', { n: block }) : null].filter(Boolean).join(' · ') || t('rep.unknownLocation')}
-                </p>
-              </div>
-              {report.conditionAfter && <ConditionBadge condition={report.conditionAfter} />}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-12 items-start">
+        {/* The report: photos first */}
+        <article className={`min-w-0 lg:col-span-7 bg-white rounded-xl border overflow-hidden ${health === 'merah' ? 'border-rose-300' : 'border-slate-200'}`}>
+          {photos.length > 0 && <PhotoGrid photos={photos} caption={t('rep.treeN', { id: report.treeId })} eager className="aspect-[4/3]" />}
+          <div className="p-4 sm:p-5 space-y-4">
+            <header className="space-y-0.5">
+              <h1 className="text-xl font-bold text-slate-900">
+                <Link to={treeUrl(report.treeId)} className="font-mono hover:text-emerald-700 hover:underline underline-offset-2">
+                  {report.treeId}
+                </Link>
+                <span className="ml-2 text-sm font-medium text-slate-500">
+                  {[variantName, block ? t('common.blockN', { n: block }) : null].filter(Boolean).join(', ')}
+                </span>
+              </h1>
+              <p className="text-sm text-slate-600 tabular">
+                {new Date(ts).toLocaleString(locale, { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                {phone && <span className="ml-2">{phone}</span>}
+              </p>
             </header>
 
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm text-slate-600">
-              <ReportDate value={report.createdAt} />
-              <span className="tabular">{new Date(ts).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })}</span>
-            </div>
+            {hasWords(report.description) ? (
+              <p className="text-base text-slate-900 leading-relaxed whitespace-pre-line">{report.description}</p>
+            ) : (
+              <p className="text-sm text-slate-500">{report.description?.trim() ? `${t('rep.noNote')} ${report.description.trim()}` : t('rep.noNote.dot')}</p>
+            )}
+
+            <ReportFindings report={report} />
+            <FiledRecords report={report} />
 
             {changed && (
-              <p className="flex flex-wrap items-center gap-1.5 p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-sm text-amber-900 font-medium">
+              <p className="flex flex-wrap items-center gap-1.5 text-sm text-slate-700">
                 {t('cond.changed')}:
                 <ConditionBadge condition={report.conditionBefore!} size="sm" />
                 <ArrowRight className="w-3.5 h-3.5" aria-hidden />
@@ -157,57 +159,30 @@ export const ReportDetailView: React.FC<{ reportId: string }> = ({ reportId }) =
               </p>
             )}
 
-            <div>
-              <h2 className="text-xs font-bold uppercase tracking-wide text-slate-500 mb-1">{t('rep.detail.note')}</h2>
-              {hasWords(report.description) ? (
-                <p className="text-base text-slate-900 leading-relaxed whitespace-pre-line">{report.description}</p>
-              ) : (
-                <p className="text-sm text-slate-500">
-                  {report.description?.trim() ? `${t('rep.noNote')} ${report.description.trim()}` : t('rep.noNote.dot')}
-                </p>
-              )}
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-slate-100">
+              <ReportChange report={report} tree={tree} />
+              <span className="inline-flex items-center gap-1">
+                {last4 && (
+                  <Link to={`/reports?q=${last4}`} className="min-h-9 px-2 text-sm font-semibold text-emerald-700 hover:underline inline-flex items-center">
+                    {t('rep.allFromWorker')}
+                  </Link>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setDeleting(true)}
+                  aria-label={t('rep.del.button')}
+                  className="min-h-9 px-2 rounded-lg inline-flex items-center gap-1.5 text-sm font-semibold text-slate-500 hover:text-rose-700 hover:bg-rose-50"
+                >
+                  <Trash2 className="w-4 h-4" aria-hidden />
+                  <span className="hidden sm:inline">{t('rep.del.button')}</span>
+                </button>
+              </span>
             </div>
-
-            <ReportFindings report={report} />
-            <ReportReviewPanel report={report} tree={tree} />
           </div>
-
-          {photos.length > 0 && (
-            <PhotoAlbum
-              photos={photos}
-              eager
-              onOpen={(i) => setGallery({ items: photoItems(photos, report.treeId, report.createdAt), index: i })}
-              className="aspect-[4/3] sm:aspect-[16/10]"
-            />
-          )}
-
-          <footer className="px-4 sm:px-5 py-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-sm text-slate-600">
-            <span className="inline-flex flex-wrap items-center gap-x-3 gap-y-1">
-              {phone && (
-                <span className="inline-flex items-center gap-1.5">
-                  <User className="w-4 h-4 text-slate-400" aria-hidden />
-                  {t('rep.reportedBy')} <span className={phone.startsWith('••••') ? 'font-mono' : 'font-semibold text-slate-800'}>{phone}</span>
-                </span>
-              )}
-              {last4 && (
-                <Link to={`/reports?q=${last4}`} className="font-semibold text-emerald-700 hover:underline min-h-9 inline-flex items-center">
-                  {t('rep.allFromWorker')}
-                </Link>
-              )}
-            </span>
-            <button
-              type="button"
-              onClick={() => setDeleting(true)}
-              className="min-h-10 px-2.5 -mr-2 rounded-lg inline-flex items-center gap-1.5 font-semibold text-slate-500 hover:text-rose-700 hover:bg-rose-50"
-            >
-              <Trash2 className="w-4 h-4" aria-hidden />
-              {t('rep.del.button')}
-            </button>
-          </footer>
         </article>
 
         {/* What the Guide says */}
-        <div className="lg:col-span-5 space-y-4">
+        <div className="min-w-0 lg:col-span-5 space-y-4">
           <ReportProblems treeId={report.treeId} reportId={report.id} caseIds={report.caseIds} />
 
           {guideOn && (
@@ -319,19 +294,42 @@ export const ReportDetailView: React.FC<{ reportId: string }> = ({ reportId }) =
       {otherReports.length > 0 && (
         <section aria-labelledby="rd-others" className="space-y-2.5">
           <h2 id="rd-others" className={h2}>{t('rep.detail.others', { id: report.treeId })}</h2>
-          <div className="grid gap-3 md:grid-cols-2">
+          <RecordGrid>
             {otherReports.map((r) => (
-              <ReportCard key={r.id} report={r} tree={tree} showTree={false} size="sm" />
+              <RecordCard key={r.id} entry={reportEntry(r)} showTree={false} />
             ))}
-          </div>
+          </RecordGrid>
         </section>
       )}
 
-      {gallery && <PhotoLightbox items={gallery.items} index={gallery.index} onClose={() => setGallery(null)} />}
       {deleting && (
         <ReportDeleteSheet report={report} onClose={() => setDeleting(false)} onDeleted={() => navigate('/reports', { replace: true })} />
       )}
     </div>
+  );
+};
+
+/** The records the bot filed from this report (a harvest, a count, a flowering), each opening its own page. */
+const RECORD_OF: Record<string, 'harvest' | 'count' | 'bloom'> = { harvests: 'harvest', cropCounts: 'count', bloomWaves: 'bloom' };
+const FiledRecords: React.FC<{ report: TreeReport }> = ({ report }) => {
+  const { t } = useT();
+  const links = (report.ai?.recorded || [])
+    .map((p) => {
+      const [col, ...rest] = p.split('/');
+      const kind = RECORD_OF[col];
+      return kind && rest.length ? { kind, key: `${kind}:${rest.join('/')}` } : null;
+    })
+    .filter((x): x is { kind: 'harvest' | 'count' | 'bloom'; key: string } => !!x);
+  if (!links.length) return null;
+  return (
+    <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+      <span className="text-slate-600">{t('feed.filed')}</span>
+      {links.map((l) => (
+        <Link key={l.key} to={`/reports/${encodeURIComponent(l.key)}`} className="font-semibold text-emerald-700 hover:underline">
+          {t(`log.kind.${l.kind}`)}
+        </Link>
+      ))}
+    </p>
   );
 };
 

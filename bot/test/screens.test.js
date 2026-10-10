@@ -16,6 +16,7 @@ const C = require('../lib/cropData');
 const { route, parseFlowToken, makeTreeToken } = require('../lib/flowScreens');
 const { analyzeReport, toTriage } = require('../lib/ai');
 const { backfillCases } = require('../lib/backfill');
+const { applyReading } = require('../lib/treeReading');
 const { check } = require('./contract');
 
 const today = R.todayStr();
@@ -327,8 +328,8 @@ test('Gemini reading: a harvest the worker wrote is recorded once, filed under i
   await withGemini([answer, answer], async (calls) => {
     const { id, msg } = await reportAndRead('panen 12 buah, 30 kg, extra 6, kelas 1 ada 4', 1);
     assert.match(calls[0], /harvest: ONLY if the worker reports picking fruit/);
-    assert.match(msg, /🧺 Panen dicatat: 12 buah, 30 kg\./);
-    assert.doesNotMatch(msg, /Dicatat: Panen/); // said once, by the harvest line
+    // Recorded silently: the worker's reply is the one they know (what was seen, the status).
+    assert.doesNotMatch(msg, /Panen dicatat|Dicatat:/);
     const rep = fake.get('reports', id);
     assert.deepEqual(rep.triage.harvest, { fruits: 12, weightKg: 30, grades: { extra: 6, class1: 4 } });
     assert.ok(!('harvestedFruits' in rep.triage));
@@ -355,7 +356,7 @@ test('Gemini reading: a harvest uses the tree variety ripening time; no weight w
   fake.seed('bloomWaves', 'A3_l', { treeId: 'A3', block: 'A', date: R.addDays(today, -112), part: 'lower' });
   await withGemini([{ harvest: { fruits: 3, weight_kg: 0, grades: { extra: 0, class1: 0, class2: 0, reject: 0 } } }], async () => {
     const { id, msg } = await reportAndRead('dipetik 3 buah', 1, 'A3');
-    assert.match(msg, /🧺 Panen dicatat: 3 buah\./);
+    assert.doesNotMatch(msg, /Panen dicatat/);
     const h = fake.get('harvests', `wa_${id}`);
     assert.equal(h.floweredOn, R.addDays(today, -100)); // ST ripens in 100 days: the block flowering, not the one 112 days ago
     assert.equal(h.daysFromBloom, 100);
@@ -399,7 +400,7 @@ test('treatment reports join the problem they treat, so progress can be followed
     const r1 = await reportAndRead('getah merah di batang', 1);
     const caseId = fake.get('reports', r1.id).caseIds[0];
     assert.equal(fake.get('cases', caseId).status, 'open');
-    assert.match(r1.msg, /masalah baru dicatat/);
+    assert.doesNotMatch(r1.msg, /masalah baru dicatat|Foto lagi/); // filed silently
     assert.equal(fake.get('reports', r1.id).triage.needsReview, true);
 
     // 2. "Sudah ditangani": treated. Same case, no new problem, nothing for the owner to decide.
@@ -414,9 +415,8 @@ test('treatment reports join the problem they treat, so progress can be followed
     assert.equal(c.lastAction, 'Kerok & oles batang · pasta tembaga');
     assert.equal(c.nextCheck, R.addDays(today, 7));
     assert.equal(fake.get('reports', r2.id).triage.needsReview, false);
-    assert.equal(fake.get('trees', 'A1').condition, 'healthy'); // a treatment never raises the alarm
-    assert.match(r2.msg, /Dicatat: Kerok & oles batang \(pasta tembaga\)/);
-    assert.match(r2.msg, /Sudah dirawat\. Foto lagi tgl/);
+    assert.equal(fake.get('trees', 'A1').condition, 'minor'); // the latest reading: a canker being treated is Kuning
+    assert.doesNotMatch(r2.msg, /Dicatat:|Foto lagi tgl/); // filed silently
 
     // 3. Healed: the case closes and drops off the open list.
     answers.push({ case_updates: [{ case: 1, status: 'resolved', evidence: 'luka kering' }] });
@@ -431,7 +431,7 @@ test('treatment reports join the problem they treat, so progress can be followed
     assert.match(calls[calls.length - 1], /Open problems on this tree from earlier reports \(numbered\):\nnone/);
     assert.equal(fake.all('cases').length, 1);
     assert.ok(fake.all('seasonTasks').some((t) => t.task === 'bagging' && t.block === 'A'));
-    assert.match(r4.msg, /Brongsong buah/);
+    assert.doesNotMatch(r4.msg, /Dicatat:/);
   });
 });
 
@@ -569,4 +569,91 @@ test('backfill: treatments in older readings are recognised, also on problems fi
 
   const again = await backfillCases({ days: 30, apply: true });
   assert.equal(again.toFile.length + again.toTreat.length, 0);
+});
+
+test('every report is taken as read: its stage and health move the tree on, the latest report has the last word', async () => {
+  seed();
+  const answers = [];
+  await withGemini(answers, async () => {
+    answers.push({ stages: [{ code: 'pingpong', confidence: 0.9, evidence: 'buah kecil' }], health: 'kuning', issues: [{ code: 'leaf_blight', name: 'Hawar daun', confidence: 0.8, evidence: 'bercak' }] });
+    const r1 = await reportAndRead('buah kecil, daun bercak', 31);
+    const tree = fake.get('trees', 'A1');
+    assert.equal(tree.condition, 'minor');
+    assert.equal(tree.observedStage.code, 'pingpong');
+    assert.equal(tree.observedStage.reportId, r1.id);
+    const rep = fake.get('reports', r1.id);
+    assert.deepEqual([rep.conditionBefore, rep.conditionAfter, rep.conditionChanged, rep.conditionSource], ['healthy', 'minor', true, 'triage']);
+    assert.ok(fake.all('treeEdits').some((e) => e.reason === 'report' && e.changes.condition && e.changes.condition.to === 'minor'));
+    assert.equal(rep.review, undefined); // nothing waits for a check
+
+    // A later report: healthy and improving.
+    answers.push({ health: 'hijau', improving: true });
+    const r2 = await reportAndRead('sudah membaik', 32);
+    assert.equal(fake.get('trees', 'A1').condition, 'healthy');
+    assert.equal(fake.get('trees', 'A1').improving.reportId, r2.id);
+    assert.equal(fake.get('trees', 'A1').observedStage.code, 'pingpong'); // no stage seen: the last one stays
+
+    // An older report read again never moves the tree back.
+    assert.equal((await applyReading(r1.id)).changed, false);
+    assert.equal(fake.get('trees', 'A1').condition, 'healthy');
+
+    // A report the owner already changed in the web app is left as the owner set it.
+    fake.seed('reports', r2.id, { ...fake.get('reports', r2.id), review: { decision: 'corrected' } });
+    fake.seed('trees', 'A1', { ...fake.get('trees', 'A1'), condition: 'emergency' });
+    assert.equal((await applyReading(r2.id)).changed, false);
+    assert.equal(fake.get('trees', 'A1').condition, 'emergency');
+  });
+});
+
+test('backfill: readings nobody checked move their trees on (dry run first)', async () => {
+  seed();
+  const at = (daysAgo) => ({ seconds: Math.floor((Date.now() - daysAgo * 86400e3) / 1000) });
+  const reading = (stage, health) => ({ source: 'ai', version: 'gemini-p2', stage: { code: stage, confidence: 0.9, evidence: stage }, issues: [], health, improving: false, numbers: [], needsReview: true });
+  fake.seed('reports', 's1', { treeId: 'A2', block: 'A', description: 'bunga', createdAt: at(6), triage: reading('bloom', 'hijau') });
+  fake.seed('reports', 's2', { treeId: 'A2', block: 'A', description: 'pentil', createdAt: at(2), triage: reading('set', 'kuning') });
+  fake.seed('trees', 'A2', { ...fake.get('trees', 'A2'), lastReportId: 's2' });
+  const dry = await backfillCases({ days: 30 });
+  assert.deepEqual(dry.trees, [{ tree: 'A2', stage: 'set', condition: 'minor', report: 's2' }]);
+  assert.equal(fake.get('trees', 'A2').condition, 'healthy');
+  await backfillCases({ days: 30, apply: true });
+  assert.equal(fake.get('trees', 'A2').condition, 'minor');
+  assert.equal(fake.get('trees', 'A2').observedStage.code, 'set');
+  assert.equal(fake.get('trees', 'A2').observedStage.reportId, 's2');
+});
+
+test('urgent words keep the tree Merah, an unclear photo never makes it look better, a later same-day stage stands', async () => {
+  seed();
+  const answers = [];
+  await withGemini(answers, async () => {
+    // "hampir mati" made it Merah at once; Gemini reads the photo more calmly: still Merah.
+    answers.push({ health: 'kuning' });
+    await reportAndRead('pohon hampir mati, getah merah banyak', 41);
+    assert.equal(fake.get('trees', 'A1').condition, 'emergency');
+
+    // A blurry photo read as Hijau does not clear the Merah.
+    answers.push({ health: 'hijau', photo_ok: false, photo_request: 'foto lebih dekat' });
+    await reportAndRead('cek pohon', 42);
+    assert.equal(fake.get('trees', 'A1').condition, 'emergency');
+
+    // A clear photo that shows it better does.
+    answers.push({ health: 'kuning' });
+    await reportAndRead('sudah lebih baik', 43);
+    assert.equal(fake.get('trees', 'A1').condition, 'minor');
+  });
+
+  // Two reports the same day: the later one's stage stays, even when the earlier one is read again.
+  const at = (h) => ({ seconds: Math.floor(Date.parse(`${today}T${h}:00+07:00`) / 1000) });
+  const reading = (code) => ({ source: 'ai', version: 'x', stage: { code, confidence: 0.9, evidence: code }, issues: [], health: 'hijau', improving: false, numbers: [], needsReview: false });
+  fake.seed('reports', 'early', { treeId: 'A2', createdAt: at('08:00'), triage: reading('bloom') });
+  fake.seed('reports', 'late', { treeId: 'A2', createdAt: at('09:00'), triage: reading('set') });
+  fake.seed('trees', 'A2', { ...fake.get('trees', 'A2'), lastReportId: 'late', observedStage: { code: 'set', date: today, reportId: 'late' } });
+  assert.equal((await applyReading('early')).changed, false);
+  assert.equal(fake.get('trees', 'A2').observedStage.code, 'set');
+
+  // A condition a worker chose in the older Flow is left as they chose it.
+  fake.seed('reports', 'old', { treeId: 'B1', createdAt: at('10:00'), conditionSource: 'worker', conditionChanged: true, conditionBefore: 'healthy', conditionAfter: 'emergency', triage: reading('bloom') });
+  fake.seed('trees', 'B1', { ...fake.get('trees', 'B1'), condition: 'emergency', lastReportId: 'old' });
+  await applyReading('old');
+  assert.equal(fake.get('trees', 'B1').condition, 'emergency');
+  assert.equal(fake.get('trees', 'B1').observedStage.code, 'bloom');
 });

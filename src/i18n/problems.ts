@@ -5,14 +5,10 @@ export const problems: Bundle = {
   id: {
     // Today
     'today.need.title': 'Perlu Anda',
-    'today.need.check': 'Laporan perlu dicek',
-    'today.need.check.sub': 'Masalah baru, foto kurang jelas, atau laporan yang belum terbaca',
     'today.need.worse': 'Masalah memburuk',
     'today.need.due': 'Waktunya foto ulang',
-    'today.need.due.sub': 'Masalah yang sudah lewat tanggal cek',
     'today.need.untreated': 'Masalah belum ditangani',
     'today.need.pick': 'Pohon siap dipanen',
-    'today.need.count': 'Pohon perlu dihitung',
     'today.need.routines': 'Pekerjaan rutin terlambat',
     'today.need.stale': 'Pohon tanpa laporan 7 hari',
     'today.need.stale.sub': 'dari {n} pohon',
@@ -31,10 +27,6 @@ export const problems: Bundle = {
     'today.rain.none': 'Belum ada catatan hujan 30 hari terakhir.',
 
     // Reports page
-    'rep.tab.check': 'Perlu dicek',
-    'rep.tab.problems': 'Masalah',
-    'rep.tab.activity': 'Pekerja',
-    'rep.desc.check': 'Laporan yang belum dilihat siapa pun, dengan apa yang dibaca sistem dari foto dan tulisan.',
     'rep.desc.problems': 'Setiap masalah di pohon, dari pertama terlihat sampai selesai: apa yang sudah dilakukan dan kapan cek lagi.',
 
     // Cases
@@ -46,10 +38,7 @@ export const problems: Bundle = {
     'case.check.today': 'Foto ulang hari ini',
     'case.check.on': 'Foto ulang {date} ({n} hari lagi)',
     'case.check.on.one': 'Foto ulang besok, {date}',
-    'case.thisReport': 'Laporan ini',
-    'case.openReport': 'Buka laporan',
     'case.byHand': 'Diubah di aplikasi oleh {by}',
-    'case.openTree': 'Buka pohon {id}',
     'case.markSolved': 'Tandai selesai',
     'case.reopen': 'Buka lagi',
     'case.delete': 'Bukan masalah',
@@ -74,8 +63,6 @@ export const problems: Bundle = {
     'ai.failed': 'Foto belum bisa diperiksa; yang dibaca hanya tulisannya.',
     'ai.photoN': 'Foto {n}',
     'ai.firstStep': 'Langkah pertama: {what}',
-    'ai.for': 'untuk {what}',
-    'ai.harvest': 'Panen dicatat: {n} buah',
     'ai.photoAsked': 'Pekerja diminta foto ulang: {what}',
     'ai.photoAskedShort': 'Pekerja diminta foto ulang yang lebih jelas.',
 
@@ -93,14 +80,10 @@ export const problems: Bundle = {
   },
   en: {
     'today.need.title': 'Needs you',
-    'today.need.check': 'Reports to check',
-    'today.need.check.sub': 'New problems, unclear photos, or reports not read yet',
     'today.need.worse': 'Problems getting worse',
     'today.need.due': 'Due for a photo check',
-    'today.need.due.sub': 'Problems past their check date',
     'today.need.untreated': 'Problems not treated yet',
     'today.need.pick': 'Trees ready to pick',
-    'today.need.count': 'Trees to count',
     'today.need.routines': 'Routine work overdue',
     'today.need.stale': 'Trees with no report in 7 days',
     'today.need.stale.sub': 'of {n} trees',
@@ -118,10 +101,6 @@ export const problems: Bundle = {
     'today.rain': 'Rain, 30 days: {mm} mm · last recorded {date}',
     'today.rain.none': 'No rain recorded in the last 30 days.',
 
-    'rep.tab.check': 'To check',
-    'rep.tab.problems': 'Problems',
-    'rep.tab.activity': 'Workers',
-    'rep.desc.check': 'Reports nobody has looked at yet, with what the system read from the photos and words.',
     'rep.desc.problems': 'Every problem on a tree, from first sighting to solved: what was done and when to check again.',
 
     'case.since': 'Since {date}',
@@ -132,10 +111,7 @@ export const problems: Bundle = {
     'case.check.today': 'Photo check today',
     'case.check.on': 'Photo check {date} (in {n} days)',
     'case.check.on.one': 'Photo check tomorrow, {date}',
-    'case.thisReport': 'This report',
-    'case.openReport': 'Open report',
     'case.byHand': 'Changed in the app by {by}',
-    'case.openTree': 'Open tree {id}',
     'case.markSolved': 'Mark solved',
     'case.reopen': 'Reopen',
     'case.delete': 'Not a problem',
@@ -159,8 +135,6 @@ export const problems: Bundle = {
     'ai.failed': "The photos couldn't be checked; only the words were read.",
     'ai.photoN': 'Photo {n}',
     'ai.firstStep': 'First step: {what}',
-    'ai.for': 'for {what}',
-    'ai.harvest': 'Harvest recorded: {n} fruit',
     'ai.photoAsked': 'Worker asked for a new photo: {what}',
     'ai.photoAskedShort': 'Worker asked for a clearer photo.',
 

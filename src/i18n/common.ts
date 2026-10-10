@@ -57,11 +57,8 @@ export const common: Bundle = {
     'field.lastReport': 'Laporan terakhir',
 
     // time
-    'time.justNow': 'baru saja',
-    'time.minAgo': '{n} mnt lalu',
     'time.hAgo': '{n} jam lalu',
     'time.dAgo': '{n} hari lalu',
-    'time.moAgo': '{n} bln lalu',
   },
   en: {
     'common.tree': 'Tree',
@@ -106,10 +103,7 @@ export const common: Bundle = {
     'field.fruits': 'Estimated fruit count',
     'field.lastReport': 'Last report',
 
-    'time.justNow': 'just now',
-    'time.minAgo': '{n}m ago',
     'time.hAgo': '{n}h ago',
     'time.dAgo': '{n}d ago',
-    'time.moAgo': '{n}mo ago',
   },
 };

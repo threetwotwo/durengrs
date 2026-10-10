@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, ArrowRight, BookOpen, Trash2, User, Wheat } from 'lucide-react';
+import { ArrowLeft, ArrowRight, BookOpen, Trash2, Wheat } from 'lucide-react';
 import { collection, doc, limit, onSnapshot, orderBy, query, where } from 'firebase/firestore';
 import { db, parseReportDoc } from '../lib/firebase';
 import { useFarm } from '../context/FarmContext';
@@ -15,13 +15,11 @@ import type { TreeReport } from '../types';
 import { ConditionBadge } from './ConditionBadge';
 import { improvingNow } from '../lib/trees';
 import { Link } from './Link';
-import { PhotoAlbum } from './PhotoAlbum';
-import { PhotoLightbox, type GalleryItem } from './PhotoLightbox';
-import { SourceBadge } from './SourceBadge';
+import { PhotoGrid, RecordCard, RecordGrid } from './Record';
 import { StagePill, blockLine } from './GuideWidgets';
 import { TreeStageCell } from './StageBoard';
 import { useCrops } from './useCrops';
-import { FIELD_KEY, KIND_ICON, KIND_TONE, LogRow, TEXT_FIELDS, canDelete, deleteRecord, localDay, useEditValue } from './LogParts';
+import { FIELD_KEY, TEXT_FIELDS, canDelete, deleteRecord, localDay, useEditValue } from './LogParts';
 
 const card = 'bg-white rounded-xl border border-slate-200 p-4 space-y-3';
 const h2 = 'text-sm font-bold text-slate-900';
@@ -43,7 +41,6 @@ export const RecordDetailView: React.FC<{ kind: Kind; id: string }> = ({ kind, i
   const value = useEditValue();
   const [edit, setEdit] = useState<TreeEdit | null | undefined>(undefined);
   const [treeReports, setTreeReports] = useState<TreeReport[]>([]);
-  const [gallery, setGallery] = useState<{ items: GalleryItem[]; index: number } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [settled, setSettled] = useState(false);
@@ -128,13 +125,13 @@ export const RecordDetailView: React.FC<{ kind: Kind; id: string }> = ({ kind, i
   const tree = e.treeId ? allTrees.find((x) => x.id === e.treeId) : undefined;
   const crop = tree ? crops.find((c) => c.tree.id === tree.id) : undefined;
   const season = e.block ? seasons.find((s) => s.block === e.block) : undefined;
-  const Icon = KIND_ICON[e.kind];
   const today = todayStr();
   const time = e.timed ? new Date(e.at).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' }) : '';
   const photos = e.photos || [];
   const caption = `${t(`log.kind.${e.kind}`)} · ${e.treeId || (e.block ? t('common.blockN', { n: e.block }) : '')}`;
   const rows = recordRows(e, { t, lang, today, value });
   const taskTopic = e.kind === 'task' ? SEASON_TASKS[e.rec.task]?.topic : undefined;
+  const reportId = typeof (e.rec as { reportId?: unknown }).reportId === 'string' ? ((e.rec as { reportId?: string }).reportId as string) : undefined;
 
   const remove = async () => {
     if (!window.confirm(t('log.delete.confirm'))) return;
@@ -157,35 +154,27 @@ export const RecordDetailView: React.FC<{ kind: Kind; id: string }> = ({ kind, i
         {t('rep.detail.back')}
       </button>
 
-      <div className="grid gap-4 lg:grid-cols-12">
-        <article className="lg:col-span-7 bg-white rounded-xl border border-slate-200 overflow-hidden">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+        <article className="min-w-0 lg:col-span-7 bg-white rounded-xl border border-slate-200 overflow-hidden">
+          {photos.length > 0 && <PhotoGrid photos={photos} caption={caption} eager className="aspect-[4/3]" />}
           <div className="p-4 sm:p-5 space-y-3">
-            <header className="flex items-start gap-3">
-              <span className={`w-10 h-10 shrink-0 rounded-xl inline-flex items-center justify-center ${KIND_TONE[e.kind]}`} aria-hidden>
-                <Icon className="w-5 h-5" />
-              </span>
-              <div className="min-w-0">
-                <h1 className="text-xl font-bold text-slate-900">
-                  {t(`log.kind.${e.kind}`)}
-                  {e.treeId && (
-                    <>
-                      {' · '}
-                      <Link to={treeUrl(e.treeId)} className="hover:text-emerald-700 hover:underline underline-offset-2">
-                        {t('rep.treeN', { id: e.treeId })}
-                      </Link>
-                    </>
-                  )}
-                </h1>
-                <p className="text-sm text-slate-600 mt-0.5">
-                  {[tree?.variant, e.block ? t('common.blockN', { n: e.block }) : null].filter(Boolean).join(' · ')}
-                </p>
-              </div>
+            <header className="space-y-0.5">
+              <h1 className="text-xl font-bold text-slate-900">
+                {e.treeId && (
+                  <Link to={treeUrl(e.treeId)} className="font-mono mr-2 hover:text-emerald-700 hover:underline underline-offset-2">
+                    {e.treeId}
+                  </Link>
+                )}
+                {t(`log.kind.${e.kind}`)}
+              </h1>
+              <p className="text-sm text-slate-600 tabular">
+                {[tree?.variant, e.block ? t('common.blockN', { n: e.block }) : null].filter(Boolean).join(', ')}
+                {tree?.variant || e.block ? '. ' : ''}
+                {t('rec.detail.recorded')} {formatShortDate(localDay(e.at))}
+                {time ? `, ${time}` : ''}
+                {e.who ? `, ${workerLabel(e.who)}` : ''}
+              </p>
             </header>
-
-            <p className="text-sm text-slate-600 tabular">
-              {t('rec.detail.recorded')} {formatShortDate(localDay(e.at))}
-              {time ? ` · ${time}` : ''}
-            </p>
 
             <dl className="divide-y divide-slate-100 border-y border-slate-100">
               {rows.map(([label, v], i) => (
@@ -197,27 +186,14 @@ export const RecordDetailView: React.FC<{ kind: Kind; id: string }> = ({ kind, i
             </dl>
           </div>
 
-          {photos.length > 0 && (
-            <PhotoAlbum
-              photos={photos}
-              eager
-              onOpen={(i) =>
-                setGallery({ items: photos.map((p, n) => ({ url: p.url, medium: p.medium, thumb: p.thumb, caption: `${caption} (${n + 1}/${photos.length})` })), index: i })
-              }
-              className="aspect-[4/3] sm:aspect-[16/10]"
-            />
-          )}
-
           <footer className="px-4 sm:px-5 py-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-sm text-slate-600">
-            <span className="inline-flex flex-wrap items-center gap-x-3 gap-y-1">
-              {e.who && (
-                <span className="inline-flex items-center gap-1.5">
-                  <User className="w-4 h-4 text-slate-400" aria-hidden />
-                  {t('rep.reportedBy')} <span className="font-semibold text-slate-800">{workerLabel(e.who)}</span>
-                </span>
-              )}
-              {e.source === 'whatsapp' ? <SourceBadge source="whatsapp" /> : <span>{t('log.source.webapp')}</span>}
-            </span>
+            {reportId ? (
+              <Link to={reportUrl(reportId)} className="font-semibold text-emerald-700 hover:underline min-h-9 inline-flex items-center">
+                {t('rec.detail.fromReport')}
+              </Link>
+            ) : (
+              <span>{e.source === 'whatsapp' ? 'WhatsApp' : t('log.source.webapp')}</span>
+            )}
             {canDelete(e.kind) && (
               <button
                 type="button"
@@ -233,7 +209,7 @@ export const RecordDetailView: React.FC<{ kind: Kind; id: string }> = ({ kind, i
           {error && <p role="alert" className="px-4 sm:px-5 pb-3 text-sm text-rose-700">{error}</p>}
         </article>
 
-        <div className="lg:col-span-5 space-y-4">
+        <div className="min-w-0 lg:col-span-5 space-y-4">
           {tree && (
             <section className={card} aria-labelledby="rec-tree">
               <div className="flex items-center justify-between gap-2">
@@ -283,19 +259,18 @@ export const RecordDetailView: React.FC<{ kind: Kind; id: string }> = ({ kind, i
       </div>
 
       {related.length > 0 && (
-        <section aria-labelledby="rec-others" className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-          <h2 id="rec-others" className={`${h2} px-4 py-3 border-b border-slate-200`}>
+        <section aria-labelledby="rec-others" className="space-y-2.5">
+          <h2 id="rec-others" className={h2}>
             {t('rec.detail.others', { where: e.treeId ? t('rep.treeN', { id: e.treeId }) : e.kind === 'rain' ? t('rec.detail.nearbyDays') : t('common.blockN', { n: e.block || '' }) })}
           </h2>
-          <ul className="divide-y divide-slate-100">
+          <RecordGrid>
             {related.map((r) => (
-              <LogRow key={r.key} entry={r} dated />
+              <RecordCard key={r.key} entry={r} showTree={!e.treeId} />
             ))}
-          </ul>
+          </RecordGrid>
         </section>
       )}
 
-      {gallery && <PhotoLightbox items={gallery.items} index={gallery.index} onClose={() => setGallery(null)} />}
     </div>
   );
 };

@@ -87,21 +87,21 @@ async function bloomExists(treeId, date, part) {
   return sameTree.docs.some((d) => d.data().date === date && d.data().part === part);
 }
 
-async function saveBloom({ treeId, block, date, part, note, workerPhone }) {
+async function saveBloom({ treeId, block, date, part, note, workerPhone, reportId }) {
   const id = R.bloomWaveId(treeId, date, part);
   if (await bloomExists(treeId, date, part)) return { duplicate: true, id };
-  await db.collection('bloomWaves').doc(id).set(strip({ treeId, block, date, part, note, source: 'whatsapp', workerPhone: workerPhone || undefined, createdAt: now() }));
+  await db.collection('bloomWaves').doc(id).set(strip({ treeId, block, date, part, note, source: 'whatsapp', workerPhone: workerPhone || undefined, reportId, createdAt: now() }));
   return { duplicate: false, id };
 }
 
 // Counting again on the same day replaces the count. The tree record is kept current only with the newest
 // count of its kind, and only for a tree with a single flowering (same rule as the webapp).
-async function saveCount({ tree, season, stage, count, note, date, workerPhone, wavesCount, existing }) {
+async function saveCount({ tree, season, stage, count, note, date, workerPhone, wavesCount, existing, reportId }) {
   const id = R.cropCountId({ treeId: tree.id, season, stage, date });
   const batch = db.batch();
   batch.set(
     db.collection('cropCounts').doc(id),
-    strip({ treeId: tree.id, block: tree.block, season, stage, count, date, by: workerPhone || undefined, note, source: 'whatsapp', createdAt: now() })
+    strip({ treeId: tree.id, block: tree.block, season, stage, count, date, by: workerPhone || undefined, note, source: 'whatsapp', reportId, createdAt: now() })
   );
 
   const field = R.COUNT_STAGES[stage].treeField;

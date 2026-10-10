@@ -6,8 +6,11 @@ import { useCallback, useSyncExternalStore } from 'react';
  *   #/                      today: what needs the owner
  *   #/trees?block=A&health=merah&show=problems   every tree as one sheet, editable like Google Sheets
  *   #/trees/A12             one tree: problems, history, crop, details
- *   #/reports               reports to check (?view=problems | log | activity)
+ *   #/reports               every record from the field, newest first (?tree=A12&type=harvest&days=30...)
  *   #/reports/abc123        one report (or one record, see lib/fieldLog.ts recordKey)
+ *   #/problems              problems on trees (?show=due|solved&block=A)
+ *   #/problems/A12_canker…  one problem, from first sighting to solved
+ *   #/workers               who reports, how often, which blocks are missed
  *   #/harvest               crop tracking per tree, graded harvests, forecast
  *   #/schedule              routines (sprays, fertiliser rounds)
  *   #/variants
@@ -18,7 +21,7 @@ import { useCallback, useSyncExternalStore } from 'react';
  * gives working Back/Forward, shareable deep links, and survives reloads.
  */
 
-export type AppTab = 'dashboard' | 'harvest' | 'schedule' | 'trees' | 'variants' | 'reports' | 'guide';
+export type AppTab = 'dashboard' | 'trees' | 'reports' | 'problems' | 'harvest' | 'schedule' | 'variants' | 'workers' | 'guide';
 
 export interface Route {
   tab: AppTab;
@@ -27,6 +30,8 @@ export interface Route {
   topicId: string | null;
   /** Report document id in #/reports/abc123. */
   reportId: string | null;
+  /** Problem (case) id in #/problems/A12_phytophthora_canker_2026-10-09. */
+  caseId: string | null;
   params: URLSearchParams;
   /** Path without query, e.g. "/trees/A12". */
   path: string;
@@ -36,7 +41,7 @@ export interface Route {
   known: boolean;
 }
 
-const TABS: AppTab[] = ['dashboard', 'harvest', 'schedule', 'trees', 'variants', 'reports', 'guide'];
+const TABS: AppTab[] = ['dashboard', 'trees', 'reports', 'problems', 'harvest', 'schedule', 'variants', 'workers', 'guide'];
 
 /** The page a hash address points to. Old addresses (#/kebun) still land on the right page. */
 export function parseHash(hash: string): Route {
@@ -50,22 +55,28 @@ export function parseHash(hash: string): Route {
   let treeId: string | null = null;
   let topicId: string | null = null;
   let reportId: string | null = null;
+  let caseId: string | null = null;
   let known = true;
 
   if (segs.length === 0) {
     tab = 'dashboard';
   } else if (segs[0] === 'kebun' && segs.length === 1) {
     tab = 'trees'; // the old address of the farm sheet
+  } else if (segs[0] === 'reports' && segs.length === 1 && params.get('view') === 'problems') {
+    tab = 'problems'; // older links: problems and workers were views of Reports
+  } else if (segs[0] === 'reports' && segs.length === 1 && params.get('view') === 'activity') {
+    tab = 'workers';
   } else if (TABS.includes(segs[0] as AppTab) && segs[0] !== 'dashboard') {
     tab = segs[0] as AppTab;
     if (tab === 'trees' && segs.length === 2) treeId = decodeURIComponent(segs[1]);
     else if (tab === 'guide' && segs.length === 2) topicId = decodeURIComponent(segs[1]);
     else if (tab === 'reports' && segs.length === 2) reportId = decodeURIComponent(segs[1]);
+    else if (tab === 'problems' && segs.length === 2) caseId = decodeURIComponent(segs[1]);
     else if (segs.length > 1) known = false;
   } else {
     known = false;
   }
-  return { tab, treeId, topicId, reportId, params, path, pageKey: `${tab}:${treeId ?? topicId ?? reportId ?? ''}`, known };
+  return { tab, treeId, topicId, reportId, caseId, params, path, pageKey: `${tab}:${treeId ?? topicId ?? reportId ?? caseId ?? ''}`, known };
 }
 
 // ---- store ----
@@ -188,14 +199,17 @@ export function treesUrl(filters: Record<string, string | null | undefined> = {}
 
 export const treeUrl = (id: string) => `/trees/${encodeURIComponent(id)}`;
 export const reportUrl = (id: string) => `/reports/${encodeURIComponent(id)}`;
+export const caseUrl = (id: string) => `/problems/${encodeURIComponent(id)}`;
 
 /** i18n keys, resolve with t(). */
 export const TAB_TITLES: Record<AppTab, string> = {
   dashboard: 'nav.dashboard',
+  trees: 'nav.trees',
+  reports: 'nav.reports',
+  problems: 'nav.problems',
   harvest: 'nav.harvest',
   schedule: 'nav.schedule',
-  trees: 'nav.trees',
   variants: 'nav.variants',
-  reports: 'nav.reports',
+  workers: 'nav.workers',
   guide: 'nav.guide',
 };

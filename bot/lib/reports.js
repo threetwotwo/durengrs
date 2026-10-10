@@ -230,8 +230,9 @@ async function createReport({ reportId, treeId, workerPhone, condition, descript
       workerPhone: workerPhone || null,
       description: description || null,
       photos,
-      conditionBefore: before,
-      conditionAfter: after,
+      // A tree never assessed is 'not_assessed', so setting the report aside in the web app can put it back.
+      conditionBefore: before ?? 'not_assessed',
+      conditionAfter: after ?? 'not_assessed',
       conditionChanged: changed,
       // Who changed the condition: only the triage does now (older reports may say 'worker').
       ...(changed ? { conditionSource: 'triage' } : {}),

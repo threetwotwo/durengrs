@@ -18,7 +18,7 @@ const C = require('./cropData');
 
 const now = () => admin.firestore.FieldValue.serverTimestamp();
 // The words and codes are shared with the web app (src/shared/actions.ts, generated into lib/shared.js).
-const { ACTIONS, ACTION_INFO, SEASON_TASK_OF, CASE_UPDATES, CASE_STATUS_INFO, RECHECK_DAYS } = S;
+const { ACTIONS, ACTION_INFO, SEASON_TASK_OF, CASE_UPDATES, RECHECK_DAYS } = S;
 const actionLabel = (type) => (ACTION_INFO[type] ? ACTION_INFO[type].label.id : type);
 
 const caseName = (c) => c.name || S.ISSUE_INFO[c.issue]?.label.id || c.issue;
@@ -77,12 +77,11 @@ const sameProblem = (c, code, name) =>
 /**
  * Files one Gemini reading into the tree's cases and season jobs.
  * `open` is the list given to the prompt, so `case: n` in Gemini's answer means open[n - 1].
- * Returns { caseIds, lines } — lines are for the worker's reply.
+ * Returns { caseIds }. Silent: nothing here reaches the worker (the reply stays as the worker knows it).
  */
 async function applyToCases({ tree, reportId, triage, today, workerPhone, open, seasonTasks = true }) {
   const touched = new Map(); // id -> case (with pending changes)
   const created = [];
-  const lines = [];
 
   const nextStatus = { treated: 'treated', improving: 'improving', worse: 'worse', resolved: 'resolved' };
   // What this report adds to each case: its new events, written onto the case as it is at write time (the owner may
@@ -135,18 +134,11 @@ async function applyToCases({ tree, reportId, triage, today, workerPhone, open, 
   for (const c of touched.values()) {
     const isNew = created.includes(c);
     const saved = await saveCase(c, change.get(c.id), isNew);
-    if (!saved) continue;
-    caseIds.push(saved.id);
-    const tail = saved.status === 'resolved' ? '' : ` Foto lagi tgl ${R.dateLabel(saved.nextCheck)} untuk cek perkembangan.`;
-    lines.push(`📈 ${caseName(c)}: ${isNew && saved.status === 'open' ? 'masalah baru dicatat' : CASE_STATUS_INFO[saved.status].label.id}.${tail}`);
+    if (saved) caseIds.push(saved.id);
   }
 
-  // Work done on the tree, and season jobs of the block.
+  // Season jobs of the block (pollination, thinning, bagging, tying) seen in the report.
   const tasks = [...new Set((triage.actions || []).map((a) => SEASON_TASK_OF[a.type]).filter(Boolean))];
-  for (const a of triage.actions || []) {
-    if (a.type === 'harvest' && triage.harvest) continue; // the harvest record has its own line (lib/ai.js)
-    lines.unshift(`🧴 Dicatat: ${actionLabel(a.type)}${a.product ? ` (${a.product})` : ''}.`);
-  }
   if (seasonTasks && tasks.length && tree.block) {
     try {
       const season = await C.blockSeasonDate(tree.block, today);
@@ -155,7 +147,7 @@ async function applyToCases({ tree, reportId, triage, today, workerPhone, open, 
       console.error('Season tasks from report failed:', err);
     }
   }
-  return { caseIds, lines: [...new Set(lines)] };
+  return { caseIds };
 }
 
 /** Where a case stands, from its events in date order (the latest one that sets a status wins). */

@@ -1,5 +1,6 @@
 // lib/backfill.js — files problems from reports saved before cases existed (or whose reading never filed them), so
-// Reports › Problems starts with the farm's recent history. One-off and safe to run again: a report that already
+// Problems starts with the farm's recent history, and lets the readings nobody checked move their trees on (every
+// report is taken as read now, lib/treeReading.js). One-off and safe to run again: a report that already
 // points at cases (`caseIds`) is left alone. Open in a browser (GET /cases-backfill, see index.js):
 //   ?token=<VERIFY_TOKEN>              what it would file (nothing is written)
 //   ?token=<VERIFY_TOKEN>&apply=1      file it
@@ -7,6 +8,7 @@
 const { db } = require('./firestore');
 const R = require('./rules');
 const K = require('./cases');
+const { applyReading } = require('./treeReading');
 
 const DAY = 24 * 60 * 60 * 1000;
 const ms = (ts) => {
@@ -43,6 +45,8 @@ async function backfillCases({ days = 30, apply = false } = {}) {
     toFile: [],
     // Reports filed before whose treatment was missed: it is added to their problems now.
     toTreat: [],
+    // Trees whose stage or condition their (unchecked) reports move on: every report is now taken as read.
+    trees: [],
   };
   for (const r of reports) {
     const st = r.ai && r.ai.status;
@@ -89,6 +93,23 @@ async function backfillCases({ days = 30, apply = false } = {}) {
     }
     out.toTreat.push(row);
   }
+  // Every report is taken as read now: the readings nobody checked move their trees on, oldest first (the tree's
+  // latest report has the last word on its condition).
+  const treeChange = new Map();
+  for (const r of reports) {
+    if (r.review) continue;
+    const tree = trees.get(r.treeId);
+    if (!tree || tree.active === false) continue;
+    const res = await applyReading(r.id, { dryRun: !apply });
+    if (!res.changed) continue;
+    const prev = treeChange.get(r.treeId) || { tree: r.treeId };
+    if (res.condition) prev.condition = res.condition;
+    if (res.stage) prev.stage = res.stage;
+    prev.report = r.id;
+    treeChange.set(r.treeId, prev);
+  }
+  out.trees = [...treeChange.values()];
+
   if (apply) out.casesAfter = (await db.collection('cases').get()).docs.length;
   return out;
 }

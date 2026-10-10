@@ -332,8 +332,8 @@ const TopicView: React.FC<{ id: TopicId }> = ({ id }) => {
         </section>
       )}
 
-      <div className="grid gap-4 lg:grid-cols-12">
-        <div className="lg:col-span-7 space-y-4">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+        <div className="min-w-0 lg:col-span-7 space-y-4">
           <section className={card} aria-labelledby="t-targets">
             <h2 id="t-targets" className={h2}>{t('guide.targets')}</h2>
             <dl className="divide-y divide-slate-100 -mx-1">
@@ -367,7 +367,7 @@ const TopicView: React.FC<{ id: TopicId }> = ({ id }) => {
           ))}
         </div>
 
-        <div className="lg:col-span-5 space-y-4">
+        <div className="min-w-0 lg:col-span-5 space-y-4">
           <section className="bg-white rounded-xl border border-slate-200 overflow-hidden" aria-labelledby="t-farm">
             <h2 id="t-farm" className={`${h2} p-4 pb-0`}>{t('guide.farm.title')}</h2>
             {topicChecks.length === 0 && mentioned.length === 0 && planAdvice.length === 0 && id !== 'harvest' && id !== 'fruit' ? (

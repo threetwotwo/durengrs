@@ -1,18 +1,19 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { collection, limit, onSnapshot, orderBy, query, where } from 'firebase/firestore';
+import { collection, getDocs, limit, onSnapshot, orderBy, query, where } from 'firebase/firestore';
 import { Archive, ArchiveRestore, ArrowLeft, Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useT } from '../i18n';
-import { formatDate, formatDateTime, normalizeTimestamp, useFarm } from '../context/FarmContext';
+import { formatDate, normalizeTimestamp, useFarm } from '../context/FarmContext';
 import { db, parseReportDoc } from '../lib/firebase';
 import { navigate, treeUrl, treesUrl } from '../lib/router';
-import { formatShortDate, toDateStr } from '../lib/treatments';
+import { formatShortDate } from '../lib/treatments';
 import { improvingNow } from '../lib/trees';
 import { restoreTree } from '../lib/fieldData';
+import { buildFieldLog, type TreeEdit } from '../lib/fieldLog';
+import { foldFiledRecords } from '../lib/feed';
 import type { TreeReport } from '../types';
 import { ConditionBadge } from './ConditionBadge';
-import { ReportCard } from './ReportCard';
 import { Link } from './Link';
-import { PhotoLightbox, type GalleryItem } from './PhotoLightbox';
+import { HistoryItem } from './Record';
 import { TreeGuideSection } from './GuideWidgets';
 import { TreeCropCard } from './CropWidgets';
 import { TreeStageCell } from './StageBoard';
@@ -21,17 +22,20 @@ import { ArchiveTreeSheet } from './ArchiveTreeSheet';
 import { TreeProblems } from './Problems';
 import { TreeDetailsForm } from './TreeDetailsForm';
 
+/** Edits a person made by hand; those the reports made (reason 'report', reviews) are already on the reports. */
+const BY_REPORT = new Set(['report', 'review', 'review-dismissed', 'ai-urgent']);
+
 /**
- * One tree, top to bottom:
- *   header       ID, variety, block, health, stage; previous / next tree
- *   problems     what is wrong with it, what was done, when to check again (cases)
- *   history      every photo oldest to newest, then the reports themselves
- *   crop         this season's flowering, counts and harvest; the Guide's advice (Guide on)
+ * One tree:
+ *   header       ID (type another to go there), variety, block, health, stage; previous / next tree
+ *   history      one line of everything that happened to it, newest first: reports with their photos, counts,
+ *                harvests, flowerings, changes made by hand
+ *   beside it    its problems, this season's crop, the Guide's advice (Guide on), the block's routines
  *   details      the editable profile and measurements; archive
  */
 export const TreeDetailView: React.FC<{ treeId: string; onBack: () => void }> = ({ treeId, onBack }) => {
   const { t } = useT();
-  const { trees, allTrees, variants, treatments } = useFarm();
+  const { trees, allTrees, variants, treatments, cropCounts, harvests, treeBlooms } = useFarm();
   const { crops } = useCrops();
   const tree = allTrees.find((x) => x.id === treeId);
   const archived = tree?.active === false;
@@ -62,22 +66,37 @@ export const TreeDetailView: React.FC<{ treeId: string; onBack: () => void }> = 
     );
   }, [treeId, reportsLimit]);
 
-  const [gallery, setGallery] = useState<{ items: GalleryItem[]; index: number } | null>(null);
   const [archiving, setArchiving] = useState(false);
   const [restoring, setRestoring] = useState(false);
   const [restoreError, setRestoreError] = useState<string | null>(null);
 
-  // Every photo, oldest first, so progress or decline is easy to see.
-  const photos = useMemo(
-    () =>
-      reports
-        .slice()
-        .reverse()
-        .flatMap((r) =>
-          (r.photos || []).map((ph) => ({ url: ph.url, thumb: ph.thumb || ph.medium || ph.url, at: r.createdAt, date: toDateStr(new Date(normalizeTimestamp(r.createdAt) || Date.now())) }))
-        ),
-    [reports]
-  );
+  // Changes made to the tree by hand (a tree has few): read once.
+  const [edits, setEdits] = useState<TreeEdit[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    getDocs(query(collection(db, 'treeEdits'), where('treeId', '==', treeId)))
+      .then((snap) => {
+        if (cancelled) return;
+        setEdits(snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }) as TreeEdit).filter((e) => !BY_REPORT.has(String(e.reason || ''))));
+      })
+      .catch((err) => console.error('Tree edits load failed:', err));
+    return () => {
+      cancelled = true;
+    };
+  }, [treeId]);
+
+  // The history line: while older reports are unread, other records stop where the reports read so far stop.
+  const history = useMemo(() => {
+    const all = buildFieldLog({
+      reports,
+      counts: cropCounts.filter((c) => c.treeId === treeId),
+      harvests: harvests.filter((h) => h.treeId === treeId),
+      blooms: treeBlooms.filter((b) => b.treeId === treeId),
+      edits,
+    });
+    const from = hasMore && reports.length ? normalizeTimestamp(reports[reports.length - 1].createdAt) : 0;
+    return foldFiledRecords(all.filter((e) => e.at >= from));
+  }, [reports, cropCounts, harvests, treeBlooms, edits, treeId, hasMore]);
   const blockTreatments = treatments.filter((x) => tree?.block && x.blocks?.includes(tree.block)).slice(0, 5);
   const variantName = variants.find((v) => v.code === tree?.variant)?.name;
 
@@ -111,34 +130,12 @@ export const TreeDetailView: React.FC<{ treeId: string; onBack: () => void }> = 
               <ConditionBadge condition={tree.condition} improving={improvingNow(tree)} size="md" />
             </div>
             <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-600 mt-0.5">
-              <span>{[variantName || tree.variant, tree.block ? t('common.blockN', { n: tree.block }) : null].filter(Boolean).join(' · ')}</span>
+              <span>{[variantName || tree.variant, tree.block ? t('common.blockN', { n: tree.block }) : null].filter(Boolean).join(', ')}</span>
               <TreeStageCell tree={tree} crop={crops.find((c) => c.tree.id === tree.id)} />
             </p>
           </div>
         </div>
-        {!archived && (
-          <nav className="flex items-center border border-slate-200 rounded-lg p-0.5 bg-slate-50" aria-label={t('tree.stepper')}>
-            <button
-              onClick={() => prevTree && navigate(treeUrl(prevTree.id), { replace: true })}
-              disabled={!prevTree}
-              className="min-h-10 min-w-10 flex items-center justify-center rounded text-slate-600 hover:text-slate-900 hover:bg-white disabled:opacity-30"
-              aria-label={prevTree ? t('tree.prevTree', { id: prevTree.id }) : t('tree.firstTree')}
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            <span className="text-xs font-mono font-medium px-2 text-slate-700 select-none tabular">
-              {index + 1} / {trees.length}
-            </span>
-            <button
-              onClick={() => nextTree && navigate(treeUrl(nextTree.id), { replace: true })}
-              disabled={!nextTree}
-              className="min-h-10 min-w-10 flex items-center justify-center rounded text-slate-600 hover:text-slate-900 hover:bg-white disabled:opacity-30"
-              aria-label={nextTree ? t('tree.nextTree', { id: nextTree.id }) : t('tree.lastTree')}
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          </nav>
-        )}
+        <TreeJump tree={tree} prev={prevTree?.id} next={nextTree?.id} position={index >= 0 ? `${index + 1} / ${trees.length}` : ''} />
       </header>
 
       {archived && (
@@ -183,82 +180,68 @@ export const TreeDetailView: React.FC<{ treeId: string; onBack: () => void }> = 
         </div>
       )}
 
-      <TreeProblems treeId={tree.id} />
-
-      {/* History: every photo oldest to newest, then the reports themselves */}
-      <section className="bg-white rounded-xl border border-slate-200 shadow-xs p-4 space-y-3" aria-labelledby="hist-h">
-        <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h2 id="hist-h" className="text-sm font-bold text-slate-900">
-            {t('tree.history')} {reports.length > 0 && <span className="text-slate-500 font-medium tabular">({reports.length}{hasMore ? '+' : ''})</span>}
-          </h2>
-          <Link to={`/reports?view=log&tree=${encodeURIComponent(tree.id)}&days=365`} className="text-xs font-semibold text-emerald-700 hover:underline min-h-8 inline-flex items-center">
-            {t('tree.allRecords')}
-          </Link>
+      {/* Phones: problems, history, then the crop. Wide screens: the history on the left, the rest beside it. */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-12 lg:grid-rows-[auto_1fr] items-start">
+        <div className="min-w-0 lg:col-start-8 lg:col-span-5 lg:row-start-1 empty:hidden">
+          <TreeProblems treeId={tree.id} />
         </div>
-        {photos.length > 0 && (
-          <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
-            {photos.map((ph, i) => (
-              <button
-                key={`${ph.url}-${i}`}
-                onClick={() => setGallery({ items: photos.map((h) => ({ url: h.url, caption: t('tree.historyPhotoCaption', { id: tree.id, date: formatDateTime(h.at) }) })), index: i })}
-                className="shrink-0 w-[88px] text-left group"
-                aria-label={t('tree.historyPhotoAria', { date: formatShortDate(ph.date) })}
-              >
-                <img src={ph.thumb} alt="" loading="lazy" decoding="async" width="88" height="88" className="w-[88px] h-[88px] object-cover rounded-lg border border-slate-200 group-hover:ring-2 group-hover:ring-emerald-500" />
-                <span className="block text-xs text-slate-600 mt-1 tabular">{formatShortDate(ph.date)}</span>
-              </button>
-            ))}
-          </div>
-        )}
-        {reportsLoading ? (
-          <div className="grid gap-3 md:grid-cols-2">
-            {[0, 1].map((i) => (
-              <div key={i} className="h-28 bg-slate-100 rounded-xl animate-pulse" />
-            ))}
-          </div>
-        ) : reports.length === 0 ? (
-          <div className="p-6 text-center bg-slate-50 rounded-xl border border-dashed border-slate-300">
-            <Calendar className="w-7 h-7 text-slate-400 mx-auto mb-2" />
-            <p className="text-sm font-semibold text-slate-700">{t('tree.noReports', { id: tree.id })}</p>
-            <p className="text-xs text-slate-500 mt-1">{t('tree.noReportsHint')}</p>
-          </div>
-        ) : (
-          <div className="grid gap-3 md:grid-cols-2">
-            {reports.map((r) => (
-              <ReportCard key={r.id} report={r} tree={tree} showTree={false} size="sm" />
-            ))}
-          </div>
-        )}
-        {hasMore && (
-          <button
-            onClick={() => setReportsLimit((n) => n + 20)}
-            className="w-full min-h-10 text-sm font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg border border-emerald-200"
-          >
-            {t('tree.loadOlder')}
-          </button>
-        )}
-      </section>
+        <div className="min-w-0 lg:col-start-8 lg:col-span-5 lg:row-start-2 space-y-4 order-last lg:order-none">
+          <TreeCropCard tree={tree} />
+          <TreeGuideSection tree={tree} reports={reports} />
+          {blockTreatments.length > 0 && (
+            <section className="bg-white rounded-xl border border-slate-200 shadow-xs p-4" aria-labelledby="tr-h">
+              <h2 id="tr-h" className="text-sm font-bold text-slate-900 mb-2">
+                {t('tree.recentTreatments')} <span className="text-slate-500 font-medium">{t('common.blockN', { n: tree.block })}</span>
+              </h2>
+              <ul className="divide-y divide-slate-100">
+                {blockTreatments.map((x) => (
+                  <li key={x.id} className="py-2 flex flex-wrap items-baseline gap-x-3 text-sm">
+                    <span className="font-semibold text-slate-900">{x.planName}</span>
+                    <span className="text-xs text-slate-600">{[formatShortDate(x.date), x.product, x.dose].filter(Boolean).join(', ')}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+        </div>
 
-      <div className="grid gap-4 lg:grid-cols-2 items-start">
-        <TreeCropCard tree={tree} />
-        <TreeGuideSection tree={tree} reports={reports} />
-      </div>
-
-      {blockTreatments.length > 0 && (
-        <section className="bg-white rounded-xl border border-slate-200 shadow-xs p-4" aria-labelledby="tr-h">
-          <h2 id="tr-h" className="text-sm font-bold text-slate-900 mb-2">
-            {t('tree.recentTreatments')} <span className="text-slate-500 font-medium">· {t('common.blockN', { n: tree.block })}</span>
-          </h2>
-          <ul className="divide-y divide-slate-100">
-            {blockTreatments.map((x) => (
-              <li key={x.id} className="py-2 flex flex-wrap items-baseline gap-x-3 text-sm">
-                <span className="font-semibold text-slate-900">{x.planName}</span>
-                <span className="text-xs text-slate-600">{[formatShortDate(x.date), x.product, x.dose].filter(Boolean).join(' · ')}</span>
-              </li>
-            ))}
-          </ul>
+        {/* History: one line, newest first */}
+        <section className="min-w-0 lg:col-start-1 lg:col-span-7 lg:row-start-1 lg:row-span-2 bg-white rounded-xl border border-slate-200 shadow-xs p-4 space-y-4" aria-labelledby="hist-h">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 id="hist-h" className="text-sm font-bold text-slate-900">{t('tree.history')}</h2>
+            <Link to={`/reports?tree=${encodeURIComponent(tree.id)}&days=365`} className="text-xs font-semibold text-emerald-700 hover:underline min-h-8 inline-flex items-center">
+              {t('tree.allRecords')}
+            </Link>
+          </div>
+          {reportsLoading && history.entries.length === 0 ? (
+            <div className="space-y-3">
+              {[0, 1].map((i) => (
+                <div key={i} className="h-40 bg-slate-100 rounded-xl animate-pulse" />
+              ))}
+            </div>
+          ) : history.entries.length === 0 ? (
+            <div className="p-6 text-center bg-slate-50 rounded-xl border border-dashed border-slate-300">
+              <Calendar className="w-7 h-7 text-slate-400 mx-auto mb-2" />
+              <p className="text-sm font-semibold text-slate-700">{t('tree.noReports', { id: tree.id })}</p>
+              <p className="text-xs text-slate-500 mt-1">{t('tree.noReportsHint')}</p>
+            </div>
+          ) : (
+            <ol>
+              {history.entries.map((e, i) => (
+                <HistoryItem key={e.key} entry={e} filed={history.filed.get(e.key)} last={i === history.entries.length - 1 && !hasMore} />
+              ))}
+            </ol>
+          )}
+          {hasMore && (
+            <button
+              onClick={() => setReportsLimit((n) => n + 20)}
+              className="w-full min-h-10 text-sm font-semibold text-slate-700 bg-white hover:bg-slate-50 rounded-lg border border-slate-300"
+            >
+              {t('tree.loadOlder')}
+            </button>
+          )}
         </section>
-      )}
+      </div>
 
       <TreeDetailsForm tree={tree} />
 
@@ -291,7 +274,70 @@ export const TreeDetailView: React.FC<{ treeId: string; onBack: () => void }> = 
           }}
         />
       )}
-      {gallery && <PhotoLightbox items={gallery.items} index={gallery.index} onClose={() => setGallery(null)} />}
+    </div>
+  );
+};
+
+/**
+ * Previous / next tree, and the tree's ID as a field: type another ("A13", or just "13" for the same block) and press
+ * Enter to go there.
+ */
+const TreeJump: React.FC<{ tree: { id: string; block?: string; active?: boolean }; prev?: string; next?: string; position: string }> = ({ tree, prev, next, position }) => {
+  const { t } = useT();
+  const { allTrees } = useFarm();
+  const [value, setValue] = useState(tree.id);
+  const [miss, setMiss] = useState<string | null>(null);
+  useEffect(() => {
+    setValue(tree.id);
+    setMiss(null);
+  }, [tree.id]);
+  const go = () => {
+    const raw = value.trim().toUpperCase().replace(/\s+/g, '');
+    if (!raw || raw === tree.id) return setValue(tree.id);
+    const id = /^\d+$/.test(raw) && tree.block ? `${tree.block}${raw}` : raw;
+    const found = allTrees.find((x) => x.id.toUpperCase() === id);
+    if (found) navigate(treeUrl(found.id));
+    else setMiss(t('tree.jump.none', { id }));
+  };
+  const arrow = 'min-h-10 min-w-10 flex items-center justify-center rounded text-slate-600 hover:text-slate-900 hover:bg-white disabled:opacity-30';
+  return (
+    <div className="flex flex-col items-end gap-1">
+      <nav className="flex items-center border border-slate-200 rounded-lg p-0.5 bg-slate-50" aria-label={t('tree.stepper')}>
+        <button onClick={() => prev && navigate(treeUrl(prev), { replace: true })} disabled={!prev} className={arrow} aria-label={prev ? t('tree.prevTree', { id: prev }) : t('tree.firstTree')}>
+          <ChevronLeft className="w-4 h-4" />
+        </button>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            go();
+          }}
+          className="flex items-center gap-1.5 px-1"
+        >
+          <input
+            value={value}
+            onChange={(e) => {
+              setValue(e.target.value);
+              setMiss(null);
+            }}
+            onFocus={(e) => e.target.select()}
+            onBlur={() => !miss && setValue(tree.id)}
+            aria-label={t('tree.jump.label')}
+            inputMode="text"
+            autoCapitalize="characters"
+            spellCheck={false}
+            className="w-16 h-8 px-1.5 rounded-md border border-slate-300 bg-white text-center text-sm font-mono font-semibold text-slate-900 focus:outline-2 focus:outline-emerald-500"
+          />
+          {position && <span className="text-xs font-mono text-slate-500 select-none tabular whitespace-nowrap">{position}</span>}
+        </form>
+        <button onClick={() => next && navigate(treeUrl(next), { replace: true })} disabled={!next} className={arrow} aria-label={next ? t('tree.nextTree', { id: next }) : t('tree.lastTree')}>
+          <ChevronRight className="w-4 h-4" />
+        </button>
+      </nav>
+      {miss && (
+        <p role="alert" className="text-xs text-rose-700">
+          {miss}
+        </p>
+      )}
     </div>
   );
 };

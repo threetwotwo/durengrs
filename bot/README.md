@@ -43,19 +43,21 @@ Chat messages of the older multi-screen tree Flow carry `tree:<tree>:<phone>:<ti
    - fruit picked ("panen 12 buah, 30 kg") → `harvests/wa_{reportId}`: fruits, `weightKg` and `grades` when written,
      `floweredOn` / `daysFromBloom` from the flowering nearest the variety's ripening time (`lib/season.js`
      `floweredOnFor`), `source: 'whatsapp'`, `reportId`;
-   - danger seen or written → tree Merah (once).
+   - the tree moves on from the reading (`lib/treeReading.js`): stage seen, Hijau / Kuning / Merah and "membaik",
+     from its latest report; every report is taken as read and the owner can change it in the web app.
 4. **Cases** (`lib/cases.js`): every problem becomes a case followed to the end (open → treated → improving →
    resolved, or worse); treatments join the problem they treat; season jobs (pollination, thinning, bagging, tying)
    are filed in `seasonTasks` of the block.
-5. **Reply** in the chat: what was seen, each problem with its first step, what was recorded ("📅 Tanggal bunga
-   mekar dicatat", "🔢 …", "🧺 Panen dicatat: 12 buah, 30 kg."), case progress, and a request for a better photo when
-   needed. Everything else waits for the owner's check in the web app ("Perlu dicek").
+5. **Reply** in the chat (what the worker sees never changes: one Flow, photos and words, then this reply): what was
+   seen, each problem with its first step, the status, a flowering date or count recorded ("📅 Tanggal bunga mekar
+   dicatat", "🔢 …"), and a request for a better photo when needed. Problems, treatments, a harvest and the tree's
+   stage and health are filed silently; workers are never asked for anything else.
 
 Without `GEMINI_API_KEY` reports still save and the worker gets the rule-based reply on the DONE screen.
 
 | record | written to (same collections the webapp reads) |
 |---|---|
-| report (photos + words) | `reports/{id}` (+ tree `lastReportId`, `lastReportAt`; `condition` only for urgent words) |
+| report (photos + words) | `reports/{id}` (+ tree `lastReportId`, `lastReportAt`; then `observedStage`, `condition`, `improving` from its reading) |
 | flowering, count, harvest from a report | `bloomWaves/{tree}_{date}_{part}`, `cropCounts/{tree}_{season}_{stage}_{date}`, `harvests/wa_{reportId}` |
 | problems and treatments from a report | `cases/{tree}_{issue}_{openedOn}[_{name}]`, `reports.caseIds` |
 | Pekerjaan Selesai | `seasonTasks/{block}_{season}_{task}` (first record wins) |
@@ -76,7 +78,8 @@ after one tiny Gemini call, so a wrong key or model name shows at once.
 
 Problems (`cases`) are filed when Gemini reads a report, or from the words when Gemini fails. Reports saved before
 that have none. Open `https://<service>/cases-backfill?token=<VERIFY_TOKEN>` to see what the last 30 days of reports
-would file (nothing is written; it also counts how many reports Gemini read), then add `&apply=1` to file them
+would file and which trees their readings would move on (nothing is written; it also counts how many reports Gemini
+read), then add `&apply=1` to do it
 (`&days=60` to look further back). The owner's check in the web app wins over the reading; dismissed reports and
 archived trees are skipped. Treatment written in a report read before treatments were recognised ("dikerok, dioles
 Ridomil") is found in its words (`treatmentsInText`, src/shared/triage.ts); running it again adds such treatments to
@@ -93,7 +96,8 @@ problems already filed (`toTreat`). Safe to run again: nothing is filed twice.
 | `lib/flowScreens.js` | Flow tokens, the screens and what each button does |
 | `lib/ai.js` | Gemini: the prompt and answer schema, cleaning the answer, records, the worker's reply, `/ai-check` |
 | `lib/cases.js` | Problems followed over time (`cases`), treatments, season jobs seen in a report |
-| `lib/backfill.js` | `/cases-backfill`: files problems from older reports |
+| `lib/backfill.js` | `/cases-backfill`: files problems from older reports and moves their trees on |
+| `lib/treeReading.js` | Every report is taken as read: its stage and health move the tree on |
 | `lib/reports.js` | Saves photos to Storage, report + tree update to Firestore; the photo collage for the chat |
 | `lib/cropData.js` | Reads the tree's season; writes flowering, counts, harvests, season tasks, rain |
 | `lib/season.js` | The flowerings of a tree and which one a harvest came from (port of the webapp's guide.ts) |
@@ -126,6 +130,7 @@ See `.env.example` (placeholders only). Never set `PORT` on Cloud Run.
 | `GEMINI_MODEL` | default `gemini-2.5-flash` |
 | `GEMINI_ENDPOINT` | `vertex` only for a Vertex AI express key; otherwise leave empty (Gemini API) |
 | `GEMINI_TIMEOUT_MS` | how long to wait for Gemini, default `40000` |
+| `GEMINI_THINKING` | `low` for Gemini 3 models: less thinking per report, cheaper and faster; empty = the model's default |
 
 ## Deploy
 

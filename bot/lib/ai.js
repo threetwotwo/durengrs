@@ -3,16 +3,17 @@
 //   harvest the worker wrote, and whether the photos are good enough.
 // The result replaces the rule-based suggestion on the report (kept as `triageRules`), records what can be recorded
 // without a person (flowering date, a fruit or flower count, a harvest), files problems and treatments into `cases`
-// (lib/cases.js), turns the tree Merah only for danger seen or written, and gives the worker one chat message: what
-// was seen, the next step, what was recorded, and a request for a better photo when needed. Everything else waits for
-// the owner's check in the web app ("Perlu dicek").
-// Env: GEMINI_API_KEY (Google AI Studio; without it nothing happens), GEMINI_MODEL (default below),
-// GEMINI_ENDPOINT=vertex (a Vertex AI express key), GEMINI_TIMEOUT_MS (default 40000).
+// (lib/cases.js), moves the tree on (stage seen, Hijau / Kuning / Merah; lib/treeReading.js: every report is taken as
+// read, the owner can change it in the web app), and gives the worker one chat message: what was seen, the next step,
+// what was recorded, and a request for a better photo when needed.
+// Env: GEMINI_API_KEY (Google AI Studio; without it the words' reading is used), GEMINI_MODEL (default below),
+// GEMINI_ENDPOINT=vertex (a Vertex AI express key), GEMINI_TIMEOUT_MS (default 40000), GEMINI_THINKING=low (Gemini 3).
 const { admin, db } = require('./firestore');
 const R = require('./rules');
 const S = require('./shared');
 const C = require('./cropData');
 const K = require('./cases');
+const { applyReading } = require('./treeReading');
 const { floweredOnFor } = require('./season');
 
 const MODEL = () => process.env.GEMINI_MODEL || 'gemini-2.5-flash';
@@ -191,7 +192,13 @@ async function callGemini(parts, { timeoutMs = Number(process.env.GEMINI_TIMEOUT
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
       body: JSON.stringify({
         contents: [{ role: 'user', parts }],
-        generationConfig: { responseMimeType: 'application/json', responseSchema: schema, temperature: 0.2 },
+        generationConfig: {
+          responseMimeType: 'application/json',
+          responseSchema: schema,
+          temperature: 0.2,
+          // Optional, for Gemini 3 models: GEMINI_THINKING=low thinks less (cheaper, faster); unset = the model's default.
+          ...(['low', 'high'].includes(process.env.GEMINI_THINKING) ? { thinkingConfig: { thinkingLevel: process.env.GEMINI_THINKING } } : {}),
+        },
       }),
     });
     if (!res.ok) throw new Error(`Gemini (${vertex ? 'Vertex' : 'AI Studio'} ${MODEL()}) ${res.status}: ${(await res.text()).slice(0, 300)}`);
@@ -312,7 +319,7 @@ async function recordFromTriage(tree, triage, { reportId, workerPhone, today }) 
   // Flowers open and no flowering recorded in the last 30 days: today is the flowering date.
   if (codes.includes('bloom') && !(season.waves || []).some((w) => R.diffDays(today, w.date) <= 30)) {
     const part = triage.bloomPart || 'some';
-    const r = await C.saveBloom({ treeId: tree.id, block: tree.block, date: today, part, note: AUTO_NOTE, workerPhone });
+    const r = await C.saveBloom({ treeId: tree.id, block: tree.block, date: today, part, note: AUTO_NOTE, workerPhone, reportId });
     if (!r.duplicate) {
       done.push(`bloomWaves/${r.id}`);
       lines.push(`📅 Tanggal bunga mekar dicatat: ${R.dateLabel(today)}.`);
@@ -326,9 +333,9 @@ async function recordFromTriage(tree, triage, { reportId, workerPhone, today }) 
   const stage = codes.map((c) => COUNT_STAGE[c]).find(Boolean);
   const n = triage.numbers.find((x) => (stage === 'clusters' ? x.kind === 'clusters' : x.kind === 'fruit'));
   if (wave && stage && n && R.COUNT_STAGES[stage]) {
-    const r = await C.saveCount({ tree, season: wave.date, stage, count: n.value, date: today, workerPhone, wavesCount: waves.length, existing: season.counts, note: AUTO_NOTE });
+    const r = await C.saveCount({ tree, season: wave.date, stage, count: n.value, date: today, workerPhone, wavesCount: waves.length, existing: season.counts, note: AUTO_NOTE, reportId });
     done.push(`cropCounts/${r.id}`);
-    lines.push(`🔢 ${R.COUNT_STAGES[stage].label}: ${n.value} dicatat.`);
+    lines.push(`🔢 ${R.COUNT_STAGES[stage].label || 'Jumlah'}: ${n.value} dicatat.`);
   }
 
   // Fruit picked today, filed like the webapp's harvest form (flowering by ripening time); one harvest per report.
@@ -340,26 +347,15 @@ async function recordFromTriage(tree, triage, { reportId, workerPhone, today }) 
     });
     if (!r.duplicate) {
       done.push(`harvests/${r.id}`);
-      lines.push(`🧺 Panen dicatat: ${h.fruits} buah${h.weightKg !== undefined ? `, ${h.weightKg} kg` : ''}.`);
     }
   }
   return { done, lines };
 }
 
-/** Danger seen or written: the tree turns Merah now (once), like the rule-based reading does. */
-async function markUrgent(reportRef, treeId, workerPhone) {
-  return db.runTransaction(async (tx) => {
-    const [rep, tr] = await Promise.all([tx.get(reportRef), tx.get(db.collection('trees').doc(treeId))]);
-    if (!rep.exists || !tr.exists || rep.data().conditionChanged || tr.data().condition === 'emergency') return false;
-    const before = tr.data().condition ?? null;
-    tx.update(reportRef, { conditionBefore: before, conditionAfter: 'emergency', conditionChanged: true, conditionSource: 'triage' });
-    tx.update(tr.ref, { condition: 'emergency', conditionUpdatedAt: now(), dateUpdated: now() });
-    tx.set(db.collection('treeEdits').doc(), { treeId, changes: { condition: { from: before, to: 'emergency' } }, at: now(), source: 'whatsapp', reason: 'ai-urgent', reportId: rep.id, workerPhone: workerPhone || null });
-    return true;
-  });
-}
-
-/** The worker's reply in Gemini's own words: what it saw, each problem by its specific name with the first step. */
+/**
+ * The worker's reply in Gemini's own words: what it saw, each problem by its specific name with the first step.
+ * What the worker sees is fixed (the Flow they asked for); everything else the bot does with a report is silent.
+ */
 function aiReply(t) {
   const out = [];
   if (t.summary) out.push(t.summary);
@@ -368,7 +364,8 @@ function aiReply(t) {
     const name = i.name || S.ISSUE_INFO[i.code].label.id;
     out.push(`• ${name}${i.photo ? ` (foto ${i.photo})` : ''}${i.action ? `: ${i.action}` : ''}`);
   }
-  if (!t.actions.length || t.issues.length) out.push(`Status: ${S.HEALTH_INFO[t.health].label.id}.${t.needsReview ? ' Admin akan cek laporan ini.' : ''}`);
+  const ownerLooks = !(t.health === 'hijau' && t.issues.length === 0) || !t.photoOk;
+  out.push(`Status: ${S.HEALTH_INFO[t.health].label.id}.${ownerLooks ? ' Admin akan cek laporan ini.' : ''}`);
   return out.join('\n');
 }
 
@@ -377,7 +374,12 @@ function aiReply(t) {
  * nothing to add (no key, already read, report missing). Never throws.
  */
 async function analyzeReport(reportId, { tree, workerPhone, today = R.todayStr() } = {}) {
-  if (!process.env.GEMINI_API_KEY || !reportId || !tree) return null;
+  if (!reportId || !tree) return null;
+  if (!process.env.GEMINI_API_KEY) {
+    // No Gemini: the words' reading moves the tree on.
+    await applyReading(reportId, { workerPhone }).catch((err) => console.error(`Tree update from ${reportId} failed:`, err));
+    return null;
+  }
   const ref = db.collection('reports').doc(reportId);
   let claimed = null;
   try {
@@ -400,14 +402,16 @@ async function analyzeReport(reportId, { tree, workerPhone, today = R.todayStr()
     await ref.update(update);
 
     const lines = [];
-    if (triage.urgent && (await markUrgent(ref, tree.id, workerPhone))) lines.push('🔴 Kondisi pohon diubah menjadi Merah. Pemilik akan segera mengecek.');
+    // Every report is taken as read: its stage and health move the tree on (the owner can change it in the web app).
+    const applied = await applyReading(reportId, { workerPhone }).catch((err) => (console.error(`Tree update from ${reportId} failed:`, err), null));
+    if (triage.urgent && applied && applied.condition === 'emergency') lines.push('🔴 Kondisi pohon diubah menjadi Merah. Pemilik akan segera mengecek.');
     let recorded = { done: [], lines: [] };
     try {
       recorded = await recordFromTriage(tree, triage, { reportId, workerPhone, today });
     } catch (err) {
       console.error(`AI records for ${reportId} failed:`, err);
     }
-    let progress = { caseIds: [], lines: [] };
+    let progress = { caseIds: [] };
     try {
       progress = await K.applyToCases({ tree, reportId, triage, today, workerPhone, open });
     } catch (err) {
@@ -416,14 +420,18 @@ async function analyzeReport(reportId, { tree, workerPhone, today = R.todayStr()
     await ref.update({ caseIds: progress.caseIds, ai: { status: 'done', model: MODEL(), photos: photos.length, recorded: recorded.done, at: now() } });
     console.log(`AI ${reportId} ${tree.id}: stages=${triage.stages.map((s) => s.code).join(',') || '-'} issues=${triage.issues.map((i) => i.code).join(',') || '-'} health=${triage.health} photoOk=${triage.photoOk} harvest=${triage.harvest ? triage.harvest.fruits : '-'} recorded=${recorded.done.length}`);
 
-    const msg = [`🔎 Hasil pemeriksaan laporan ${tree.id} (${photos.length} foto):`, aiReply(triage), ...lines, ...progress.lines, ...recorded.lines];
+    // Problems, treatments, a harvest and the tree's condition are filed silently; the reply stays as the worker knows it.
+    const msg = [`🔎 Hasil pemeriksaan laporan ${tree.id} (${photos.length} foto):`, aiReply(triage), ...lines, ...recorded.lines];
     if (!triage.photoOk) msg.push('', `📷 Mohon kirim foto yang lebih jelas: ${triage.photoRequest || 'foto lebih dekat dan terang.'}`, 'Ketuk tombol di bawah untuk kirim laporan baru.');
     return msg.filter((x) => x !== undefined).join('\n');
   } catch (err) {
     console.error(`AI read of ${reportId} failed:`, err);
     await ref.update({ ai: { status: 'failed', model: MODEL(), error: String(err.message || err).slice(0, 300), at: now() } }).catch(() => {});
     // The problems the words show still become cases, so a problem is followed even when Gemini is down.
-    if (claimed) await fileWordReading(ref, claimed, { tree, workerPhone, today });
+    if (claimed) {
+      await fileWordReading(ref, claimed, { tree, workerPhone, today });
+      await applyReading(reportId, { workerPhone }).catch((e) => console.error(`Tree update from ${reportId} failed:`, e));
+    }
     return null;
   }
 }

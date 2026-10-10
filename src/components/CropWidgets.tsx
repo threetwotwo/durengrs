@@ -2,17 +2,15 @@ import { SourceBadge } from './SourceBadge';
 import { DuePill, MissedLink, ViaWhatsApp } from './FieldFirst';
 import { PhotoStrip } from './PhotoStrip';
 import React, { useMemo, useState } from 'react';
-import { ClipboardList, Trash2, Wheat } from 'lucide-react';
+import { Trash2, Wheat } from 'lucide-react';
 import { useFarm } from '../context/FarmContext';
 import { useT } from '../i18n';
 import { Sheet, fieldInput, fieldLabel } from './Sheet';
-import { Link } from './Link';
 import { btnPrimary } from './PageHeader';
 import { CROP_STAGES, CropStage, GRADES, removeCropCount, saveCropCount } from '../lib/fieldData';
-import { Funnel, GradeTotals, TreeCrop, topGradeShare } from '../lib/crop';
+import { GradeTotals, TreeCrop } from '../lib/crop';
 import { TREE_LIMITS } from '../lib/trees';
 import { formatShortDate, todayStr } from '../lib/treatments';
-import { treeUrl } from '../lib/router';
 import type { DurianTree } from '../types';
 import { StagePill } from './GuideWidgets';
 import { HarvestSheet } from './FieldRecords';
@@ -53,54 +51,6 @@ export const GradeBar: React.FC<{ grades: GradeTotals; legend?: boolean; classNa
         </ul>
       )}
     </div>
-  );
-};
-
-/** Flower clusters → fruit set → kept → on the trees → harvested, with the ratio between steps. */
-export const FunnelStrip: React.FC<{ funnel: Funnel; compact?: boolean; hints?: Partial<Record<string, React.ReactNode>> }> = ({ funnel, hints = {} }) => {
-  const { t } = useT();
-  const s = funnel.stages;
-  const top = topGradeShare(funnel.harvested.grades);
-  const r = funnel.ratios;
-  const trees = (n: number) => t('crop.f.trees', { n });
-  const steps = [
-    { key: 'clusters', value: s.clusters.total, counted: s.clusters.trees > 0, sub: trees(s.clusters.trees) },
-    { key: 'set', value: s.set.total, counted: s.set.trees > 0, sub: r.setPerCluster !== null ? t('crop.f.perCluster', { n: r.setPerCluster.toFixed(1) }) : trees(s.set.trees) },
-    { key: 'kept', value: s.kept.total, counted: s.kept.trees > 0, sub: r.keptOfSet !== null ? t('crop.f.ofSet', { n: Math.round(r.keptOfSet * 100) }) : trees(s.kept.trees) },
-    {
-      key: 'onTree',
-      value: funnel.remaining,
-      counted: s.onTree.trees + s.kept.trees + s.set.trees > 0,
-      sub: r.onTreeOfKept !== null ? t('crop.f.ofKept', { n: Math.round(r.onTreeOfKept * 100) }) : trees(s.onTree.trees || s.kept.trees || s.set.trees),
-    },
-    {
-      key: 'harvested',
-      value: funnel.harvested.fruits,
-      counted: funnel.harvested.entries > 0,
-      sub: top !== null ? t('crop.f.topGrade', { n: Math.round(top * 100) }) : funnel.harvested.weightKg ? `${Math.round(funnel.harvested.weightKg)} kg` : t('crop.notPicked'),
-    },
-  ];
-  // One strip, steps divided by lines (not separate cards); steps nobody has counted yet are muted.
-  return (
-    <ol className="grid grid-cols-2 sm:grid-cols-5 rounded-xl border border-slate-200 bg-white overflow-hidden">
-      {steps.map((st, i) => (
-        <li
-          key={st.key}
-          className={`relative p-3 border-slate-200 ${i < 4 ? 'border-b sm:border-b-0 sm:border-r' : 'col-span-2 sm:col-span-1'} ${i % 2 === 0 && i < 4 ? 'border-r' : ''} ${st.counted ? '' : 'bg-slate-50/70'}`}
-        >
-          <span className="flex items-center gap-1 text-xs font-semibold text-slate-600">
-            <span className={`w-4 h-4 rounded-full text-[10px] leading-4 text-center font-bold ${st.counted ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-500'}`} aria-hidden>
-              {i + 1}
-            </span>
-            {t(`crop.stage.${st.key}`)}
-          </span>
-          <span className={`block mt-1 text-2xl font-bold tabular ${st.counted ? 'text-slate-900' : 'text-slate-300'}`}>{st.counted ? st.value.toLocaleString() : '—'}</span>
-          <span className="block text-xs text-slate-500 tabular">{st.counted ? st.sub : t('crop.notCounted')}</span>
-          {hints[st.key] && <span className="block text-xs">{hints[st.key]}</span>}
-          {i === 4 && <GradeBar grades={funnel.harvested.grades} className="mt-1.5" />}
-        </li>
-      ))}
-    </ol>
   );
 };
 
@@ -426,35 +376,3 @@ export const TreeCropCard: React.FC<{ tree: DurianTree }> = ({ tree }) => {
 };
 
 // ---------- grading criteria ----------
-
-/** What each grade means: Codex durian standard (CXS 317-2014) and ASEAN durian standard (Rev. 2012), plus reject. */
-export const GradingCriteria: React.FC<{ open?: boolean }> = ({ open }) => {
-  const { t } = useT();
-  return (
-    <details id="grading" open={open} className="bg-white rounded-xl border border-slate-200 p-4 group">
-      <summary className="text-sm font-bold text-slate-900 cursor-pointer min-h-8 flex items-center gap-2">
-        <ClipboardList className="w-4 h-4 text-emerald-600" />
-        {t('grade.title')}
-      </summary>
-      <ul className="mt-3 grid gap-2 sm:grid-cols-2">
-        {GRADES.map((g) => (
-          <li key={g} className="flex gap-3 p-3 rounded-lg border border-slate-200">
-            <span className={`w-3 shrink-0 rounded-sm ${GRADE_BAR[g]}`} aria-hidden />
-            <span>
-              <span className="block text-sm font-bold text-slate-900">{t(`grade.${g}`)}</span>
-              <span className="block text-sm text-slate-700">{t(`grade.${g}.criteria`)}</span>
-            </span>
-          </li>
-        ))}
-      </ul>
-      <p className="mt-2 text-xs text-slate-500">{t('grade.source')}</p>
-    </details>
-  );
-};
-
-/** Link to a tree from the harvest lists. */
-export const TreeLink: React.FC<{ id: string }> = ({ id }) => (
-  <Link to={treeUrl(id)} className="font-semibold font-mono text-slate-900 hover:text-emerald-700 hover:underline">
-    {id}
-  </Link>
-);

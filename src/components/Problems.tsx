@@ -1,18 +1,19 @@
 import React, { useMemo, useState } from 'react';
-import { CalendarClock, CheckCircle2, ChevronDown, CircleDot, RotateCcw, Stethoscope, Trash2, TrendingDown, TrendingUp } from 'lucide-react';
+import { CalendarClock, CheckCircle2, ChevronRight, RotateCcw, Trash2 } from 'lucide-react';
 import { useFarm } from '../context/FarmContext';
 import { useT } from '../i18n';
 import { ACTION_INFO, CASE_EVENT_INFO, CASE_STATUS_INFO, isAction, type CaseStatus } from '../shared';
 import { caseTitle, deleteCase, isDue, isOpen, lastActionLabel, setCaseStatus, sortCases } from '../lib/cases';
 import { diffDays, formatShortDate, todayStr } from '../lib/treatments';
-import { reportUrl, treeUrl, useQueryParams } from '../lib/router';
-import type { CaseEvent, ProblemCase } from '../types';
+import { caseUrl, useQueryParams } from '../lib/router';
+import type { ProblemCase } from '../types';
 import { Link } from './Link';
+import { PageHeader } from './PageHeader';
+import { readBy } from './ReportChange';
 
 /**
- * Problems on trees, followed from first sighting to solved. One card per problem, with its history (every report
- * that saw, treated or re-checked it), the next photo check, and buttons to close or reopen it by hand.
- * Used on the Reports page (Problems), the tree page and the report page.
+ * Problems on trees, followed from first sighting to solved: one row per problem (the Problems page, Today, the tree
+ * page, the report page), each opening the problem's own page (ProblemPage.tsx) with its history and buttons.
  */
 
 const TONE_CLS: Record<string, string> = {
@@ -30,61 +31,6 @@ export const CaseStatusPill: React.FC<{ status: CaseStatus; className?: string }
     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold border whitespace-nowrap ${TONE_CLS[info.tone]} ${className}`}>
       {info.label[lang]}
     </span>
-  );
-};
-
-const EVENT_ICON: Record<CaseEvent['type'], React.ComponentType<{ className?: string }>> = {
-  seen: CircleDot,
-  treated: Stethoscope,
-  checked: CircleDot,
-  improving: TrendingUp,
-  worse: TrendingDown,
-  resolved: CheckCircle2,
-  reopened: RotateCcw,
-};
-const EVENT_CLS: Record<CaseEvent['type'], string> = {
-  seen: 'text-amber-600 bg-amber-50',
-  treated: 'text-sky-700 bg-sky-50',
-  checked: 'text-slate-500 bg-slate-100',
-  improving: 'text-emerald-700 bg-emerald-50',
-  worse: 'text-rose-700 bg-rose-50',
-  resolved: 'text-emerald-700 bg-emerald-50',
-  reopened: 'text-amber-700 bg-amber-50',
-};
-
-/** Every step of one problem, oldest first, each linked to the report it came from. */
-export const CaseTimeline: React.FC<{ c: ProblemCase; currentReportId?: string }> = ({ c, currentReportId }) => {
-  const { t, lang } = useT();
-  return (
-    <ol className="relative space-y-3 before:absolute before:left-3.5 before:top-2 before:bottom-2 before:w-px before:bg-slate-200">
-      {c.events.map((e, i) => {
-        const Icon = EVENT_ICON[e.type];
-        const what = e.type === 'treated' && e.action && isAction(e.action) ? ACTION_INFO[e.action].label[lang] : CASE_EVENT_INFO[e.type].label[lang];
-        const here = !!currentReportId && e.reportId === currentReportId;
-        return (
-          <li key={`${e.reportId || 'web'}-${e.type}-${i}`} className="relative flex gap-3">
-            <span className={`relative z-10 w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${EVENT_CLS[e.type]}`}>
-              <Icon className="w-4 h-4" />
-            </span>
-            <span className="min-w-0 pt-0.5 text-sm">
-              <span className="font-semibold text-slate-900">{what}</span>
-              {e.product && <span className="text-slate-700"> · {e.product}</span>}
-              <span className="text-slate-500 tabular"> · {formatShortDate(e.date)}</span>
-              {e.note && <span className="block text-xs text-slate-600">{e.note}</span>}
-              {e.reportId &&
-                (here ? (
-                  <span className="block text-xs font-semibold text-slate-500">{t('case.thisReport')}</span>
-                ) : (
-                  <Link to={reportUrl(e.reportId)} className="block text-xs font-semibold text-emerald-700 hover:underline">
-                    {t('case.openReport')}
-                  </Link>
-                ))}
-              {!e.reportId && e.by && <span className="block text-xs text-slate-500">{t('case.byHand', { by: e.by })}</span>}
-            </span>
-          </li>
-        );
-      })}
-    </ol>
   );
 };
 
@@ -106,33 +52,44 @@ export const NextCheck: React.FC<{ c: ProblemCase }> = ({ c }) => {
   );
 };
 
-const readBy = () => {
-  try {
-    return localStorage.getItem('cilowong.by') || '';
-  } catch {
-    return '';
-  }
+/** One problem as a row: tree, name, where it stands, when to check again. Opens the problem's page. */
+export const CaseRow: React.FC<{ c: ProblemCase; showTree?: boolean; note?: string }> = ({ c, showTree, note }) => {
+  const { t, lang } = useT();
+  const due = isDue(c);
+  const lastAction = lastActionLabel(c, lang);
+  const last = c.events[c.events.length - 1];
+  return (
+    <Link
+      to={caseUrl(c.id)}
+      className={`group flex items-start gap-3 p-3 rounded-xl border bg-white hover:border-slate-400 ${c.status === 'worse' || due ? 'border-rose-300' : 'border-slate-200'} ${
+        c.status === 'resolved' ? 'bg-slate-50/60' : ''
+      }`}
+    >
+      {showTree && <span className="text-sm font-bold font-mono text-slate-900 bg-slate-100 px-2 py-1 rounded shrink-0 min-w-12 text-center">{c.treeId}</span>}
+      <span className="min-w-0 flex-1 space-y-0.5">
+        <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <span className="text-sm font-bold text-slate-900">{caseTitle(c, lang)}</span>
+          <CaseStatusPill status={c.status} />
+        </span>
+        <span className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-slate-600">
+          <span className="tabular">{t('case.since', { date: formatShortDate(c.openedOn) })}</span>
+          {lastAction && <span>{t('case.lastAction', { what: lastAction })}</span>}
+          {c.status === 'resolved' && c.closedOn && <span className="tabular">{t('case.closedOn', { date: formatShortDate(c.closedOn) })}</span>}
+          <NextCheck c={c} />
+        </span>
+        {(note || last?.note) && <span className="block text-xs text-slate-500 line-clamp-1">{note || last?.note}</span>}
+      </span>
+      <ChevronRight className="w-4 h-4 mt-1 text-slate-400 group-hover:text-slate-700 shrink-0" aria-hidden />
+    </Link>
+  );
 };
 
-/**
- * One problem: what it is, where it stands, when to check again, and (opened) its history and the owner's buttons.
- * `showTree` = a farm-wide list (tree ID shown and linked).
- */
-export const CaseCard: React.FC<{ c: ProblemCase; showTree?: boolean; defaultOpen?: boolean; currentReportId?: string }> = ({
-  c,
-  showTree,
-  defaultOpen,
-  currentReportId,
-}) => {
-  const { t, lang } = useT();
-  const [open, setOpen] = useState(!!defaultOpen);
+/** Close a problem, reopen it, or delete it when it was never a real problem (its reports are kept). */
+export const CaseActions: React.FC<{ c: ProblemCase; onDeleted?: () => void }> = ({ c, onDeleted }) => {
+  const { t } = useT();
   const [busy, setBusy] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const due = isDue(c);
-  const last = c.events[c.events.length - 1];
-  const lastAction = lastActionLabel(c, lang);
-
   const run = async (fn: () => Promise<void>) => {
     setBusy(true);
     setError(null);
@@ -145,103 +102,71 @@ export const CaseCard: React.FC<{ c: ProblemCase; showTree?: boolean; defaultOpe
       setBusy(false);
     }
   };
-
-  const border = c.status === 'worse' || due ? 'border-rose-300' : c.status === 'resolved' ? 'border-slate-200 bg-slate-50/60' : 'border-slate-200';
   return (
-    <article className={`bg-white rounded-xl border ${border}`}>
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        className="w-full p-3.5 flex items-start gap-3 text-left rounded-xl hover:bg-slate-50/70 focus-visible:outline-2 focus-visible:outline-emerald-500"
-      >
-        {showTree && (
-          <span className="text-sm font-bold font-mono text-slate-900 bg-slate-100 px-2 py-1 rounded shrink-0 min-w-12 text-center">{c.treeId}</span>
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center gap-2">
+        {isOpen(c) ? (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => run(() => setCaseStatus(c, 'resolved', undefined, readBy()))}
+            className="min-h-10 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold inline-flex items-center gap-1.5 disabled:opacity-60"
+          >
+            <CheckCircle2 className="w-4 h-4" />
+            {t('case.markSolved')}
+          </button>
+        ) : (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => run(() => setCaseStatus(c, 'open', undefined, readBy()))}
+            className="min-h-10 px-4 rounded-lg border border-slate-300 bg-white text-sm font-semibold text-slate-700 hover:bg-slate-50 inline-flex items-center gap-1.5 disabled:opacity-60"
+          >
+            <RotateCcw className="w-4 h-4" />
+            {t('case.reopen')}
+          </button>
         )}
-        <span className="min-w-0 flex-1 space-y-1">
-          <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <span className="text-sm font-bold text-slate-900">{caseTitle(c, lang)}</span>
-            <CaseStatusPill status={c.status} />
+        {confirmDelete ? (
+          <span className="inline-flex flex-wrap items-center gap-2 text-sm text-slate-700">
+            {t('case.delete.confirm')}
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() =>
+                run(async () => {
+                  await deleteCase(c);
+                  onDeleted?.();
+                })
+              }
+              className="min-h-10 px-3 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold disabled:opacity-60"
+            >
+              {t('case.delete.yes')}
+            </button>
+            <button type="button" onClick={() => setConfirmDelete(false)} className="min-h-10 px-2 font-semibold text-slate-600">
+              {t('common.cancel')}
+            </button>
           </span>
-          <span className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-slate-600">
-            <span className="tabular">{t('case.since', { date: formatShortDate(c.openedOn) })}</span>
-            {lastAction && <span>{t('case.lastAction', { what: lastAction })}</span>}
-            {c.status === 'resolved' && c.closedOn && <span className="tabular">{t('case.closedOn', { date: formatShortDate(c.closedOn) })}</span>}
-            <NextCheck c={c} />
-          </span>
-          {!open && last?.note && <span className="block text-xs text-slate-500 line-clamp-1">{last.note}</span>}
-        </span>
-        <ChevronDown className={`w-4 h-4 mt-1 text-slate-400 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} aria-hidden />
-      </button>
-
-      {open && (
-        <div className="px-3.5 pb-3.5 space-y-3 border-t border-slate-100 pt-3">
-          <CaseTimeline c={c} currentReportId={currentReportId} />
-          <div className="flex flex-wrap items-center gap-2 pt-1">
-            {showTree && (
-              <Link to={treeUrl(c.treeId)} className="min-h-9 px-3 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 inline-flex items-center">
-                {t('case.openTree', { id: c.treeId })}
-              </Link>
-            )}
-            {isOpen(c) ? (
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => run(() => setCaseStatus(c, 'resolved', undefined, readBy()))}
-                className="min-h-9 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold inline-flex items-center gap-1.5 disabled:opacity-60"
-              >
-                <CheckCircle2 className="w-4 h-4" />
-                {t('case.markSolved')}
-              </button>
-            ) : (
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => run(() => setCaseStatus(c, 'open', undefined, readBy()))}
-                className="min-h-9 px-3 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 inline-flex items-center gap-1.5 disabled:opacity-60"
-              >
-                <RotateCcw className="w-4 h-4" />
-                {t('case.reopen')}
-              </button>
-            )}
-            {confirmDelete ? (
-              <span className="inline-flex flex-wrap items-center gap-2 text-xs text-slate-700">
-                {t('case.delete.confirm')}
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => run(() => deleteCase(c))}
-                  className="min-h-9 px-3 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold disabled:opacity-60"
-                >
-                  {t('case.delete.yes')}
-                </button>
-                <button type="button" onClick={() => setConfirmDelete(false)} className="min-h-9 px-2 font-semibold text-slate-600">
-                  {t('common.cancel')}
-                </button>
-              </span>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setConfirmDelete(true)}
-                className="min-h-9 px-2.5 rounded-lg text-xs font-semibold text-slate-500 hover:text-rose-700 hover:bg-rose-50 inline-flex items-center gap-1.5"
-              >
-                <Trash2 className="w-4 h-4" />
-                {t('case.delete')}
-              </button>
-            )}
-          </div>
-          {error && (
-            <p role="alert" className="text-xs text-rose-700">
-              {error}
-            </p>
-          )}
-        </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setConfirmDelete(true)}
+            className="min-h-10 px-3 rounded-lg text-sm font-semibold text-slate-500 hover:text-rose-700 hover:bg-rose-50 inline-flex items-center gap-1.5"
+          >
+            <Trash2 className="w-4 h-4" />
+            {t('case.delete')}
+          </button>
+        )}
+      </div>
+      {error && (
+        <p role="alert" className="text-sm text-rose-700">
+          {error}
+        </p>
       )}
-    </article>
+    </div>
   );
 };
 
-/** The tree's problems: open ones first (opened), solved ones behind a toggle. */
+/** The tree's problems: open ones, and the solved ones behind a toggle. */
 export const TreeProblems: React.FC<{ treeId: string }> = ({ treeId }) => {
   const { t } = useT();
   const { cases } = useFarm();
@@ -249,11 +174,12 @@ export const TreeProblems: React.FC<{ treeId: string }> = ({ treeId }) => {
   const mine = useMemo(() => sortCases(cases.filter((c) => c.treeId === treeId)), [cases, treeId]);
   const open = mine.filter(isOpen);
   const solved = mine.filter((c) => !isOpen(c));
+  if (!open.length && !solved.length) return null;
   return (
-    <section className="bg-white rounded-xl border border-slate-200 shadow-xs p-4 space-y-3" aria-labelledby="tp-h">
+    <section className="space-y-2" aria-labelledby="tp-h">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 id="tp-h" className="text-sm font-bold text-slate-900">
-          {t('case.tree.title')} {open.length > 0 && <span className="text-slate-500 font-medium tabular">({open.length})</span>}
+          {t('case.tree.title')} {open.length > 0 && <span className="text-slate-500 font-medium tabular">{open.length}</span>}
         </h2>
         {solved.length > 0 && (
           <button type="button" onClick={() => setShowSolved((v) => !v)} className="text-xs font-semibold text-emerald-700 hover:underline min-h-8">
@@ -261,47 +187,44 @@ export const TreeProblems: React.FC<{ treeId: string }> = ({ treeId }) => {
           </button>
         )}
       </div>
-      {open.length === 0 ? (
+      {open.length === 0 && (
         <p className="text-sm text-slate-600 flex items-center gap-2">
           <CheckCircle2 className="w-4 h-4 text-emerald-600" />
           {t('case.tree.none')}
         </p>
-      ) : (
-        <div className="space-y-2">
-          {open.map((c, i) => (
-            <CaseCard key={c.id} c={c} defaultOpen={i === 0} />
-          ))}
-        </div>
       )}
-      {showSolved && (
-        <div className="space-y-2">
-          {solved.map((c) => (
-            <CaseCard key={c.id} c={c} />
-          ))}
-        </div>
-      )}
+      {open.map((c) => (
+        <CaseRow key={c.id} c={c} />
+      ))}
+      {showSolved && solved.map((c) => <CaseRow key={c.id} c={c} />)}
     </section>
   );
 };
 
-/** On a report page: the problems this report touched (opened), and the tree's other open ones. */
+/** On a report page: the problems this report touched, and the tree's other open ones. */
 export const ReportProblems: React.FC<{ treeId: string; reportId: string; caseIds?: string[] }> = ({ treeId, reportId, caseIds }) => {
-  const { t } = useT();
+  const { t, lang } = useT();
   const { cases } = useFarm();
   const touched = useMemo(() => cases.filter((c) => caseIds?.includes(c.id) || c.events.some((e) => e.reportId === reportId)), [cases, caseIds, reportId]);
   const others = useMemo(() => sortCases(cases.filter((c) => c.treeId === treeId && isOpen(c) && !touched.includes(c))), [cases, treeId, touched]);
   if (!touched.length && !others.length) return null;
+  const here = (c: ProblemCase) => {
+    const e = c.events.find((x) => x.reportId === reportId);
+    if (!e) return undefined;
+    const what = e.type === 'treated' && e.action && isAction(e.action) ? ACTION_INFO[e.action].label[lang] : CASE_EVENT_INFO[e.type].label[lang];
+    return t('case.here', { what });
+  };
   return (
-    <section className="bg-white rounded-xl border border-slate-200 p-4 space-y-3" aria-labelledby="rp-h">
+    <section className="space-y-2" aria-labelledby="rp-h">
       <h2 id="rp-h" className="text-sm font-bold text-slate-900">{t('case.report.title')}</h2>
       {touched.map((c) => (
-        <CaseCard key={c.id} c={c} defaultOpen currentReportId={reportId} />
+        <CaseRow key={c.id} c={c} note={here(c)} />
       ))}
       {others.length > 0 && (
         <>
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 pt-1">{t('case.report.others', { id: treeId })}</p>
+          <p className="text-xs font-semibold text-slate-500 pt-1">{t('case.report.others', { id: treeId })}</p>
           {others.map((c) => (
-            <CaseCard key={c.id} c={c} currentReportId={reportId} />
+            <CaseRow key={c.id} c={c} />
           ))}
         </>
       )}
@@ -311,8 +234,8 @@ export const ReportProblems: React.FC<{ treeId: string; reportId: string; caseId
 
 type ProblemFilter = 'open' | 'due' | 'solved';
 
-/** Reports › Problems: every problem on the farm, the most urgent first. */
-export const ProblemsView: React.FC = () => {
+/** Problems: every problem on the farm, the most urgent first. */
+export const ProblemsPage: React.FC = () => {
   const { t } = useT();
   const { cases, blocks } = useFarm();
   const [params, setParams] = useQueryParams();
@@ -321,14 +244,14 @@ export const ProblemsView: React.FC = () => {
   const today = todayStr();
 
   const inBlock = useMemo(() => cases.filter((c) => !block || c.block === block || (!c.block && c.treeId.startsWith(block))), [cases, block]);
+  const solvedRecently = (c: ProblemCase) => !isOpen(c) && !!c.closedOn && diffDays(today, c.closedOn) <= 90;
   const counts = {
     open: inBlock.filter(isOpen).length,
     due: inBlock.filter((c) => isDue(c, today)).length,
-    solved: inBlock.filter((c) => !isOpen(c) && c.closedOn && diffDays(today, c.closedOn) <= 90).length,
+    solved: inBlock.filter(solvedRecently).length,
   };
   const list = useMemo(() => {
-    const keep =
-      filter === 'due' ? (c: typeof cases[number]) => isDue(c, today) : filter === 'solved' ? (c: typeof cases[number]) => !isOpen(c) && !!c.closedOn && diffDays(today, c.closedOn) <= 90 : isOpen;
+    const keep = filter === 'due' ? (c: ProblemCase) => isDue(c, today) : filter === 'solved' ? solvedRecently : isOpen;
     return sortCases(inBlock.filter(keep), today);
   }, [inBlock, filter, today]);
 
@@ -349,7 +272,8 @@ export const ProblemsView: React.FC = () => {
   };
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
+      <PageHeader title={t('nav.problems')} description={t('rep.desc.problems')} />
       <div className="flex flex-wrap items-center gap-2">
         {chip('open', t('case.f.open'), counts.open)}
         {chip('due', t('case.f.due'), counts.due)}
@@ -377,9 +301,9 @@ export const ProblemsView: React.FC = () => {
           <p className="text-xs text-slate-600 mt-1 max-w-md mx-auto">{t('case.empty.how')}</p>
         </div>
       ) : (
-        <div className="space-y-2">
+        <div className="grid gap-2 lg:grid-cols-2 items-start">
           {list.map((c) => (
-            <CaseCard key={c.id} c={c} showTree />
+            <CaseRow key={c.id} c={c} showTree />
           ))}
         </div>
       )}

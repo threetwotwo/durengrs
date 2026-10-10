@@ -176,7 +176,8 @@ export const FarmProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [weeklyReviewDate, setWeeklyReviewDate] = useState<string | null>(null);
   const [treeBlooms, setTreeBlooms] = useState<TreeBloom[]>([]);
   const [cropCounts, setCropCounts] = useState<CropCount[]>([]);
-  const [allCases, setCases] = useState<ProblemCase[]>([]);
+  const [openCases, setOpenCases] = useState<ProblemCase[]>([]);
+  const [closedCases, setClosedCases] = useState<ProblemCase[]>([]);
   const [recordsError, setRecordsError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -187,8 +188,9 @@ export const FarmProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const since = addDays(todayStr(), -120);
     const seasonsSince = addDays(todayStr(), -400);
     const subs = [
+      // This season and the last (400 days): what every total and list uses.
       onSnapshot(
-        query(collection(db, 'harvests'), orderBy('date', 'desc'), limit(1000)),
+        query(collection(db, 'harvests'), where('date', '>=', seasonsSince)),
         (s) => setHarvests(s.docs.map((d) => ({ id: d.id, ...(d.data() as any) }) as Harvest)),
         onErr('Harvests')
       ),
@@ -222,9 +224,15 @@ export const FarmProvider: React.FC<{ children: React.ReactNode }> = ({ children
         (s) => setCropCounts(s.docs.map((d) => ({ id: d.id, ...(d.data() as any) }) as CropCount)),
         onErr('Crop counts')
       ),
+      // Problems still open, and those solved in the last 90 days (older solved ones are not read).
       onSnapshot(
-        collection(db, 'cases'),
-        (s) => setCases(s.docs.map((d) => parseCase(d.id, d.data()))),
+        query(collection(db, 'cases'), where('status', 'in', ['open', 'treated', 'improving', 'worse'])),
+        (s) => setOpenCases(s.docs.map((d) => parseCase(d.id, d.data()))),
+        onErr('Cases')
+      ),
+      onSnapshot(
+        query(collection(db, 'cases'), where('closedOn', '>=', addDays(todayStr(), -90))),
+        (s) => setClosedCases(s.docs.map((d) => parseCase(d.id, d.data()))),
         onErr('Cases')
       ),
       onSnapshot(
@@ -440,8 +448,10 @@ export const FarmProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [allHarvests, allTrees]);
   const cases = useMemo(() => {
     const gone = new Set(archivedTrees.map((t) => t.id));
-    return gone.size ? allCases.filter((c) => !gone.has(c.treeId)) : allCases;
-  }, [allCases, archivedTrees]);
+    const byId = new Map<string, ProblemCase>();
+    for (const c of [...closedCases, ...openCases]) byId.set(c.id, c); // a case moving between the two: open wins
+    return [...byId.values()].filter((c) => !gone.has(c.treeId));
+  }, [openCases, closedCases, archivedTrees]);
   const archivedHarvestTrees = useMemo(
     () => new Set(archivedTrees.filter((t) => t.archivedReason !== 'test').map((t) => t.id)),
     [archivedTrees]

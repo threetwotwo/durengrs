@@ -65,9 +65,9 @@ export interface TreeReport {
   createdAt?: string | { seconds: number; nanoseconds: number } | any;
   /** Suggestion from the worker's words (or a photo model): see src/shared/triage.ts and docs/data-contract.md. */
   triage?: import('../shared').Triage;
-  /** Set when a person has looked at the report in the review inbox. */
+  /** Set when the owner changed (or set aside) what was read from the report. */
   review?: { decision: 'accepted' | 'corrected' | 'dismissed'; by?: string; at?: any };
-  /** Confirmed by the review. */
+  /** The owner's change of the reading (only with `review`). */
   stage?: string;
   issues?: string[];
   health?: 'hijau' | 'kuning' | 'merah';
@@ -78,7 +78,7 @@ export interface TreeReport {
   /** The problems (cases) this report opened, treated or re-checked. */
   caseIds?: string[];
   /** Gemini's reading of the photos and words: done, still running, or failed (then `triage` is the word-only one). */
-  ai?: { status: 'running' | 'done' | 'failed' | string; model?: string; error?: string };
+  ai?: { status: 'running' | 'done' | 'failed' | string; model?: string; error?: string; recorded?: string[] };
 }
 
 /** One step in a problem's history: the report that saw, treated or re-checked it. */

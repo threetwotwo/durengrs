@@ -1,8 +1,9 @@
 import { arrayUnion, deleteDoc, doc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { db } from './firebase';
 import { addDays, todayStr } from './treatments';
-import { ACTION_INFO, CASE_EVENTS, CASE_STATUSES, ISSUE_INFO, RECHECK_DAYS, isAction, isIssue, type CaseStatus } from '../shared';
+import { ACTION_INFO, CASE_EVENTS, CASE_STATUSES, RECHECK_DAYS, isAction, isIssue, type CaseStatus } from '../shared';
 import type { Lang } from '../i18n';
+import { shortProblem } from './feed';
 import type { CaseEvent, ProblemCase } from '../types';
 
 /**
@@ -47,10 +48,9 @@ export function parseCase(id: string, data: unknown): ProblemCase {
   };
 }
 
-/** The problem in words: Gemini's specific name, else the farm's issue label. */
+/** The problem in words: Gemini's specific name without its scientific part, else the farm's issue label. */
 export function caseTitle(c: Pick<ProblemCase, 'issue' | 'name'>, lang: Lang): string {
-  if (c.name) return c.name;
-  return isIssue(c.issue) ? ISSUE_INFO[c.issue].label[lang] : c.issue;
+  return isIssue(c.issue) ? shortProblem(c.issue, c.name, lang) : c.name || c.issue;
 }
 
 /** The last thing done for it, in the reader's language (the bot stores `lastAction` in Indonesian). */

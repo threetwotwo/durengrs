@@ -60,7 +60,7 @@ const HELP_BODY = [
   'Pilih salah satu:',
   '',
   '🌳 *Laporan pohon*',
-  'Foto + keterangan: bunga, buah, hama, penyakit, perawatan, panen.',
+  'Foto + keterangan: bunga, buah, hama, penyakit, panen.',
   'Kirim ID pohon, contoh: *A1*',
   '',
   '🌧️ *Hujan & pekerjaan kebun*',

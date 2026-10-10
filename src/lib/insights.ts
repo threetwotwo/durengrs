@@ -1,8 +1,8 @@
 import { collection, deleteDoc, doc, getDoc, getDocs, query, serverTimestamp, setDoc, where, writeBatch } from 'firebase/firestore';
 import { db } from './firebase';
-import { DurianTree, DurianVariant, TreeReport } from '../types';
+import { DurianTree, TreeReport } from '../types';
 import { locale, translate } from '../i18n';
-import { addDays, diffDays, todayStr } from './treatments';
+import { diffDays } from './treatments';
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -49,80 +49,6 @@ export interface HarvestRow {
   ripeningDays?: number;
   harvestDate?: string;
   daysToHarvest?: number;
-}
-
-/**
- * Expected harvest per block, variety and flowering date. `wavesOf` gives a tree's flowering dates this season
- * (the block date by default); a tree that flowered in waves is counted in each, with its fruit estimate split
- * evenly between them.
- */
-export function buildHarvestRows(
-  trees: DurianTree[],
-  variants: DurianVariant[],
-  cycles: HarvestCycle[],
-  wavesOf?: (tree: DurianTree) => string[],
-  today = todayStr()
-): HarvestRow[] {
-  const cycleByBlock = new Map(cycles.map((c) => [c.block, c.floweredOn]));
-  const variantByCode = new Map(variants.map((v) => [v.code, v]));
-  const rows = new Map<string, HarvestRow>();
-
-  for (const t of trees) {
-    if (!t.block || !t.variant) continue;
-    const blockDate = cycleByBlock.get(t.block);
-    const dates: Array<string | undefined> = wavesOf ? wavesOf(t) : [blockDate];
-    const list = dates.length ? dates : [undefined];
-    const v = variantByCode.get(t.variant);
-    const ripening = v?.ripeningDays ? Number(v.ripeningDays) : undefined;
-    list.forEach((floweredOn, i) => {
-      const key = `${t.block}|${t.variant}|${floweredOn || ''}`;
-      let row = rows.get(key);
-      if (!row) {
-        const harvestDate = floweredOn && ripening ? addDays(floweredOn, ripening) : undefined;
-        row = {
-          block: t.block,
-          variant: t.variant,
-          variantName: v?.name || t.variant,
-          trees: 0,
-          fruits: 0,
-          floweredOn,
-          ripeningDays: ripening,
-          harvestDate,
-          daysToHarvest: harvestDate ? diffDays(harvestDate, today) : undefined,
-        };
-        rows.set(key, row);
-      }
-      row.trees++;
-      // Split so the total is unchanged; the remainder goes to the first wave.
-      const n = t.estimatedFruitCount || 0;
-      row.fruits += Math.floor(n / list.length) + (i === 0 ? n % list.length : 0);
-    });
-  }
-  return Array.from(rows.values()).sort(
-    (a, b) =>
-      (a.harvestDate || '9999').localeCompare(b.harvestDate || '9999') ||
-      a.block.localeCompare(b.block) ||
-      a.variant.localeCompare(b.variant)
-  );
-}
-
-export function fruitsByMonth(rows: HarvestRow[]): Array<{ month: string; label: string; fruits: number; trees: number }> {
-  const map = new Map<string, { fruits: number; trees: number }>();
-  for (const r of rows) {
-    if (!r.harvestDate) continue;
-    const key = r.harvestDate.slice(0, 7);
-    const m = map.get(key) || { fruits: 0, trees: 0 };
-    m.fruits += r.fruits;
-    m.trees += r.trees;
-    map.set(key, m);
-  }
-  return Array.from(map.entries())
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([month, v]) => ({
-      month,
-      label: new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)) - 1, 1).toLocaleDateString(locale(), { month: 'short', year: 'numeric' }),
-      ...v,
-    }));
 }
 
 /** A new date this close to the old one is a correction of the same flowering; further apart, it is a new season. */

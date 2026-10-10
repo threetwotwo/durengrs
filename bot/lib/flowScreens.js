@@ -48,7 +48,7 @@ const withError = (res, message) => ({ ...res, data: { ...res.data, error_messag
 // `report_id` too, so the bot can read the report's photos (lib/ai.js) and reply.
 const done = (message, title = '✅ Laporan tersimpan', reportId = '') => screen('DONE', { title, message, saved: true, report_id: reportId });
 const notSaved = (message) => screen('DONE', { title: '⚠️ Gagal', message, saved: false, report_id: '' });
-const treeGone = (treeId) => notSaved(`Pohon ${treeId ? `${treeId} ` : ''}tidak ditemukan atau sudah tidak aktif, tidak ada yang disimpan.`);
+const treeGone = (treeId) => notSaved(`Pohon ${treeId || ''} tidak ditemukan atau sudah tidak aktif, tidak ada yang disimpan.`);
 
 // ---------- the "Ya, sudah benar" mechanism ----------
 
@@ -167,7 +167,7 @@ async function handleWork({ data = {}, workerPhone }) {
 
   const season = await C.blockSeasonDate(check.ok.block, today);
   if (!season)
-    return withError(res, `Blok ${check.ok.block} belum punya tanggal bunga. Kirim laporan pohon saat bunga mekar, atau minta pemilik mengisinya.`);
+    return withError(res, `Blok ${check.ok.block} belum punya tanggal bunga. Laporkan "Mulai berbunga" dulu di Laporan Pohon, atau minta pemilik mengisinya.`);
 
   const out = await C.saveSeasonTasks({ block: check.ok.block, season, tasks: check.ok.tasks, date: check.ok.date, workerPhone });
   const lines = [];

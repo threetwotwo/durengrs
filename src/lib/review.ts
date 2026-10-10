@@ -181,27 +181,3 @@ export async function saveReview(report: TreeReport, tree: DurianTree | undefine
   writeReview(batch, report, tree ? await freshTree(tree) : undefined, decision, v, by);
   await batch.commit();
 }
-
-/**
- * Mark many plain "all fine" reports as checked in one go (their suggestion accepted). Oldest first, each against the
- * tree as the previous one left it, so the newest report always has the last word.
- */
-export async function acceptAll(items: Array<{ report: TreeReport; tree?: DurianTree }>, by?: string) {
-  const sorted = [...items].sort((a, b) => normalizeTimestamp(a.report.createdAt) - normalizeTimestamp(b.report.createdAt));
-  const fresh = new Map<string, DurianTree | undefined>();
-  await Promise.all(
-    [...new Set(sorted.map((x) => x.report.treeId))].map(async (id) => {
-      const known = sorted.find((x) => x.report.treeId === id)?.tree;
-      if (known) fresh.set(id, await freshTree(known));
-    })
-  );
-  // Up to 3 writes per report; Firestore batches hold 500.
-  for (let i = 0; i < sorted.length; i += 150) {
-    const batch = writeBatch(db);
-    for (const { report } of sorted.slice(i, i + 150)) {
-      const after = writeReview(batch, report, fresh.get(report.treeId), 'accepted', suggestedValues(reportTriage(report), report), by);
-      if (after) fresh.set(report.treeId, after);
-    }
-    await batch.commit();
-  }
-}

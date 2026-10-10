@@ -1,8 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { X, ZoomIn, ZoomOut, ExternalLink, Image as ImageIcon, ChevronLeft, ChevronRight } from 'lucide-react';
-import { formatDateTime } from '../context/FarmContext';
-import type { ReportPhoto } from '../types';
-import { useT, translate } from '../i18n';
+import { useT } from '../i18n';
 
 export interface GalleryItem {
   url: string;
@@ -10,16 +8,6 @@ export interface GalleryItem {
   medium?: string;
   thumb?: string;
   caption?: string;
-}
-
-/** Builds gallery items for the photos of one report. */
-export function photoItems(photos: ReportPhoto[], treeId: string, date: any): GalleryItem[] {
-  return photos.map((p, i) => ({
-    url: p.url,
-    medium: p.medium,
-    thumb: p.thumb,
-    caption: translate('photo.caption', { id: treeId, i: i + 1, n: photos.length, date: formatDateTime(date) }),
-  }));
 }
 
 /** Smallest to largest, without duplicates: thumb -> medium -> full. */

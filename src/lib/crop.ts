@@ -65,6 +65,9 @@ export interface TreeCrop {
   next: NextStep | null;
 }
 
+/** Fruit on a tree now, the one number every page uses (the last count minus what was picked since, else the estimate). */
+export const fruitOnTree = (c: Pick<TreeCrop, 'remaining'>) => c.remaining ?? 0;
+
 /** Which count each stage of the season calls for. */
 const STAGE_COUNT: Partial<Record<StageId, CropStage | 'harvest'>> = {
   bloom: 'clusters',

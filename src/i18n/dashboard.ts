@@ -21,8 +21,6 @@ export const dashboard: Bundle = {
     'stage.unseen': 'Belum dilihat',
     'stage.col': 'Tahap',
     'stage.seen': 'Terlihat',
-    'stage.suggested': 'Saran sistem (belum dicek)',
-    'stage.confirmed': 'Sudah dicek',
   },
   en: {
     'dash.greet.morning': 'Good morning',
@@ -44,7 +42,5 @@ export const dashboard: Bundle = {
     'stage.unseen': 'Not seen',
     'stage.col': 'Stage',
     'stage.seen': 'Seen',
-    'stage.suggested': 'System suggestion (not checked)',
-    'stage.confirmed': 'Checked',
   },
 };

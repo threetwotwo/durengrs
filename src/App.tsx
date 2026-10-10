@@ -17,6 +17,9 @@ const ReportsPage = lazy(() => import('./components/ReportsPage').then((m) => ({
 const SchedulePage = lazy(() => import('./components/SchedulePage').then((m) => ({ default: m.SchedulePage })));
 const HarvestPage = lazy(() => import('./components/HarvestPage').then((m) => ({ default: m.HarvestPage })));
 const GuidePage = lazy(() => import('./components/GuidePage').then((m) => ({ default: m.GuidePage })));
+const ProblemsPage = lazy(() => import('./components/Problems').then((m) => ({ default: m.ProblemsPage })));
+const ProblemPage = lazy(() => import('./components/ProblemPage').then((m) => ({ default: m.ProblemPage })));
+const WorkersPage = lazy(() => import('./components/WorkersPage').then((m) => ({ default: m.WorkersPage })));
 
 const AppContent: React.FC = () => {
   const { loading, error, slowConnection } = useFarm();
@@ -94,6 +97,8 @@ const AppContent: React.FC = () => {
                 ) : (
                   <ReportsPage />
                 ))}
+              {route.tab === 'problems' && (route.caseId ? <ProblemPage key={route.caseId} caseId={route.caseId} /> : <ProblemsPage />)}
+              {route.tab === 'workers' && <WorkersPage />}
               {route.tab === 'guide' && <GuidePage />}
             </Suspense>
           </ErrorBoundary>

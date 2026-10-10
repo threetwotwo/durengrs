@@ -1,18 +1,14 @@
 import React, { useMemo, useState } from 'react';
-import { Check, FlaskConical, Plus, Trash2, Wheat } from 'lucide-react';
+import { Check, FlaskConical, Plus, Trash2 } from 'lucide-react';
 import { useFarm } from '../context/FarmContext';
 import { useT } from '../i18n';
 import { useSeasons } from './useSeasons';
 import { Sheet, fieldInput, fieldLabel } from './Sheet';
-import { Link } from './Link';
-import { SourceBadge } from './SourceBadge';
 import { MissedLink } from './FieldFirst';
-import { PhotoLightbox } from './PhotoLightbox';
 import {
   GRADES,
   Grade,
   HARVEST_PROBLEMS,
-  type Harvest,
   HarvestProblem,
   LAB_KEYS,
   LabKey,
@@ -21,17 +17,14 @@ import {
   addLabResult,
   markSeasonTask,
   markWeeklyReview,
-  removeHarvest,
   removeLabResult,
   unmarkSeasonTask,
 } from '../lib/fieldData';
 import {
   LAB_RANGES,
   SEASON_TASKS,
-  actualRipening,
   blockTasks,
   type BlockTask,
-  harvestQuality,
   labLevel,
   latestLabByBlock,
 } from '../lib/fieldInsights';
@@ -132,135 +125,6 @@ export const SeasonTaskChips: React.FC<{ task: SeasonTaskId; seasons: BlockSeaso
 // ---------- rain (A15) ----------
 
 // ---------- harvest log (A6) ----------
-
-export const HarvestLog: React.FC = () => {
-  const { t } = useT();
-  const { harvests, variants, workerLabel } = useFarm();
-  const [open, setOpen] = useState(false);
-  const [viewer, setViewer] = useState<{ h: Harvest; index: number } | null>(null);
-  // A harvest with photos also loses its files in Cloud Storage (the storage code loads only when needed).
-  const deleteHarvest = (h: Harvest) => {
-    const done = h.photos?.length ? import('../lib/reportAdmin').then((m) => m.deleteHarvest(h)) : removeHarvest(h.id);
-    Promise.resolve(done).catch((e) => console.error('Deleting harvest failed:', e));
-  };
-  const real = useMemo(() => actualRipening(harvests), [harvests]);
-  const quality = useMemo(() => harvestQuality(harvests, (h) => h.variant), [harvests]);
-  const nameOf = (code: string) => variants.find((v) => v.code === code)?.name || code;
-
-  return (
-    <section className="bg-white rounded-xl border border-slate-200 overflow-hidden" aria-labelledby="hv-log">
-      <div className="px-4 py-3 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h2 id="hv-log" className="text-sm font-bold text-slate-900 flex items-center gap-2">
-            <Wheat className="w-4 h-4 text-emerald-600" />
-            {t('rec.hv.title')}
-          </h2>
-          <p className="text-xs text-slate-600">{t('rec.hv.help')}</p>
-        </div>
-        <MissedLink onClick={() => setOpen(true)} label={t('ff.missedHarvest')} />
-      </div>
-
-      {quality.size > 0 && (
-        <div className="p-4 border-b border-slate-100 overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="text-xs uppercase tracking-wide text-slate-600">
-              <tr>
-                <th className="text-left font-semibold py-1">{t('common.variant')}</th>
-                <th className="text-right font-semibold py-1">{t('rec.hv.fruits')}</th>
-                <th className="text-right font-semibold py-1">{t('rec.hv.problemRate')}</th>
-                <th className="text-right font-semibold py-1">{t('rec.hv.realDays')}</th>
-                <th className="text-right font-semibold py-1">{t('rec.hv.setDays')}</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {Array.from(quality.entries()).map(([code, q]) => {
-                const r = real.get(code);
-                const set = Number(variants.find((v) => v.code === code)?.ripeningDays) || null;
-                return (
-                  <tr key={code}>
-                    <td className="py-1.5 font-semibold text-slate-900">{nameOf(code)}</td>
-                    <td className="py-1.5 text-right tabular">{q.fruits.toLocaleString()}</td>
-                    <td className="py-1.5 text-right tabular">{q.fruits ? Math.round((q.problemFruits / q.fruits) * 100) : 0}%</td>
-                    <td className="py-1.5 text-right tabular">{r ? t('rec.hv.daysN', { n: r.days, h: r.harvests }) : '—'}</td>
-                    <td className="py-1.5 text-right tabular">
-                      {set ?? '—'}
-                      {r && set && Math.abs(r.days - set) > 3 && (
-                        <Link to={`/variants?edit=${encodeURIComponent(code)}`} className="ml-1.5 text-xs font-semibold text-amber-800 underline">
-                          {t('rec.hv.update')}
-                        </Link>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {harvests.length === 0 ? (
-        <p className="p-6 text-center text-sm text-slate-600">{t('rec.hv.empty')}</p>
-      ) : (
-        <ul className="divide-y divide-slate-100">
-          {harvests.slice(0, 15).map((h) => (
-            <li key={h.id} className="flex items-start gap-3 px-4 py-2.5">
-              <div className="min-w-0 flex-1 text-sm">
-                <span className="font-semibold text-slate-900">
-                  {formatShortDate(h.date)} · {h.treeId ? t('rep.treeN', { id: h.treeId }) : t('common.blockN', { n: h.block })} · {nameOf(h.variant)}
-                </span>{' '}
-                {h.workerPhone ? <span className="text-xs text-slate-500">· {workerLabel(h.workerPhone)}</span> : null}
-                <SourceBadge source={h.source} />
-                <span className="block text-xs text-slate-600 tabular">
-                  {t('rec.hv.line', { n: h.fruits })}
-                  {h.grades ? ` (${GRADES.filter((g) => h.grades![g]).map((g) => `${t(`grade.${g}.short`)} ${h.grades![g]}`).join(', ')})` : ''}
-                  {h.weightKg ? ` · ${h.weightKg} kg` : ''}
-                  {typeof h.daysFromBloom === 'number' ? ` · ${t('rec.hv.dayN', { n: h.daysFromBloom })}` : ''}
-                  {h.problems?.length ? ` · ${h.problems.map((p) => t(`rec.hv.p.${p}`)).join(', ')}${h.problemFruits ? ` (${h.problemFruits})` : ''}` : ''}
-                </span>
-                {h.photos && h.photos.length > 0 && (
-                  <span className="mt-1.5 flex gap-1.5">
-                    {h.photos.map((ph, i) => (
-                      <button
-                        key={ph.url}
-                        type="button"
-                        onClick={() => setViewer({ h, index: i })}
-                        aria-label={t('rec.hv.photoN', { i: i + 1, n: h.photos!.length })}
-                        className="w-12 h-12 rounded-md overflow-hidden border border-slate-200 bg-slate-100"
-                      >
-                        <img src={ph.thumb || ph.medium || ph.url} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
-                      </button>
-                    ))}
-                  </span>
-                )}
-              </div>
-              <button
-                type="button"
-                onClick={() => window.confirm(t('rec.hv.confirmDelete')) && deleteHarvest(h)}
-                className="p-2 rounded-lg text-slate-500 hover:bg-slate-100"
-                aria-label={t('rec.delete')}
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-      {open && <HarvestSheet onClose={() => setOpen(false)} />}
-      {viewer && (
-        <PhotoLightbox
-          items={viewer.h.photos!.map((ph, i) => ({
-            url: ph.url,
-            medium: ph.medium,
-            thumb: ph.thumb,
-            caption: t('rec.hv.cap', { id: viewer.h.treeId || viewer.h.block, date: formatShortDate(viewer.h.date) }) + ` (${i + 1}/${viewer.h.photos!.length})`,
-          }))}
-          index={viewer.index}
-          onClose={() => setViewer(null)}
-        />
-      )}
-    </section>
-  );
-};
 
 /**
  * Log fruit picked: from one tree (per-tree tracking) or a whole block, counted per grade. Grades follow the Codex
