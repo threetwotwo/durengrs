@@ -81,6 +81,13 @@ const group = <T,>(list: T[], keyOfItem: (x: T) => string | undefined) => {
   }
   return m;
 };
+/** A column's date: "24 Sep", or "24/9" on a phone so two dated columns and the new one fit. */
+const ColDate: React.FC<{ date: string }> = ({ date }) => (
+  <>
+    <span className="sm:hidden">{`${Number(date.slice(8))}/${Number(date.slice(5, 7))}`}</span>
+    <span className="hidden sm:inline">{formatShortDate(date)}</span>
+  </>
+);
 const keyOf = (kind: CountKind, date: string, tree: string) => `${kind}|${date}|${tree}`;
 const parseKey = (k: string) => {
   const [kind, date, tree] = k.split('|');
@@ -89,7 +96,10 @@ const parseKey = (k: string) => {
 const inputFor = (key: string) => document.querySelector<HTMLInputElement>(`input[data-count="${CSS.escape(key)}"]`);
 const DOT: Record<string, string> = { danger: 'bg-rose-500', warn: 'bg-amber-400', info: 'bg-sky-500', good: 'bg-emerald-500', done: 'bg-slate-300' };
 const HEALTH_DOT: Record<string, string> = { hijau: 'bg-emerald-500', kuning: 'bg-amber-400', merah: 'bg-rose-600' };
-const th = 'px-2.5 text-[11px] font-semibold uppercase tracking-wide whitespace-nowrap border-b border-slate-700 bg-slate-900 text-slate-200';
+const th = 'px-1.5 sm:px-2.5 text-[11px] font-semibold sm:uppercase sm:tracking-wide whitespace-nowrap border-b border-slate-700 bg-slate-900 text-slate-200';
+/** Below the app bar (h-14 and its 1px border), and on a phone above the tab bar. */
+const TOP = 'top-[57px]';
+const BOTTOM = 'bottom-[calc(3.5rem+1px+env(safe-area-inset-bottom))] md:bottom-0';
 
 export const CountPage: React.FC = () => {
   const { t, lang, locale } = useT();
@@ -408,33 +418,38 @@ export const CountPage: React.FC = () => {
       )}
 
       {rows.length > 0 && (
-        <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-auto max-h-[calc(100dvh-220px)] min-h-[320px]">
+        // One scroll, the page's: the sheet fits a phone's width (no sideways scrolling), its header row stays under the
+        // app bar and its totals above the tab bar.
+        <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-clip">
           <table className="text-sm border-separate border-spacing-0 min-w-full">
             <thead>
               <tr className="h-11">
-                <th scope="col" className={`${th} text-left sticky left-0 top-0 z-30 border-r`}>
+                <th scope="col" className={`${th} text-left sticky left-0 ${TOP} z-30 border-r`}>
                   ID
                 </th>
                 {dates.map((d, i) => (
-                  <th key={d} scope="col" className={`${th} text-right sticky top-0 z-20 ${hideOnPhone(i)}`}>
-                    {formatShortDate(d)}
+                  <th key={d} scope="col" className={`${th} text-right sticky ${TOP} z-20 ${hideOnPhone(i)}`}>
+                    <ColDate date={d} />
                   </th>
                 ))}
-                <th scope="col" className="px-2.5 sticky top-0 z-20 bg-emerald-700 text-white text-right border-b border-emerald-800 whitespace-nowrap">
-                  <span className="block text-[11px] font-bold uppercase tracking-wide">{formatShortDate(date)}</span>
+                <th scope="col" className={`px-2 sm:px-2.5 sticky ${TOP} z-20 bg-emerald-700 text-white text-right border-b border-emerald-800 whitespace-nowrap`}>
+                  <span className="block text-[11px] font-bold sm:uppercase sm:tracking-wide">
+                    <ColDate date={date} />
+                  </span>
                   <span className="block text-[11px] font-medium text-emerald-100 tabular">
                     {summary.counted}/{countable.length}
                   </span>
                 </th>
-                <th scope="col" className={`${th} text-left sticky top-0 z-20`}>
+                <th scope="col" className={`${th} text-left sticky ${TOP} z-20`}>
                   <span className="sr-only">{t('count.col.photo')}</span>
                   <Camera className="w-3.5 h-3.5" aria-hidden />
                 </th>
-                <th scope="col" className={`${th} text-left sticky top-0 z-20`}>
+                <th scope="col" className={`${th} !px-1 sm:!px-2.5 text-center sticky ${TOP} z-20`}>
                   {t('count.col.status')}
                 </th>
-                <th scope="col" className={`${th} text-left sticky top-0 z-20 w-full`}>
-                  {t('count.col.problems')}
+                <th scope="col" className={`${th} text-left sticky ${TOP} z-20 w-full`}>
+                  <span className="sr-only sm:not-sr-only">{t('count.col.problems')}</span>
+                  <AlertTriangle className="w-3.5 h-3.5 sm:hidden" aria-hidden />
                 </th>
               </tr>
             </thead>
@@ -453,12 +468,12 @@ export const CountPage: React.FC = () => {
                   : t('cond.not_assessed');
                 return (
                   <tr key={r.id} className="group">
-                    <th scope="row" className="sticky left-0 z-10 bg-white group-hover:bg-slate-50 px-2.5 py-1.5 text-left border-b border-r border-slate-200 whitespace-nowrap">
+                    <th scope="row" className="sticky left-0 z-10 bg-white group-hover:bg-slate-50 px-2 sm:px-2.5 py-1.5 text-left border-b border-r border-slate-200 whitespace-nowrap">
                       <Link to={treeUrl(r.id)} className="font-mono font-bold text-emerald-800 hover:underline inline-flex items-center gap-1.5">
                         {r.id}
                         {r.problems.length > 0 && (
                           <span
-                            className={`min-w-4 h-4 px-1 rounded-full text-[10px] leading-4 text-center font-sans font-bold ${tone === 'danger' ? 'bg-rose-600 text-white' : 'bg-amber-400 text-slate-900'}`}
+                            className={`hidden sm:inline-block min-w-4 h-4 px-1 rounded-full text-[10px] leading-4 text-center font-sans font-bold ${tone === 'danger' ? 'bg-rose-600 text-white' : 'bg-amber-400 text-slate-900'}`}
                             title={t('trees.problemsN', { n: r.problems.length })}
                           >
                             {r.problems.length}
@@ -467,7 +482,7 @@ export const CountPage: React.FC = () => {
                       </Link>
                     </th>
                     {dates.map((d, i) => (
-                      <td key={d} className={`px-2.5 py-1.5 text-right tabular text-slate-600 border-b border-r border-slate-200 group-hover:bg-slate-50 ${hideOnPhone(i)}`}>
+                      <td key={d} className={`px-1.5 sm:px-2.5 py-1.5 text-right tabular text-slate-600 border-b border-r border-slate-200 group-hover:bg-slate-50 ${hideOnPhone(i)}`}>
                         {r.past.get(d) ?? ''}
                       </td>
                     ))}
@@ -502,7 +517,7 @@ export const CountPage: React.FC = () => {
                                 setErrors((x) => omit(x, key));
                               }
                             }}
-                            className={`w-full min-w-[5.5rem] h-10 pl-6 pr-2.5 bg-transparent text-right text-base font-bold tabular outline-none focus:bg-white focus:outline-2 focus:-outline-offset-2 ${
+                            className={`w-full min-w-16 sm:min-w-[5.5rem] h-10 pl-6 pr-2 sm:pr-2.5 bg-transparent text-right text-base font-bold tabular outline-none focus:bg-white focus:outline-2 focus:-outline-offset-2 ${
                               bad ? 'outline-2 -outline-offset-2 outline-rose-500 text-rose-700' : 'focus:outline-emerald-600 text-slate-900'
                             }`}
                           />
@@ -514,10 +529,10 @@ export const CountPage: React.FC = () => {
                         </span>
                       )}
                     </td>
-                    <td className="px-1.5 py-1 border-b border-r border-slate-200 group-hover:bg-slate-50">
+                    <td className="px-1 sm:px-1.5 py-1 border-b border-r border-slate-200 group-hover:bg-slate-50">
                       <span className="flex items-center gap-1">
                         {r.photos[0] && (
-                          <Link to={r.photos[0].href} className="relative block w-8 h-8 rounded overflow-hidden bg-slate-200 shrink-0">
+                          <Link to={r.photos[0].href} className="relative hidden sm:block w-8 h-8 rounded overflow-hidden bg-slate-200 shrink-0">
                             <img src={r.photos[0].p.thumb || r.photos[0].p.medium || r.photos[0].p.url} alt="" loading="lazy" className="w-full h-full object-cover" />
                             {r.photos.length > 1 && <span className="absolute bottom-0 right-0 px-1 rounded-tl bg-black/60 text-white text-[10px] leading-4">{r.photos.length}</span>}
                           </Link>
@@ -533,11 +548,16 @@ export const CountPage: React.FC = () => {
                         {r.target && (
                           <label
                             title={r.now === undefined ? t('count.photo.first') : t('count.photo.add', { id: r.id })}
-                            className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
+                            className={`relative w-8 h-8 sm:w-9 sm:h-9 rounded-lg flex items-center justify-center shrink-0 ${
                               r.now === undefined ? 'text-slate-300' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 cursor-pointer focus-within:outline-2 focus-within:outline-emerald-600'
                             }`}
                           >
                             <Camera className="w-4 h-4" aria-hidden />
+                            {r.photos.length > 0 && (
+                              <span className="sm:hidden absolute top-0.5 right-0.5 min-w-3.5 h-3.5 px-0.5 rounded-full bg-emerald-600 text-white text-[9px] leading-3.5 text-center font-bold" aria-hidden>
+                                {r.photos.length}
+                              </span>
+                            )}
                             <input
                               type="file"
                               accept="image/*"
@@ -554,11 +574,11 @@ export const CountPage: React.FC = () => {
                         )}
                       </span>
                     </td>
-                    <td className="px-2.5 text-center border-b border-r border-slate-200 group-hover:bg-slate-50" title={healthText}>
+                    <td className="px-1 sm:px-2.5 text-center border-b border-r border-slate-200 group-hover:bg-slate-50" title={healthText}>
                       <span className={`inline-block w-2.5 h-2.5 rounded-full align-middle ${health ? HEALTH_DOT[health] : 'border border-slate-300'}`} aria-hidden />
                       <span className="sr-only">{healthText}</span>
                     </td>
-                    <td className="px-2.5 py-1.5 border-b border-slate-200 group-hover:bg-slate-50 max-w-[20rem]">
+                    <td className="px-1.5 sm:px-2.5 py-1.5 border-b border-slate-200 group-hover:bg-slate-50 w-full max-w-0">
                       {first && (
                         <Link
                           to={treeUrl(r.id)}
@@ -576,15 +596,15 @@ export const CountPage: React.FC = () => {
             </tbody>
             <tfoot>
               <tr className="font-semibold text-slate-700">
-                <th scope="row" className="sticky left-0 bottom-0 z-20 bg-slate-100 px-2.5 py-2 text-left text-xs border-t border-r border-slate-200 whitespace-nowrap">
+                <th scope="row" className={`sticky left-0 ${BOTTOM} z-20 bg-slate-100 px-1.5 sm:px-2.5 py-2 text-left text-[10px] sm:text-xs border-t border-r border-slate-200 whitespace-nowrap`}>
                   {t('kebun.total')}
                 </th>
                 {dates.map((d, i) => (
-                  <td key={d} className={`sticky bottom-0 z-10 bg-slate-100 px-2.5 py-2 text-right tabular border-t border-slate-200 ${hideOnPhone(i)}`}>
+                  <td key={d} className={`sticky ${BOTTOM} z-10 bg-slate-100 px-1.5 sm:px-2.5 py-2 text-right tabular border-t border-slate-200 ${hideOnPhone(i)}`}>
                     {fmt(total(d))}
                   </td>
                 ))}
-                <td className="sticky bottom-0 z-10 bg-emerald-100 px-2.5 py-1.5 text-right tabular border-t border-emerald-200 whitespace-nowrap">
+                <td className={`sticky ${BOTTOM} z-10 bg-emerald-100 px-2 sm:px-2.5 py-1.5 text-right tabular border-t border-emerald-200 whitespace-nowrap`}>
                   <span className="block text-slate-900">{fmt(summary.total)}</span>
                   {summary.change !== null && (
                     <span
@@ -596,7 +616,7 @@ export const CountPage: React.FC = () => {
                     </span>
                   )}
                 </td>
-                <td colSpan={3} className="sticky bottom-0 z-10 bg-slate-100 border-t border-slate-200" />
+                <td colSpan={3} className={`sticky ${BOTTOM} z-10 bg-slate-100 border-t border-slate-200`} />
               </tr>
             </tfoot>
           </table>
