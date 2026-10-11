@@ -81,6 +81,13 @@ const group = <T,>(list: T[], keyOfItem: (x: T) => string | undefined) => {
   }
   return m;
 };
+/**
+ * The header row and totals follow the rows sideways through a scroll-driven animation where the browser has one
+ * (index.css .sheet-*): no lag. Elsewhere a scroll handler moves them.
+ */
+const NATIVE_FOLLOW =
+  typeof CSS !== 'undefined' && CSS.supports('animation-timeline: scroll()') && CSS.supports('timeline-scope: --a') && CSS.supports('scroll-timeline: --a x');
+
 /** Wider than a phone (Tailwind's sm). */
 function useWide() {
   const query = '(min-width: 640px)';
@@ -134,6 +141,7 @@ export const CountPage: React.FC = () => {
   const headRef = useRef<HTMLDivElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
   const footRef = useRef<HTMLDivElement>(null);
+  const sheetRef = useRef<HTMLDivElement>(null);
 
   const blocks = useMemo(() => Array.from(new Set(trees.map((x) => x.block).filter(Boolean))).sort(), [trees]);
   const countsByTree = useMemo(() => group(cropCounts, (c) => c.treeId), [cropCounts]);
@@ -181,6 +189,19 @@ export const CountPage: React.FC = () => {
   const wide = useWide();
   // On a phone the two latest rounds, so the day's column is in view without scrolling sideways.
   const dates = useMemo(() => pastColumns(rows.map((r) => r.past), wide ? 3 : 2), [rows, wide]);
+  const hasRows = rows.length > 0;
+  // How far the rows scroll sideways: the distance the header row and totals follow them (NATIVE_FOLLOW).
+  useEffect(() => {
+    const body = bodyRef.current;
+    const sheet = sheetRef.current;
+    if (!NATIVE_FOLLOW || !body || !sheet) return;
+    const measure = () => sheet.style.setProperty('--sheet-max', `${Math.max(0, body.scrollWidth - body.clientWidth)}px`);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(body);
+    if (body.firstElementChild) ro.observe(body.firstElementChild);
+    return () => ro.disconnect();
+  }, [hasRows, dates.length, wide]);
   const summary = roundSummary(countable);
 
   // Fresh values for code that runs after a save or an upload.
@@ -346,6 +367,9 @@ export const CountPage: React.FC = () => {
   const W = wide ? { id: 84, date: 76, now: 104, photo: 92, status: 76, problems: 280 } : { id: 72, date: 60, now: 88, photo: 88, status: 64, problems: 240 };
   const tableStyle = { width: '100%', minWidth: W.id + dates.length * W.date + W.now + W.photo + W.status + W.problems };
   const table = 'table-fixed text-sm border-separate border-spacing-0';
+  // Native: the strips' tables slide with the rows and their ID cell slides back, so it stays pinned like the rows' one.
+  const follow = NATIVE_FOLLOW ? 'sheet-follow' : '';
+  const pin = NATIVE_FOLLOW ? 'sheet-pin relative' : '';
   const cols = (
     <colgroup>
       <col style={{ width: W.id }} />
@@ -446,13 +470,13 @@ export const CountPage: React.FC = () => {
       {rows.length > 0 && (
         // One vertical scroll, the page's. The sheet scrolls sideways on its own; its header row (under the app bar) and
         // totals (above the tab bar) are strips of their own that stay in view and follow it sideways.
-        <div className="bg-white rounded-xl border border-slate-200 shadow-xs">
+        <div ref={sheetRef} className={`bg-white rounded-xl border border-slate-200 shadow-xs ${NATIVE_FOLLOW ? 'sheet-scope' : ''}`}>
           <div ref={headRef} className={`sticky ${TOP} z-20 overflow-hidden rounded-t-xl`}>
-            <table className={table} style={tableStyle}>
+            <table className={`${table} ${follow}`} style={tableStyle}>
               {cols}
               <thead>
                 <tr className="h-11">
-                  <th scope="col" className={`${th} text-left sticky left-0 z-10 border-r`}>
+                  <th scope="col" className={`${th} text-left sticky left-0 z-10 border-r ${pin}`}>
                     ID
                   </th>
                   {dates.map((d) => (
@@ -461,10 +485,7 @@ export const CountPage: React.FC = () => {
                     </th>
                   ))}
                   <th scope="col" className="px-2.5 bg-emerald-700 text-white text-right border-b border-emerald-800 whitespace-nowrap">
-                    <span className="block text-[11px] font-bold sm:uppercase sm:tracking-wide">{formatShortDate(date)}</span>
-                    <span className="block text-[11px] font-medium text-emerald-100 tabular">
-                      {summary.counted}/{countable.length}
-                    </span>
+                    <span className="text-[11px] font-bold sm:uppercase sm:tracking-wide">{formatShortDate(date)}</span>
                   </th>
                   <th scope="col" className={`${th} text-left`}>
                     <span className="sr-only">{t('count.col.photo')}</span>
@@ -483,13 +504,17 @@ export const CountPage: React.FC = () => {
 
           <div
             ref={bodyRef}
-            onScroll={(e) => {
-              const x = e.currentTarget.scrollLeft;
-              if (headRef.current) headRef.current.scrollLeft = x;
-              if (footRef.current) footRef.current.scrollLeft = x;
-            }}
+            onScroll={
+              NATIVE_FOLLOW
+                ? undefined
+                : (e) => {
+                    const x = e.currentTarget.scrollLeft;
+                    if (headRef.current) headRef.current.scrollLeft = x;
+                    if (footRef.current) footRef.current.scrollLeft = x;
+                  }
+            }
             // relative: hidden labels (sr-only) and the photo inputs stay inside the scrolling part instead of widening the page
-            className="relative overflow-x-auto overflow-y-hidden overscroll-x-contain"
+            className={`relative overflow-x-auto overflow-y-hidden overscroll-x-contain ${NATIVE_FOLLOW ? 'sheet-scroll' : ''}`}
           >
             <table className={table} style={tableStyle}>
               {cols}
@@ -586,8 +611,10 @@ export const CountPage: React.FC = () => {
                           {r.target && (
                             <label
                               title={r.now === undefined ? t('count.photo.first') : t('count.photo.add', { id: r.id })}
-                              className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
-                                r.now === undefined ? 'text-slate-300' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 cursor-pointer focus-within:outline-2 focus-within:outline-emerald-600'
+                              className={`w-9 h-9 rounded-full border flex items-center justify-center shrink-0 transition-colors ${
+                                r.now === undefined
+                                  ? 'border-slate-200 bg-slate-50 text-slate-300'
+                                  : 'border-slate-300 bg-white text-slate-600 shadow-xs hover:bg-slate-50 hover:text-slate-900 active:bg-slate-100 cursor-pointer focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-emerald-600'
                               }`}
                             >
                               <Camera className="w-4 h-4" aria-hidden />
@@ -631,11 +658,11 @@ export const CountPage: React.FC = () => {
           </div>
 
           <div ref={footRef} className={`sticky ${BOTTOM} z-20 overflow-hidden rounded-b-xl`}>
-            <table className={table} style={tableStyle}>
+            <table className={`${table} ${follow}`} style={tableStyle}>
               {cols}
               <tfoot>
                 <tr className="font-semibold text-slate-700">
-                  <th scope="row" className="sticky left-0 z-10 bg-slate-100 px-2.5 py-2 text-left text-xs border-r border-slate-200 whitespace-nowrap">
+                  <th scope="row" className={`sticky left-0 z-10 bg-slate-100 px-2.5 py-2 text-left text-xs border-r border-slate-200 whitespace-nowrap ${pin}`}>
                     {t('kebun.total')}
                   </th>
                   {dates.map((d) => (

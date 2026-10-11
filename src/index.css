@@ -12,6 +12,18 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+  /* Not motion: these follow the finger (scroll-linked, below). */
+  .sheet-follow, .sheet-pin { animation-duration: auto !important; }
 }
+
+/* The Count sheet (components/CountPage.tsx): its header row and totals follow the rows sideways as part of the
+   scroll itself (a scroll-driven animation, run by the browser, so they never trail the finger). --sheet-max is how far
+   the rows scroll sideways. Browsers without scroll-driven animations get the same through a script. */
+@keyframes sheet-follow { to { transform: translateX(calc(-1 * var(--sheet-max, 0px))); } }
+@keyframes sheet-pin { to { transform: translateX(var(--sheet-max, 0px)); } }
+.sheet-scope { timeline-scope: --sheet-x; }
+.sheet-scroll { scroll-timeline: --sheet-x x; }
+.sheet-follow { animation: sheet-follow linear both; animation-timeline: --sheet-x; will-change: transform; }
+.sheet-pin { animation: sheet-pin linear both; animation-timeline: --sheet-x; will-change: transform; }
 
 .tabular { font-variant-numeric: tabular-nums; }
