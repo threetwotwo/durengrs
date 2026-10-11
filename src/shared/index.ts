@@ -11,3 +11,4 @@ export * from './triage';
 export * from './labels';
 export * from './crop';
 export * from './actions';
+export * from './photos';

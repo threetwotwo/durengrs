@@ -37,6 +37,8 @@ __export(index_exports, {
   IMPROVING: () => IMPROVING,
   ISSUES: () => ISSUES,
   ISSUE_INFO: () => ISSUE_INFO,
+  PHOTO_CACHE_CONTROL: () => PHOTO_CACHE_CONTROL,
+  PHOTO_SIZES: () => PHOTO_SIZES,
   RECHECK_DAYS: () => RECHECK_DAYS,
   SEASON_TASK_OF: () => SEASON_TASK_OF,
   TREATMENT_PRODUCTS: () => TREATMENT_PRODUCTS,
@@ -631,6 +633,14 @@ function fruitRemaining(counts, harvests, waveDates, treeEstimate) {
   const picked = harvests.filter((h) => h.date > from).reduce((n, h) => n + (h.fruits || 0), 0);
   return Math.max(0, last.count - picked);
 }
+
+// src/shared/photos.ts
+var PHOTO_SIZES = {
+  full: { max: 1600, quality: 75 },
+  medium: { max: 900, quality: 72 },
+  thumb: { square: 320, quality: 70 }
+};
+var PHOTO_CACHE_CONTROL = "public, max-age=31536000, immutable";
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
   ACTIONS,
@@ -650,6 +660,8 @@ function fruitRemaining(counts, harvests, waveDates, treeEstimate) {
   IMPROVING,
   ISSUES,
   ISSUE_INFO,
+  PHOTO_CACHE_CONTROL,
+  PHOTO_SIZES,
   RECHECK_DAYS,
   SEASON_TASK_OF,
   TREATMENT_PRODUCTS,

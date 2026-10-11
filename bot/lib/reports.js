@@ -6,25 +6,29 @@ const sharp = require('sharp');
 const { admin, db, getBucket } = require('./firestore');
 const { decryptFlowMedia, ALLOWED_TYPES } = require('./media');
 const { CONDITIONS } = require('./rules');
+const { PHOTO_SIZES, PHOTO_CACHE_CONTROL } = require('./shared');
 
 const MAX_PHOTOS = 3;
+
+// Sizes and JPEG quality shared with the web app's photo uploads (src/shared/photos.ts), so every photo is stored alike.
+const { full: FULL, medium: MEDIUM, thumb: THUMB } = PHOTO_SIZES;
 
 // Stored copy: max 1600px on the long side, JPEG q75 — typically 150–350 KB
 // instead of several MB, and still sharp enough to read leaf damage.
 async function compressPhoto(buffer) {
   return sharp(buffer)
     .rotate()
-    .resize({ width: 1600, height: 1600, fit: 'inside', withoutEnlargement: true })
-    .jpeg({ quality: 75, mozjpeg: true })
+    .resize({ width: FULL.max, height: FULL.max, fit: 'inside', withoutEnlargement: true })
+    .jpeg({ quality: FULL.quality, mozjpeg: true })
     .toBuffer();
 }
 
-// Small copy for lists in the webapp: 320px, ~10–20 KB.
+// Small square copy for lists in the webapp: 320px, ~10–20 KB.
 async function makeThumb(buffer) {
   return sharp(buffer)
     .rotate()
-    .resize({ width: 320, height: 320, fit: 'cover' })
-    .jpeg({ quality: 70, mozjpeg: true })
+    .resize({ width: THUMB.square, height: THUMB.square, fit: 'cover' })
+    .jpeg({ quality: THUMB.quality, mozjpeg: true })
     .toBuffer();
 }
 
@@ -33,13 +37,13 @@ async function makeThumb(buffer) {
 async function makeMedium(buffer) {
   return sharp(buffer)
     .rotate()
-    .resize({ width: 900, height: 900, fit: 'inside', withoutEnlargement: true })
-    .jpeg({ quality: 72, mozjpeg: true })
+    .resize({ width: MEDIUM.max, height: MEDIUM.max, fit: 'inside', withoutEnlargement: true })
+    .jpeg({ quality: MEDIUM.quality, mozjpeg: true })
     .toBuffer();
 }
 
 // Files never change after upload (new report = new file name), so browsers may cache them for a year.
-const CACHE_CONTROL = 'public, max-age=31536000, immutable';
+const CACHE_CONTROL = PHOTO_CACHE_CONTROL;
 
 function downloadUrl(bucket, filePath, token) {
   return (
