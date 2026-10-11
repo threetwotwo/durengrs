@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { readBy, saveBy } from '../lib/by';
 import { Pencil } from 'lucide-react';
 import { useT } from '../i18n';
 import { currentValues, saveReview, type ReviewValues } from '../lib/review';
@@ -10,22 +11,6 @@ import { Sheet, fieldInput, fieldLabel } from './Sheet';
  * Every report counts as read; the owner can still change what was read from one (stage, problems, health), or set
  * the reading aside. When it is the tree's latest report, the tree follows the change (lib/review.ts).
  */
-
-const BY_KEY = 'cilowong.by';
-export const readBy = () => {
-  try {
-    return localStorage.getItem(BY_KEY) || '';
-  } catch {
-    return '';
-  }
-};
-export const saveBy = (v: string) => {
-  try {
-    localStorage.setItem(BY_KEY, v.trim());
-  } catch {
-    /* private mode */
-  }
-};
 
 /** "Change" on a report, and who changed it last. */
 export const ReportChange: React.FC<{ report: TreeReport; tree?: DurianTree }> = ({ report, tree }) => {

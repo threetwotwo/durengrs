@@ -22,8 +22,8 @@ import { ArchiveTreeSheet } from './ArchiveTreeSheet';
 import { TreeProblems } from './Problems';
 import { TreeDetailsForm } from './TreeDetailsForm';
 
-/** Edits a person made by hand; those the reports made (reason 'report', reviews) are already on the reports. */
-const BY_REPORT = new Set(['report', 'review', 'review-dismissed', 'ai-urgent']);
+/** Edits a person made by hand; those the reports made (reason 'report', reviews) and counts made are already in the history. */
+const BY_REPORT = new Set(['report', 'review', 'review-dismissed', 'ai-urgent', 'count']);
 
 /**
  * One tree:

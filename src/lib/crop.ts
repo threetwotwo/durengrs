@@ -5,7 +5,7 @@ import { CROP_STAGES, GRADES } from './fieldData';
 import { BlockSeason, StageId, TreeBloom, stageOf, treeWaves } from './guide';
 import type { HarvestCycle } from './insights';
 import { diffDays, toDateStr, todayStr } from './treatments';
-import { fruitRemaining } from '../shared';
+import { FRUIT_STAGES, dayTotal, fruitRemaining } from '../shared';
 
 /**
  * Harvest engine: each tree's crop through the season, from its own counts and harvests.
@@ -57,7 +57,10 @@ export interface TreeCrop {
   tree: DurianTree;
   /** Current flowering waves of this tree (oldest first) with their stage. */
   waves: Array<{ date: string; day: number; stage: StageId; partial: boolean }>;
-  /** Latest count per stage, added up over the tree's waves. */
+  /**
+   * Latest count per stage: flower clusters per flowering, added up (each flowering has its own flowers); fruit as the
+   * newest day it was counted (a fruit count is the whole tree's fruit, see shared/crop.ts).
+   */
   counts: Partial<Record<CropStage, StageCount>>;
   harvested: HarvestTotals;
   /** Fruit still on the tree: the last fruit count minus what was harvested since. */
@@ -118,19 +121,26 @@ export function treeCrops(
     const waveDates = new Set(waves.map((w) => w.date));
     const start = waves[0]?.date;
 
-    // Latest count per wave and stage, then added up per stage.
+    // Flower clusters: each flowering's latest count, added up. Fruit: per stage, the newest day it was counted.
+    const mine = (countsByTree.get(tree.id) || []).filter((c) => waveDates.has(c.season));
     const latest = new Map<string, CropCount>();
-    for (const c of countsByTree.get(tree.id) || []) {
-      if (!waveDates.has(c.season)) continue;
-      const key = `${c.season}|${c.stage}`;
-      const prev = latest.get(key);
-      if (!prev || c.date > prev.date) latest.set(key, c);
+    for (const c of mine) {
+      if (c.stage !== 'clusters') continue;
+      const prev = latest.get(c.season);
+      if (!prev || c.date > prev.date) latest.set(c.season, c);
     }
     const sums: Partial<Record<CropStage, StageCount>> = {};
     latest.forEach((c) => {
-      const s = sums[c.stage];
-      sums[c.stage] = { count: (s?.count || 0) + c.count, date: s && s.date > c.date ? s.date : c.date };
+      const s = sums.clusters;
+      sums.clusters = { count: (s?.count || 0) + c.count, date: s && s.date > c.date ? s.date : c.date };
     });
+    for (const st of FRUIT_STAGES as CropStage[]) {
+      const list = mine.filter((c) => c.stage === st);
+      if (!list.length) continue;
+      const date = list.reduce((d, c) => (c.date > d ? c.date : d), '');
+      sums[st] = { count: dayTotal(list.filter((c) => c.date === date)), date };
+    }
+    const fruit = mine.filter((c) => c.stage !== 'clusters');
 
     // Counts the tree record already holds (from the WhatsApp bot or the tree form) since this season began.
     const updated = Math.max(normalizeTimestamp(tree.dateUpdated), normalizeTimestamp(tree.lastReportAt));
@@ -153,6 +163,10 @@ export function treeCrops(
     });
 
     // Next step: the first wave whose stage calls for a count that is missing (or, for fruit on the tree, stale).
+    // Fruit is counted for the whole tree, at the stage of its main flowering (the oldest whole-tree one, else the
+    // oldest; lib/recount.ts countTarget): other flowerings need no fruit count of their own, and a fruit count filed
+    // under any flowering since the main one began counts.
+    const main = waves.find((w) => !w.partial) || waves[0];
     let next: NextStep | null = null;
     for (const w of waves) {
       const kind = STAGE_COUNT[w.stage];
@@ -161,7 +175,11 @@ export function treeCrops(
         next = next || { kind, season: w.date, overdue: false };
         continue;
       }
-      const have = latest.get(`${w.date}|${kind}`);
+      if (kind !== 'clusters' && w !== main) continue;
+      const have =
+        kind === 'clusters'
+          ? latest.get(w.date)
+          : fruit.filter((c) => c.stage === kind && c.date >= w.date).sort((a, b) => b.date.localeCompare(a.date))[0];
       const stale = kind === 'onTree' && have && diffDays(today, have.date) >= RECOUNT_DAYS;
       if (!have || stale) {
         next = { kind, season: w.date, overdue: !have || !!stale };

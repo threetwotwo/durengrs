@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { CameraOff, CloudRain, Flower2, ListChecks, Ruler, Wheat, ClipboardList } from 'lucide-react';
+import { CameraOff, CloudRain, Flower2, ListChecks, Ruler, Tally5, Wheat, ClipboardList } from 'lucide-react';
 import { useFarm, normalizeTimestamp } from '../context/FarmContext';
 import { useT } from '../i18n';
 import { rememberReport } from '../lib/reportCache';
 import { type LogEntry, type LogKind } from '../lib/fieldLog';
-import { hasWords, reportTags, reportValues, type Tag, type TagTone } from '../lib/feed';
+import { hasWords, reportTags, reportValues, type CountRound, type Tag, type TagTone } from '../lib/feed';
 import { GRADES } from '../lib/fieldData';
 import { SEASON_TASKS } from '../lib/fieldInsights';
 import { pick } from '../lib/guide';
@@ -310,6 +310,49 @@ export const RecordCard: React.FC<{ entry: LogEntry; filed?: LogEntry[]; timeOnl
         {view.text && <p className="text-sm text-slate-800 leading-snug line-clamp-3 whitespace-pre-line">{view.text}</p>}
         <Tags tags={view.tags} />
         {view.who && <p className="mt-auto pt-0.5 text-xs text-slate-500">{view.who}</p>}
+      </div>
+    </article>
+  );
+};
+
+/** A day's counts from the Count sheet as one card; it opens that day's sheet. */
+export const CountRoundCard: React.FC<{ round: CountRound; eager?: boolean }> = ({ round: r, eager }) => {
+  const { t, locale } = useT();
+  const { workerLabel } = useFarm();
+  const when = useWhen()(r.entries[0], true);
+  const q = new URLSearchParams({ date: r.date });
+  if (r.blocks.length === 1) q.set('block', r.blocks[0]);
+  if (r.what === 'clusters') q.set('what', 'clusters');
+  const href = `/count?${q}`;
+  const where = r.blocks.length === 1 ? t('common.blockN', { n: r.blocks[0] }) : t('feed.round.blocks', { list: r.blocks.join(', ') });
+  const title = t(r.what === 'clusters' ? 'feed.round.clusters' : 'feed.round.fruit');
+  const unit = r.what === 'clusters' ? t('count.kind.clusters').toLowerCase() : t('hv2.fruit');
+  return (
+    <article className="relative bg-white rounded-xl border border-slate-200 overflow-hidden flex flex-col transition-colors hover:border-slate-400 focus-within:border-emerald-500">
+      <Link
+        to={href}
+        aria-label={`${title}, ${where}`}
+        className="absolute inset-0 rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600"
+      />
+      {r.photos.length > 0 ? (
+        <PhotoGrid photos={r.photos} caption={`${title}, ${where}`} href={href} eager={eager} className="aspect-[4/3]" />
+      ) : (
+        <div className={`aspect-[4/3] flex flex-col items-center justify-center gap-1.5 ${TILE.count}`} aria-hidden>
+          <Tally5 className="w-6 h-6" />
+          <p className="text-center leading-tight">
+            <span className="block text-4xl font-bold tabular">{r.total.toLocaleString(locale)}</span>
+            <span className="text-sm font-semibold">{unit}</span>
+          </p>
+        </div>
+      )}
+      <div className="p-3 flex-1 flex flex-col gap-1.5">
+        <header className="flex items-baseline gap-2">
+          <span className="font-semibold text-slate-900">{where}</span>
+          <span className="text-sm font-semibold text-slate-700">{title}</span>
+          <span className="ml-auto text-xs text-slate-500 tabular whitespace-nowrap">{when}</span>
+        </header>
+        <p className="text-sm text-slate-800 tabular">{t('feed.round.line', { n: r.trees, total: r.total.toLocaleString(locale), unit })}</p>
+        {r.who && <p className="mt-auto pt-0.5 text-xs text-slate-500">{workerLabel(r.who)}</p>}
       </div>
     </article>
   );

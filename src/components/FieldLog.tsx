@@ -5,13 +5,13 @@ import { normalizeTimestamp, useFarm } from '../context/FarmContext';
 import { useT } from '../i18n';
 import { db, parseReportDoc } from '../lib/firebase';
 import { useQueryParams } from '../lib/router';
-import { LOG_KINDS, LogKind, TreeEdit, buildFieldLog, byDay, filterLog } from '../lib/fieldLog';
-import { foldFiledRecords, reportValues } from '../lib/feed';
+import { LOG_KINDS, LogKind, type LogEntry, TreeEdit, buildFieldLog, byDay, filterLog } from '../lib/fieldLog';
+import { type FeedItem, foldFiledRecords, groupCountRounds, reportValues } from '../lib/feed';
 import { TOPICS, isTopicId, pick, topicsForText } from '../lib/guide';
 import { HEALTH_INFO } from '../shared';
 import type { TreeReport } from '../types';
 import { inputCls } from './PageHeader';
-import { RecordCard, RecordGrid } from './Record';
+import { CountRoundCard, RecordCard, RecordGrid } from './Record';
 
 const PERIODS = [7, 30, 90, 365] as const;
 /** Reports read at a time; "Show more" reads the next ones. Other records come from the farm data already loaded. */
@@ -141,7 +141,10 @@ export const FieldLog: React.FC = () => {
     const kinds = kind ? [kind] : LISTED_KINDS;
     const matched = filterLog(inPeriod, { ...common, kinds });
     // All records: what the bot filed from a report sits on the report. One kind: every record of it.
-    return kind ? { list: matched, filed: new Map() } : (({ entries, filed }) => ({ list: entries, filed }))(foldFiledRecords(matched));
+    // All records: a day's counts from the Count sheet are one card (one report), opened as that day's sheet.
+    if (kind) return { list: matched as FeedItem[], filed: new Map<string, LogEntry[]>() };
+    const folded = foldFiledRecords(matched);
+    return { list: groupCountRounds(folded.entries), filed: folded.filed };
   }, [inPeriod, kind, block, tree, who, source, text, report]);
   const blocks = useMemo(() => Array.from(new Set(allTrees.map((x) => x.block).filter(Boolean))).sort(), [allTrees]);
   // Everyone who sent something in the period (named workers first).
@@ -275,9 +278,13 @@ export const FieldLog: React.FC = () => {
                 {dayTitle(g.day)} <span className="font-medium text-slate-500 tabular">{g.items.length}</span>
               </h3>
               <RecordGrid>
-                {g.items.map((e) => (
-                  <RecordCard key={e.key} entry={e} filed={filed.get(e.key)} timeOnly eager={shownCount++ < 6} />
-                ))}
+                {g.items.map((e) =>
+                  e.kind === 'round' ? (
+                    <CountRoundCard key={e.key} round={e} eager={shownCount++ < 6} />
+                  ) : (
+                    <RecordCard key={e.key} entry={e} filed={filed.get(e.key)} timeOnly eager={shownCount++ < 6} />
+                  )
+                )}
               </RecordGrid>
             </section>
           ))}

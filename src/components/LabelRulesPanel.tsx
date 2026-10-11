@@ -14,6 +14,7 @@ import {
   type LabelRules,
 } from '../shared';
 import { btnPrimary, btnSecondary } from './PageHeader';
+import { readBy } from '../lib/by';
 
 /** One tree's measurements, to show how many labels and doses a change would move. */
 export interface RuleSample {
@@ -64,14 +65,6 @@ function fromText(text: Record<Path, string>, confirmed: boolean): LabelRules {
   r.confirmed = confirmed;
   return r as LabelRules;
 }
-
-const readBy = () => {
-  try {
-    return localStorage.getItem('cilowong.by') || '';
-  } catch {
-    return '';
-  }
-};
 
 /**
  * The owner's label thresholds and doses, editable in place. Saved for the whole farm (web app and bot); shows how

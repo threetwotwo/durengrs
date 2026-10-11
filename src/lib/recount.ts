@@ -1,76 +1,102 @@
 import type { CropCount, CropStage } from './fieldData';
+import type { ReportPhoto } from '../types';
+import type { StageId } from './guide';
 import { TREE_LIMITS } from './trees';
-import { fruitRemaining } from '../shared';
+import { FRUIT_STAGES, dayTotal, fruitRemaining } from '../shared';
 
 /**
- * Counting the farm in one walk (the Count page): one number per tree, typed tree after tree, each saved as a dated
- * count like a count sent from WhatsApp. Pure helpers, no database: what a tree was before this count, checking a
- * typed number, and a column pasted from Google Sheets.
+ * The Count sheet: one number per tree for a day, typed down a new column like in Google Sheets. A count is the
+ * whole tree's (fruit, or flower clusters); the same record a count from WhatsApp makes. Pure helpers, no database.
  */
 
-const RANK: Record<CropStage, number> = { clusters: 0, set: 1, kept: 2, onTree: 3 };
+/** What is counted: the tree's fruit, or its flower clusters. */
+export type CountKind = 'fruit' | 'clusters';
 
-/** Fruit counts (set, kept, on the tree) follow one number down the season; flower clusters are their own kind. */
-export const sameKind = (a: CropStage, b: CropStage) => (a === 'clusters') === (b === 'clusters');
+export const isKind = (stage: CropStage, kind: CountKind) => (kind === 'clusters' ? stage === 'clusters' : FRUIT_STAGES.includes(stage));
 
-/** The largest number a count of this stage can be (same limits as the tree form). */
-export const countMax = (stage: CropStage) => (stage === 'clusters' ? TREE_LIMITS.floweringClusters.max : TREE_LIMITS.estimatedFruitCount.max);
+/** The largest number a count of this kind can be (same limits as the tree form). */
+export const countMax = (kind: CountKind) => (kind === 'clusters' ? TREE_LIMITS.floweringClusters.max : TREE_LIMITS.estimatedFruitCount.max);
 
-export interface PastCount {
+export interface Wave {
   date: string;
-  count: number;
-  stage: CropStage;
+  partial: boolean;
+  stage: StageId;
+}
+
+/** Which fruit count a tree's flowering calls for at its stage: fruit set, after thinning, or fruit on the tree. */
+export function fruitStage(stage: StageId): CropStage {
+  if (stage === 'preflower' || stage === 'bloom' || stage === 'set') return 'set';
+  if (stage === 'thin') return 'kept';
+  return 'onTree';
 }
 
 /**
- * A tree's earlier counts of the same kind as `stage`, before `date`, newest first: one figure per day, added up
- * over the tree's current flowerings (`waveDates`). Counts of an earlier season are left out.
+ * Where a new count of the tree is filed: fruit under its main flowering (the oldest whole-tree one, else the oldest),
+ * at the stage that flowering is in; flower clusters under its newest flowering. Only flowerings that had begun by
+ * `date` count. Null when the tree has none (no flowering date this season).
  */
-export function pastCounts(counts: CropCount[], waveDates: string[], stage: CropStage, date: string, n = 3): PastCount[] {
-  const waves = new Set(waveDates);
-  const byDay = new Map<string, Map<string, CropCount>>();
+export function countTarget(waves: Wave[], kind: CountKind, date: string): { season: string; stage: CropStage } | null {
+  const open = waves.filter((w) => w.date <= date);
+  if (!open.length) return null;
+  if (kind === 'clusters') return { season: open[open.length - 1].date, stage: 'clusters' };
+  const main = open.find((w) => !w.partial) || open[0];
+  return { season: main.date, stage: fruitStage(main.stage) };
+}
+
+/** The tree's counts of this kind on one day, in its current flowerings. */
+export const dayCounts = (counts: CropCount[], waveDates: string[], kind: CountKind, date: string) =>
+  counts.filter((c) => c.date === date && waveDates.includes(c.season) && isKind(c.stage, kind));
+
+/**
+ * A tree's earlier counts of this kind before `date`: date -> that day's figure (see shared/crop.ts dayTotal).
+ * Counts of an earlier season are left out.
+ */
+export function pastCounts(counts: CropCount[], waveDates: string[], kind: CountKind, date: string): Map<string, number> {
+  const byDay = new Map<string, CropCount[]>();
   for (const c of counts) {
-    if (!waves.has(c.season) || !sameKind(c.stage, stage) || c.date >= date) continue;
-    const day = byDay.get(c.date) || new Map<string, CropCount>();
-    const cur = day.get(c.season);
-    if (!cur || RANK[c.stage] > RANK[cur.stage]) day.set(c.season, c);
-    byDay.set(c.date, day);
+    if (c.date >= date || !waveDates.includes(c.season) || !isKind(c.stage, kind)) continue;
+    byDay.set(c.date, [...(byDay.get(c.date) || []), c]);
   }
-  return [...byDay]
-    .sort(([a], [b]) => b.localeCompare(a))
-    .slice(0, n)
-    .map(([d, day]) => {
-      const list = [...day.values()];
-      return {
-        date: d,
-        count: list.reduce((s, c) => s + c.count, 0),
-        stage: list.reduce((top, c) => (RANK[c.stage] > RANK[top] ? c.stage : top), list[0].stage),
-      };
-    });
+  const out = new Map<string, number>();
+  byDay.forEach((list, d) => out.set(d, dayTotal(list)));
+  return out;
 }
 
 /**
- * What the tree should hold just before a count on `date`: for fruit, the last fruit count minus the fruit picked
- * since (the same rule as everywhere else, see shared/crop.ts), else the tree's own estimate; for flower clusters,
- * the last cluster count of each flowering added up. Undefined when nothing is known.
+ * The sheet's dated columns, oldest first: the latest `n` counting rounds among these trees, a round being a day on
+ * which a fair part of them was counted (at least 2 trees and a fifth of them). A day only a tree or two were counted
+ * on (a single count from WhatsApp) gets no column of its own, unless there was no round at all.
+ */
+export function pastColumns(rows: Array<Map<string, number>>, n = 3): string[] {
+  const trees = new Map<string, number>();
+  for (const r of rows) r.forEach((_v, d) => trees.set(d, (trees.get(d) || 0) + 1));
+  const need = Math.max(2, Math.ceil(rows.length / 5));
+  const all = [...trees.keys()].sort();
+  const rounds = all.filter((d) => trees.get(d)! >= need);
+  return (rounds.length ? rounds : all).slice(-n);
+}
+
+/**
+ * What the tree held just before a count on `date`: for fruit, its newest fruit count minus the fruit picked since
+ * (the same rule as everywhere else), else the tree's own estimate; for flower clusters, each flowering's last count
+ * added up. Undefined when nothing is known.
  */
 export function expectedBefore(
   counts: CropCount[],
   harvests: Array<{ date: string; fruits?: number }>,
   waveDates: string[],
-  stage: CropStage,
+  kind: CountKind,
   date: string,
   treeEstimate?: { count?: unknown; date?: string }
 ): number | undefined {
   const earlier = counts.filter((c) => c.date < date);
-  if (stage !== 'clusters') {
+  if (kind === 'fruit') {
     const estimate = treeEstimate?.date && treeEstimate.date < date ? treeEstimate : undefined;
     return fruitRemaining(earlier, harvests.filter((h) => h.date <= date), waveDates, estimate);
   }
-  const waves = new Set(waveDates);
   const latest = new Map<string, CropCount>();
   for (const c of earlier) {
-    if (!waves.has(c.season) || c.stage !== 'clusters') continue;
+    if (!waveDates.includes(c.season) || c.stage !== 'clusters') continue;
     const prev = latest.get(c.season);
     if (!prev || c.date > prev.date) latest.set(c.season, c);
   }
@@ -80,12 +106,12 @@ export function expectedBefore(
 
 export type CountCheck = { ok: true; value: number | null } | { ok: false; max: number };
 
-/** A typed count: a whole number from 0 to the stage's limit; empty means "no count". */
-export function checkCount(raw: string, stage: CropStage): CountCheck {
+/** A typed count: a whole number from 0 to the kind's limit; empty means "no count". */
+export function checkCount(raw: string, kind: CountKind): CountCheck {
   const t = raw.replace(/\s/g, '');
   // "1.200" or "1,200": a thousands separator. "4.5" is not a count.
   const s = /^\d{1,3}([.,]\d{3})+$/.test(t) ? t.replace(/[.,]/g, '') : t;
-  const max = countMax(stage);
+  const max = countMax(kind);
   if (!s) return { ok: true, value: null };
   if (!/^\d+$/.test(s)) return { ok: false, max };
   const n = Number(s);
@@ -103,33 +129,77 @@ export function pastedColumn(text: string): string[] | null {
   return lines.map((l) => l.split('\t')[0].trim());
 }
 
-export interface RoundRow {
-  /** Counted on the round's date (added up over the tree's flowerings). */
-  now?: number;
-  /** What the tree held before (expectedBefore). */
-  before?: number;
+/** Is a count on `date` the tree's newest of its kind? Only then does it also become the tree's own figure. */
+export function isNewestOfKind(counts: CropCount[], treeId: string, kind: CountKind, date: string): boolean {
+  return !counts.some((c) => c.treeId === treeId && isKind(c.stage, kind) && c.date > date);
 }
 
-/** Progress of a walk: trees counted, their total, and how that total compares with what those trees held before. */
-export function roundSummary(rows: RoundRow[]) {
+/** The day's totals: trees counted, their total, and the change against what those same trees held before. */
+export function roundSummary(rows: Array<{ now?: number; before?: number }>) {
   let counted = 0;
   let total = 0;
   let compared = 0;
-  let before = 0;
+  let change = 0;
   for (const r of rows) {
     if (r.now === undefined) continue;
     counted++;
     total += r.now;
     if (r.before !== undefined) {
       compared++;
-      before += r.before;
+      change += r.now - r.before;
     }
   }
-  const comparedNow = rows.reduce((s, r) => s + (r.now !== undefined && r.before !== undefined ? r.now : 0), 0);
-  return { trees: rows.length, counted, total, compared, change: compared ? comparedNow - before : null };
+  return { counted, total, change: compared ? change : null };
 }
 
-/** Is this count the tree's newest of its kind? Only then does it also become the tree's own figure. */
-export function isNewestOfKind(counts: CropCount[], treeId: string, stage: CropStage, date: string): boolean {
-  return !counts.some((c) => c.treeId === treeId && sameKind(c.stage, stage) && c.date > date);
+/**
+ * Saving one number for a whole tree on a day (the Count sheet and the tree page): the record to write, the tree
+ * figure to keep current, and that day's other counts of the kind it stands for (removed in the same write; their
+ * photos move into it). The day's count already there keeps its flowering, stage and report link. Null when the tree
+ * has no flowering to file it under.
+ */
+export function planCount(p: {
+  tree: { id: string; block: string; floweringClusters?: number; estimatedFruitCount?: number };
+  waves: Wave[];
+  /** Counts of the farm (or at least of this tree). */
+  counts: CropCount[];
+  kind: CountKind;
+  date: string;
+  value: number;
+  by?: string;
+  note?: string;
+}): {
+  count: Omit<CropCount, 'id'>;
+  treeField?: { field: 'floweringClusters' | 'estimatedFruitCount'; from: number | undefined };
+  replaces: string[];
+} | null {
+  const target = countTarget(p.waves, p.kind, p.date);
+  if (!target) return null;
+  const waveDates = p.waves.map((w) => w.date);
+  const day = dayCounts(
+    p.counts.filter((c) => c.treeId === p.tree.id),
+    waveDates,
+    p.kind,
+    p.date
+  );
+  const keep = day.find((c) => c.season === target.season) || day[0];
+  const photos: ReportPhoto[] = day.flatMap((c) => c.photos || []);
+  const field = p.kind === 'clusters' ? 'floweringClusters' : 'estimatedFruitCount';
+  const toTree = isNewestOfKind(p.counts, p.tree.id, p.kind, p.date) && (p.kind === 'fruit' || p.waves.length <= 1);
+  return {
+    count: {
+      treeId: p.tree.id,
+      block: p.tree.block,
+      season: keep?.season ?? target.season,
+      stage: keep?.stage ?? target.stage,
+      count: p.value,
+      date: p.date,
+      by: p.by || keep?.by,
+      note: p.note || keep?.note,
+      photos: photos.length ? photos : undefined,
+      reportId: keep?.reportId,
+    },
+    treeField: toTree ? { field, from: p.tree[field] } : undefined,
+    replaces: day.map((c) => c.id),
+  };
 }

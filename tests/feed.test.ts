@@ -48,3 +48,24 @@ test('a harvest, count or flowering filed from a report sits on the report, not 
   assert.deepEqual(entries.map((e) => e.key).sort(), ['harvest:h2', 'issue:r9']);
   assert.deepEqual(filed.get('issue:r9')!.map((e) => e.key).sort(), ['count:c1', 'harvest:wa_r9']);
 });
+
+test('a day of counts from the Count sheet is one card; WhatsApp counts and a lone count stay records', async () => {
+  const { groupCountRounds } = await import('../src/lib/feed');
+  const count = (tree: string, date: string, n: number, source = 'webapp', stage = 'onTree') =>
+    ({ id: `${tree}_s_${stage}_${date}`, treeId: tree, block: tree[0], season: '2026-07-20', stage, count: n, date, source, by: 'Budi' }) as any;
+  const log = buildFieldLog({
+    counts: [
+      count('A1', '2026-10-11', 30),
+      count('A2', '2026-10-11', 20),
+      count('B1', '2026-10-11', 5),
+      count('A3', '2026-10-11', 9, 'whatsapp'),
+      count('A4', '2026-10-11', 40, 'webapp', 'clusters'), // flower clusters: their own round, too small
+      count('A5', '2026-10-04', 7),
+    ],
+  });
+  const out = groupCountRounds(log);
+  const round = out.find((e) => e.kind === 'round') as any;
+  assert.equal(out.length, 4); // the round, the WhatsApp count, the lone cluster count, last week's count
+  assert.deepEqual([round.date, round.what, round.trees, round.total, round.blocks], ['2026-10-11', 'fruit', 3, 55, ['A', 'B']]);
+  assert.equal(out.filter((e) => e.kind === 'count').length, 3);
+});

@@ -46,7 +46,7 @@ const noon = (date?: string) => (date ? Date.parse(`${date}T12:00:00`) : 0);
 const when = (ts: unknown, date?: string) => normalizeTimestamp(ts) || noon(date);
 const src = (s: unknown): 'whatsapp' | 'webapp' => (s === 'whatsapp' ? 'whatsapp' : 'webapp');
 
-/** Fields a WhatsApp count writes onto the tree record; those edits are the count itself, already in the log. */
+/** Fields a count (WhatsApp, or the web app: reason 'count') writes onto the tree record; those edits are the count itself, already in the log. */
 const COUNT_FIELDS = new Set(['floweringClusters', 'estimatedFruitCount']);
 
 export function buildFieldLog(input: {
@@ -89,7 +89,7 @@ export function buildFieldLog(input: {
   for (const e of input.edits || []) {
     const fields = Object.keys(e.changes || {});
     if (!fields.length) continue;
-    if (e.source === 'whatsapp' && fields.every((f) => COUNT_FIELDS.has(f))) continue;
+    if ((e.source === 'whatsapp' || e.reason === 'count') && fields.every((f) => COUNT_FIELDS.has(f))) continue;
     out.push({ kind: 'treeData', key: `edit:${e.id}`, at: normalizeTimestamp(e.at), timed: true, treeId: e.treeId, block: blockOf(e.treeId), source: src(e.source), who: e.workerPhone || undefined, rec: e });
   }
   return out.sort((a, b) => b.at - a.at || a.key.localeCompare(b.key));
@@ -175,8 +175,8 @@ export function filterLog(entries: LogEntry[], f: LogFilter): LogEntry[] {
 }
 
 /** Group by local calendar day, newest first. */
-export function byDay(entries: LogEntry[]): Array<{ day: string; items: LogEntry[] }> {
-  const groups: Array<{ day: string; items: LogEntry[] }> = [];
+export function byDay<T extends { at: number }>(entries: T[]): Array<{ day: string; items: T[] }> {
+  const groups: Array<{ day: string; items: T[] }> = [];
   for (const e of entries) {
     const d = new Date(e.at);
     const day = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;

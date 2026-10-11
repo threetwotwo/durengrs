@@ -10,7 +10,7 @@ import type { ProblemCase } from '../types';
 import { Link } from './Link';
 import { PageHeader } from './PageHeader';
 import { ConditionBadge } from './ConditionBadge';
-import { readBy } from './ReportChange';
+import { readBy } from '../lib/by';
 
 /**
  * Problems on trees, followed from first sighting to solved: one row per problem (the Problems page, Today, the tree

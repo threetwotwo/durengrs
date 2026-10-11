@@ -135,3 +135,70 @@ export function foldFiledRecords(entries: LogEntry[]): { entries: LogEntry[]; fi
   }
   return { entries: out, filed };
 }
+
+// ---------- count rounds ----------
+
+/**
+ * A day's counts typed on the Count sheet, as one report: one card in Reports instead of one per tree. It opens as
+ * the sheet for that day. WhatsApp counts and a single count typed on a tree's page stay records of their own.
+ */
+export interface CountRound {
+  kind: 'round';
+  key: string;
+  at: number;
+  /** The day counted (YYYY-MM-DD). */
+  date: string;
+  what: 'fruit' | 'clusters';
+  blocks: string[];
+  trees: number;
+  total: number;
+  who?: string;
+  photos: NonNullable<Extract<LogEntry, { kind: 'count' }>['photos']>;
+  entries: Array<Extract<LogEntry, { kind: 'count' }>>;
+}
+
+export type FeedItem = LogEntry | CountRound;
+
+/** Fewer counts typed on one day than this stay single records. */
+export const ROUND_MIN = 3;
+
+/** Puts each day's web-app counts (fruit, flower clusters) together as one round, where the newest of them was. */
+export function groupCountRounds(entries: LogEntry[], min = ROUND_MIN): FeedItem[] {
+  type Count = Extract<LogEntry, { kind: 'count' }>;
+  const rounds = new Map<string, Count[]>();
+  const keyOf = (e: Count) => `${e.rec.date}|${e.rec.stage === 'clusters' ? 'clusters' : 'fruit'}`;
+  for (const e of entries) {
+    if (e.kind !== 'count' || e.source !== 'webapp') continue;
+    const k = keyOf(e);
+    rounds.set(k, [...(rounds.get(k) || []), e]);
+  }
+  const out: FeedItem[] = [];
+  const placed = new Set<string>();
+  for (const e of entries) {
+    const list = e.kind === 'count' && e.source === 'webapp' ? rounds.get(keyOf(e))! : null;
+    if (!list || list.length < min) {
+      out.push(e);
+      continue;
+    }
+    const k = keyOf(e as Count);
+    if (placed.has(k)) continue;
+    placed.add(k);
+    const [date, what] = k.split('|') as [string, 'fruit' | 'clusters'];
+    const trees = new Map<string, number>();
+    for (const c of list) trees.set(c.rec.treeId, (trees.get(c.rec.treeId) || 0) + c.rec.count);
+    out.push({
+      kind: 'round',
+      key: `round:${k}`,
+      at: e.at,
+      date,
+      what,
+      blocks: Array.from(new Set(list.map((c) => c.rec.block).filter(Boolean))).sort(),
+      trees: trees.size,
+      total: [...trees.values()].reduce((s, n) => s + n, 0),
+      who: list.find((c) => c.who)?.who,
+      photos: list.flatMap((c) => c.photos || []),
+      entries: list,
+    });
+  }
+  return out;
+}

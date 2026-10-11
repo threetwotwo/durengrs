@@ -31,6 +31,7 @@ __export(index_exports, {
   ENGINE_STAGE_WORDS: () => ENGINE_STAGE_WORDS,
   FARM_STAGES: () => FARM_STAGES,
   FARM_STAGE_INFO: () => FARM_STAGE_INFO,
+  FRUIT_STAGES: () => FRUIT_STAGES,
   HEALTH: () => HEALTH,
   HEALTH_INFO: () => HEALTH_INFO,
   IMPROVING: () => IMPROVING,
@@ -43,6 +44,7 @@ __export(index_exports, {
   TREATS: () => TREATS,
   TRIAGE_RULES_VERSION: () => TRIAGE_RULES_VERSION,
   checkLabelRules: () => checkLabelRules,
+  dayTotal: () => dayTotal,
   doseSuggestion: () => doseSuggestion,
   fruitRemaining: () => fruitRemaining,
   healthOf: () => healthOf,
@@ -53,6 +55,7 @@ __export(index_exports, {
   labelEst: () => labelEst,
   labelFruitset: () => labelFruitset,
   labelTajuk: () => labelTajuk,
+  lastFruitCount: () => lastFruitCount,
   mergeLabelRules: () => mergeLabelRules,
   normalize: () => normalize,
   stageMismatch: () => stageMismatch,
@@ -598,21 +601,26 @@ function checkLabelRules(r) {
 
 // src/shared/crop.ts
 var FRUIT_STAGES = ["set", "kept", "onTree"];
-function fruitRemaining(counts, harvests, waveDates, treeEstimate) {
-  const waves = new Set(waveDates);
-  const latest = /* @__PURE__ */ new Map();
+var RANK2 = { clusters: 0, set: 1, kept: 2, onTree: 3 };
+function dayTotal(counts) {
+  const perSeason = /* @__PURE__ */ new Map();
   for (const c of counts) {
-    if (!waves.has(c.season) || !FRUIT_STAGES.includes(c.stage)) continue;
-    const key = `${c.season}|${c.stage}`;
-    const prev = latest.get(key);
-    if (!prev || c.date > prev.date) latest.set(key, c);
+    const p = perSeason.get(c.season);
+    if (!p || (RANK2[c.stage] ?? 0) > (RANK2[p.stage] ?? 0)) perSeason.set(c.season, c);
   }
-  const sums = /* @__PURE__ */ new Map();
-  latest.forEach((c) => {
-    const s = sums.get(c.stage);
-    sums.set(c.stage, { count: (s?.count || 0) + c.count, date: s && s.date > c.date ? s.date : c.date });
-  });
-  let last = [...sums.values()].sort((a, b) => b.date.localeCompare(a.date))[0];
+  let n = 0;
+  perSeason.forEach((c) => n += c.count);
+  return n;
+}
+function lastFruitCount(counts, waveDates) {
+  const waves = new Set(waveDates);
+  const fruit = counts.filter((c) => waves.has(c.season) && FRUIT_STAGES.includes(c.stage));
+  if (!fruit.length) return void 0;
+  const date = fruit.reduce((d, c) => c.date > d ? c.date : d, "");
+  return { date, count: dayTotal(fruit.filter((c) => c.date === date)) };
+}
+function fruitRemaining(counts, harvests, waveDates, treeEstimate) {
+  let last = lastFruitCount(counts, waveDates);
   if (!last && treeEstimate?.date && waveDates.length) {
     const start = [...waveDates].sort()[0];
     const n = Number(treeEstimate.count);
@@ -636,6 +644,7 @@ function fruitRemaining(counts, harvests, waveDates, treeEstimate) {
   ENGINE_STAGE_WORDS,
   FARM_STAGES,
   FARM_STAGE_INFO,
+  FRUIT_STAGES,
   HEALTH,
   HEALTH_INFO,
   IMPROVING,
@@ -648,6 +657,7 @@ function fruitRemaining(counts, harvests, waveDates, treeEstimate) {
   TREATS,
   TRIAGE_RULES_VERSION,
   checkLabelRules,
+  dayTotal,
   doseSuggestion,
   fruitRemaining,
   healthOf,
@@ -658,6 +668,7 @@ function fruitRemaining(counts, harvests, waveDates, treeEstimate) {
   labelEst,
   labelFruitset,
   labelTajuk,
+  lastFruitCount,
   mergeLabelRules,
   normalize,
   stageMismatch,

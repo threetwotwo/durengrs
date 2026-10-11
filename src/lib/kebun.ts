@@ -3,6 +3,7 @@ import type { CropCount, CropStage } from './fieldData';
 import { TREE_LIMITS } from './trees';
 import { diffDays, todayStr } from './treatments';
 import { parseNum } from './num';
+import { dayTotal } from '../shared';
 
 /**
  * Kebun: the farm as one sheet, one row per tree, like the owner's Google Sheet. Pure helpers for typing into
@@ -266,14 +267,27 @@ export function countDates(counts: CropCount[], n = 4, days = 150, today = today
   return dates.slice(-n);
 }
 
-/** Tree id -> date -> the count to show that day. */
+/**
+ * Tree id -> date -> the count to show that day: the tree's fruit that day if fruit was counted (one number for the
+ * whole tree, see shared/crop.ts dayTotal), else its flower clusters.
+ */
 export function countGrid(counts: CropCount[]): Map<string, Map<string, { count: number; stage: CropStage }>> {
-  const out = new Map<string, Map<string, { count: number; stage: CropStage }>>();
+  const byDay = new Map<string, Map<string, CropCount[]>>();
   for (const c of counts) {
-    const row = out.get(c.treeId) || new Map<string, { count: number; stage: CropStage }>();
-    const cur = row.get(c.date);
-    if (!cur || STAGE_RANK[c.stage] > STAGE_RANK[cur.stage]) row.set(c.date, { count: c.count, stage: c.stage });
-    out.set(c.treeId, row);
+    const row = byDay.get(c.treeId) || new Map<string, CropCount[]>();
+    row.set(c.date, [...(row.get(c.date) || []), c]);
+    byDay.set(c.treeId, row);
   }
+  const out = new Map<string, Map<string, { count: number; stage: CropStage }>>();
+  byDay.forEach((days, treeId) => {
+    const row = new Map<string, { count: number; stage: CropStage }>();
+    days.forEach((list, date) => {
+      const fruit = list.filter((c) => c.stage !== 'clusters');
+      const shown = fruit.length ? fruit : list;
+      const stage = shown.reduce((top, c) => (STAGE_RANK[c.stage] > STAGE_RANK[top] ? c.stage : top), shown[0].stage);
+      row.set(date, { count: dayTotal(shown), stage });
+    });
+    out.set(treeId, row);
+  });
   return out;
 }

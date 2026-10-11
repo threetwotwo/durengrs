@@ -137,28 +137,36 @@ export interface CropCount {
   source?: 'webapp' | 'whatsapp';
   /** Photos of the tree taken with the count (WhatsApp, or the Count page). */
   photos?: ReportPhoto[];
+  /** The WhatsApp report the count was read from. */
+  reportId?: string;
 }
 
 export const cropCountId = (c: Pick<CropCount, 'treeId' | 'season' | 'stage' | 'date'>) => `${c.treeId}_${c.season}_${c.stage}_${c.date}`;
 
 /**
  * Save a count (counting again on the same day replaces it). `treeField` also keeps the tree record current
- * (flower clusters, or the fruit estimate the harvest forecast uses), with the usual edit-log entry.
+ * (flower clusters, or the fruit estimate the harvest forecast uses), with the usual edit-log entry. `replaces`: other
+ * counts of the tree that this one stands for (the same day's, under another flowering), removed in the same write;
+ * their photos should be passed on in `c.photos`.
  */
 export async function saveCropCount(
   c: Omit<CropCount, 'id'>,
-  treeField?: { field: 'floweringClusters' | 'estimatedFruitCount'; from: number | undefined }
+  treeField?: { field: 'floweringClusters' | 'estimatedFruitCount'; from: number | undefined },
+  replaces: string[] = []
 ): Promise<string> {
   const id = cropCountId(c);
   const batch = writeBatch(db);
   batch.set(doc(db, 'cropCounts', id), stripUndefined({ ...c, source: 'webapp', createdAt: serverTimestamp() }));
+  for (const other of replaces) if (other !== id) batch.delete(doc(db, 'cropCounts', other));
   if (treeField && treeField.from !== c.count) {
     batch.update(doc(db, 'trees', c.treeId), { [treeField.field]: c.count, dateUpdated: serverTimestamp() });
+    // reason 'count': the edit is the count itself, already in the tree's history (lib/fieldLog.ts).
     batch.set(doc(collection(db, 'treeEdits')), {
       treeId: c.treeId,
       changes: { [treeField.field]: { from: treeField.from ?? null, to: c.count } },
       at: serverTimestamp(),
       source: 'webapp',
+      reason: 'count',
     });
   }
   await batch.commit();

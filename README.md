@@ -22,10 +22,11 @@ Every page is in the navigation bar:
 - **Trees**: every tree in one sheet (type into cells like a spreadsheet; every change is logged), with quick views.
   Each tree has its own page: its history as one line (reports with their photos, counts, harvests, flowerings),
   its problems, crop and details; type another tree ID to jump there.
-  **Count** (Trees › Count, or Harvest › Count again) is for walking the farm and recounting every tree: one box per
-  tree with its last counts and open problems beside it, Enter to the next tree, an optional photo per tree, progress
-  and the change against the last counts at the top. Each number is saved as that day's count. A column copied from
-  Google Sheets can be pasted into a box to fill the trees below it.
+  **Count** (Trees › Count, or Harvest › Count again) is the Trees sheet with one new green column for the day:
+  type each tree's fruit (or flower clusters) and press Enter to go down, like a new column in Google Sheets. The last
+  counting rounds are the dated columns beside it, the tree's open problems on the right, totals at the bottom. One
+  number per tree; a photo can go with it. A column copied from Google Sheets can be pasted in. A day's counts show
+  in Reports as one card.
 - **Reports**: every record from the field as photo-first cards, newest first, a page at a time.
 - **Problems**: every problem from first sighting to solved; each has its own page with its photo history.
 - **Harvest**: picked this season, still on the trees, ready to pick, each block's harvest window, and the harvest
