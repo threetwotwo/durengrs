@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, Camera, Loader2, Search } from 'lucide-react';
+import { AlertTriangle, Camera, HeartPulse, Loader2, Search } from 'lucide-react';
 import { normalizeTimestamp, useFarm } from '../context/FarmContext';
 import { useT } from '../i18n';
 import { reportUrl, setNavigationBlocker, treeUrl, treesUrl, useQueryParams } from '../lib/router';
@@ -19,7 +19,8 @@ import {
 import { caseTitle, isDue, isOpen, sortCases } from '../lib/cases';
 import { saveHarvestCycle } from '../lib/insights';
 import { formatShortDate, toDateStr, todayStr } from '../lib/treatments';
-import { CASE_STATUS_INFO, dayTotal } from '../shared';
+import { CASE_STATUS_INFO, HEALTH_INFO, IMPROVING, dayTotal, healthOf } from '../shared';
+import { improvingNow } from '../lib/trees';
 import type { DurianTree, ProblemCase, ReportPhoto } from '../types';
 import { PageHeader, btnSecondary, inputCls } from './PageHeader';
 import { Link } from './Link';
@@ -87,6 +88,7 @@ const parseKey = (k: string) => {
 };
 const inputFor = (key: string) => document.querySelector<HTMLInputElement>(`input[data-count="${CSS.escape(key)}"]`);
 const DOT: Record<string, string> = { danger: 'bg-rose-500', warn: 'bg-amber-400', info: 'bg-sky-500', good: 'bg-emerald-500', done: 'bg-slate-300' };
+const HEALTH_DOT: Record<string, string> = { hijau: 'bg-emerald-500', kuning: 'bg-amber-400', merah: 'bg-rose-600' };
 const th = 'px-2.5 text-[11px] font-semibold uppercase tracking-wide whitespace-nowrap border-b border-slate-700 bg-slate-900 text-slate-200';
 
 export const CountPage: React.FC = () => {
@@ -413,6 +415,10 @@ export const CountPage: React.FC = () => {
                 <th scope="col" className={`${th} text-left sticky left-0 top-0 z-30 border-r`}>
                   ID
                 </th>
+                <th scope="col" className={`${th} !px-0 w-7 sticky top-0 z-20`} title={t('kebun.col.health')}>
+                  <span className="sr-only">{t('kebun.col.health')}</span>
+                  <HeartPulse className="w-3.5 h-3.5 mx-auto" aria-hidden />
+                </th>
                 {dates.map((d, i) => (
                   <th key={d} scope="col" className={`${th} text-right sticky top-0 z-20 ${hideOnPhone(i)}`}>
                     {formatShortDate(d)}
@@ -442,6 +448,10 @@ export const CountPage: React.FC = () => {
                 const ups = uploads[r.id] || [];
                 const first = r.problems[0];
                 const tone = first ? (r.problems.some((c) => c.status === 'worse' || isDue(c)) ? 'danger' : CASE_STATUS_INFO[first.status].tone) : null;
+                const health = healthOf(r.tree.condition);
+                const healthText = health
+                  ? `${HEALTH_INFO[health].label[lang]}${improvingNow(r.tree) ? ` · ${IMPROVING[lang]}` : ''}`
+                  : t('cond.not_assessed');
                 return (
                   <tr key={r.id} className="group">
                     <th scope="row" className="sticky left-0 z-10 bg-white group-hover:bg-slate-50 px-2.5 py-1.5 text-left border-b border-r border-slate-200 whitespace-nowrap">
@@ -457,6 +467,10 @@ export const CountPage: React.FC = () => {
                         )}
                       </Link>
                     </th>
+                    <td className="w-7 text-center border-b border-r border-slate-200 group-hover:bg-slate-50" title={healthText}>
+                      <span className={`inline-block w-2.5 h-2.5 rounded-full align-middle ${health ? HEALTH_DOT[health] : 'border border-slate-300'}`} aria-hidden />
+                      <span className="sr-only">{healthText}</span>
+                    </td>
                     {dates.map((d, i) => (
                       <td key={d} className={`px-2.5 py-1.5 text-right tabular text-slate-600 border-b border-r border-slate-200 group-hover:bg-slate-50 ${hideOnPhone(i)}`}>
                         {r.past.get(d) ?? ''}
@@ -566,6 +580,7 @@ export const CountPage: React.FC = () => {
                 <th scope="row" className="sticky left-0 bottom-0 z-20 bg-slate-100 px-2.5 py-2 text-left text-xs border-t border-r border-slate-200 whitespace-nowrap">
                   {t('kebun.total')}
                 </th>
+                <td className="sticky bottom-0 z-10 bg-slate-100 border-t border-slate-200" />
                 {dates.map((d, i) => (
                   <td key={d} className={`sticky bottom-0 z-10 bg-slate-100 px-2.5 py-2 text-right tabular border-t border-slate-200 ${hideOnPhone(i)}`}>
                     {fmt(total(d))}
