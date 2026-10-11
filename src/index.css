@@ -14,4 +14,12 @@
   }
 }
 
+/* iOS zooms the whole page into a text box whose text is smaller than 16px when it is tapped, and stays zoomed. On iOS
+   (the only browser with -webkit-touch-callout) boxes with small text get 16px. */
+@supports (-webkit-touch-callout: none) {
+  input[class*='text-sm'], input[class*='text-xs'],
+  select[class*='text-sm'], select[class*='text-xs'],
+  textarea[class*='text-sm'], textarea[class*='text-xs'] { font-size: 16px; }
+}
+
 .tabular { font-variant-numeric: tabular-nums; }

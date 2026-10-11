@@ -129,6 +129,7 @@ export const CountPage: React.FC = () => {
   /** Each tree's own estimate as it was when the page opened (a count saved here replaces it on the tree). */
   const estimates = useRef(new Map<string, { count?: unknown; date?: string }>());
   const focusAfter = useRef<string | null>(null);
+  const areaRef = useRef<HTMLDivElement>(null);
 
   const blocks = useMemo(() => Array.from(new Set(trees.map((x) => x.block).filter(Boolean))).sort(), [trees]);
   const countsByTree = useMemo(() => group(cropCounts, (c) => c.treeId), [cropCounts]);
@@ -285,9 +286,11 @@ export const CountPage: React.FC = () => {
   const focusKey = (key: string | undefined) => {
     const el = key ? inputFor(key) : null;
     if (!el) return;
+    // Sideways back to the start, where the tree IDs and the day's column are; then the row to the middle.
+    if (areaRef.current) areaRef.current.scrollLeft = 0;
     el.focus({ preventScroll: true });
     el.select();
-    el.scrollIntoView({ block: 'center' });
+    el.scrollIntoView({ block: 'center', inline: 'nearest' });
   };
 
   const go = () => {
@@ -363,7 +366,7 @@ export const CountPage: React.FC = () => {
   return (
     // The page is its own scroll area (both ways), the sheet like a spreadsheet app's: one scroll, no lag. What sits
     // above the sheet keeps its place when the sheet is scrolled sideways.
-    <div className={`${AREA} z-20 overflow-auto overscroll-contain bg-slate-100`}>
+    <div ref={areaRef} className={`${AREA} z-20 overflow-auto overscroll-contain bg-slate-100`}>
       {/* On a phone the area is as wide as the sheet; what sits above it is one screen wide and stays in view. */}
       <div className={wide ? 'max-w-7xl mx-auto px-6 lg:px-8 py-5 space-y-4' : 'w-max min-w-full px-4 py-5 space-y-4'}>
         <div className={wide ? 'space-y-4' : 'sticky left-4 w-[calc(100vw-2rem)] space-y-4'}>
