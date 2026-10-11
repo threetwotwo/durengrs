@@ -1,8 +1,8 @@
 import React, { useMemo, useState } from 'react';
-import { CheckCircle2, MessageCircle, Pencil, Plus } from 'lucide-react';
+import { CheckCircle2, MessageCircle, Pencil, Plus, Tally5 } from 'lucide-react';
 import { useFarm } from '../context/FarmContext';
 import { useT } from '../i18n';
-import { treeUrl, useQueryParams } from '../lib/router';
+import { countUrl, treeUrl, useQueryParams } from '../lib/router';
 import { cropFunnel, fruitOnTree } from '../lib/crop';
 import { buildFieldLog } from '../lib/fieldLog';
 import { saveHarvestCycle } from '../lib/insights';
@@ -131,6 +131,10 @@ export const HarvestPage: React.FC = () => {
             {fmt(onTrees)} <span className="text-base font-semibold text-slate-500">{t('hv2.fruit')}</span>
           </p>
           <p className="text-xs text-slate-500">{t('hv2.onTrees.how')}</p>
+          <Link to={countUrl(block === 'all' ? undefined : block)} className="inline-flex items-center gap-1.5 text-sm font-semibold text-emerald-700 hover:underline min-h-9">
+            <Tally5 className="w-4 h-4" aria-hidden />
+            {t('count.again')}
+          </Link>
         </div>
         <div className="p-4 space-y-2">
           <p className="text-sm text-slate-600">{t('hv2.ready')}</p>

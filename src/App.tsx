@@ -19,6 +19,7 @@ const HarvestPage = lazy(() => import('./components/HarvestPage').then((m) => ({
 const GuidePage = lazy(() => import('./components/GuidePage').then((m) => ({ default: m.GuidePage })));
 const ProblemsPage = lazy(() => import('./components/Problems').then((m) => ({ default: m.ProblemsPage })));
 const ProblemPage = lazy(() => import('./components/ProblemPage').then((m) => ({ default: m.ProblemPage })));
+const CountPage = lazy(() => import('./components/CountPage').then((m) => ({ default: m.CountPage })));
 const WorkersPage = lazy(() => import('./components/WorkersPage').then((m) => ({ default: m.WorkersPage })));
 
 const AppContent: React.FC = () => {
@@ -35,7 +36,7 @@ const AppContent: React.FC = () => {
   // New page: scroll to top, update the tab title, move keyboard/screen-reader focus to the content.
   useEffect(() => {
     window.scrollTo(0, 0);
-    document.title = `${route.treeId ? t('app.title.tree', { id: route.treeId }) : route.reportId ? t('app.title.report') : t(TAB_TITLES[route.tab])} · Cilowong`;
+    document.title = `${route.treeId ? t('app.title.tree', { id: route.treeId }) : route.reportId ? t('app.title.report') : route.pageKey === 'count' ? t('count.title') : t(TAB_TITLES[route.tab])} · Cilowong`;
     mainRef.current?.focus({ preventScroll: true });
   }, [route.pageKey, lang]);
 
@@ -81,7 +82,9 @@ const AppContent: React.FC = () => {
               {route.tab === 'harvest' && <HarvestPage />}
               {route.tab === 'schedule' && <SchedulePage />}
               {route.tab === 'trees' &&
-                (route.treeId ? (
+                (route.pageKey === 'count' ? (
+                  <CountPage />
+                ) : route.treeId ? (
                   <TreeDetailView key={route.treeId} treeId={route.treeId} onBack={() => goBack('/trees')} />
                 ) : (
                   <TreesPage />

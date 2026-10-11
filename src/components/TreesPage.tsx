@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Archive, ArrowDown, ArrowUp, ClipboardPaste, Columns3, Download, Plus, Search } from 'lucide-react';
+import { Archive, ArrowDown, ArrowUp, ClipboardPaste, Columns3, Download, Plus, Search, Tally5 } from 'lucide-react';
 import { formatDate, normalizeTimestamp, useFarm } from '../context/FarmContext';
 import { useT } from '../i18n';
-import { treeUrl, useQueryParams } from '../lib/router';
+import { countUrl, treeUrl, useQueryParams } from '../lib/router';
 import { formatShortDate } from '../lib/treatments';
 import { improvingNow, plantedDateStr } from '../lib/trees';
 import { parseNum } from '../lib/num';
@@ -397,9 +397,13 @@ export const TreesPage: React.FC = () => {
         description={t('trees.page.desc', { n: trees.length, b: blocks.length })}
         actions={
           <>
-            <button type="button" onClick={() => setAdding(true)} className={btnPrimary}>
+            <Link to={countUrl(block || undefined)} className={btnPrimary}>
+              <Tally5 className="w-4 h-4" />
+              <span>{t('count.button')}</span>
+            </Link>
+            <button type="button" onClick={() => setAdding(true)} className={btnSecondary} aria-label={t('trees.add')}>
               <Plus className="w-4 h-4" />
-              <span>{t('trees.add')}</span>
+              <span className="hidden sm:inline">{t('trees.add')}</span>
             </button>
             <button type="button" onClick={() => setPasting(true)} className={btnSecondary} aria-label={t('kebun.paste')}>
               <ClipboardPaste className="w-4 h-4" />

@@ -6,6 +6,7 @@ import { useCallback, useSyncExternalStore } from 'react';
  *   #/                      today: what needs the owner
  *   #/trees?block=A&health=merah&show=problems   every tree as one sheet, editable like Google Sheets
  *   #/trees/A12             one tree: problems, history, crop, details
+ *   #/count?block=A&what=onTree&date=2026-10-11   count every tree in one walk (fruit, flower clusters...)
  *   #/reports               every record from the field, newest first (?tree=A12&type=harvest&days=30...)
  *   #/reports/abc123        one report (or one record, see lib/fieldLog.ts recordKey)
  *   #/problems              problems on trees (?show=due|solved&block=A)
@@ -60,8 +61,8 @@ export function parseHash(hash: string): Route {
 
   if (segs.length === 0) {
     tab = 'dashboard';
-  } else if (segs[0] === 'kebun' && segs.length === 1) {
-    tab = 'trees'; // the old address of the farm sheet
+  } else if ((segs[0] === 'kebun' || segs[0] === 'count') && segs.length === 1) {
+    tab = 'trees'; // the old address of the farm sheet; the Count page belongs to Trees
   } else if (segs[0] === 'reports' && segs.length === 1 && params.get('view') === 'problems') {
     tab = 'problems'; // older links: problems and workers were views of Reports
   } else if (segs[0] === 'reports' && segs.length === 1 && params.get('view') === 'activity') {
@@ -76,7 +77,7 @@ export function parseHash(hash: string): Route {
   } else {
     known = false;
   }
-  return { tab, treeId, topicId, reportId, caseId, params, path, pageKey: `${tab}:${treeId ?? topicId ?? reportId ?? caseId ?? ''}`, known };
+  return { tab, treeId, topicId, reportId, caseId, params, path, pageKey: segs[0] === 'count' ? 'count' : `${tab}:${treeId ?? topicId ?? reportId ?? caseId ?? ''}`, known };
 }
 
 // ---- store ----
@@ -200,6 +201,8 @@ export function treesUrl(filters: Record<string, string | null | undefined> = {}
 export const treeUrl = (id: string) => `/trees/${encodeURIComponent(id)}`;
 export const reportUrl = (id: string) => `/reports/${encodeURIComponent(id)}`;
 export const caseUrl = (id: string) => `/problems/${encodeURIComponent(id)}`;
+/** The Count page, optionally on one block. */
+export const countUrl = (block?: string) => (block ? `/count?block=${encodeURIComponent(block)}` : '/count');
 
 /** i18n keys, resolve with t(). */
 export const TAB_TITLES: Record<AppTab, string> = {

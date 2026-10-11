@@ -19,7 +19,7 @@ export const readBy = () => {
     return '';
   }
 };
-const saveBy = (v: string) => {
+export const saveBy = (v: string) => {
   try {
     localStorage.setItem(BY_KEY, v.trim());
   } catch {

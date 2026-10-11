@@ -8,5 +8,11 @@ service firebase.storage {
       allow read: if true;
       allow delete: if true;
     }
+    // Photos taken on the webapp's Count page (src/lib/photoUpload.ts): JPEGs made on the phone, a few hundred KB.
+    match /count-photos/{allPaths=**} {
+      allow read: if true;
+      allow create: if request.resource.contentType == 'image/jpeg' && request.resource.size < 8 * 1024 * 1024;
+      allow delete: if true;
+    }
   }
 }

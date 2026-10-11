@@ -1,4 +1,4 @@
-import { Timestamp, collection, deleteDoc, deleteField, doc, getDoc, runTransaction, serverTimestamp, setDoc, writeBatch } from 'firebase/firestore';
+import { Timestamp, arrayUnion, collection, deleteDoc, deleteField, doc, getDoc, runTransaction, serverTimestamp, setDoc, updateDoc, writeBatch } from 'firebase/firestore';
 import { db } from './firebase';
 import type { BloomPart, TreeBloom } from './guide';
 import type { ReportPhoto } from '../types';
@@ -135,7 +135,7 @@ export interface CropCount {
   by?: string;
   note?: string;
   source?: 'webapp' | 'whatsapp';
-  /** Photos sent with the count on WhatsApp. */
+  /** Photos of the tree taken with the count (WhatsApp, or the Count page). */
   photos?: ReportPhoto[];
 }
 
@@ -163,6 +163,11 @@ export async function saveCropCount(
   }
   await batch.commit();
   return id;
+}
+
+/** Adds photos to a count already saved (a photo that finished uploading after its count). */
+export async function addCountPhotos(id: string, photos: ReportPhoto[]): Promise<void> {
+  if (photos.length) await updateDoc(doc(db, 'cropCounts', id), { photos: arrayUnion(...photos) });
 }
 
 export async function removeCropCount(id: string, photos?: ReportPhoto[]): Promise<void> {
