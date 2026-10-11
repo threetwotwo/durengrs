@@ -81,13 +81,6 @@ const group = <T,>(list: T[], keyOfItem: (x: T) => string | undefined) => {
   }
   return m;
 };
-/**
- * The header row and totals follow the rows sideways through a scroll-driven animation where the browser has one
- * (index.css .sheet-*): no lag. Elsewhere a scroll handler moves them.
- */
-const NATIVE_FOLLOW =
-  typeof CSS !== 'undefined' && CSS.supports('animation-timeline: scroll()') && CSS.supports('timeline-scope: --a') && CSS.supports('scroll-timeline: --a x');
-
 /** Wider than a phone (Tailwind's sm). */
 function useWide() {
   const query = '(min-width: 640px)';
@@ -107,12 +100,10 @@ const parseKey = (k: string) => {
   return { kind: kind as CountKind, date, tree };
 };
 const inputFor = (key: string) => document.querySelector<HTMLInputElement>(`input[data-count="${CSS.escape(key)}"]`);
-const DOT: Record<string, string> = { danger: 'bg-rose-500', warn: 'bg-amber-400', info: 'bg-sky-500', good: 'bg-emerald-500', done: 'bg-slate-300' };
 const HEALTH_DOT: Record<string, string> = { hijau: 'bg-emerald-500', kuning: 'bg-amber-400', merah: 'bg-rose-600' };
 const th = 'px-2.5 text-[11px] font-semibold sm:uppercase sm:tracking-wide whitespace-nowrap border-b border-slate-700 bg-slate-900 text-slate-200';
-/** Below the app bar (h-14 and its 1px border), and on a phone above the tab bar. */
-const TOP = 'top-[57px]';
-const BOTTOM = 'bottom-[calc(3.5rem+1px+env(safe-area-inset-bottom))] md:bottom-0';
+/** The page's own scroll area: everything below the app bar (h-14 and its 1px border), above the tab bar on a phone. */
+const AREA = 'fixed inset-x-0 top-[57px] bottom-[calc(3.5rem+1px+env(safe-area-inset-bottom))] md:bottom-0';
 
 export const CountPage: React.FC = () => {
   const { t, lang, locale } = useT();
@@ -138,10 +129,6 @@ export const CountPage: React.FC = () => {
   /** Each tree's own estimate as it was when the page opened (a count saved here replaces it on the tree). */
   const estimates = useRef(new Map<string, { count?: unknown; date?: string }>());
   const focusAfter = useRef<string | null>(null);
-  const headRef = useRef<HTMLDivElement>(null);
-  const bodyRef = useRef<HTMLDivElement>(null);
-  const footRef = useRef<HTMLDivElement>(null);
-  const sheetRef = useRef<HTMLDivElement>(null);
 
   const blocks = useMemo(() => Array.from(new Set(trees.map((x) => x.block).filter(Boolean))).sort(), [trees]);
   const countsByTree = useMemo(() => group(cropCounts, (c) => c.treeId), [cropCounts]);
@@ -188,20 +175,14 @@ export const CountPage: React.FC = () => {
   const keys = useMemo(() => countable.map((r) => keyOf(kind, date, r.id)), [countable, kind, date]);
   const wide = useWide();
   // On a phone the two latest rounds, so the day's column is in view without scrolling sideways.
-  const dates = useMemo(() => pastColumns(rows.map((r) => r.past), wide ? 3 : 2), [rows, wide]);
-  const hasRows = rows.length > 0;
-  // How far the rows scroll sideways: the distance the header row and totals follow them (NATIVE_FOLLOW).
-  useEffect(() => {
-    const body = bodyRef.current;
-    const sheet = sheetRef.current;
-    if (!NATIVE_FOLLOW || !body || !sheet) return;
-    const measure = () => sheet.style.setProperty('--sheet-max', `${Math.max(0, body.scrollWidth - body.clientWidth)}px`);
-    measure();
-    const ro = new ResizeObserver(measure);
-    ro.observe(body);
-    if (body.firstElementChild) ro.observe(body.firstElementChild);
-    return () => ro.disconnect();
-  }, [hasRows, dates.length, wide]);
+  const dates = useMemo(
+    () =>
+      pastColumns(
+        rows.map((r) => r.past),
+        wide ? 3 : 2
+      ),
+    [rows, wide]
+  );
   const summary = roundSummary(countable);
 
   // Fresh values for code that runs after a save or an upload.
@@ -362,14 +343,10 @@ export const CountPage: React.FC = () => {
   const failed = Object.entries(uploads).find(([, l]) => l.some((x) => x.state === 'err' && !x.refused));
   const saving = Object.keys(inflight).length;
   const total = (d: string) => rows.reduce((s, r) => s + (r.past.get(d) || 0), 0);
-  // The three parts of the sheet (header row, rows, totals) share one set of column widths, so they line up while the
-  // rows scroll sideways under the header.
+  // Fixed column widths: on a phone the sheet is wider than the screen and scrolls sideways (the problems column has a
+  // width of its own); wider screens give the problems column what is left.
   const W = wide ? { id: 84, date: 76, now: 104, photo: 92, status: 76, problems: 280 } : { id: 72, date: 60, now: 88, photo: 88, status: 64, problems: 240 };
-  const tableStyle = { width: '100%', minWidth: W.id + dates.length * W.date + W.now + W.photo + W.status + W.problems };
-  const table = 'table-fixed text-sm border-separate border-spacing-0';
-  // Native: the strips' tables slide with the rows and their ID cell slides back, so it stays pinned like the rows' one.
-  const follow = NATIVE_FOLLOW ? 'sheet-follow' : '';
-  const pin = NATIVE_FOLLOW ? 'sheet-pin relative' : '';
+  const sheetWidth = W.id + dates.length * W.date + W.now + W.photo + W.status + W.problems;
   const cols = (
     <colgroup>
       <col style={{ width: W.id }} />
@@ -379,318 +356,346 @@ export const CountPage: React.FC = () => {
       <col style={{ width: W.now }} />
       <col style={{ width: W.photo }} />
       <col style={{ width: W.status }} />
-      <col />
+      <col style={wide ? undefined : { width: W.problems }} />
     </colgroup>
   );
 
   return (
-    <div className="space-y-4">
-      <PageHeader
-        title={t(kind === 'clusters' ? 'count.title.clusters' : 'count.title.fruit')}
-        description={t('count.desc')}
-        actions={
-          <Link to={treesUrl({ block: block || null })} className={btnSecondary}>
-            {t('count.done')}
-          </Link>
-        }
-      />
-
-      <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-xs grid grid-cols-2 lg:grid-cols-[auto_9rem_10rem_12rem_minmax(0,14rem)] gap-2">
-        <div role="radiogroup" aria-label={t('count.what')} className="col-span-2 lg:col-span-1 grid grid-cols-2 gap-0.5 p-0.5 rounded-lg bg-slate-100 border border-slate-200">
-          {(['fruit', 'clusters'] as const).map((k) => (
-            <button
-              key={k}
-              type="button"
-              role="radio"
-              aria-checked={kind === k}
-              onClick={() => setParams({ what: k === 'fruit' ? null : k }, { replace: true })}
-              className={`min-h-10 px-4 rounded-md text-sm font-semibold whitespace-nowrap ${kind === k ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
-            >
-              {t(`count.kind.${k}`)}
-            </button>
-          ))}
-        </div>
-        <select value={block} onChange={(e) => setParams({ block: e.target.value || null }, { replace: true })} aria-label={t('common.block')} className={inputCls}>
-          <option value="">{t('common.allBlocks')}</option>
-          {blocks.map((b) => (
-            <option key={b} value={b}>
-              {t('common.blockN', { n: b })}
-            </option>
-          ))}
-        </select>
-        <input
-          type="date"
-          value={date}
-          max={today}
-          aria-label={t('count.date')}
-          title={t('count.date')}
-          onChange={(e) => e.target.value && setParams({ date: e.target.value === today ? null : e.target.value }, { replace: true })}
-          className={inputCls}
-        />
-        <input value={by} onChange={(e) => setBy(e.target.value)} onBlur={() => saveBy(by)} placeholder={t('count.by')} aria-label={t('count.by')} autoComplete="name" className={inputCls} />
-        <div className="relative">
-          <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" aria-hidden />
-          <input
-            value={jump}
-            onChange={(e) => setJump(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                go();
-              }
-            }}
-            placeholder={t('count.go')}
-            aria-label={t('count.go')}
-            autoCapitalize="characters"
-            autoComplete="off"
-            enterKeyHint="go"
-            className={`${inputCls} pl-9`}
+    // The page is its own scroll area (both ways), the sheet like a spreadsheet app's: one scroll, no lag. What sits
+    // above the sheet keeps its place when the sheet is scrolled sideways.
+    <div className={`${AREA} z-20 overflow-auto overscroll-contain bg-slate-100`}>
+      {/* On a phone the area is as wide as the sheet; what sits above it is one screen wide and stays in view. */}
+      <div className={wide ? 'max-w-7xl mx-auto px-6 lg:px-8 py-5 space-y-4' : 'w-max min-w-full px-4 py-5 space-y-4'}>
+        <div className={wide ? 'space-y-4' : 'sticky left-4 w-[calc(100vw-2rem)] space-y-4'}>
+          <PageHeader
+            title={t(kind === 'clusters' ? 'count.title.clusters' : 'count.title.fruit')}
+            description={t('count.desc')}
+            actions={
+              <Link to={treesUrl({ block: block || null })} className={btnSecondary}>
+                {t('count.done')}
+              </Link>
+            }
           />
-        </div>
-      </div>
 
-      {unflowered.map((b) => (
-        <NoBloom key={b} block={b} today={today} />
-      ))}
-
-      {(firstError || msg || saving > 0 || refused || failed) && (
-        <div className="space-y-1 text-sm" role="status">
-          {firstError && (
-            <p role="alert" className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-800">
-              <strong>{parseKey(firstError[0]).tree}</strong> · {firstError[1]}
-            </p>
-          )}
-          {refused && <p className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-800">{t('count.photo.rules')}</p>}
-          {failed && <p className="text-rose-700">{t('count.photo.failed', { id: failed[0] })}</p>}
-          {saving > 0 && <p className="text-amber-800">{t('count.sending', { n: saving })}</p>}
-          {msg && <p className="text-slate-700">{msg}</p>}
-        </div>
-      )}
-
-      {rows.length > 0 && (
-        // One vertical scroll, the page's. The sheet scrolls sideways on its own; its header row (under the app bar) and
-        // totals (above the tab bar) are strips of their own that stay in view and follow it sideways.
-        <div ref={sheetRef} className={`bg-white rounded-xl border border-slate-200 shadow-xs ${NATIVE_FOLLOW ? 'sheet-scope' : ''}`}>
-          <div ref={headRef} className={`sticky ${TOP} z-20 overflow-hidden rounded-t-xl`}>
-            <table className={`${table} ${follow}`} style={tableStyle}>
-              {cols}
-              <thead>
-                <tr className="h-11">
-                  <th scope="col" className={`${th} text-left sticky left-0 z-10 border-r ${pin}`}>
-                    ID
-                  </th>
-                  {dates.map((d) => (
-                    <th key={d} scope="col" className={`${th} text-right`}>
-                      {formatShortDate(d)}
-                    </th>
-                  ))}
-                  <th scope="col" className="px-2.5 bg-emerald-700 text-white text-right border-b border-emerald-800 whitespace-nowrap">
-                    <span className="text-[11px] font-bold sm:uppercase sm:tracking-wide">{formatShortDate(date)}</span>
-                  </th>
-                  <th scope="col" className={`${th} text-left`}>
-                    <span className="sr-only">{t('count.col.photo')}</span>
-                    <Camera className="w-3.5 h-3.5" aria-hidden />
-                  </th>
-                  <th scope="col" className={`${th} text-center`}>
-                    {t('count.col.status')}
-                  </th>
-                  <th scope="col" className={`${th} text-left`}>
-                    {t('count.col.problems')}
-                  </th>
-                </tr>
-              </thead>
-            </table>
+          <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-xs grid grid-cols-2 lg:grid-cols-[auto_9rem_10rem_12rem_minmax(0,14rem)] gap-2">
+            <div
+              role="radiogroup"
+              aria-label={t('count.what')}
+              className="col-span-2 lg:col-span-1 grid grid-cols-2 gap-0.5 p-0.5 rounded-lg bg-slate-100 border border-slate-200"
+            >
+              {(['fruit', 'clusters'] as const).map((k) => (
+                <button
+                  key={k}
+                  type="button"
+                  role="radio"
+                  aria-checked={kind === k}
+                  onClick={() => setParams({ what: k === 'fruit' ? null : k }, { replace: true })}
+                  className={`min-h-10 px-4 rounded-md text-sm font-semibold whitespace-nowrap ${kind === k ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
+                >
+                  {t(`count.kind.${k}`)}
+                </button>
+              ))}
+            </div>
+            <select
+              value={block}
+              onChange={(e) => setParams({ block: e.target.value || null }, { replace: true })}
+              aria-label={t('common.block')}
+              className={inputCls}
+            >
+              <option value="">{t('common.allBlocks')}</option>
+              {blocks.map((b) => (
+                <option key={b} value={b}>
+                  {t('common.blockN', { n: b })}
+                </option>
+              ))}
+            </select>
+            <input
+              type="date"
+              value={date}
+              max={today}
+              aria-label={t('count.date')}
+              title={t('count.date')}
+              onChange={(e) => e.target.value && setParams({ date: e.target.value === today ? null : e.target.value }, { replace: true })}
+              className={inputCls}
+            />
+            <input
+              value={by}
+              onChange={(e) => setBy(e.target.value)}
+              onBlur={() => saveBy(by)}
+              placeholder={t('count.by')}
+              aria-label={t('count.by')}
+              autoComplete="name"
+              className={inputCls}
+            />
+            <div className="relative">
+              <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" aria-hidden />
+              <input
+                value={jump}
+                onChange={(e) => setJump(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    go();
+                  }
+                }}
+                placeholder={t('count.go')}
+                aria-label={t('count.go')}
+                autoCapitalize="characters"
+                autoComplete="off"
+                enterKeyHint="go"
+                className={`${inputCls} pl-9`}
+              />
+            </div>
           </div>
 
-          <div
-            ref={bodyRef}
-            onScroll={
-              NATIVE_FOLLOW
-                ? undefined
-                : (e) => {
-                    const x = e.currentTarget.scrollLeft;
-                    if (headRef.current) headRef.current.scrollLeft = x;
-                    if (footRef.current) footRef.current.scrollLeft = x;
-                  }
-            }
-            // relative: hidden labels (sr-only) and the photo inputs stay inside the scrolling part instead of widening the page
-            className={`relative overflow-x-auto overflow-y-hidden overscroll-x-contain ${NATIVE_FOLLOW ? 'sheet-scroll' : ''}`}
-          >
-            <table className={table} style={tableStyle}>
-              {cols}
-              <tbody>
-                {rows.map((r) => {
-                  const key = keyOf(kind, date, r.id);
-                  const value = drafts[key] ?? (r.now !== undefined ? String(r.now) : '');
-                  const bad = !!errors[key];
-                  const busy = !!inflight[key];
-                  const ups = uploads[r.id] || [];
-                  const first = r.problems[0];
-                  const tone = first ? (r.problems.some((c) => c.status === 'worse' || isDue(c)) ? 'danger' : CASE_STATUS_INFO[first.status].tone) : null;
-                  const health = healthOf(r.tree.condition);
-                  const healthText = health ? `${HEALTH_INFO[health].label[lang]}${improvingNow(r.tree) ? ` · ${IMPROVING[lang]}` : ''}` : t('cond.not_assessed');
-                  return (
-                    <tr key={r.id} className="group">
-                      <th scope="row" className="sticky left-0 z-10 bg-white group-hover:bg-slate-50 px-2.5 py-1.5 text-left border-b border-r border-slate-200 whitespace-nowrap">
-                        <Link to={treeUrl(r.id)} className="font-mono font-bold text-emerald-800 hover:underline inline-flex items-center gap-1.5">
-                          {r.id}
-                          {r.problems.length > 0 && (
-                            <span
-                              className={`min-w-4 h-4 px-1 rounded-full text-[10px] leading-4 text-center font-sans font-bold ${tone === 'danger' ? 'bg-rose-600 text-white' : 'bg-amber-400 text-slate-900'}`}
-                              title={t('trees.problemsN', { n: r.problems.length })}
-                            >
-                              {r.problems.length}
+          {unflowered.map((b) => (
+            <NoBloom key={b} block={b} today={today} />
+          ))}
+
+          {(firstError || msg || saving > 0 || refused || failed) && (
+            <div className="space-y-1 text-sm" role="status">
+              {firstError && (
+                <p role="alert" className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-800">
+                  <strong>{parseKey(firstError[0]).tree}</strong> · {firstError[1]}
+                </p>
+              )}
+              {refused && <p className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-800">{t('count.photo.rules')}</p>}
+              {failed && <p className="text-rose-700">{t('count.photo.failed', { id: failed[0] })}</p>}
+              {saving > 0 && <p className="text-amber-800">{t('count.sending', { n: saving })}</p>}
+              {msg && <p className="text-slate-700">{msg}</p>}
+            </div>
+          )}
+
+          {rows.length === 0 && !unflowered.length && (
+            <p className="p-8 text-center text-sm text-slate-600 bg-white rounded-xl border border-slate-200">{t('kebun.empty')}</p>
+          )}
+        </div>
+
+        {rows.length > 0 && (
+          // On a phone the sheet is wider than the screen: it scrolls sideways with the whole page area, the tree IDs
+          // pinned on the left. Header row and totals are pinned top and bottom. All by the browser: nothing to sync.
+          <div style={wide ? undefined : { width: sheetWidth }}>
+            <div className="relative bg-white rounded-xl border border-slate-200 shadow-xs overflow-clip">
+              <table className="table-fixed w-full text-sm border-separate border-spacing-0" style={{ minWidth: sheetWidth }}>
+                {cols}
+                <thead>
+                  <tr className="h-11">
+                    <th scope="col" className={`${th} text-left sticky left-0 top-0 z-30 border-r`}>
+                      ID
+                    </th>
+                    {dates.map((d) => (
+                      <th key={d} scope="col" className={`${th} text-right sticky top-0 z-20`}>
+                        {formatShortDate(d)}
+                      </th>
+                    ))}
+                    <th scope="col" className="px-2.5 sticky top-0 z-20 bg-emerald-700 text-white text-right border-b border-emerald-800 whitespace-nowrap">
+                      <span className="text-[11px] font-bold sm:uppercase sm:tracking-wide">{formatShortDate(date)}</span>
+                    </th>
+                    <th scope="col" className={`${th} text-left sticky top-0 z-20`}>
+                      <span className="sr-only">{t('count.col.photo')}</span>
+                      <Camera className="w-3.5 h-3.5" aria-hidden />
+                    </th>
+                    <th scope="col" className={`${th} text-center sticky top-0 z-20`}>
+                      {t('count.col.status')}
+                    </th>
+                    <th scope="col" className={`${th} text-left sticky top-0 z-20`}>
+                      {t('count.col.problems')}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((r) => {
+                    const key = keyOf(kind, date, r.id);
+                    const value = drafts[key] ?? (r.now !== undefined ? String(r.now) : '');
+                    const bad = !!errors[key];
+                    const busy = !!inflight[key];
+                    const ups = uploads[r.id] || [];
+                    const first = r.problems[0];
+                    const tone = first ? (r.problems.some((c) => c.status === 'worse' || isDue(c)) ? 'danger' : CASE_STATUS_INFO[first.status].tone) : null;
+                    const health = healthOf(r.tree.condition);
+                    const healthText = health
+                      ? `${HEALTH_INFO[health].label[lang]}${improvingNow(r.tree) ? ` · ${IMPROVING[lang]}` : ''}`
+                      : t('cond.not_assessed');
+                    return (
+                      <tr key={r.id} className="group">
+                        <th
+                          scope="row"
+                          className="sticky left-0 z-10 bg-white group-hover:bg-slate-50 px-2.5 py-1.5 text-left border-b border-r border-slate-200 whitespace-nowrap"
+                        >
+                          <Link to={treeUrl(r.id)} className="font-mono font-bold text-emerald-800 hover:underline inline-flex items-center gap-1.5">
+                            {r.id}
+                            {r.problems.length > 0 && (
+                              <span
+                                className={`min-w-4 h-4 px-1 rounded-full text-[10px] leading-4 text-center font-sans font-bold ${tone === 'danger' ? 'bg-rose-600 text-white' : 'bg-amber-400 text-slate-900'}`}
+                                title={t('trees.problemsN', { n: r.problems.length })}
+                              >
+                                {r.problems.length}
+                              </span>
+                            )}
+                          </Link>
+                        </th>
+                        {dates.map((d) => (
+                          <td key={d} className="px-2.5 py-1.5 text-right tabular text-slate-600 border-b border-r border-slate-200 group-hover:bg-slate-50">
+                            {r.past.get(d) ?? ''}
+                          </td>
+                        ))}
+                        <td
+                          className={`p-0 border-b border-x-2 border-b-slate-200 border-x-emerald-600/70 ${r.now !== undefined ? 'bg-emerald-50' : 'bg-white'}`}
+                        >
+                          {r.target ? (
+                            <span className="relative block">
+                              <input
+                                type="text"
+                                inputMode="numeric"
+                                enterKeyHint="next"
+                                autoComplete="off"
+                                data-count={key}
+                                value={value}
+                                aria-label={`${r.id} · ${formatShortDate(date)}`}
+                                aria-invalid={bad || undefined}
+                                onFocus={(e) => e.currentTarget.select()}
+                                onChange={(e) => {
+                                  setDrafts((x) => ({ ...x, [key]: e.target.value }));
+                                  if (bad) setErrors((x) => omit(x, key));
+                                }}
+                                onBlur={() => commit(key)}
+                                onPaste={(e) => {
+                                  if (paste(key, e.clipboardData.getData('text'))) e.preventDefault();
+                                }}
+                                onKeyDown={(e) => {
+                                  const up = e.key === 'ArrowUp' || (e.key === 'Enter' && e.shiftKey);
+                                  if (e.key === 'Enter' || e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                                    e.preventDefault();
+                                    if (commit(key)) focusKey(keys[keys.indexOf(key) + (up ? -1 : 1)]);
+                                  } else if (e.key === 'Escape') {
+                                    setDrafts((x) => omit(x, key));
+                                    setErrors((x) => omit(x, key));
+                                  }
+                                }}
+                                className={`w-full h-10 pl-6 pr-2.5 scroll-mt-32 scroll-mb-36 bg-transparent text-right text-base font-bold tabular outline-none focus:bg-white focus:outline-2 focus:-outline-offset-2 ${
+                                  bad ? 'outline-2 -outline-offset-2 outline-rose-500 text-rose-700' : 'focus:outline-emerald-600 text-slate-900'
+                                }`}
+                              />
+                              {busy && <Loader2 className="absolute left-1.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 animate-spin" aria-hidden />}
+                            </span>
+                          ) : (
+                            <span className="block px-2.5 text-right text-slate-300" title={t('count.noWave')}>
+                              —
                             </span>
                           )}
-                        </Link>
-                      </th>
-                      {dates.map((d) => (
-                        <td key={d} className="px-2.5 py-1.5 text-right tabular text-slate-600 border-b border-r border-slate-200 group-hover:bg-slate-50">
-                          {r.past.get(d) ?? ''}
                         </td>
-                      ))}
-                      <td className={`p-0 border-b border-x-2 border-b-slate-200 border-x-emerald-600/70 ${r.now !== undefined ? 'bg-emerald-50' : 'bg-white'}`}>
-                        {r.target ? (
-                          <span className="relative block">
-                            <input
-                              type="text"
-                              inputMode="numeric"
-                              enterKeyHint="next"
-                              autoComplete="off"
-                              data-count={key}
-                              value={value}
-                              aria-label={`${r.id} · ${formatShortDate(date)}`}
-                              aria-invalid={bad || undefined}
-                              onFocus={(e) => e.currentTarget.select()}
-                              onChange={(e) => {
-                                setDrafts((x) => ({ ...x, [key]: e.target.value }));
-                                if (bad) setErrors((x) => omit(x, key));
-                              }}
-                              onBlur={() => commit(key)}
-                              onPaste={(e) => {
-                                if (paste(key, e.clipboardData.getData('text'))) e.preventDefault();
-                              }}
-                              onKeyDown={(e) => {
-                                const up = e.key === 'ArrowUp' || (e.key === 'Enter' && e.shiftKey);
-                                if (e.key === 'Enter' || e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-                                  e.preventDefault();
-                                  if (commit(key)) focusKey(keys[keys.indexOf(key) + (up ? -1 : 1)]);
-                                } else if (e.key === 'Escape') {
-                                  setDrafts((x) => omit(x, key));
-                                  setErrors((x) => omit(x, key));
-                                }
-                              }}
-                              className={`w-full h-10 pl-6 pr-2.5 scroll-mt-32 scroll-mb-36 bg-transparent text-right text-base font-bold tabular outline-none focus:bg-white focus:outline-2 focus:-outline-offset-2 ${
-                                bad ? 'outline-2 -outline-offset-2 outline-rose-500 text-rose-700' : 'focus:outline-emerald-600 text-slate-900'
-                              }`}
-                            />
-                            {busy && <Loader2 className="absolute left-1.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 animate-spin" aria-hidden />}
+                        <td className="px-1.5 py-1 border-b border-r border-slate-200 group-hover:bg-slate-50">
+                          <span className="flex items-center gap-1">
+                            {r.photos[0] && (
+                              <Link to={r.photos[0].href} className="relative block w-8 h-8 rounded overflow-hidden bg-slate-200 shrink-0">
+                                <img
+                                  src={r.photos[0].p.thumb || r.photos[0].p.medium || r.photos[0].p.url}
+                                  alt=""
+                                  loading="lazy"
+                                  className="w-full h-full object-cover"
+                                />
+                                {r.photos.length > 1 && (
+                                  <span className="absolute bottom-0 right-0 px-1 rounded-tl bg-black/60 text-white text-[10px] leading-4">
+                                    {r.photos.length}
+                                  </span>
+                                )}
+                              </Link>
+                            )}
+                            {ups.some((x) => x.state === 'up') && <Loader2 className="w-4 h-4 text-slate-400 animate-spin shrink-0" aria-hidden />}
+                            {ups
+                              .filter((x) => x.state === 'err')
+                              .map((x) => (
+                                <button
+                                  key={x.key}
+                                  type="button"
+                                  onClick={() => upload(r.id, x)}
+                                  aria-label={t('count.photo.retry')}
+                                  className="p-1 text-rose-600 shrink-0"
+                                >
+                                  <AlertTriangle className="w-4 h-4" />
+                                </button>
+                              ))}
+                            {r.target && (
+                              <label
+                                title={r.now === undefined ? t('count.photo.first') : t('count.photo.add', { id: r.id })}
+                                className={`w-9 h-9 rounded-full border flex items-center justify-center shrink-0 transition-colors ${
+                                  r.now === undefined
+                                    ? 'border-slate-200 bg-slate-50 text-slate-300'
+                                    : 'border-slate-300 bg-white text-slate-600 shadow-xs hover:bg-slate-50 hover:text-slate-900 active:bg-slate-100 cursor-pointer focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-emerald-600'
+                                }`}
+                              >
+                                <Camera className="w-4 h-4" aria-hidden />
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  multiple
+                                  disabled={r.now === undefined}
+                                  className="sr-only"
+                                  aria-label={t('count.photo.add', { id: r.id })}
+                                  onChange={(e) => {
+                                    addPhotos(r.id, e.target.files);
+                                    e.target.value = '';
+                                  }}
+                                />
+                              </label>
+                            )}
                           </span>
-                        ) : (
-                          <span className="block px-2.5 text-right text-slate-300" title={t('count.noWave')}>
-                            —
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-1.5 py-1 border-b border-r border-slate-200 group-hover:bg-slate-50">
-                        <span className="flex items-center gap-1">
-                          {r.photos[0] && (
-                            <Link to={r.photos[0].href} className="relative block w-8 h-8 rounded overflow-hidden bg-slate-200 shrink-0">
-                              <img src={r.photos[0].p.thumb || r.photos[0].p.medium || r.photos[0].p.url} alt="" loading="lazy" className="w-full h-full object-cover" />
-                              {r.photos.length > 1 && <span className="absolute bottom-0 right-0 px-1 rounded-tl bg-black/60 text-white text-[10px] leading-4">{r.photos.length}</span>}
+                        </td>
+                        <td className="px-2.5 text-center border-b border-r border-slate-200 group-hover:bg-slate-50" title={healthText}>
+                          <span
+                            className={`inline-block w-2.5 h-2.5 rounded-full align-middle ${health ? HEALTH_DOT[health] : 'border border-slate-300'}`}
+                            aria-hidden
+                          />
+                          <span className="sr-only">{healthText}</span>
+                        </td>
+                        <td className="px-2.5 py-1.5 border-b border-slate-200 group-hover:bg-slate-50">
+                          {first && (
+                            <Link
+                              to={treeUrl(r.id)}
+                              className="block text-xs text-slate-700 hover:text-slate-900 min-w-0 truncate"
+                              title={r.problems.map((c) => `${caseTitle(c, lang)} · ${CASE_STATUS_INFO[c.status].label[lang]}`).join('\n')}
+                            >
+                              {r.problems.map((c) => caseTitle(c, lang)).join(', ')}
                             </Link>
                           )}
-                          {ups.some((x) => x.state === 'up') && <Loader2 className="w-4 h-4 text-slate-400 animate-spin shrink-0" aria-hidden />}
-                          {ups
-                            .filter((x) => x.state === 'err')
-                            .map((x) => (
-                              <button key={x.key} type="button" onClick={() => upload(r.id, x)} aria-label={t('count.photo.retry')} className="p-1 text-rose-600 shrink-0">
-                                <AlertTriangle className="w-4 h-4" />
-                              </button>
-                            ))}
-                          {r.target && (
-                            <label
-                              title={r.now === undefined ? t('count.photo.first') : t('count.photo.add', { id: r.id })}
-                              className={`w-9 h-9 rounded-full border flex items-center justify-center shrink-0 transition-colors ${
-                                r.now === undefined
-                                  ? 'border-slate-200 bg-slate-50 text-slate-300'
-                                  : 'border-slate-300 bg-white text-slate-600 shadow-xs hover:bg-slate-50 hover:text-slate-900 active:bg-slate-100 cursor-pointer focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-emerald-600'
-                              }`}
-                            >
-                              <Camera className="w-4 h-4" aria-hidden />
-                              <input
-                                type="file"
-                                accept="image/*"
-                                multiple
-                                disabled={r.now === undefined}
-                                className="sr-only"
-                                aria-label={t('count.photo.add', { id: r.id })}
-                                onChange={(e) => {
-                                  addPhotos(r.id, e.target.files);
-                                  e.target.value = '';
-                                }}
-                              />
-                            </label>
-                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr className="font-semibold text-slate-700">
+                    <th
+                      scope="row"
+                      className="sticky left-0 bottom-0 z-30 bg-slate-100 px-2.5 py-2 text-left text-xs border-t border-r border-slate-200 whitespace-nowrap"
+                    >
+                      {t('kebun.total')}
+                    </th>
+                    {dates.map((d) => (
+                      <td key={d} className="sticky bottom-0 z-20 bg-slate-100 px-2.5 py-2 text-right tabular border-t border-slate-200">
+                        {fmt(total(d))}
+                      </td>
+                    ))}
+                    <td className="sticky bottom-0 z-20 bg-emerald-100 px-2.5 py-1.5 text-right tabular whitespace-nowrap border-t border-emerald-200">
+                      <span className="block text-slate-900">{fmt(summary.total)}</span>
+                      {summary.change !== null && (
+                        <span
+                          className={`block text-[11px] ${summary.change < 0 ? 'text-rose-700' : summary.change > 0 ? 'text-emerald-800' : 'text-slate-500'}`}
+                          title={t('count.change.title')}
+                        >
+                          {summary.change > 0 ? '+' : summary.change < 0 ? '−' : '±'}
+                          {fmt(Math.abs(summary.change))}
                         </span>
-                      </td>
-                      <td className="px-2.5 text-center border-b border-r border-slate-200 group-hover:bg-slate-50" title={healthText}>
-                        <span className={`inline-block w-2.5 h-2.5 rounded-full align-middle ${health ? HEALTH_DOT[health] : 'border border-slate-300'}`} aria-hidden />
-                        <span className="sr-only">{healthText}</span>
-                      </td>
-                      <td className="px-2.5 py-1.5 border-b border-slate-200 group-hover:bg-slate-50">
-                        {first && (
-                          <Link
-                            to={treeUrl(r.id)}
-                            className="flex items-center gap-1.5 text-xs text-slate-700 hover:text-slate-900 min-w-0"
-                            title={r.problems.map((c) => `${caseTitle(c, lang)} · ${CASE_STATUS_INFO[c.status].label[lang]}`).join('\n')}
-                          >
-                            <span className={`w-2 h-2 rounded-full shrink-0 ${DOT[tone!]}`} aria-hidden />
-                            <span className="truncate">{r.problems.map((c) => caseTitle(c, lang)).join(', ')}</span>
-                          </Link>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-
-          <div ref={footRef} className={`sticky ${BOTTOM} z-20 overflow-hidden rounded-b-xl`}>
-            <table className={`${table} ${follow}`} style={tableStyle}>
-              {cols}
-              <tfoot>
-                <tr className="font-semibold text-slate-700">
-                  <th scope="row" className={`sticky left-0 z-10 bg-slate-100 px-2.5 py-2 text-left text-xs border-r border-slate-200 whitespace-nowrap ${pin}`}>
-                    {t('kebun.total')}
-                  </th>
-                  {dates.map((d) => (
-                    <td key={d} className="bg-slate-100 px-2.5 py-2 text-right tabular">
-                      {fmt(total(d))}
+                      )}
                     </td>
-                  ))}
-                  <td className="bg-emerald-100 px-2.5 py-1.5 text-right tabular whitespace-nowrap">
-                    <span className="block text-slate-900">{fmt(summary.total)}</span>
-                    {summary.change !== null && (
-                      <span
-                        className={`block text-[11px] ${summary.change < 0 ? 'text-rose-700' : summary.change > 0 ? 'text-emerald-800' : 'text-slate-500'}`}
-                        title={t('count.change.title')}
-                      >
-                        {summary.change > 0 ? '+' : summary.change < 0 ? '−' : '±'}
-                        {fmt(Math.abs(summary.change))}
-                      </span>
-                    )}
-                  </td>
-                  <td colSpan={3} className="bg-slate-100" />
-                </tr>
-              </tfoot>
-            </table>
+                    <td colSpan={3} className="sticky bottom-0 z-20 bg-slate-100 border-t border-slate-200" />
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
           </div>
-        </div>
-      )}
-
-      {rows.length === 0 && !unflowered.length && <p className="p-8 text-center text-sm text-slate-600 bg-white rounded-xl border border-slate-200">{t('kebun.empty')}</p>}
+        )}
+      </div>
     </div>
   );
 };
@@ -729,11 +734,20 @@ const NoBloom: React.FC<{ block: string; today: string }> = ({ block, today }) =
           aria-label={t('hv2.flowered.edit', { block })}
           className="h-10 px-2 rounded-lg border border-amber-300 bg-white text-sm text-slate-900"
         />
-        <button type="button" onClick={save} disabled={!value || saving} className="min-h-10 px-4 rounded-lg bg-slate-900 text-white text-sm font-semibold disabled:opacity-50">
+        <button
+          type="button"
+          onClick={save}
+          disabled={!value || saving}
+          className="min-h-10 px-4 rounded-lg bg-slate-900 text-white text-sm font-semibold disabled:opacity-50"
+        >
           {saving ? t('rec.saving') : t('count.noBloom.save')}
         </button>
       </span>
-      {error && <p role="alert" className="w-full text-xs text-rose-700">{error}</p>}
+      {error && (
+        <p role="alert" className="w-full text-xs text-rose-700">
+          {error}
+        </p>
+      )}
     </div>
   );
 };
