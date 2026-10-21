@@ -53,6 +53,8 @@ export interface Harvest {
 }
 
 export interface HarvestFruit {
+  /** The fruit's own code, from the WhatsApp harvest report: tree, day, the tree's fruit number that day ("A0-20261021-03"). */
+  code?: string;
   weightG: number;
   aroma: number;
   skin: number;

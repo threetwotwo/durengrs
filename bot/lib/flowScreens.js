@@ -2,13 +2,12 @@
 // The Flow JSON files only draw (scripts/build-flow.js); rules live in rules.js and the endpoint answers each button
 // with the next screen, or the same screen plus an error_message.
 //
-//  Flow "Laporan Pohon" (kind 'report', opened by sending a tree ID, flows/flow.json):
-//    REPORT (1-3 photos + the worker's words) -> DONE. Gemini reads the saved report once the Flow completes
-//    (index.js reopenAfterCompletion -> lib/ai.js analyzeReport).
-//
-//  Flow "Laporan Panen" (kind 'harvest', the Laporan PANEN button under a tree ID, flows/flow-panen.json):
-//    PANEN (how many fruits picked up today) -> BUAH_1..BUAH_4 (five fruits each: weight in grams, aroma, skin and
-//    shape 1-5) -> DONE. Saved as one harvest of the tree (harvests/wap_..., `items` per fruit).
+//  Flow "Laporan Pohon" (flows/flow.json, both buttons sent under a tree ID; the flow token says which screen opens):
+//    kind 'report' (Laporan KESEHATAN): REPORT (1-3 photos + the worker's words) -> DONE. Gemini reads the saved
+//      report once the Flow completes (index.js reopenAfterCompletion -> lib/ai.js analyzeReport).
+//    kind 'harvest' (Laporan PANEN): PANEN (how many fruits picked up today) -> BUAH_A..BUAH_H (five fruits each,
+//      typed: weight in grams, aroma, skin and shape 1-5) -> DONE. Saved as one harvest of the tree
+//      (harvests/wap_..., `items` per fruit, each with its own code "A0-20261021-01").
 //
 //  Flow "Catatan Kebun" (kind 'farm', opened with the Hujan & Pekerjaan button or the word KEBUN, flows/flow-farm.json):
 //    FARM_HOME -> KERJA (Pekerjaan Selesai) | HUJAN (Curah Hujan) -> DONE
@@ -141,8 +140,8 @@ const decimal = (n, digits = 1) => n.toLocaleString('id-ID', { minimumFractionDi
 const panenScreen = (treeId, tree, today = R.todayStr()) =>
   screen('PANEN', { panen_title: `Panen ${treeLabel(treeId, tree)}`, today_caption: `Hari ini, ${R.dateLabel(today)}` });
 
-// Screen `page` (1-4) of the fruits: five slots, those past the count hidden. `collected` holds the fruits of earlier
-// screens and comes back with the next press (the endpoint keeps nothing between screens).
+// Screen `page` (1-8, BUAH_A..BUAH_H) of the fruits: five slots, those past the count hidden. `collected` holds the
+// fruits of earlier screens and comes back with the next press (the endpoint keeps nothing between screens).
 function fruitsScreen(page, count, collected) {
   const per = R.FRUITS_PER_SCREEN;
   const first = (page - 1) * per + 1;
@@ -153,12 +152,12 @@ function fruitsScreen(page, count, collected) {
     count: String(count),
     collected: JSON.stringify(collected),
   };
-  for (let i = 1; i <= per; i++) {
-    const n = first + i - 1;
-    data[`show_${i}`] = n <= last;
-    data[`label_${i}`] = `Buah ${n}`;
-  }
-  return screen(`BUAH_${page}`, data);
+  R.FRUIT_SLOTS.forEach((x, i) => {
+    const n = first + i;
+    data[`show_${x}`] = n <= last;
+    data[`label_${x}`] = `Buah ${n}`;
+  });
+  return screen(`BUAH_${R.FRUIT_PAGES[page - 1]}`, data);
 }
 
 async function handlePanen({ data = {}, treeId }) {
@@ -187,8 +186,9 @@ async function handleFruits(page, { data = {}, flowToken, treeId, workerPhone })
   const res = fruitsScreen(page, count, collected);
   const first = collected.length + 1;
   const last = Math.min(count, page * R.FRUITS_PER_SCREEN);
-  for (let n = first, slot = 1; n <= last; n++, slot++) {
-    const check = R.checkFruit({ weight: data[`w${slot}`], aroma: data[`a${slot}`], skin: data[`k${slot}`], shape: data[`b${slot}`] }, n);
+  for (let n = first; n <= last; n++) {
+    const x = R.FRUIT_SLOTS[(n - 1) % R.FRUITS_PER_SCREEN];
+    const check = R.checkFruit({ weight: data[`berat_${x}`], aroma: data[`aroma_${x}`], skin: data[`kulit_${x}`], shape: data[`bentuk_${x}`] }, n);
     if (check.error) return withError(res, check.error);
     collected.push(check.ok);
   }
@@ -196,17 +196,28 @@ async function handleFruits(page, { data = {}, flowToken, treeId, workerPhone })
   return saveHarvestFromFlow({ tree, items: collected, flowToken, workerPhone });
 }
 
-async function saveHarvestFromFlow({ tree, items, flowToken, workerPhone }) {
+// Each fruit gets its own code, numbered on from the tree's fruits already coded that day (a second report the same
+// day goes on from 07, not 01).
+async function codeFruits(tree, today, items) {
+  const same = (await C.byTree('harvests', tree.id).catch(() => [])).filter((h) => h.date === today);
+  const used = Math.max(0, ...same.flatMap((h) => (h.items || []).map((f) => R.fruitCodeNumber(f.code))));
+  return items.map((f, i) => ({ code: R.fruitCode(tree.id, today, used + i + 1), ...f }));
+}
+
+async function saveHarvestFromFlow({ tree, items: typed, flowToken, workerPhone }) {
   const today = R.todayStr();
+  const id = R.harvestIdForFlow(flowToken, { date: today, items: typed });
+  const items = await codeFruits(tree, today, typed);
+  const codes = items.length === 1 ? items[0].code : `${items[0].code} s/d ${items[items.length - 1].code}`;
   const totalG = items.reduce((s, f) => s + f.weightG, 0);
   const weightKg = Math.round(totalG / 10) / 100;
   const avg = (k) => items.reduce((s, f) => s + f[k], 0) / items.length;
   const summary = [
     `Panen ${tree.id} hari ini: ${items.length} buah, ${decimal(weightKg, 2)} kg (rata-rata ${decimal(totalG / items.length / 1000, 2)} kg per buah).`,
     `Nilai rata-rata: aroma ${decimal(avg('aroma'))}, kulit ${decimal(avg('skin'))}, bentuk ${decimal(avg('shape'))}.`,
+    `Kode buah: ${codes}.`,
   ].join('\n');
   try {
-    const id = R.harvestIdForFlow(flowToken, { date: today, items });
     const season = await C.loadTreeSeason(tree, today).catch(() => null);
     const out = await C.saveHarvest({ id, tree, date: today, fruits: items.length, weightKg, items, floweredOn: floweredOnFor(season, today), workerPhone });
     if (out.duplicate) return done(`Panen ${tree.id} ini sudah tersimpan sebelumnya.`, '✅ Sudah tercatat', id);
@@ -293,7 +304,7 @@ async function route({ kind, action, screen: name, data, flowToken, treeId, work
   }
   if (kind === 'harvest') {
     if (action === 'data_exchange' && name === 'PANEN') return handlePanen({ data, treeId });
-    const page = action === 'data_exchange' && /^BUAH_[1-4]$/.test(name || '') ? Number(name.slice(5)) : 0;
+    const page = action === 'data_exchange' && /^BUAH_[A-H]$/.test(name || '') ? R.FRUIT_PAGES.indexOf(name.slice(5)) + 1 : 0;
     if (page) return handleFruits(page, { data, flowToken, treeId, workerPhone });
     const tree = treeId ? await getTreeById(treeId) : null;
     return tree ? panenScreen(treeId, tree) : treeGone(treeId);

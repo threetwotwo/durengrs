@@ -3,7 +3,7 @@
 // from one screen to the next is allowed by routing_model. Used by screens.test.js on every scenario.
 const assert = require('node:assert/strict');
 // Keyed by the token kind (lib/flowScreens.js parseFlowToken).
-const flows = { report: require('../flows/flow.json'), farm: require('../flows/flow-farm.json'), harvest: require('../flows/flow-panen.json') };
+const flows = { report: require('../flows/flow.json'), farm: require('../flows/flow-farm.json'), harvest: require('../flows/flow.json') };
 
 const typeOf = (v) => (Array.isArray(v) ? 'array' : v === null ? 'null' : typeof v);
 

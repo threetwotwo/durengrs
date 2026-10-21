@@ -81,12 +81,14 @@ can edit or delete; each carries `reportId`, and the web app shows them on their
 
 ## The WhatsApp bot
 
-Three Flows (worker text in Indonesian), one endpoint (`POST /flow-endpoint`). A tree ID ("A1") is answered with two
+Two Flows (worker text in Indonesian), one endpoint (`POST /flow-endpoint`). A tree ID ("A1") is answered with two
 messages, one button each: **Laporan KESEHATAN** and **Laporan PANEN**.
 
-- **Laporan Panen** (`bot/flows/flow-panen.json`, env `HARVEST_FLOW_ID`): fruits picked up today from the tree (1-20),
-  then each fruit's weight in grams and aroma, kulit (skin), bentuk (shape) 1-5. Saved as one harvest
-  `harvests/wap_{hash}` (`fruits`, `weightKg` from the weights, `items`). Flow tokens `panen:<tree>:<phone>:<time>`.
+- **Laporan Panen** (Laporan PANEN; same Flow as the report, `bot/flows/flow.json`, env `FLOW_ID`): fruits picked up
+  today from the tree (1-40), then each fruit typed: weight in grams and aroma, kulit (skin), bentuk (shape) 1-5. Saved
+  as one harvest `harvests/wap_{hash}` (`fruits`, `weightKg` from the weights, `items`: `{code, weightG, aroma, skin,
+  shape}`). `code` is the fruit's own ID: `{tree}-{YYYYMMDD}-{nn}`, nn counting the tree's coded fruits that day.
+  Flow tokens `panen:<tree>:<phone>:<time>`.
 - **Laporan Pohon** (Laporan KESEHATAN; `bot/flows/flow.json`, env `FLOW_ID`): one screen, `REPORT`:
   1-3 photos and free text, both required, nothing to choose. Flow tokens `lapor:<tree>:<phone>:<time>`; tokens
   `tree:…` from chat messages of the older multi-screen Flow are handled the same way.

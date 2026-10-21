@@ -4,7 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
-const FILES = ['flow.json', 'flow-farm.json', 'flow-panen.json'];
+const FILES = ['flow.json', 'flow-farm.json'];
 const flows = Object.fromEntries(FILES.map((f) => [f, require('../flows/' + f)]));
 
 const walk = (node, fn) => {
@@ -84,16 +84,30 @@ for (const [file, flow] of Object.entries(flows)) {
       });
   });
 
+  test(`${file}: screen ids, routes and field names hold letters and underscores only (Meta rejects digits)`, () => {
+    const bad = [];
+    for (const k of Object.keys(flow.routing_model)) if (!/^[A-Za-z_]+$/.test(k)) bad.push(k);
+    walk(flow.screens, (n) => {
+      if (n.type && typeof n.name === 'string' && n.type !== 'Footer' && !/^[A-Za-z_]+$/.test(n.name)) bad.push(n.name);
+      if (typeof n.id === 'string' && n.layout && !/^[A-Za-z_]+$/.test(n.id)) bad.push(n.id);
+    });
+    assert.deepEqual(bad, []);
+  });
+
+  test(`${file}: no ChipsSelector (every answer is typed)`, () => {
+    walk(flow.screens, (n) => assert.notEqual(n.type, 'ChipsSelector'));
+  });
+
   test(`${file}: worker-facing text is Indonesian: no common English UI words`, () => {
     const text = JSON.stringify(flow.screens.map((s) => [s.title, s.layout]));
     for (const w of ['Submit', 'Cancel', 'Save', 'Next', 'Please', 'Report Issue', 'Required']) assert.ok(!text.includes(w), w);
   });
 }
 
-test('the tree Flow is the one report screen; the farm Flow holds rain and finished work', () => {
+test('the tree Flow: the report screen, the harvest screens, DONE; the farm Flow holds rain and finished work', () => {
   const tree = flows['flow.json'];
-  assert.deepEqual(tree.screens.map((s) => s.id), ['REPORT', 'DONE']);
-  assert.deepEqual(tree.routing_model, { REPORT: ['DONE'], DONE: [] });
+  assert.deepEqual(tree.screens.map((s) => s.id), ['REPORT', 'PANEN', ...'ABCDEFGH'.split('').map((p) => `BUAH_${p}`), 'DONE']);
+  assert.deepEqual(tree.routing_model.REPORT, ['DONE', 'PANEN']);
   const report = tree.screens[0];
   const picker = JSON.stringify(report).match(/"min-uploaded-photos":(\d+)/);
   assert.equal(picker[1], '1', 'at least one photo');
@@ -101,7 +115,7 @@ test('the tree Flow is the one report screen; the farm Flow holds rain and finis
 });
 
 test('every screen with a data_exchange is one the endpoint handles', () => {
-  const handled = { 'flow.json': ['REPORT'], 'flow-farm.json': ['FARM_HOME', 'KERJA', 'HUJAN'], 'flow-panen.json': ['PANEN', 'BUAH_1', 'BUAH_2', 'BUAH_3', 'BUAH_4'] };
+  const handled = { 'flow.json': ['REPORT', 'PANEN', ...'ABCDEFGH'.split('').map((p) => `BUAH_${p}`)], 'flow-farm.json': ['FARM_HOME', 'KERJA', 'HUJAN'] };
   for (const [file, flow] of Object.entries(flows))
     for (const s of flow.screens) {
       let ex = false;
@@ -126,13 +140,14 @@ test('no "penjarangan" in anything a worker reads', () => {
   assert.equal(/jarang/i.test(all), false);
 });
 
-test('the harvest Flow: a count, then four screens of five fruits (weight and three 1-5 scores each)', () => {
-  const panen = flows['flow-panen.json'];
-  assert.deepEqual(panen.screens.map((s) => s.id), ['PANEN', 'BUAH_1', 'BUAH_2', 'BUAH_3', 'BUAH_4', 'DONE']);
-  const fruits = panen.screens[1];
+test('the harvest screens: a count, then eight screens of five fruits, every field a typed number', () => {
+  const tree = flows['flow.json'];
+  const fruits = tree.screens.find((s) => s.id === 'BUAH_A');
   const inputs = [];
-  walk(fruits.layout, (n) => { if (n.name && n.type && n.type !== 'Form') inputs.push(n.name); });
-  assert.deepEqual(inputs.slice(0, 4), ['w1', 'a1', 'k1', 'b1']);
+  walk(fruits.layout, (n) => { if (n.name && n.type && n.type !== 'Form' && n.type !== 'Footer') inputs.push(n); });
+  assert.deepEqual(inputs.slice(0, 4).map((n) => n.name), ['berat_a', 'aroma_a', 'kulit_a', 'bentuk_a']);
   assert.equal(inputs.length, 20);
-  assert.equal(panen.routing_model.BUAH_4.join(), 'DONE');
+  for (const n of inputs) assert.deepEqual([n.type, n['input-type']], ['TextInput', 'number'], n.name);
+  assert.deepEqual(tree.routing_model.BUAH_A, ['BUAH_B', 'DONE']);
+  assert.deepEqual(tree.routing_model.BUAH_H, ['DONE']);
 });

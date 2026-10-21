@@ -311,7 +311,7 @@ function recordRows(
           <table className="text-xs tabular">
             <thead>
               <tr className="text-slate-500 text-left">
-                <th className="pr-3 font-medium">#</th>
+                <th className="pr-3 font-medium">{h.items.some((f) => f.code) ? t('hv.col.code') : '#'}</th>
                 <th className="pr-3 font-medium text-right">{t('hv.col.weight')}</th>
                 <th className="pr-3 font-medium text-right">{t('hv.col.aroma')}</th>
                 <th className="pr-3 font-medium text-right">{t('hv.col.skin')}</th>
@@ -321,7 +321,7 @@ function recordRows(
             <tbody>
               {h.items.map((f, i) => (
                 <tr key={i}>
-                  <td className="pr-3 text-slate-500">{i + 1}</td>
+                  <td className="pr-3 text-slate-500 whitespace-nowrap">{f.code || i + 1}</td>
                   <td className="pr-3 text-right">{f.weightG.toLocaleString(lang === 'id' ? 'id-ID' : 'en-GB')} g</td>
                   <td className="pr-3 text-right">{f.aroma}</td>
                   <td className="pr-3 text-right">{f.skin}</td>

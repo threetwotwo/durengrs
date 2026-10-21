@@ -126,7 +126,7 @@ async function saveCount({ tree, season, stage, count, note, date, workerPhone, 
 
 // A harvest the worker wrote in a report. `id` comes from the report (rules.js harvestIdForReport), so reading the
 // report again never adds a second harvest. Same shape as the webapp's harvest form; `reportId` links back.
-// `items`: from the harvest Flow, one entry per fruit: { weightG, aroma, skin, shape } (scores 1-5).
+// `items`: from the harvest Flow, one entry per fruit: { code, weightG, aroma, skin, shape } (scores 1-5).
 async function saveHarvest({ id, tree, date, fruits, weightKg, grades, items, floweredOn, note, workerPhone, reportId }) {
   const ref = db.collection('harvests').doc(id);
   if ((await ref.get()).exists) return { duplicate: true, id };
@@ -178,4 +178,4 @@ async function saveRain({ date, rainMm, workerPhone }) {
   return { replaced: prev.exists ? prev.data().rainMm : null };
 }
 
-module.exports = { listBlocks, blockSeasonDate, loadTreeSeason, saveBloom, saveCount, saveHarvest, saveSeasonTasks, saveRain };
+module.exports = { byTree, listBlocks, blockSeasonDate, loadTreeSeason, saveBloom, saveCount, saveHarvest, saveSeasonTasks, saveRain };

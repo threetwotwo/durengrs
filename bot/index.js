@@ -1,8 +1,8 @@
 // index.js — the farm's WhatsApp bot (Cloud Run): the chat webhook, the encrypted Flow endpoint, /ai-check,
 // /cases-backfill and /rain-sync (the farm's daily rain, also fetched by itself after messages).
 //   A tree ID ("A1") gets the tree's last photos and two buttons, each in its own message (a WhatsApp message holds
-//   one Flow button): Laporan KESEHATAN (flows/flow.json, FLOW_ID) and Laporan PANEN (flows/flow-panen.json,
-//   HARVEST_FLOW_ID; left out while that is not set);
+//   one Flow button): Laporan KESEHATAN and Laporan PANEN. Both open the same Flow (flows/flow.json, FLOW_ID); the
+//   flow token says which screen it starts on;
 //   KEBUN (or the "Hujan & Pekerjaan" button) gets the farm Flow (flows/flow-farm.json, FARM_FLOW_ID).
 //   When a report Flow completes, Gemini reads the report (lib/ai.js) and the reply comes with a fresh Flow message.
 require('dotenv').config();
@@ -20,7 +20,7 @@ const app = express();
 app.use(express.json());
 
 const { AsyncLocalStorage } = require('async_hooks');
-const { VERIFY_TOKEN, WHATSAPP_TOKEN, PHONE_NUMBER_ID, FLOW_ID, FARM_FLOW_ID, HARVEST_FLOW_ID } = process.env;
+const { VERIFY_TOKEN, WHATSAPP_TOKEN, PHONE_NUMBER_ID, FLOW_ID, FARM_FLOW_ID } = process.env;
 
 // Replies go out from the WhatsApp number that RECEIVED the message (taken from the webhook),
 // so the test number and the production number can both work. PHONE_NUMBER_ID is only the fallback.
@@ -158,7 +158,7 @@ function sendHarvestFlow(to, tree, intro) {
       ? `${intro}\n\nAda buah lagi dari pohon ini? Ketuk tombol di bawah. Untuk pohon lain, kirim ID-nya.`
       : '🧺 *Laporan PANEN*\nBuah yang dipungut hari ini dari pohon ini: jumlahnya, lalu berat, aroma, kulit, dan bentuk tiap buah.',
     token: makeHarvestToken(tree.id, to),
-    flowId: HARVEST_FLOW_ID,
+    flowId: FLOW_ID,
     cta: 'Laporan PANEN',
   });
 }
@@ -206,7 +206,7 @@ async function reopenAfterCompletion(to, message) {
       return sendTreeFlow(to, tree, ai ? `✅ Laporan tersimpan.\n\n${ai}`.slice(0, 850) : thanks);
     }
   }
-  if (kind === 'harvest' && treeId && HARVEST_FLOW_ID) {
+  if (kind === 'harvest' && treeId) {
     const tree = await getTreeById(treeId);
     const summary = typeof r.message === 'string' ? r.message : '';
     if (tree) return sendHarvestFlow(to, tree, saved ? `✅ Panen tersimpan.\n\n${summary}`.trim().slice(0, 850) : '⚠️ Panen belum tersimpan. Coba lagi lewat tombol di bawah.');
@@ -301,7 +301,7 @@ async function handleIncomingMessage(body) {
 
   await sendLastReportPhotos(to, tree); // zoomable; the buttons come last so they sit at the bottom
   const sent = await sendTreeFlow(to, tree);
-  const harvest = HARVEST_FLOW_ID ? await sendHarvestFlow(to, tree) : null;
+  const harvest = sent?.error ? null : await sendHarvestFlow(to, tree);
   // If WhatsApp rejects a Flow (wrong id, Flow unpublished...) the worker should not be left in silence.
   if (sent?.error || harvest?.error) {
     await sendText(to, `Pohon ${tree.id}: formulir laporan belum bisa dibuka saat ini. Coba lagi sebentar lagi.`);
@@ -315,7 +315,7 @@ app.post(['/send-tree-flow', '/send-tree-lookup'], async (req, res) => {
 
   const tree = await getTreeById(treeId.toUpperCase());
   if (!tree) return res.status(404).json({ error: `Pohon ${treeId} tidak ditemukan` });
-  res.json({ kesehatan: await sendTreeFlow(to, tree), panen: HARVEST_FLOW_ID ? await sendHarvestFlow(to, tree) : 'HARVEST_FLOW_ID not set' });
+  res.json({ kesehatan: await sendTreeFlow(to, tree), panen: await sendHarvestFlow(to, tree) });
 });
 
 // Open https://<service>/ai-check?token=<VERIFY_TOKEN> in a browser: says whether the Gemini key and model work.

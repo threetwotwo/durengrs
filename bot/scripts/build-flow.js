@@ -1,13 +1,15 @@
-// scripts/build-flow.js — writes the three Flow files (WhatsApp Flow JSON v7.3):
-//   flows/flow.json       "Laporan Pohon"   (Laporan KESEHATAN) one screen: photos + words; opened from a tree ID   (env FLOW_ID)
-//   flows/flow-panen.json "Laporan Panen"   fruits picked up today from one tree, each weighed and scored           (env HARVEST_FLOW_ID)
-//   flows/flow-farm.json  "Catatan Kebun"   rain and finished work, no tree needed                                  (env FARM_FLOW_ID)
+// scripts/build-flow.js — writes the two Flow files (WhatsApp Flow JSON v7.3):
+//   flows/flow.json       "Laporan Pohon"   both buttons under a tree ID (env FLOW_ID):
+//                                           Laporan KESEHATAN: REPORT (photos + words);
+//                                           Laporan PANEN: PANEN (fruits picked up today) -> BUAH_A.. (each weighed and scored)
+//   flows/flow-farm.json  "Catatan Kebun"   rain and finished work, no tree needed (env FARM_FLOW_ID)
 // Run: npm run build-flow     Then paste each file into its OWN new Flow (a published Flow can't be edited).
 // All worker-facing text is Indonesian. Rules and ranges live on the server (lib/rules.js); the Flow only draws.
 //
 // Two rules learned the hard way (both are checked in test/flow.test.js):
 //  * a dynamic property must be the WHOLE value: "${data.title}", never "Pohon ${data.title}" (shows literally);
-//  * DatePicker has no label-variant.
+//  * DatePicker has no label-variant;
+//  * ids (screens) and names may hold letters and underscores only: BUAH_A, berat_a (no digits).
 const fs = require('fs');
 const path = require('path');
 
@@ -45,15 +47,22 @@ const screen = (id, title, data, children, extra = {}) => ({ id, title, ...extra
 const CONFIRM_DATA = { needs_confirm: bool(false), warned: str('') };
 const DATE_DATA = { min_date: str('2026-08-01'), max_date: str('2026-10-04') };
 
-const DONE = screen(
+// `message` also goes back in the tree Flow (the harvest summary for the chat); the farm Flow keeps its published DONE.
+const doneScreen = (withMessage) => screen(
   'DONE',
   'Selesai',
   { title: str('✅ Laporan tersimpan'), message: str('Laporan untuk A1 tersimpan.'), saved: bool(true), report_id: str('') },
   // `saved` and `report_id` go back with the completion: the chat message that follows can tell "saved" from "not
   // saved", and the bot reads the saved report's photos with Gemini (lib/ai.js) before answering.
-  [heading('${data.title}'), body('${data.message}'), footer('Tutup', { name: 'complete', payload: { saved: '${data.saved}', report_id: '${data.report_id}' } })],
+  [
+    heading('${data.title}'),
+    body('${data.message}'),
+    footer('Tutup', { name: 'complete', payload: { saved: '${data.saved}', report_id: '${data.report_id}', ...(withMessage ? { message: '${data.message}' } : {}) } }),
+  ],
   { terminal: true, success: true }
 );
+const DONE = doneScreen(true);
+const FARM_DONE = doneScreen(false);
 
 // =====================================================================================================
 // Flow 1: Laporan Pohon — photos + words on one screen, nothing to choose. The server saves the report
@@ -96,20 +105,18 @@ const REPORT = screen(
   ]
 );
 
-// DONE is also where the Flow ends when the tree has gone (archived or removed) while it was open.
-const treeFlow = { version: '7.3', data_api_version: '3.0', routing_model: { REPORT: ['DONE'], DONE: [] }, screens: [REPORT, DONE] };
 
 // =====================================================================================================
-// Flow 3: Laporan Panen — how many fruits were picked up from the tree today, then each fruit: weight (grams) and
-// aroma, skin and shape scored 1-5. Five fruits per screen; the server shows only as many slots as fruits and carries
-// what was entered on earlier screens (lib/flowScreens.js handlePanen / handleFruits).
+// Laporan PANEN (same Flow): how many fruits were picked up from the tree today, then each fruit: weight in grams and
+// aroma, kulit (skin) and bentuk (shape) 1-5, all typed. Flows have no table or repeating field, so the fruits come
+// five per screen; the server shows only as many slots as fruits and carries what earlier screens held
+// (lib/flowScreens.js handlePanen / handleFruits). 8 screens: up to 40 fruits per report.
 // =====================================================================================================
 
-const PER_SCREEN = 5; // lib/rules.js FRUITS_PER_SCREEN
-const FRUIT_SCREENS = 4; // up to 20 fruits per report (rules.js LIMITS.harvestReportFruits)
-const SCORES = ['1', '2', '3', '4', '5'].map((v) => ({ id: v, title: v }));
-const score = (name, label, slot) => ({
-  type: 'ChipsSelector', name, label, 'data-source': SCORES, 'max-selected-items': 1, required: false, visible: `\${data.show_${slot}}`,
+const SLOTS = ['a', 'b', 'c', 'd', 'e']; // lib/rules.js FRUITS_PER_SCREEN
+const PAGES = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']; // rules.js LIMITS.harvestReportFruits = 5 x 8
+const numIn = (name, label, helper, slot) => ({
+  type: 'TextInput', name, label, 'input-type': 'number', ...(helper ? { 'helper-text': helper } : {}), required: false, visible: `\${data.show_${slot}}`,
 });
 
 const PANEN = screen(
@@ -121,69 +128,55 @@ const PANEN = screen(
       heading('${data.panen_title}'),
       caption('${data.today_caption}'),
       body('Hitung semua buah dari pohon ini yang dipungut hari ini. Setelah itu, isi berat dan nilai tiap buah.'),
-      num('count', 'Berapa buah dipungut hari ini?', 'Satu laporan paling banyak 20 buah.'),
+      num('count', 'Berapa buah dipungut hari ini?', 'Satu laporan paling banyak 40 buah.'),
       footer('Lanjut', exchange({ count: '${form.count}' })),
     ]),
   ]
 );
 
 function fruitScreen(page) {
-  const slots = Array.from({ length: PER_SCREEN }, (_, i) => i + 1);
   const data = {
     fruits_title: str('Buah 1–5 dari 6'),
     next_label: str('Lanjut'),
     count: str('6'),
     collected: str('[]'),
-    ...Object.fromEntries(slots.flatMap((n) => [[`show_${n}`, bool(true)], [`label_${n}`, str(`Buah ${n}`)]])),
+    ...Object.fromEntries(SLOTS.flatMap((x, i) => [[`show_${x}`, bool(true)], [`label_${x}`, str(`Buah ${i + 1}`)]])),
   };
   const children = [
     heading('${data.fruits_title}'),
-    body('Timbang tiap buah, lalu beri nilai 1 sampai 5:'),
+    body('Timbang tiap buah. Lalu beri nilai 1 sampai 5:'),
     caption('Aroma: 5 = wangi kuat & segar, 1 = tidak wangi'),
     caption('Kulit: 5 = mulus sempurna, 1 = cacat (bolong, retak)'),
     caption('Bentuk: 5 = bulat sempurna, 1 = peyang beberapa ruas'),
   ];
   const payload = { count: '${data.count}', collected: '${data.collected}' };
-  for (const n of slots) {
+  for (const x of SLOTS) {
     children.push(
-      { type: 'TextSubheading', text: `\${data.label_${n}}`, visible: `\${data.show_${n}}` },
-      {
-        type: 'TextInput', name: `w${n}`, label: 'Berat (gram)', 'input-type': 'number',
-        'helper-text': 'Contoh: 2350 untuk 2,35 kg', required: false, visible: `\${data.show_${n}}`,
-      },
-      score(`a${n}`, 'Aroma', n),
-      score(`k${n}`, 'Kulit', n),
-      score(`b${n}`, 'Bentuk', n)
+      { type: 'TextSubheading', text: `\${data.label_${x}}`, visible: `\${data.show_${x}}` },
+      numIn(`berat_${x}`, 'Berat (gram)', 'Contoh: 2350 untuk 2,35 kg', x),
+      numIn(`aroma_${x}`, 'Aroma (1-5)', '', x),
+      numIn(`kulit_${x}`, 'Kulit (1-5)', '', x),
+      numIn(`bentuk_${x}`, 'Bentuk (1-5)', '', x)
     );
-    Object.assign(payload, { [`w${n}`]: `\${form.w${n}}`, [`a${n}`]: `\${form.a${n}}`, [`k${n}`]: `\${form.k${n}}`, [`b${n}`]: `\${form.b${n}}` });
+    for (const f of ['berat', 'aroma', 'kulit', 'bentuk']) payload[`${f}_${x}`] = `\${form.${f}_${x}}`;
   }
   children.push(footer('${data.next_label}', exchange(payload)));
-  return screen(`BUAH_${page}`, 'Berat & Nilai Buah', data, [form(`fruit_form_${page}`, children)]);
+  return screen(`BUAH_${page}`, 'Berat & Nilai Buah', data, [form(`fruit_form_${page.toLowerCase()}`, children)]);
 }
-const FRUITS = Array.from({ length: FRUIT_SCREENS }, (_, i) => fruitScreen(i + 1));
+const FRUITS = PAGES.map(fruitScreen);
 
-// Its own DONE: the completion also carries the summary, which the bot repeats in the chat.
-const PANEN_DONE = screen(
-  'DONE',
-  'Selesai',
-  { title: str('✅ Panen tersimpan'), message: str('Panen A1: 6 buah, 14,2 kg.'), saved: bool(true), report_id: str('') },
-  [
-    heading('${data.title}'),
-    body('${data.message}'),
-    footer('Tutup', { name: 'complete', payload: { saved: '${data.saved}', report_id: '${data.report_id}', message: '${data.message}' } }),
-  ],
-  { terminal: true, success: true }
-);
-
-const panenFlow = {
+// One Flow for both buttons: the server opens REPORT or PANEN (the flow token says which). REPORT -> PANEN is never
+// taken; it keeps one entry screen. DONE is also where the Flow ends when the tree has gone while it was open.
+const treeFlow = {
   version: '7.3',
   data_api_version: '3.0',
   routing_model: {
-    PANEN: ['BUAH_1', 'DONE'],
-    ...Object.fromEntries(FRUITS.map((f, i) => [f.id, i < FRUITS.length - 1 ? [`BUAH_${i + 2}`, 'DONE'] : ['DONE']])),
+    REPORT: ['DONE', 'PANEN'],
+    PANEN: ['BUAH_A', 'DONE'],
+    ...Object.fromEntries(PAGES.map((p, i) => [`BUAH_${p}`, i < PAGES.length - 1 ? [`BUAH_${PAGES[i + 1]}`, 'DONE'] : ['DONE']])),
     DONE: [],
   },
-  screens: [PANEN, ...FRUITS, PANEN_DONE],
+  screens: [REPORT, PANEN, ...FRUITS, DONE],
 };
 
 // =====================================================================================================
@@ -275,11 +268,10 @@ const farmFlow = {
   version: '7.3',
   data_api_version: '3.0',
   routing_model: { FARM_HOME: ['KERJA', 'HUJAN'], KERJA: ['DONE'], HUJAN: ['DONE'], DONE: [] },
-  screens: [FARM_HOME, KERJA, HUJAN, DONE],
+  screens: [FARM_HOME, KERJA, HUJAN, FARM_DONE],
 };
 
 const root = path.join(__dirname, '..');
 fs.writeFileSync(path.join(root, 'flows', 'flow.json'), JSON.stringify(treeFlow, null, 2) + '\n');
 fs.writeFileSync(path.join(root, 'flows', 'flow-farm.json'), JSON.stringify(farmFlow, null, 2) + '\n');
-fs.writeFileSync(path.join(root, 'flows', 'flow-panen.json'), JSON.stringify(panenFlow, null, 2) + '\n');
-console.log(`flow.json: ${treeFlow.screens.length} screens, flow-farm.json: ${farmFlow.screens.length} screens, flow-panen.json: ${panenFlow.screens.length} screens`);
+console.log(`flow.json: ${treeFlow.screens.length} screens, flow-farm.json: ${farmFlow.screens.length} screens`);
