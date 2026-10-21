@@ -46,7 +46,17 @@ const LIMITS = {
   taskMaxAgeDays: 30,
   rainMaxAgeDays: 7,
   notes: 500,
+  // The harvest Flow (Laporan PANEN): fruits picked up from one tree in one report, and one fruit's weight in grams.
+  harvestReportFruits: { min: 1, max: 20 },
+  fruitWeightG: { min: 300, max: 9000 },
 };
+
+// ---------- harvest Flow: one fruit's quality, 1 to 5 ----------
+
+// Fruits per screen of the harvest Flow (scripts/build-flow.js draws this many slots per screen).
+const FRUITS_PER_SCREEN = 5;
+const QUALITY = ['aroma', 'skin', 'shape'];
+const QUALITY_LABELS = { aroma: 'Aroma', skin: 'Kulit', shape: 'Bentuk' };
 
 // ---------- dates (Asia/Jakarta) ----------
 
@@ -104,6 +114,8 @@ const idFromToken = (flowToken, content = {}) =>
   crypto.createHash('sha1').update(`${flowToken}|${JSON.stringify(content)}`).digest('hex').slice(0, 20);
 // A harvest read from a report: one per report, so reading the report again never adds a second one.
 const harvestIdForReport = (reportId) => `wa_${reportId}`;
+// A harvest from the harvest Flow: same content from the same Flow message is the same record (a retried submit).
+const harvestIdForFlow = (flowToken, content) => `wap_${idFromToken(flowToken, content)}`;
 
 // ---------- validators (pure) ----------
 // Each returns { error } (hard, reject), { warning } (soft, asks the worker to confirm) or { ok: value }.
@@ -132,10 +144,38 @@ function checkRain({ date, mm }, { today }) {
     : { ok: value };
 }
 
+// The number of fruits picked up today (the harvest Flow's first screen).
+function checkFruitCount(raw) {
+  const { min, max } = LIMITS.harvestReportFruits;
+  const r = parseNumber(raw, { label: 'Jumlah buah', min: 0, max: 1e6, integer: true });
+  if (r.error) return { error: r.error };
+  if (r.value < min) return { error: 'Jumlah buah minimal 1.' };
+  if (r.value > max) return { error: `Satu laporan paling banyak ${max} buah. Laporkan ${max} dulu, lalu kirim laporan panen lagi untuk sisanya.` };
+  return { ok: r.value };
+}
+
+// One fruit from a screen of the harvest Flow: weight in grams and three scores 1-5 (a score arrives as ["4"] from a
+// ChipsSelector, or "4"). `n` is the fruit's number, for the message.
+function checkFruit({ weight, aroma, skin, shape }, n) {
+  const w = parseNumber(weight, { label: `Berat buah ${n}`, min: 0, max: 1e7, integer: false });
+  if (w.error) return { error: w.error.replace(' wajib diisi.', ' belum diisi.') };
+  if (w.value < 30) return { error: `Berat buah ${n}: tulis dalam gram, bukan kilogram. Contoh: 2,35 kg ditulis 2350.` };
+  const { min, max } = LIMITS.fruitWeightG;
+  if (w.value < min || w.value > max) return { error: `Berat buah ${n} harus antara ${min} dan ${max} gram. Periksa lagi angkanya.` };
+  const scores = {};
+  for (const [key, raw] of Object.entries({ aroma, skin, shape })) {
+    const v = Number(Array.isArray(raw) ? raw[0] : raw);
+    if (!Number.isInteger(v) || v < 1 || v > 5) return { error: `Buah ${n}: pilih nilai ${QUALITY_LABELS[key].toLowerCase()} (1 sampai 5).` };
+    scores[key] = v;
+  }
+  return { ok: { weightG: Math.round(w.value), ...scores } };
+}
+
 module.exports = {
   GRADES, BLOOM_PARTS, SEASON_TASKS, SEASON_TASK_LABELS, CONDITIONS, CONDITION_LABELS, COUNT_STAGES, LIMITS,
   todayStr, addDays, diffDays, normalizeDate, dateLabel,
   parseNumber, cleanText,
-  cropCountId, seasonTaskId, bloomWaveId, idFromToken, harvestIdForReport,
+  cropCountId, seasonTaskId, bloomWaveId, idFromToken, harvestIdForReport, harvestIdForFlow,
   checkSeasonTasks, checkRain,
+  FRUITS_PER_SCREEN, QUALITY, QUALITY_LABELS, checkFruitCount, checkFruit,
 };

@@ -1,6 +1,8 @@
 // index.js — the farm's WhatsApp bot (Cloud Run): the chat webhook, the encrypted Flow endpoint, /ai-check,
 // /cases-backfill and /rain-sync (the farm's daily rain, also fetched by itself after messages).
-//   A tree ID ("A1") gets the tree's last photos and the report Flow (flows/flow.json, FLOW_ID);
+//   A tree ID ("A1") gets the tree's last photos and two buttons, each in its own message (a WhatsApp message holds
+//   one Flow button): Laporan KESEHATAN (flows/flow.json, FLOW_ID) and Laporan PANEN (flows/flow-panen.json,
+//   HARVEST_FLOW_ID; left out while that is not set);
 //   KEBUN (or the "Hujan & Pekerjaan" button) gets the farm Flow (flows/flow-farm.json, FARM_FLOW_ID).
 //   When a report Flow completes, Gemini reads the report (lib/ai.js) and the reply comes with a fresh Flow message.
 require('dotenv').config();
@@ -9,7 +11,7 @@ const { decryptRequest, encryptResponse } = require('./lib/encryption');
 const { getTreeById, getTreeRecord, isArchived, getLastReport } = require('./lib/trees');
 const { getCollageUrl } = require('./lib/reports');
 const { CONDITION_LABELS } = require('./lib/rules');
-const { route, parseFlowToken, makeTreeToken, makeFarmToken } = require('./lib/flowScreens');
+const { route, parseFlowToken, makeTreeToken, makeFarmToken, makeHarvestToken } = require('./lib/flowScreens');
 const { analyzeReport, checkGemini } = require('./lib/ai');
 const { backfillCases } = require('./lib/backfill');
 const { syncRain } = require('./lib/rain');
@@ -18,7 +20,7 @@ const app = express();
 app.use(express.json());
 
 const { AsyncLocalStorage } = require('async_hooks');
-const { VERIFY_TOKEN, WHATSAPP_TOKEN, PHONE_NUMBER_ID, FLOW_ID, FARM_FLOW_ID } = process.env;
+const { VERIFY_TOKEN, WHATSAPP_TOKEN, PHONE_NUMBER_ID, FLOW_ID, FARM_FLOW_ID, HARVEST_FLOW_ID } = process.env;
 
 // Replies go out from the WhatsApp number that RECEIVED the message (taken from the webhook),
 // so the test number and the production number can both work. PHONE_NUMBER_ID is only the fallback.
@@ -61,8 +63,9 @@ const HELP_BODY = [
   'Pilih salah satu:',
   '',
   '🌳 *Laporan pohon*',
-  'Foto + keterangan: bunga, buah, hama, penyakit, panen.',
-  'Kirim ID pohon, contoh: *A1*',
+  'Kirim ID pohon, contoh: *A1*. Lalu pilih:',
+  '• *KESEHATAN*: foto + keterangan (bunga, buah, hama, penyakit)',
+  '• *PANEN*: buah yang dipungut hari ini, ditimbang dan dinilai',
   '',
   '🌧️ *Hujan & pekerjaan kebun*',
   'Ketuk tombol di bawah, atau kirim kata *KEBUN*.',
@@ -115,30 +118,48 @@ function reportCaption(tree, report) {
   return lines.join('\n').slice(0, 1000); // WhatsApp caption limit is 1024
 }
 
-function sendTreeFlow(to, tree, intro) {
+const treeHeader = (tree) => ['Pohon ' + tree.id, tree.variant, tree.block ? `Blok ${tree.block}` : null].filter(Boolean).join(' · ');
+
+function flowMessage(to, { header, text, token, flowId, cta }) {
   return sendWhatsAppMessage({
     messaging_product: 'whatsapp',
     to,
     type: 'interactive',
     interactive: {
       type: 'flow',
-      header: { type: 'text', text: ['Pohon ' + tree.id, tree.variant, tree.block ? `Blok ${tree.block}` : null].filter(Boolean).join(' · ') },
-      body: {
-        text: intro
-          ? `${intro}\n\nKetuk tombol di bawah untuk lapor lagi untuk pohon ini. Untuk pohon lain, kirim ID-nya. Untuk hujan atau pekerjaan kebun, kirim *KEBUN*.`
-          : 'Ketuk tombol di bawah, ambil foto, lalu tulis apa yang Anda lihat.',
-      },
+      header: { type: 'text', text: header },
+      body: { text },
       action: {
         name: 'flow',
-        parameters: {
-          flow_message_version: '3',
-          flow_token: makeTreeToken(tree.id, to),
-          flow_id: FLOW_ID,
-          flow_cta: 'Kirim Laporan',
-          flow_action: 'data_exchange',
-        },
+        parameters: { flow_message_version: '3', flow_token: token, flow_id: flowId, flow_cta: cta, flow_action: 'data_exchange' },
       },
     },
+  });
+}
+
+// Laporan KESEHATAN: photos + words (the general report). `intro`: the answer to the report just sent.
+function sendTreeFlow(to, tree, intro) {
+  return flowMessage(to, {
+    header: treeHeader(tree),
+    text: intro
+      ? `${intro}\n\nKetuk tombol di bawah untuk lapor lagi untuk pohon ini. Untuk pohon lain, kirim ID-nya. Untuk hujan atau pekerjaan kebun, kirim *KEBUN*.`
+      : '🩺 *Laporan KESEHATAN*\nFoto pohon, lalu tulis apa yang Anda lihat: bunga, buah, hama, penyakit.',
+    token: makeTreeToken(tree.id, to),
+    flowId: FLOW_ID,
+    cta: 'Laporan KESEHATAN',
+  });
+}
+
+// Laporan PANEN: today's fruits from this tree, each weighed and scored. `intro`: the summary of the harvest just sent.
+function sendHarvestFlow(to, tree, intro) {
+  return flowMessage(to, {
+    header: treeHeader(tree),
+    text: intro
+      ? `${intro}\n\nAda buah lagi dari pohon ini? Ketuk tombol di bawah. Untuk pohon lain, kirim ID-nya.`
+      : '🧺 *Laporan PANEN*\nBuah yang dipungut hari ini dari pohon ini: jumlahnya, lalu berat, aroma, kulit, dan bentuk tiap buah.',
+    token: makeHarvestToken(tree.id, to),
+    flowId: HARVEST_FLOW_ID,
+    cta: 'Laporan PANEN',
   });
 }
 
@@ -184,6 +205,11 @@ async function reopenAfterCompletion(to, message) {
       const ai = saved && reportId ? await analyzeReport(reportId, { tree, workerPhone: to }) : null;
       return sendTreeFlow(to, tree, ai ? `✅ Laporan tersimpan.\n\n${ai}`.slice(0, 850) : thanks);
     }
+  }
+  if (kind === 'harvest' && treeId && HARVEST_FLOW_ID) {
+    const tree = await getTreeById(treeId);
+    const summary = typeof r.message === 'string' ? r.message : '';
+    if (tree) return sendHarvestFlow(to, tree, saved ? `✅ Panen tersimpan.\n\n${summary}`.trim().slice(0, 850) : '⚠️ Panen belum tersimpan. Coba lagi lewat tombol di bawah.');
   }
   if (kind === 'farm' && FARM_FLOW_ID) return sendFarmFlow(to, thanks);
   return sendHelp(to, thanks);
@@ -273,10 +299,11 @@ async function handleIncomingMessage(body) {
     return;
   }
 
-  await sendLastReportPhotos(to, tree); // zoomable; the Flow comes last so it sits at the bottom
+  await sendLastReportPhotos(to, tree); // zoomable; the buttons come last so they sit at the bottom
   const sent = await sendTreeFlow(to, tree);
-  // If WhatsApp rejects the Flow (wrong FLOW_ID, Flow unpublished...) the worker should not be left in silence.
-  if (sent?.error) {
+  const harvest = HARVEST_FLOW_ID ? await sendHarvestFlow(to, tree) : null;
+  // If WhatsApp rejects a Flow (wrong id, Flow unpublished...) the worker should not be left in silence.
+  if (sent?.error || harvest?.error) {
     await sendText(to, `Pohon ${tree.id}: formulir laporan belum bisa dibuka saat ini. Coba lagi sebentar lagi.`);
   }
 }
@@ -288,7 +315,7 @@ app.post(['/send-tree-flow', '/send-tree-lookup'], async (req, res) => {
 
   const tree = await getTreeById(treeId.toUpperCase());
   if (!tree) return res.status(404).json({ error: `Pohon ${treeId} tidak ditemukan` });
-  res.json(await sendTreeFlow(to, tree));
+  res.json({ kesehatan: await sendTreeFlow(to, tree), panen: HARVEST_FLOW_ID ? await sendHarvestFlow(to, tree) : 'HARVEST_FLOW_ID not set' });
 });
 
 // Open https://<service>/ai-check?token=<VERIFY_TOKEN> in a browser: says whether the Gemini key and model work.

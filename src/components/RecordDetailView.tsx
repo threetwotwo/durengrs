@@ -6,7 +6,7 @@ import { useFarm } from '../context/FarmContext';
 import { useT } from '../i18n';
 import { goBack, navigate, reportUrl, treeUrl } from '../lib/router';
 import { buildFieldLog, type LogEntry, type LogKind, type TreeEdit } from '../lib/fieldLog';
-import { GRADES } from '../lib/fieldData';
+import { GRADES, harvestScores } from '../lib/fieldData';
 import { SEASON_TASKS } from '../lib/fieldInsights';
 import { TOPIC_BY_ID, pick } from '../lib/guide';
 import { diffDays, formatShortDate, todayStr } from '../lib/treatments';
@@ -302,6 +302,36 @@ function recordRows(
       if (h.weightKg) rows.push([t('rec.f.weight'), `${h.weightKg} kg`]);
       const graded = GRADES.filter((g) => h.grades?.[g]);
       if (graded.length) rows.push([t('rec.f.grades'), graded.map((g) => `${t(`grade.${g}`)} ${h.grades![g]}`).join(' · ')]);
+      if (h.items?.length) {
+        const sc = harvestScores(h.items)!;
+        const n = (x: number) => x.toLocaleString(lang === 'id' ? 'id-ID' : 'en-GB', { maximumFractionDigits: 1 });
+        rows.push([t('hv.avgScores'), t('hv.scores', { a: n(sc.aroma), k: n(sc.skin), b: n(sc.shape) })]);
+        rows.push([
+          t('hv.perFruit'),
+          <table className="text-xs tabular">
+            <thead>
+              <tr className="text-slate-500 text-left">
+                <th className="pr-3 font-medium">#</th>
+                <th className="pr-3 font-medium text-right">{t('hv.col.weight')}</th>
+                <th className="pr-3 font-medium text-right">{t('hv.col.aroma')}</th>
+                <th className="pr-3 font-medium text-right">{t('hv.col.skin')}</th>
+                <th className="font-medium text-right">{t('hv.col.shape')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {h.items.map((f, i) => (
+                <tr key={i}>
+                  <td className="pr-3 text-slate-500">{i + 1}</td>
+                  <td className="pr-3 text-right">{f.weightG.toLocaleString(lang === 'id' ? 'id-ID' : 'en-GB')} g</td>
+                  <td className="pr-3 text-right">{f.aroma}</td>
+                  <td className="pr-3 text-right">{f.skin}</td>
+                  <td className="text-right">{f.shape}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>,
+        ]);
+      }
       if (h.problems?.length) rows.push([t('rec.f.problems'), `${h.problems.map((p) => t(`rec.hv.p.${p}`)).join(', ')}${h.problemFruits ? ` (${t('log.s.fruit', { n: h.problemFruits })})` : ''}`]);
       if (h.variant) rows.push([t('common.variant'), h.variant]);
       rows.push([t('rec.f.pickedOn'), formatShortDate(h.date)]);

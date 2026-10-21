@@ -13,7 +13,7 @@ reports.processPhotos = async (items, treeId, id) => {
 };
 const R = require('../lib/rules');
 const C = require('../lib/cropData');
-const { route, parseFlowToken, makeTreeToken } = require('../lib/flowScreens');
+const { route, parseFlowToken, makeTreeToken, makeHarvestToken } = require('../lib/flowScreens');
 const { analyzeReport, toTriage } = require('../lib/ai');
 const { backfillCases } = require('../lib/backfill');
 const { applyReading } = require('../lib/treeReading');
@@ -689,4 +689,55 @@ test('rain: the farm\'s daily rain is filed by itself, a day a person recorded i
     delete process.env.FARM_LAT;
     delete process.env.FARM_LON;
   }
+});
+
+// ---------- Laporan PANEN ----------
+
+test('harvest Flow: count, fruits screen by screen, saved as one harvest with each fruit', async () => {
+  seed({ blockBloomDaysAgo: 110 });
+  const token = makeHarvestToken('A1', PHONE);
+  const go = async (screen, data) =>
+    check('harvest', screen, await route({ kind: 'harvest', action: 'data_exchange', screen, data, flowToken: token, treeId: 'A1', workerPhone: PHONE }));
+  assert.equal(parseFlowToken(token).kind, 'harvest');
+  const init = await route({ kind: 'harvest', action: 'INIT', flowToken: token, treeId: 'A1', workerPhone: PHONE });
+  assert.equal(init.screen, 'PANEN');
+  assert.match(init.data.panen_title, /A1/);
+
+  assert.match((await go('PANEN', { count: '0' })).data.error_message, /minimal 1/);
+  assert.match((await go('PANEN', { count: '25' })).data.error_message, /paling banyak 20/);
+  const s1 = await go('PANEN', { count: '6' });
+  assert.equal(s1.screen, 'BUAH_1');
+  assert.equal(s1.data.fruits_title, 'Buah 1–5 dari 6');
+  assert.deepEqual([1, 2, 3, 4, 5].map((i) => s1.data[`show_${i}`]), [true, true, true, true, true]);
+  assert.equal(s1.data.next_label, 'Lanjut');
+
+  const fruit = (i, w) => ({ [`w${i}`]: String(w), [`a${i}`]: ['5'], [`k${i}`]: ['4'], [`b${i}`]: ['3'] });
+  const page1 = { count: '6', collected: '[]', ...fruit(1, 2000), ...fruit(2, 2500), ...fruit(3, 3000), ...fruit(4, 2200), ...fruit(5, 1800) };
+  // A missing score, and a weight in kilograms, are sent back with the same screen.
+  assert.match((await go('BUAH_1', { ...page1, a3: [] })).data.error_message, /Buah 3: pilih nilai aroma/);
+  assert.match((await go('BUAH_1', { ...page1, w2: '2,5' })).data.error_message, /gram, bukan kilogram/);
+
+  const s2 = await go('BUAH_1', page1);
+  assert.equal(s2.screen, 'BUAH_2');
+  assert.equal(s2.data.fruits_title, 'Buah 6 dari 6');
+  assert.deepEqual([1, 2, 3, 4, 5].map((i) => s2.data[`show_${i}`]), [true, false, false, false, false]);
+  assert.equal(s2.data.label_1, 'Buah 6');
+  assert.equal(s2.data.next_label, 'Simpan Panen');
+  assert.equal(JSON.parse(s2.data.collected).length, 5);
+
+  const doneRes = await go('BUAH_2', { count: '6', collected: s2.data.collected, ...fruit(1, 2500) });
+  assert.equal(doneRes.screen, 'DONE');
+  assert.equal(doneRes.data.saved, true);
+  assert.match(doneRes.data.message, /6 buah, 14 kg/);
+  const h = fake.get('harvests', doneRes.data.report_id);
+  assert.equal(h.treeId, 'A1');
+  assert.equal(h.fruits, 6);
+  assert.equal(h.weightKg, 14);
+  assert.equal(h.source, 'whatsapp');
+  assert.deepEqual(h.items[0], { weightG: 2000, aroma: 5, skin: 4, shape: 3 });
+  assert.equal(h.items.length, 6);
+  // The same submit again (a network retry) is not a second harvest.
+  const again = await go('BUAH_2', { count: '6', collected: s2.data.collected, ...fruit(1, 2500) });
+  assert.equal(again.data.title, '✅ Sudah tercatat');
+  assert.equal(fake.all('harvests').length, 1);
 });

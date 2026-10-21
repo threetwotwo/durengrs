@@ -3,7 +3,7 @@
 // from one screen to the next is allowed by routing_model. Used by screens.test.js on every scenario.
 const assert = require('node:assert/strict');
 // Keyed by the token kind (lib/flowScreens.js parseFlowToken).
-const flows = { report: require('../flows/flow.json'), farm: require('../flows/flow-farm.json') };
+const flows = { report: require('../flows/flow.json'), farm: require('../flows/flow-farm.json'), harvest: require('../flows/flow-panen.json') };
 
 const typeOf = (v) => (Array.isArray(v) ? 'array' : v === null ? 'null' : typeof v);
 
@@ -25,7 +25,7 @@ function check(kind, from, res) {
   const walk = (n, fn) => (Array.isArray(n) ? n.forEach((x) => walk(x, fn)) : n && typeof n === 'object' && (fn(n), Object.values(n).forEach((v) => walk(v, fn))));
   walk(target.layout, (n) => {
     if (['TextHeading', 'TextBody', 'TextCaption', 'TextSubheading'].includes(n.type)) {
-      const m = /^\$\{data\.([a-z_]+)\}$/.exec(n.text || '');
+      const m = /^\$\{data\.([a-z_0-9]+)\}$/.exec(n.text || '');
       if (m) assert.ok(String(res.data[m[1]] ?? '').trim() !== '', `${res.screen}: text data.${m[1]} is empty`);
     }
     // choices shown from data: titles within 30 characters, descriptions within 300

@@ -6,6 +6,10 @@
 //    REPORT (1-3 photos + the worker's words) -> DONE. Gemini reads the saved report once the Flow completes
 //    (index.js reopenAfterCompletion -> lib/ai.js analyzeReport).
 //
+//  Flow "Laporan Panen" (kind 'harvest', the Laporan PANEN button under a tree ID, flows/flow-panen.json):
+//    PANEN (how many fruits picked up today) -> BUAH_1..BUAH_4 (five fruits each: weight in grams, aroma, skin and
+//    shape 1-5) -> DONE. Saved as one harvest of the tree (harvests/wap_..., `items` per fruit).
+//
 //  Flow "Catatan Kebun" (kind 'farm', opened with the Hujan & Pekerjaan button or the word KEBUN, flows/flow-farm.json):
 //    FARM_HOME -> KERJA (Pekerjaan Selesai) | HUJAN (Curah Hujan) -> DONE
 //
@@ -16,6 +20,7 @@
 // "Ya, sudah benar" checkbox; sending again with the box ticked (and the value unchanged) saves it.
 const R = require('./rules');
 const { getTreeById } = require('./trees');
+const { floweredOnFor } = require('./season');
 const { processPhotos, createReport, reportExists } = require('./reports');
 const C = require('./cropData');
 const S = require('./shared'); // generated from the webapp's src/shared: triage, labels, health words
@@ -23,15 +28,18 @@ const S = require('./shared'); // generated from the webapp's src/shared: triage
 // ---------- flow tokens ----------
 // The flow token is echoed back on every Flow endpoint request, so it carries what the endpoint needs:
 //   lapor:<treeId>:<workerPhone>:<time>  the tree report Flow (which tree, which worker)
+//   panen:<treeId>:<workerPhone>:<time>  the harvest Flow of a tree
 //   farm:<workerPhone>:<time>            the farm Flow (rain and finished work)
 //   tree:<treeId>:<workerPhone>:<time>   chat messages of the older multi-screen tree Flow: handled as a report,
 //                                        so an old button still opens the report screen and saves
 const makeTreeToken = (treeId, workerPhone) => `lapor:${treeId}:${workerPhone}:${Date.now()}`;
 const makeFarmToken = (workerPhone) => `farm:${workerPhone}:${Date.now()}`;
+const makeHarvestToken = (treeId, workerPhone) => `panen:${treeId}:${workerPhone}:${Date.now()}`;
 
 function parseFlowToken(flowToken) {
   const parts = String(flowToken || '').split(':');
   if (parts[0] === 'farm') return { kind: 'farm', treeId: '', workerPhone: parts[1] || '' };
+  if (parts[0] === 'panen') return { kind: 'harvest', treeId: parts[1] || '', workerPhone: parts[2] || '' };
   if (parts[0] === 'lapor' || parts[0] === 'tree') return { kind: 'report', treeId: parts[1] || '', workerPhone: parts[2] || '' };
   return { kind: 'report', treeId: '', workerPhone: '' }; // no tree: ends on DONE without saving
 }
@@ -126,6 +134,90 @@ function reportSummary(treeId, result, failedPhotos, triage) {
   return parts.join('\n');
 }
 
+// ---------- harvest (Laporan PANEN) ----------
+
+const decimal = (n, digits = 1) => n.toLocaleString('id-ID', { minimumFractionDigits: 0, maximumFractionDigits: digits });
+
+const panenScreen = (treeId, tree, today = R.todayStr()) =>
+  screen('PANEN', { panen_title: `Panen ${treeLabel(treeId, tree)}`, today_caption: `Hari ini, ${R.dateLabel(today)}` });
+
+// Screen `page` (1-4) of the fruits: five slots, those past the count hidden. `collected` holds the fruits of earlier
+// screens and comes back with the next press (the endpoint keeps nothing between screens).
+function fruitsScreen(page, count, collected) {
+  const per = R.FRUITS_PER_SCREEN;
+  const first = (page - 1) * per + 1;
+  const last = Math.min(count, page * per);
+  const data = {
+    fruits_title: count === 1 ? 'Buah 1' : first === last ? `Buah ${first} dari ${count}` : `Buah ${first}–${last} dari ${count}`,
+    next_label: last >= count ? 'Simpan Panen' : 'Lanjut',
+    count: String(count),
+    collected: JSON.stringify(collected),
+  };
+  for (let i = 1; i <= per; i++) {
+    const n = first + i - 1;
+    data[`show_${i}`] = n <= last;
+    data[`label_${i}`] = `Buah ${n}`;
+  }
+  return screen(`BUAH_${page}`, data);
+}
+
+async function handlePanen({ data = {}, treeId }) {
+  const tree = await getTreeById(treeId);
+  if (!tree) return treeGone(treeId);
+  const check = R.checkFruitCount(data.count);
+  if (check.error) return withError(panenScreen(treeId, tree), check.error);
+  return fruitsScreen(1, check.ok, []);
+}
+
+const parseCollected = (raw) => {
+  try {
+    const list = JSON.parse(String(raw || '[]'));
+    return Array.isArray(list) ? list : [];
+  } catch (_) {
+    return [];
+  }
+};
+
+async function handleFruits(page, { data = {}, flowToken, treeId, workerPhone }) {
+  const tree = await getTreeById(treeId);
+  if (!tree) return treeGone(treeId);
+  const count = R.checkFruitCount(data.count).ok;
+  if (!count) return panenScreen(treeId, tree);
+  const collected = parseCollected(data.collected).slice(0, (page - 1) * R.FRUITS_PER_SCREEN);
+  const res = fruitsScreen(page, count, collected);
+  const first = collected.length + 1;
+  const last = Math.min(count, page * R.FRUITS_PER_SCREEN);
+  for (let n = first, slot = 1; n <= last; n++, slot++) {
+    const check = R.checkFruit({ weight: data[`w${slot}`], aroma: data[`a${slot}`], skin: data[`k${slot}`], shape: data[`b${slot}`] }, n);
+    if (check.error) return withError(res, check.error);
+    collected.push(check.ok);
+  }
+  if (collected.length < count) return fruitsScreen(page + 1, count, collected);
+  return saveHarvestFromFlow({ tree, items: collected, flowToken, workerPhone });
+}
+
+async function saveHarvestFromFlow({ tree, items, flowToken, workerPhone }) {
+  const today = R.todayStr();
+  const totalG = items.reduce((s, f) => s + f.weightG, 0);
+  const weightKg = Math.round(totalG / 10) / 100;
+  const avg = (k) => items.reduce((s, f) => s + f[k], 0) / items.length;
+  const summary = [
+    `Panen ${tree.id} hari ini: ${items.length} buah, ${decimal(weightKg, 2)} kg (rata-rata ${decimal(totalG / items.length / 1000, 2)} kg per buah).`,
+    `Nilai rata-rata: aroma ${decimal(avg('aroma'))}, kulit ${decimal(avg('skin'))}, bentuk ${decimal(avg('shape'))}.`,
+  ].join('\n');
+  try {
+    const id = R.harvestIdForFlow(flowToken, { date: today, items });
+    const season = await C.loadTreeSeason(tree, today).catch(() => null);
+    const out = await C.saveHarvest({ id, tree, date: today, fruits: items.length, weightKg, items, floweredOn: floweredOnFor(season, today), workerPhone });
+    if (out.duplicate) return done(`Panen ${tree.id} ini sudah tersimpan sebelumnya.`, '✅ Sudah tercatat', id);
+    console.log(`Harvest ${id} for ${tree.id}: ${items.length} fruits, ${weightKg} kg`);
+    return done(summary, '✅ Panen tersimpan', id);
+  } catch (err) {
+    console.error('Saving harvest failed:', err);
+    return notSaved('Panen tidak dapat disimpan. Silakan coba lagi.');
+  }
+}
+
 // ---------- farm Flow (no tree involved) ----------
 
 const farmHomeScreen = () => screen('FARM_HOME', {});
@@ -199,10 +291,17 @@ async function route({ kind, action, screen: name, data, flowToken, treeId, work
     if (action === 'data_exchange' && FARM_HANDLERS[name]) return FARM_HANDLERS[name]({ data, flowToken, workerPhone });
     return farmHomeScreen();
   }
+  if (kind === 'harvest') {
+    if (action === 'data_exchange' && name === 'PANEN') return handlePanen({ data, treeId });
+    const page = action === 'data_exchange' && /^BUAH_[1-4]$/.test(name || '') ? Number(name.slice(5)) : 0;
+    if (page) return handleFruits(page, { data, flowToken, treeId, workerPhone });
+    const tree = treeId ? await getTreeById(treeId) : null;
+    return tree ? panenScreen(treeId, tree) : treeGone(treeId);
+  }
   // The tree report: INIT (or anything else an older Flow sends) opens the report screen.
   if (action === 'data_exchange' && name === 'REPORT') return handleReport({ data, flowToken, treeId, workerPhone });
   const tree = treeId ? await getTreeById(treeId) : null;
   return tree ? reportScreen(treeId, tree) : treeGone(treeId);
 }
 
-module.exports = { route, parseFlowToken, makeTreeToken, makeFarmToken };
+module.exports = { route, parseFlowToken, makeTreeToken, makeFarmToken, makeHarvestToken };

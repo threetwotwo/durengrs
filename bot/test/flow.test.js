@@ -4,7 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
-const FILES = ['flow.json', 'flow-farm.json'];
+const FILES = ['flow.json', 'flow-farm.json', 'flow-panen.json'];
 const flows = Object.fromEntries(FILES.map((f) => [f, require('../flows/' + f)]));
 
 const walk = (node, fn) => {
@@ -31,7 +31,7 @@ for (const [file, flow] of Object.entries(flows)) {
       walk(s.layout, (n) => {
         if (n.type === 'Footer') footers++;
         for (const v of Object.values(n)) {
-          if (typeof v === 'string') for (const m of v.matchAll(/\$\{data\.([a-z_]+)/g)) used.add(m[1]);
+          if (typeof v === 'string') for (const m of v.matchAll(/\$\{data\.([a-z_0-9]+)/g)) used.add(m[1]);
         }
       });
       assert.equal(footers, 1, `${s.id} needs exactly one Footer`);
@@ -71,6 +71,7 @@ for (const [file, flow] of Object.entries(flows)) {
         if (n.type === 'DatePicker') assert.ok(!('label-variant' in n), `${at}: DatePicker has no label-variant`);
         if (['TextInput', 'TextArea'].includes(n.type) && n['label-variant'] !== 'large') assert.ok(len(n.label) <= 20, `${at}: label over 20 characters`);
         if (n.type === 'Dropdown') assert.ok(len(n.label) <= 20, `${at}: label over 20 characters`);
+        if (n.type === 'ChipsSelector') assert.ok(len(n.label) <= 80 && n['data-source'].length <= 20, `${at}: chips label or options`);
         if (['RadioButtonsGroup', 'CheckboxGroup', 'OptIn'].includes(n.type)) assert.ok(len(n.label) <= 30, `${at}: label over 30 characters`);
         if (n['helper-text']) assert.ok(len(n['helper-text']) <= 80, `${at}: helper-text over 80 characters`);
         if (n.type === 'Footer') assert.ok(n.label.length <= 35, `${at}: footer label too long`);
@@ -100,7 +101,7 @@ test('the tree Flow is the one report screen; the farm Flow holds rain and finis
 });
 
 test('every screen with a data_exchange is one the endpoint handles', () => {
-  const handled = { 'flow.json': ['REPORT'], 'flow-farm.json': ['FARM_HOME', 'KERJA', 'HUJAN'] };
+  const handled = { 'flow.json': ['REPORT'], 'flow-farm.json': ['FARM_HOME', 'KERJA', 'HUJAN'], 'flow-panen.json': ['PANEN', 'BUAH_1', 'BUAH_2', 'BUAH_3', 'BUAH_4'] };
   for (const [file, flow] of Object.entries(flows))
     for (const s of flow.screens) {
       let ex = false;
@@ -123,4 +124,15 @@ test('no "penjarangan" in anything a worker reads', () => {
     + Object.values(require('../lib/rules').COUNT_STAGES).map((s) => s.label).join(' ')
     + Object.values(require('../lib/rules').SEASON_TASK_LABELS).join(' ');
   assert.equal(/jarang/i.test(all), false);
+});
+
+test('the harvest Flow: a count, then four screens of five fruits (weight and three 1-5 scores each)', () => {
+  const panen = flows['flow-panen.json'];
+  assert.deepEqual(panen.screens.map((s) => s.id), ['PANEN', 'BUAH_1', 'BUAH_2', 'BUAH_3', 'BUAH_4', 'DONE']);
+  const fruits = panen.screens[1];
+  const inputs = [];
+  walk(fruits.layout, (n) => { if (n.name && n.type && n.type !== 'Form') inputs.push(n.name); });
+  assert.deepEqual(inputs.slice(0, 4), ['w1', 'a1', 'k1', 'b1']);
+  assert.equal(inputs.length, 20);
+  assert.equal(panen.routing_model.BUAH_4.join(), 'DONE');
 });

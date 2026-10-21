@@ -25,7 +25,7 @@ imports.
 | `harvestCycles/{block}` | web app | both | `block, floweredOn` (the block's bloom date), `updatedAt` |
 | `bloomWaves/{treeId}_{date}_{part}` | bot (from a report), web app | both | `treeId, block, date, part (whole/lower/middle/upper/some), note?, photos?, source, workerPhone?` |
 | `cropCounts/{treeId}_{season}_{stage}_{date}` | bot (from a report), web app (✱Count sheet, tree page) | both | `treeId, block, season (bloom date of the counted flowers), stage (clusters/set/kept/onTree), count, date, by?, note?, photos?, source, reportId?`. ✱A count is **one number for the whole tree**: a fruit count (set/kept/onTree) replaces every earlier fruit count of the tree whatever flowering it is under (the tree's fruit is its newest count day, `src/shared/crop.ts`); flower clusters add up per flowering. The web app files fruit under the tree's main flowering at that flowering's stage and clusters under the newest flowering, one count per tree and day (`src/lib/recount.ts planCount`). ✱`photos [{path, url, thumb, medium}]` from the Count sheet are in Cloud Storage under `count-photos/{treeId}/` (`medium/`, `thumbs/`); `storage.rules` lets the web app create them there (JPEG, under 8 MB). Reports shows a day's web-app counts as one card |
-| `harvests/{auto}`; bot: ✱`harvests/wa_{reportId}` | bot (from a report), web app | both | `block, treeId?, variant, date, fruits, weightKg?, grades {extra, class1, class2, reject}, problems[], problemFruits?, floweredOn?, daysFromBloom?, notes?, photos?, source, workerPhone?`; ✱`reportId?` (the report it was read from; the bot writes no `photos`, they stay on the report). Older bot harvests (`wa` + hex, two-step Flow) may also carry `problems`, `problemFruits`, `photos`, `flowToken` |
+| `harvests/{auto}`; bot: ✱`harvests/wa_{reportId}`, ✱`harvests/wap_{hash}` (Laporan PANEN) | bot (from a report, or the harvest Flow), web app | both | `block, treeId?, variant, date, fruits, weightKg?, grades {extra, class1, class2, reject}, problems[], problemFruits?, floweredOn?, daysFromBloom?, notes?, photos?, source, workerPhone?`; ✱`items [{weightG, aroma, skin, shape}]` (Laporan PANEN: each fruit, scores 1-5); ✱`reportId?` (the report it was read from; the bot writes no `photos`, they stay on the report). Older bot harvests (`wa` + hex, two-step Flow) may also carry `problems`, `problemFruits`, `photos`, `flowToken` |
 | `seasonTasks/{block}_{season}_{task}` | bot (Catatan Kebun, and season jobs seen in a report), web app | both | `block, season, task (hand_pollination/fruit_thinning/bagging/ca_mg_spray/fruit_tying), date, source, workerPhone?`; the first record wins |
 | `weather/{date}` | bot (Catatan Kebun; and every day by itself from Open-Meteo, `source: 'open-meteo'`, `bot/lib/rain.js`), web app | both | `date, rainMm, source, workerPhone?, updatedAt`. A day a person recorded is never replaced by the fetched one |
 | `treatmentPlans/{auto}`, `treatments/{auto}` | web app | web app (bot: planned, see audit F3) | routines and applications; `plan.lastDone {block: date}` |
@@ -81,9 +81,13 @@ can edit or delete; each carries `reportId`, and the web app shows them on their
 
 ## The WhatsApp bot
 
-Two Flows (worker text in Indonesian), one endpoint (`POST /flow-endpoint`):
+Three Flows (worker text in Indonesian), one endpoint (`POST /flow-endpoint`). A tree ID ("A1") is answered with two
+messages, one button each: **Laporan KESEHATAN** and **Laporan PANEN**.
 
-- **Laporan Pohon** (`bot/flows/flow.json`, env `FLOW_ID`): the worker sends a tree ID ("A1"); one screen, `REPORT`:
+- **Laporan Panen** (`bot/flows/flow-panen.json`, env `HARVEST_FLOW_ID`): fruits picked up today from the tree (1-20),
+  then each fruit's weight in grams and aroma, kulit (skin), bentuk (shape) 1-5. Saved as one harvest
+  `harvests/wap_{hash}` (`fruits`, `weightKg` from the weights, `items`). Flow tokens `panen:<tree>:<phone>:<time>`.
+- **Laporan Pohon** (Laporan KESEHATAN; `bot/flows/flow.json`, env `FLOW_ID`): one screen, `REPORT`:
   1-3 photos and free text, both required, nothing to choose. Flow tokens `lapor:<tree>:<phone>:<time>`; tokens
   `tree:…` from chat messages of the older multi-screen Flow are handled the same way.
 - **Catatan Kebun** (`bot/flows/flow-farm.json`, env `FARM_FLOW_ID`): the word `KEBUN` or the "Hujan & Pekerjaan"

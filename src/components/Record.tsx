@@ -5,7 +5,7 @@ import { useT } from '../i18n';
 import { rememberReport } from '../lib/reportCache';
 import { type LogEntry, type LogKind } from '../lib/fieldLog';
 import { hasWords, reportTags, reportValues, type CountRound, type Tag, type TagTone } from '../lib/feed';
-import { GRADES } from '../lib/fieldData';
+import { GRADES, harvestScores } from '../lib/fieldData';
 import { SEASON_TASKS } from '../lib/fieldInsights';
 import { pick } from '../lib/guide';
 import { treeUrl } from '../lib/router';
@@ -142,9 +142,10 @@ export interface RecordView {
 
 /** Words for one record (and the records the bot filed from it). */
 export function useRecordView() {
-  const { t, lang } = useT();
+  const { t, lang, locale } = useT();
   const { workerLabel } = useFarm();
   const value = useEditValue();
+  const num = (n: number) => n.toLocaleString(locale, { maximumFractionDigits: 1 });
   const harvestLine = (fruits: number, kg?: number) => [t('feed.picked', { n: fruits }), kg ? `${kg} kg` : ''].filter(Boolean).join(', ');
 
   return (e: LogEntry, filed: LogEntry[] = []): RecordView => {
@@ -176,6 +177,8 @@ export function useRecordView() {
         const grades = GRADES.filter((g) => h.grades?.[g]).map((g) => `${t(`grade.${g}`)} ${h.grades![g]}`);
         const tags: Tag[] = grades.map((g) => ({ key: g, label: g, tone: 'plain' as TagTone }));
         for (const p of h.problems || []) tags.push({ key: `p:${p}`, label: t(`rec.hv.p.${p}`), tone: 'problem' });
+        const sc = harvestScores(h.items);
+        if (sc) tags.push({ key: 'scores', label: t('hv.scores', { a: num(sc.aroma), k: num(sc.skin), b: num(sc.shape) }), tone: 'plain' });
         return { ...base, kind: t('log.kind.harvest'), text: harvestLine(h.fruits, h.weightKg), tags };
       }
       case 'count':

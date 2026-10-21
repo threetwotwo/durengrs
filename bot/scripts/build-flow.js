@@ -1,6 +1,7 @@
-// scripts/build-flow.js — writes the two Flow files (WhatsApp Flow JSON v7.3):
-//   flows/flow.json       "Laporan Pohon"   one screen: photos + words; opened after a worker sends a tree ID  (env FLOW_ID)
-//   flows/flow-farm.json  "Catatan Kebun"   rain and finished work, no tree needed                             (env FARM_FLOW_ID)
+// scripts/build-flow.js — writes the three Flow files (WhatsApp Flow JSON v7.3):
+//   flows/flow.json       "Laporan Pohon"   (Laporan KESEHATAN) one screen: photos + words; opened from a tree ID   (env FLOW_ID)
+//   flows/flow-panen.json "Laporan Panen"   fruits picked up today from one tree, each weighed and scored           (env HARVEST_FLOW_ID)
+//   flows/flow-farm.json  "Catatan Kebun"   rain and finished work, no tree needed                                  (env FARM_FLOW_ID)
 // Run: npm run build-flow     Then paste each file into its OWN new Flow (a published Flow can't be edited).
 // All worker-facing text is Indonesian. Rules and ranges live on the server (lib/rules.js); the Flow only draws.
 //
@@ -99,6 +100,93 @@ const REPORT = screen(
 const treeFlow = { version: '7.3', data_api_version: '3.0', routing_model: { REPORT: ['DONE'], DONE: [] }, screens: [REPORT, DONE] };
 
 // =====================================================================================================
+// Flow 3: Laporan Panen — how many fruits were picked up from the tree today, then each fruit: weight (grams) and
+// aroma, skin and shape scored 1-5. Five fruits per screen; the server shows only as many slots as fruits and carries
+// what was entered on earlier screens (lib/flowScreens.js handlePanen / handleFruits).
+// =====================================================================================================
+
+const PER_SCREEN = 5; // lib/rules.js FRUITS_PER_SCREEN
+const FRUIT_SCREENS = 4; // up to 20 fruits per report (rules.js LIMITS.harvestReportFruits)
+const SCORES = ['1', '2', '3', '4', '5'].map((v) => ({ id: v, title: v }));
+const score = (name, label, slot) => ({
+  type: 'ChipsSelector', name, label, 'data-source': SCORES, 'max-selected-items': 1, required: false, visible: `\${data.show_${slot}}`,
+});
+
+const PANEN = screen(
+  'PANEN',
+  'Laporan Panen',
+  { panen_title: str('Panen A1 · MK · Blok A'), today_caption: str('Hari ini, 21 Okt 2026') },
+  [
+    form('panen_form', [
+      heading('${data.panen_title}'),
+      caption('${data.today_caption}'),
+      body('Hitung semua buah dari pohon ini yang dipungut hari ini. Setelah itu, isi berat dan nilai tiap buah.'),
+      num('count', 'Berapa buah dipungut hari ini?', 'Satu laporan paling banyak 20 buah.'),
+      footer('Lanjut', exchange({ count: '${form.count}' })),
+    ]),
+  ]
+);
+
+function fruitScreen(page) {
+  const slots = Array.from({ length: PER_SCREEN }, (_, i) => i + 1);
+  const data = {
+    fruits_title: str('Buah 1–5 dari 6'),
+    next_label: str('Lanjut'),
+    count: str('6'),
+    collected: str('[]'),
+    ...Object.fromEntries(slots.flatMap((n) => [[`show_${n}`, bool(true)], [`label_${n}`, str(`Buah ${n}`)]])),
+  };
+  const children = [
+    heading('${data.fruits_title}'),
+    body('Timbang tiap buah, lalu beri nilai 1 sampai 5:'),
+    caption('Aroma: 5 = wangi kuat & segar, 1 = tidak wangi'),
+    caption('Kulit: 5 = mulus sempurna, 1 = cacat (bolong, retak)'),
+    caption('Bentuk: 5 = bulat sempurna, 1 = peyang beberapa ruas'),
+  ];
+  const payload = { count: '${data.count}', collected: '${data.collected}' };
+  for (const n of slots) {
+    children.push(
+      { type: 'TextSubheading', text: `\${data.label_${n}}`, visible: `\${data.show_${n}}` },
+      {
+        type: 'TextInput', name: `w${n}`, label: 'Berat (gram)', 'input-type': 'number',
+        'helper-text': 'Contoh: 2350 untuk 2,35 kg', required: false, visible: `\${data.show_${n}}`,
+      },
+      score(`a${n}`, 'Aroma', n),
+      score(`k${n}`, 'Kulit', n),
+      score(`b${n}`, 'Bentuk', n)
+    );
+    Object.assign(payload, { [`w${n}`]: `\${form.w${n}}`, [`a${n}`]: `\${form.a${n}}`, [`k${n}`]: `\${form.k${n}}`, [`b${n}`]: `\${form.b${n}}` });
+  }
+  children.push(footer('${data.next_label}', exchange(payload)));
+  return screen(`BUAH_${page}`, 'Berat & Nilai Buah', data, [form(`fruit_form_${page}`, children)]);
+}
+const FRUITS = Array.from({ length: FRUIT_SCREENS }, (_, i) => fruitScreen(i + 1));
+
+// Its own DONE: the completion also carries the summary, which the bot repeats in the chat.
+const PANEN_DONE = screen(
+  'DONE',
+  'Selesai',
+  { title: str('✅ Panen tersimpan'), message: str('Panen A1: 6 buah, 14,2 kg.'), saved: bool(true), report_id: str('') },
+  [
+    heading('${data.title}'),
+    body('${data.message}'),
+    footer('Tutup', { name: 'complete', payload: { saved: '${data.saved}', report_id: '${data.report_id}', message: '${data.message}' } }),
+  ],
+  { terminal: true, success: true }
+);
+
+const panenFlow = {
+  version: '7.3',
+  data_api_version: '3.0',
+  routing_model: {
+    PANEN: ['BUAH_1', 'DONE'],
+    ...Object.fromEntries(FRUITS.map((f, i) => [f.id, i < FRUITS.length - 1 ? [`BUAH_${i + 2}`, 'DONE'] : ['DONE']])),
+    DONE: [],
+  },
+  screens: [PANEN, ...FRUITS, PANEN_DONE],
+};
+
+// =====================================================================================================
 // Flow 2: Catatan Kebun (rain and finished work, per block, no tree)
 // =====================================================================================================
 
@@ -193,4 +281,5 @@ const farmFlow = {
 const root = path.join(__dirname, '..');
 fs.writeFileSync(path.join(root, 'flows', 'flow.json'), JSON.stringify(treeFlow, null, 2) + '\n');
 fs.writeFileSync(path.join(root, 'flows', 'flow-farm.json'), JSON.stringify(farmFlow, null, 2) + '\n');
-console.log(`flow.json: ${treeFlow.screens.length} screens, flow-farm.json: ${farmFlow.screens.length} screens`);
+fs.writeFileSync(path.join(root, 'flows', 'flow-panen.json'), JSON.stringify(panenFlow, null, 2) + '\n');
+console.log(`flow.json: ${treeFlow.screens.length} screens, flow-farm.json: ${farmFlow.screens.length} screens, flow-panen.json: ${panenFlow.screens.length} screens`);

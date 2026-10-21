@@ -16,14 +16,19 @@ Shared words and rules with the web app: see `docs/data-contract.md` and `src/sh
 **Never commit secrets here** (this repository is public): no `.env`, `env.yaml`, `.pem` private key, API key or
 service-account JSON. They stay in Cloud Run. `.gitignore` in this folder blocks the files.
 
-## The two Flows (both Indonesian for the workers)
+## The three Flows (all Indonesian for the workers)
 
 | Flow | opened by | file | env | screens |
 |---|---|---|---|---|
-| **Laporan Pohon** | the worker sends a tree ID, e.g. `A1` | `flows/flow.json` | `FLOW_ID` | `REPORT` (1-3 photos + free text, both required) → `DONE` |
+| **Laporan Pohon** (Laporan KESEHATAN) | the worker sends a tree ID, e.g. `A1`, then taps **Laporan KESEHATAN** | `flows/flow.json` | `FLOW_ID` | `REPORT` (1-3 photos + free text, both required) → `DONE` |
+| **Laporan Panen** | the same tree ID, then **Laporan PANEN** (shown only when `HARVEST_FLOW_ID` is set) | `flows/flow-panen.json` | `HARVEST_FLOW_ID` | `PANEN` (fruits picked up today, 1-20) → `BUAH_1`…`BUAH_4` (5 fruits each: weight in grams 300-9000, aroma, kulit, bentuk 1-5) → `DONE`; saved as `harvests/wap_…` with `items` |
 | **Catatan Kebun** | the "Hujan & Pekerjaan" button, or the word `KEBUN` | `flows/flow-farm.json` | `FARM_FLOW_ID` | `FARM_HOME` → `HUJAN` (Curah Hujan) or `KERJA` (Pekerjaan Selesai) → `DONE` |
 
-The flow token says which Flow a request belongs to: `lapor:<tree>:<phone>:<time>` (report), `farm:<phone>:<time>`.
+A tree ID is answered with the tree's last photos and two messages, each with one button (a WhatsApp message holds only
+one Flow button): Laporan KESEHATAN and Laporan PANEN, so either form opens with one tap.
+
+The flow token says which Flow a request belongs to: `lapor:<tree>:<phone>:<time>` (report), `panen:<tree>:<phone>:<time>`
+(harvest), `farm:<phone>:<time>`.
 Chat messages of the older multi-screen tree Flow carry `tree:<tree>:<phone>:<time>`; they are handled exactly like
 `lapor:` (they open the report screen and save a report), so an old button never breaks.
 
@@ -125,14 +130,13 @@ See `.env.example` (placeholders only). Never set `PORT` on Cloud Run.
 |---|---|
 | `VERIFY_TOKEN` | webhook verification, also guards `/ai-check` and `/cases-backfill` |
 | `WHATSAPP_TOKEN`, `PHONE_NUMBER_ID` | sending messages (replies go out from the number that received the message; this is the fallback) |
-| `FLOW_ID`, `FARM_FLOW_ID` | the published report Flow and farm Flow |
+| `FLOW_ID`, `FARM_FLOW_ID`, `HARVEST_FLOW_ID` | the published report Flow, farm Flow and harvest Flow (without `HARVEST_FLOW_ID` the PANEN button is not shown) |
 | `FLOW_PRIVATE_KEY_FILE` | private key of the Flow endpoint |
 | `GOOGLE_SERVICE_ACCOUNT_KEY_FILE`, `STORAGE_BUCKET` | Firestore and Storage (bucket name from Firebase console → Storage) |
 | `GEMINI_API_KEY` | Google AI Studio key (`AIza…` or `AQ.…`); without it nothing is sent to Gemini |
 | `GEMINI_MODEL` | default `gemini-2.5-flash` |
 | `GEMINI_ENDPOINT` | `vertex` only for a Vertex AI express key; otherwise leave empty (Gemini API) |
 | `GEMINI_TIMEOUT_MS` | how long to wait for Gemini, default `40000` |
-| `FARM_LAT`, `FARM_LON` | the farm's coordinates: the daily rain is fetched from Open-Meteo (free, no key) into `weather/{date}`, every few hours after a message and on `/rain-sync?token=<VERIFY_TOKEN>`; a day a person recorded is kept |
 | `FARM_LAT`, `FARM_LON` | the farm's coordinates: the daily rain is fetched from Open-Meteo (free, no key) into `weather/{date}`, every few hours after a message and on `/rain-sync?token=<VERIFY_TOKEN>`; a day a person recorded is kept |
 | `GEMINI_THINKING` | `low` for Gemini 3 models: less thinking per report, cheaper and faster; empty = the model's default |
 
@@ -160,4 +164,5 @@ gcloud run services update durian-tree-lookup --region asia-southeast1 --min-ins
 
 A published Flow can't be edited. After changing a file in `flows/`, create a new Flow,
 paste the JSON, set its endpoint URI to `<service-url>/flow-endpoint`, publish,
-and put the new Flow ID in `FLOW_ID` (report Flow) or `FARM_FLOW_ID` (farm Flow). Both Flows use the same endpoint URI.
+and put the new Flow ID in `FLOW_ID` (report Flow), `HARVEST_FLOW_ID` (harvest Flow) or `FARM_FLOW_ID` (farm Flow).
+All Flows use the same endpoint URI.

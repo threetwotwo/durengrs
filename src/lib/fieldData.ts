@@ -48,6 +48,23 @@ export interface Harvest {
   workerPhone?: string;
   /** Photos sent with the harvest report on WhatsApp (same three sizes as report photos). */
   photos?: ReportPhoto[];
+  /** From WhatsApp's Laporan PANEN: each fruit weighed (grams) and scored 1-5 for aroma, skin and shape. */
+  items?: HarvestFruit[];
+}
+
+export interface HarvestFruit {
+  weightG: number;
+  aroma: number;
+  skin: number;
+  shape: number;
+}
+
+/** Average aroma, skin and shape scores of a harvest's fruits (1-5), or null without scored fruits. */
+export function harvestScores(items?: HarvestFruit[]): { aroma: number; skin: number; shape: number } | null {
+  const list = (items || []).filter((f) => f && Number.isFinite(f.aroma) && Number.isFinite(f.skin) && Number.isFinite(f.shape));
+  if (!list.length) return null;
+  const avg = (k: 'aroma' | 'skin' | 'shape') => Math.round((list.reduce((s, f) => s + f[k], 0) / list.length) * 10) / 10;
+  return { aroma: avg('aroma'), skin: avg('skin'), shape: avg('shape') };
 }
 
 export type SeasonTaskId = 'hand_pollination' | 'fruit_thinning' | 'bagging' | 'ca_mg_spray' | 'fruit_tying';
