@@ -109,7 +109,7 @@ const REPORT = screen(
 // =====================================================================================================
 // Laporan PANEN (same Flow), one screen: a row per fruit picked up from the tree today (weight in grams; aroma, kulit,
 // bentuk 1-5), all typed. Flows have no table or repeating field, so the screen holds 18 rows: fruit 1 is always
-// shown, each next one inside an If that shows it once the fruit before has a weight. The rows filled are the
+// shown, each next one inside an If that shows it once the fruit before has a weight (`> 0`: a number field cannot be compared with text). The rows filled are the
 // fruits; the endpoint checks everything (lib/flowScreens.js handlePanen). Names may not hold digits: fruit 1 is
 // berat_aa. Meta allows 100 components per screen (an If counts, the Form doesn't): "Buah N" goes in each label
 // rather than a heading of its own, so a row is 5 and the screen 94.
@@ -136,7 +136,7 @@ const PANEN = (() => {
       numIn(`bentuk_${k}`, `${n} · Bentuk`),
     ];
     if (i === 0) children.push(...row);
-    else children.push({ type: 'If', condition: `\${form.berat_${FRUIT_KEYS[i - 1]}} != ''`, then: row });
+    else children.push({ type: 'If', condition: `\${form.berat_${FRUIT_KEYS[i - 1]}} > 0`, then: row });
     for (const f of FRUIT_FIELDS) payload[`${f}_${k}`] = `\${form.${f}_${k}}`;
   });
   children.push(footer('Simpan Panen', exchange(payload)));

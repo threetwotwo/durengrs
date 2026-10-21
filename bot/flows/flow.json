@@ -158,7 +158,7 @@
               },
               {
                 "type": "If",
-                "condition": "${form.berat_aa} != ''",
+                "condition": "${form.berat_aa} > 0",
                 "then": [
                   {
                     "type": "TextInput",
@@ -192,7 +192,7 @@
               },
               {
                 "type": "If",
-                "condition": "${form.berat_ab} != ''",
+                "condition": "${form.berat_ab} > 0",
                 "then": [
                   {
                     "type": "TextInput",
@@ -226,7 +226,7 @@
               },
               {
                 "type": "If",
-                "condition": "${form.berat_ac} != ''",
+                "condition": "${form.berat_ac} > 0",
                 "then": [
                   {
                     "type": "TextInput",
@@ -260,7 +260,7 @@
               },
               {
                 "type": "If",
-                "condition": "${form.berat_ad} != ''",
+                "condition": "${form.berat_ad} > 0",
                 "then": [
                   {
                     "type": "TextInput",
@@ -294,7 +294,7 @@
               },
               {
                 "type": "If",
-                "condition": "${form.berat_ae} != ''",
+                "condition": "${form.berat_ae} > 0",
                 "then": [
                   {
                     "type": "TextInput",
@@ -328,7 +328,7 @@
               },
               {
                 "type": "If",
-                "condition": "${form.berat_af} != ''",
+                "condition": "${form.berat_af} > 0",
                 "then": [
                   {
                     "type": "TextInput",
@@ -362,7 +362,7 @@
               },
               {
                 "type": "If",
-                "condition": "${form.berat_ag} != ''",
+                "condition": "${form.berat_ag} > 0",
                 "then": [
                   {
                     "type": "TextInput",
@@ -396,7 +396,7 @@
               },
               {
                 "type": "If",
-                "condition": "${form.berat_ah} != ''",
+                "condition": "${form.berat_ah} > 0",
                 "then": [
                   {
                     "type": "TextInput",
@@ -430,7 +430,7 @@
               },
               {
                 "type": "If",
-                "condition": "${form.berat_ai} != ''",
+                "condition": "${form.berat_ai} > 0",
                 "then": [
                   {
                     "type": "TextInput",
@@ -464,7 +464,7 @@
               },
               {
                 "type": "If",
-                "condition": "${form.berat_aj} != ''",
+                "condition": "${form.berat_aj} > 0",
                 "then": [
                   {
                     "type": "TextInput",
@@ -498,7 +498,7 @@
               },
               {
                 "type": "If",
-                "condition": "${form.berat_ak} != ''",
+                "condition": "${form.berat_ak} > 0",
                 "then": [
                   {
                     "type": "TextInput",
@@ -532,7 +532,7 @@
               },
               {
                 "type": "If",
-                "condition": "${form.berat_al} != ''",
+                "condition": "${form.berat_al} > 0",
                 "then": [
                   {
                     "type": "TextInput",
@@ -566,7 +566,7 @@
               },
               {
                 "type": "If",
-                "condition": "${form.berat_am} != ''",
+                "condition": "${form.berat_am} > 0",
                 "then": [
                   {
                     "type": "TextInput",
@@ -600,7 +600,7 @@
               },
               {
                 "type": "If",
-                "condition": "${form.berat_an} != ''",
+                "condition": "${form.berat_an} > 0",
                 "then": [
                   {
                     "type": "TextInput",
@@ -634,7 +634,7 @@
               },
               {
                 "type": "If",
-                "condition": "${form.berat_ao} != ''",
+                "condition": "${form.berat_ao} > 0",
                 "then": [
                   {
                     "type": "TextInput",
@@ -668,7 +668,7 @@
               },
               {
                 "type": "If",
-                "condition": "${form.berat_ap} != ''",
+                "condition": "${form.berat_ap} > 0",
                 "then": [
                   {
                     "type": "TextInput",
@@ -702,7 +702,7 @@
               },
               {
                 "type": "If",
-                "condition": "${form.berat_aq} != ''",
+                "condition": "${form.berat_aq} > 0",
                 "then": [
                   {
                     "type": "TextInput",

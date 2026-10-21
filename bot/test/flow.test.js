@@ -163,8 +163,8 @@ test('the harvest screen: 18 fruit rows of typed numbers, fruit 1 shown, each ne
   for (const n of inputs) assert.ok(n.label.length <= 20, `${n.name} label "${n.label}" over 20 characters`);
   for (const n of inputs) assert.deepEqual([n.type, n['input-type']], ['TextInput', 'number'], n.name);
   assert.equal(ifs.length, 17);
-  assert.equal(ifs[0].condition, "${form.berat_aa} != ''");
-  assert.equal(ifs[16].condition, "${form.berat_aq} != ''");
+  assert.equal(ifs[0].condition, '${form.berat_aa} > 0');
+  assert.equal(ifs[16].condition, '${form.berat_aq} > 0');
   assert.equal(JSON.stringify(panen).includes('"count"'), false, 'no count question');
   assert.deepEqual(tree.routing_model.PANEN, ['DONE']);
 });
