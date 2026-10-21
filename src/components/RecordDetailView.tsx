@@ -4,7 +4,8 @@ import { collection, doc, limit, onSnapshot, orderBy, query, where } from 'fireb
 import { db, parseReportDoc } from '../lib/firebase';
 import { useFarm } from '../context/FarmContext';
 import { useT } from '../i18n';
-import { goBack, navigate, reportUrl, treeUrl } from '../lib/router';
+import { fruitUrl, goBack, navigate, reportUrl, treeUrl } from '../lib/router';
+import { fruitKey } from '../lib/fruits';
 import { buildFieldLog, type LogEntry, type LogKind, type TreeEdit } from '../lib/fieldLog';
 import { GRADES, harvestScores } from '../lib/fieldData';
 import { SEASON_TASKS } from '../lib/fieldInsights';
@@ -321,7 +322,11 @@ function recordRows(
             <tbody>
               {h.items.map((f, i) => (
                 <tr key={i}>
-                  <td className="pr-3 text-slate-500 whitespace-nowrap">{f.code || i + 1}</td>
+                  <td className="pr-3 whitespace-nowrap">
+                    <Link to={fruitUrl(fruitKey(h, f, i))} className="font-mono text-emerald-800 hover:underline">
+                      {f.code || i + 1}
+                    </Link>
+                  </td>
                   <td className="pr-3 text-right">{f.weightG.toLocaleString(lang === 'id' ? 'id-ID' : 'en-GB')} g</td>
                   <td className="pr-3 text-right">{f.aroma}</td>
                   <td className="pr-3 text-right">{f.skin}</td>

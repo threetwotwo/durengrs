@@ -13,6 +13,8 @@ import { useCallback, useSyncExternalStore } from 'react';
  *   #/problems/A12_canker…  one problem, from first sighting to solved
  *   #/workers               who reports, how often, which blocks are missed
  *   #/harvest               crop tracking per tree, graded harvests, forecast
+ *   #/harvest/fruits        every fruit from Laporan PANEN, one row each (?variant=MK&block=A&sort=weight)
+ *   #/harvest/fruits/A3-20261021-01   one fruit
  *   #/schedule              routines (sprays, fertiliser rounds)
  *   #/variants
  *   #/guide                 research guide
@@ -33,6 +35,9 @@ export interface Route {
   reportId: string | null;
   /** Problem (case) id in #/problems/A12_phytophthora_canker_2026-10-09. */
   caseId: string | null;
+  /** #/harvest/fruits (the fruits table) and #/harvest/fruits/<code> (one fruit). */
+  fruits: boolean;
+  fruitCode: string | null;
   params: URLSearchParams;
   /** Path without query, e.g. "/trees/A12". */
   path: string;
@@ -57,6 +62,8 @@ export function parseHash(hash: string): Route {
   let topicId: string | null = null;
   let reportId: string | null = null;
   let caseId: string | null = null;
+  let fruits = false;
+  let fruitCode: string | null = null;
   let known = true;
 
   if (segs.length === 0) {
@@ -73,11 +80,16 @@ export function parseHash(hash: string): Route {
     else if (tab === 'guide' && segs.length === 2) topicId = decodeURIComponent(segs[1]);
     else if (tab === 'reports' && segs.length === 2) reportId = decodeURIComponent(segs[1]);
     else if (tab === 'problems' && segs.length === 2) caseId = decodeURIComponent(segs[1]);
+    else if (tab === 'harvest' && segs[1] === 'fruits' && segs.length <= 3) {
+      fruits = true;
+      fruitCode = segs[2] ? decodeURIComponent(segs[2]) : null;
+    }
     else if (segs.length > 1) known = false;
   } else {
     known = false;
   }
-  return { tab, treeId, topicId, reportId, caseId, params, path, pageKey: segs[0] === 'count' ? 'count' : `${tab}:${treeId ?? topicId ?? reportId ?? caseId ?? ''}`, known };
+  const pageKey = segs[0] === 'count' ? 'count' : fruits ? `fruits:${fruitCode ?? ''}` : `${tab}:${treeId ?? topicId ?? reportId ?? caseId ?? ''}`;
+  return { tab, treeId, topicId, reportId, caseId, fruits, fruitCode, params, path, pageKey, known };
 }
 
 // ---- store ----
@@ -201,6 +213,14 @@ export function treesUrl(filters: Record<string, string | null | undefined> = {}
 export const treeUrl = (id: string) => `/trees/${encodeURIComponent(id)}`;
 export const reportUrl = (id: string) => `/reports/${encodeURIComponent(id)}`;
 export const caseUrl = (id: string) => `/problems/${encodeURIComponent(id)}`;
+/** The fruits table (filters as in #/harvest/fruits?variant=MK) and one fruit, by its code. */
+export const fruitsUrl = (filters: Record<string, string | null | undefined> = {}) => {
+  const p = new URLSearchParams();
+  for (const [k, v] of Object.entries(filters)) if (v && v !== 'all') p.set(k, v);
+  const qs = p.toString();
+  return '/harvest/fruits' + (qs ? `?${qs}` : '');
+};
+export const fruitUrl = (key: string) => `/harvest/fruits/${encodeURIComponent(key)}`;
 /** The Count page, optionally on one block. */
 export const countUrl = (block?: string) => (block ? `/count?block=${encodeURIComponent(block)}` : '/count');
 

@@ -98,7 +98,7 @@ const LABEL_CLS: Record<Label, string> = {
 
 export const TreesPage: React.FC = () => {
   const { t, lang } = useT();
-  const { trees, archivedTrees, cropCounts, updateTree, cases } = useFarm();
+  const { trees, archivedTrees, cropCounts, updateTree, cases, variants } = useFarm();
   const [adding, setAdding] = useState(false);
   const { crops } = useCrops();
   const [params, setParams] = useQueryParams();
@@ -335,6 +335,13 @@ export const TreesPage: React.FC = () => {
   }, [rows, cols, block, q, health, stage, sortKey, desc, show, variant, missing, problemsByTree]);
 
   const blocks = useMemo(() => Array.from(new Set(trees.map((x) => x.block).filter(Boolean))).sort(), [trees]);
+  // Varieties the trees have (named ones by name), for the variety filter.
+  const varieties = useMemo(() => {
+    const names = new Map(variants.map((v) => [v.code, v.name]));
+    return Array.from(new Set(trees.map((x) => x.variant).filter(Boolean)))
+      .map((code) => ({ code, name: names.get(code) || code }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [trees, variants]);
   const sum = (f: (r: Row) => number | undefined) => filtered.reduce((acc, r) => acc + (f(r) || 0), 0);
 
   const focusCell = (ri: number, ci: number) =>
@@ -418,7 +425,7 @@ export const TreesPage: React.FC = () => {
       />
 
       <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-xs space-y-2.5">
-        <div className="grid grid-cols-2 lg:grid-cols-[1fr_auto_auto_auto_auto] gap-2">
+        <div className="grid grid-cols-2 lg:grid-cols-[1fr_auto_auto_auto_auto_auto] gap-2">
           <div className="relative col-span-2 lg:col-span-1">
             <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
@@ -434,6 +441,12 @@ export const TreesPage: React.FC = () => {
             <option value="">{t('common.allBlocks')}</option>
             {blocks.map((b) => (
               <option key={b} value={b}>{t('common.blockN', { n: b })}</option>
+            ))}
+          </select>
+          <select value={variant} onChange={(e) => setParams({ variant: e.target.value || null })} aria-label={t('common.variant')} className={inputCls}>
+            <option value="">{t('fr.allVariants')}</option>
+            {varieties.map((v) => (
+              <option key={v.code} value={v.code}>{v.name}</option>
             ))}
           </select>
           <select value={stage} onChange={(e) => setParams({ stage: e.target.value || null })} aria-label={t('stage.col')} className={inputCls}>

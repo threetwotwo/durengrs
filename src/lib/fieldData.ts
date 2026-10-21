@@ -110,6 +110,12 @@ export async function addHarvest(h: Omit<Harvest, 'id'>): Promise<string> {
   return ref.id;
 }
 
+/** A harvest's fruits changed (one fruit corrected): the weight is the fruits' weights added up again. */
+export async function updateHarvestItems(id: string, items: HarvestFruit[]): Promise<void> {
+  const totalG = items.reduce((s, f) => s + (Number(f.weightG) || 0), 0);
+  await updateDoc(doc(db, 'harvests', id), { items, fruits: items.length, weightKg: Math.round(totalG / 10) / 100, updatedAt: serverTimestamp() });
+}
+
 export async function removeHarvest(id: string): Promise<void> {
   await deleteDoc(doc(db, 'harvests', id));
 }

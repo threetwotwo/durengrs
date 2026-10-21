@@ -19,18 +19,22 @@ Every page is in the navigation bar:
 
 - **Today**: what needs you (problems getting worse or due for a photo check, trees to pick, overdue routines, trees
   nobody reported on this week), the open problems, each block's season, and the latest reports.
-- **Trees**: every tree in one sheet (type into cells like a spreadsheet; every change is logged), with quick views.
+- **Trees**: every tree in one sheet (type into cells like a spreadsheet; every change is logged), with quick views
+  and filters (block, variety, stage, condition); sort by any column.
   Each tree has its own page: its history as one line (reports with their photos, counts, harvests, flowerings),
   its problems, crop and details; type another tree ID to jump there.
   **Count** (Trees › Count, or Harvest › Count again) is the Trees sheet with one new green column for the day:
   type each tree's fruit (or flower clusters) and press Enter to go down, like a new column in Google Sheets. The last
   counting rounds are the dated columns beside it, the tree's open problems on the right, totals at the bottom. One
-  number per tree; a photo can go with it. A column copied from Google Sheets can be pasted in. A day's counts show
+  number per tree; a photo can go with it. A column copied from Google Sheets can be pasted in. The earlier dated
+  columns can be corrected in place. Filter by block or variety, sort by tree ID or variety. A day's counts show
   in Reports as one card.
 - **Reports**: every record from the field as photo-first cards, newest first, a page at a time.
 - **Problems**: every problem from first sighting to solved; each has its own page with its photo history.
 - **Harvest**: picked this season, still on the trees, ready to pick, each block's harvest window, and the harvest
-  records (from WhatsApp, or added by hand).
+  records (from WhatsApp, or added by hand). **Fruits** (Harvest › All fruits, `#/harvest/fruits`): every fruit from
+  Laporan PANEN, one row each with its code, filtered by variety or block, sorted by any column, the varieties side by
+  side; each fruit has its own page (`#/harvest/fruits/A3-20261021-01`) where its weight and scores can be corrected.
 - **Schedule** (routines and season work), **Varieties**, **Workers** and the **Guide** (sourced best practice applied
   to the farm's own data, when it is switched on).
 

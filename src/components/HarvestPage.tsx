@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { CheckCircle2, MessageCircle, Pencil, Plus, Tally5 } from 'lucide-react';
 import { useFarm } from '../context/FarmContext';
 import { useT } from '../i18n';
-import { countUrl, treeUrl, useQueryParams } from '../lib/router';
+import { countUrl, fruitsUrl, treeUrl, useQueryParams } from '../lib/router';
 import { cropFunnel, fruitOnTree } from '../lib/crop';
 import { buildFieldLog } from '../lib/fieldLog';
 import { saveHarvestCycle } from '../lib/insights';
@@ -76,6 +76,15 @@ export const HarvestPage: React.FC = () => {
         title={t('hp.title')}
         description={t('hv2.desc')}
         actions={
+          <>
+          {harvests.some((h) => h.items?.length) && (
+            <Link
+              to={fruitsUrl({ block: block === 'all' ? null : block })}
+              className="min-h-10 px-3.5 rounded-lg border border-slate-300 bg-white text-sm font-semibold text-slate-800 hover:bg-slate-50 inline-flex items-center gap-1.5"
+            >
+              {t('fr.open')}
+            </Link>
+          )}
           <button
             type="button"
             onClick={() => setAdding(true)}
@@ -84,6 +93,7 @@ export const HarvestPage: React.FC = () => {
             <Plus className="w-4 h-4" />
             {t('hv2.add')}
           </button>
+          </>
         }
       />
 

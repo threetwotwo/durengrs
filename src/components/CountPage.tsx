@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, Camera, Loader2, Search } from 'lucide-react';
+import { AlertTriangle, ArrowDown, ArrowUp, Camera, Loader2, Search } from 'lucide-react';
 import { normalizeTimestamp, useFarm } from '../context/FarmContext';
 import { useT } from '../i18n';
 import { reportUrl, setNavigationBlocker, treeUrl, treesUrl, useQueryParams } from '../lib/router';
 import { type CropCount, type CropStage, type Harvest, addCountPhotos, removeCropCount, saveCropCount } from '../lib/fieldData';
 import {
   type CountKind,
+  type Wave,
   checkCount,
   countTarget,
   dayCounts,
@@ -34,7 +35,8 @@ import { useCrops } from './useCrops';
  *
  * - Each number saves by itself (Enter, or leaving the box) as that day's count: the same record a count from
  *   WhatsApp makes (cropCounts, see lib/recount.ts for where it is filed). Typing again replaces it; emptying the box
- *   removes it.
+ *   removes it. The earlier days' columns can be corrected the same way.
+ * - Filter by block or variety; sort by tree ID or variety (#/count?variant=MK&sort=variant&dir=desc).
  * - A photo can be added once the tree is counted (shrunk on the phone, uploaded to count-photos/).
  * - A column copied from Google Sheets fills the trees from the box it is pasted into, in the sheet's order.
  * - Numbers typed with no signal stay on the phone and are sent later (Firestore); photos need a signal.
@@ -43,6 +45,7 @@ import { useCrops } from './useCrops';
 interface Row {
   id: string;
   tree: DurianTree;
+  waves: Wave[];
   waveDates: string[];
   /** Where a new count of this tree is filed; null with no flowering this season. */
   target: { season: string; stage: CropStage } | null;
@@ -107,7 +110,7 @@ const AREA = 'fixed inset-x-0 top-[57px] bottom-[calc(3.5rem+1px+env(safe-area-i
 
 export const CountPage: React.FC = () => {
   const { t, lang, locale } = useT();
-  const { trees, cropCounts, harvests, cases, loading } = useFarm();
+  const { trees, cropCounts, harvests, cases, loading, variants } = useFarm();
   const { crops } = useCrops();
   const [params, setParams] = useQueryParams();
   const today = todayStr();
@@ -115,6 +118,9 @@ export const CountPage: React.FC = () => {
   const dateParam = params.get('date') || '';
   const date = /^\d{4}-\d{2}-\d{2}$/.test(dateParam) && dateParam <= today ? dateParam : today;
   const block = params.get('block') || '';
+  const variant = params.get('variant') || '';
+  const sort = params.get('sort') === 'variant' ? 'variant' : 'id';
+  const desc = params.get('dir') === 'desc';
   const fmt = (n: number) => n.toLocaleString(locale);
 
   const [by, setBy] = useState(readBy);
@@ -153,6 +159,7 @@ export const CountPage: React.FC = () => {
           return {
             id,
             tree,
+            waves: crop.waves,
             waveDates,
             target: countTarget(crop.waves, kind, date),
             day,
@@ -171,9 +178,25 @@ export const CountPage: React.FC = () => {
     () => (block ? [block] : blocks).filter((b) => allRows.some((r) => r.tree.block === b) && !allRows.some((r) => r.tree.block === b && r.waveDates.length)),
     [allRows, block, blocks]
   );
-  const rows = useMemo(() => allRows.filter((r) => (!block || r.tree.block === block) && !unflowered.includes(r.tree.block)), [allRows, block, unflowered]);
+  const varietyName = useMemo(() => {
+    const names = new Map(variants.map((v) => [v.code, v.name]));
+    return (code?: string) => (code ? names.get(code) || code : '');
+  }, [variants]);
+  const varieties = useMemo(
+    () => Array.from(new Set(allRows.map((r) => r.tree.variant).filter(Boolean))).sort((a, b) => varietyName(a).localeCompare(varietyName(b))),
+    [allRows, varietyName]
+  );
+  const rows = useMemo(() => {
+    const list = allRows.filter((r) => (!block || r.tree.block === block) && (!variant || r.tree.variant === variant) && !unflowered.includes(r.tree.block));
+    if (sort === 'id' && !desc) return list;
+    const by = (a: Row, b: Row) => (sort === 'variant' ? varietyName(a.tree.variant).localeCompare(varietyName(b.tree.variant)) : 0) || idOrder(a.tree, b.tree);
+    return [...list].sort((a, b) => (desc ? -by(a, b) : by(a, b)));
+  }, [allRows, block, variant, unflowered, sort, desc, varietyName]);
   const countable = useMemo(() => rows.filter((r) => r.target), [rows]);
-  const keys = useMemo(() => countable.map((r) => keyOf(kind, date, r.id)), [countable, kind, date]);
+  /** Can this tree's count on `d` be typed? (It had a flowering by then to file it under, or a count is there.) */
+  const editable = (r: Row, d: string) => (d === date ? !!r.target : !!countTarget(r.waves, kind, d) || r.past.has(d));
+  /** The boxes of one column, top to bottom: where Enter goes next. */
+  const columnKeys = (d: string) => rows.filter((r) => editable(r, d)).map((r) => keyOf(kind, d, r.id));
   const wide = useWide();
   // On a phone the two latest rounds, so the day's column is in view without scrolling sideways.
   const dates = useMemo(
@@ -207,7 +230,11 @@ export const CountPage: React.FC = () => {
     if (raw === undefined) return true;
     const { kind: k, date: d, tree: treeId } = parseKey(key);
     const row = live.current.allRows.find((r) => r.id === treeId);
-    if (!row?.target || k !== live.current.kind || d !== live.current.date) return true;
+    if (!row || k !== live.current.kind) return true;
+    // The day's counts of the tree: the green column's, or an earlier column's when that one is corrected.
+    const day = d === live.current.date ? row.day : dayCounts(live.current.cropCounts.filter((c) => c.treeId === treeId), row.waveDates, k, d);
+    const now = day.length ? dayTotal(day) : undefined;
+    if (!day.length && !countTarget(row.waves, k, d)) return true;
     const check = checkCount(raw, k);
     if (!check.ok) {
       setErrors((x) => ({ ...x, [key]: t('count.e.max', { max: check.max }) }));
@@ -217,16 +244,16 @@ export const CountPage: React.FC = () => {
     if (sent.current.get(key) === raw) return true;
     const value = check.value;
     if (value === null) {
-      if (!row.day.length) return true;
-      if (row.day.some((c) => c.photos?.length) && !window.confirm(t('count.clear.confirm'))) {
+      if (!day.length) return true;
+      if (day.some((c) => c.photos?.length) && !window.confirm(t('count.clear.confirm'))) {
         setDrafts((x) => omit(x, key));
         return true;
       }
       sent.current.set(key, raw);
-      track(key, Promise.all(row.day.map((c) => removeCropCount(c.id, c.photos))));
+      track(key, Promise.all(day.map((c) => removeCropCount(c.id, c.photos))));
       return true;
     }
-    if (row.day.length === 1 && row.now === value) return true;
+    if (day.length === 1 && now === value) return true;
     const crop = live.current.crops.find((c) => c.tree.id === treeId);
     const plan = crop && planCount({ tree: row.tree, waves: crop.waves, counts: live.current.cropCounts, kind: k, date: d, value, by: live.current.by.trim() });
     if (!plan) return true;
@@ -283,11 +310,11 @@ export const CountPage: React.FC = () => {
 
   // ---------- moving around ----------
 
-  const focusKey = (key: string | undefined) => {
+  const focusKey = (key: string | undefined, toStart = true) => {
     const el = key ? inputFor(key) : null;
     if (!el) return;
     // Sideways back to the start, where the tree IDs and the day's column are; then the row to the middle.
-    if (areaRef.current) areaRef.current.scrollLeft = 0;
+    if (toStart && areaRef.current) areaRef.current.scrollLeft = 0;
     el.focus({ preventScroll: true });
     el.select();
     el.scrollIntoView({ block: 'center', inline: 'nearest' });
@@ -317,11 +344,12 @@ export const CountPage: React.FC = () => {
   const paste = (key: string, text: string): boolean => {
     const col = pastedColumn(text);
     if (!col) return false;
-    const start = rows.findIndex((r) => r.id === parseKey(key).tree);
+    const { tree: from, date: d } = parseKey(key);
+    const start = rows.findIndex((r) => r.id === from);
     const targets = rows.slice(start, start + col.length);
     const next: Record<string, string> = {};
     targets.forEach((r, i) => {
-      if (r.target && col[i] !== '') next[keyOf(kind, date, r.id)] = col[i];
+      if (editable(r, d) && col[i] !== '') next[keyOf(kind, d, r.id)] = col[i];
     });
     setDrafts((d) => ({ ...d, ...next }));
     Object.entries(next).forEach(([k, v]) => commit(k, v));
@@ -348,11 +376,19 @@ export const CountPage: React.FC = () => {
   const total = (d: string) => rows.reduce((s, r) => s + (r.past.get(d) || 0), 0);
   // Fixed column widths: on a phone the sheet is wider than the screen and scrolls sideways (the problems column has a
   // width of its own); wider screens give the problems column what is left.
-  const W = wide ? { id: 84, date: 76, now: 104, photo: 92, status: 76, problems: 280 } : { id: 72, date: 60, now: 88, photo: 88, status: 64, problems: 240 };
-  const sheetWidth = W.id + dates.length * W.date + W.now + W.photo + W.status + W.problems;
+  const W = wide ? { id: 84, variety: 64, date: 76, now: 104, photo: 92, status: 76, problems: 280 } : { id: 72, variety: 52, date: 64, now: 88, photo: 88, status: 64, problems: 240 };
+  const sheetWidth = W.id + W.variety + dates.length * W.date + W.now + W.photo + W.status + W.problems;
+  const sortBy = (k: 'id' | 'variant') => setParams({ sort: k === 'id' ? null : k, dir: sort === k && !desc ? 'desc' : null }, { replace: true });
+  const sortHead = (k: 'id' | 'variant', label: string) => (
+    <button type="button" onClick={() => sortBy(k)} className={`inline-flex items-center gap-1 ${sort === k && (k !== 'id' || desc) ? 'text-white' : ''}`}>
+      {label}
+      {sort === k && (k !== 'id' || desc) && (desc ? <ArrowDown className="w-3 h-3" aria-hidden /> : <ArrowUp className="w-3 h-3" aria-hidden />)}
+    </button>
+  );
   const cols = (
     <colgroup>
       <col style={{ width: W.id }} />
+      <col style={{ width: W.variety }} />
       {dates.map((d) => (
         <col key={d} style={{ width: W.date }} />
       ))}
@@ -380,7 +416,7 @@ export const CountPage: React.FC = () => {
             }
           />
 
-          <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-xs grid grid-cols-2 lg:grid-cols-[auto_9rem_10rem_12rem_minmax(0,14rem)] gap-2">
+          <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-xs grid grid-cols-2 lg:grid-cols-[auto_8rem_9rem_9.5rem_10rem_minmax(0,12rem)] gap-2">
             <div
               role="radiogroup"
               aria-label={t('count.what')}
@@ -412,6 +448,19 @@ export const CountPage: React.FC = () => {
                 </option>
               ))}
             </select>
+            <select
+              value={variant}
+              onChange={(e) => setParams({ variant: e.target.value || null }, { replace: true })}
+              aria-label={t('common.variant')}
+              className={inputCls}
+            >
+              <option value="">{t('fr.allVariants')}</option>
+              {varieties.map((v) => (
+                <option key={v} value={v}>
+                  {varietyName(v)}
+                </option>
+              ))}
+            </select>
             <input
               type="date"
               value={date}
@@ -430,7 +479,7 @@ export const CountPage: React.FC = () => {
               autoComplete="name"
               className={inputCls}
             />
-            <div className="relative">
+            <div className="relative col-span-2 lg:col-span-1">
               <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" aria-hidden />
               <input
                 value={jump}
@@ -483,8 +532,11 @@ export const CountPage: React.FC = () => {
                 {cols}
                 <thead>
                   <tr className="h-11">
-                    <th scope="col" className={`${th} text-left sticky left-0 top-0 z-30 border-r`}>
-                      ID
+                    <th scope="col" aria-sort={sort === 'id' ? (desc ? 'descending' : 'ascending') : undefined} className={`${th} text-left sticky left-0 top-0 z-30 border-r`}>
+                      {sortHead('id', 'ID')}
+                    </th>
+                    <th scope="col" aria-sort={sort === 'variant' ? (desc ? 'descending' : 'ascending') : undefined} className={`${th} text-left sticky top-0 z-20`}>
+                      {sortHead('variant', t('fr.col.variant'))}
                     </th>
                     {dates.map((d) => (
                       <th key={d} scope="col" className={`${th} text-right sticky top-0 z-20`}>
@@ -537,11 +589,57 @@ export const CountPage: React.FC = () => {
                             )}
                           </Link>
                         </th>
-                        {dates.map((d) => (
-                          <td key={d} className="px-2.5 py-1.5 text-right tabular text-slate-600 border-b border-r border-slate-200 group-hover:bg-slate-50">
-                            {r.past.get(d) ?? ''}
-                          </td>
-                        ))}
+                        <td className="px-2.5 py-1.5 text-slate-600 text-xs border-b border-r border-slate-200 group-hover:bg-slate-50 truncate" title={varietyName(r.tree.variant)}>
+                          {r.tree.variant}
+                        </td>
+                        {dates.map((d) => {
+                          const pk = keyOf(kind, d, r.id);
+                          const pbad = !!errors[pk];
+                          return (
+                            <td key={d} className="p-0 border-b border-r border-slate-200 group-hover:bg-slate-50">
+                              {editable(r, d) ? (
+                                <span className="relative block">
+                                  <input
+                                    type="text"
+                                    inputMode="numeric"
+                                    enterKeyHint="next"
+                                    autoComplete="off"
+                                    data-count={pk}
+                                    value={drafts[pk] ?? (r.past.has(d) ? String(r.past.get(d)) : '')}
+                                    aria-label={`${r.id} · ${formatShortDate(d)}`}
+                                    aria-invalid={pbad || undefined}
+                                    onFocus={(e) => e.currentTarget.select()}
+                                    onChange={(e) => {
+                                      setDrafts((x) => ({ ...x, [pk]: e.target.value }));
+                                      if (pbad) setErrors((x) => omit(x, pk));
+                                    }}
+                                    onBlur={() => commit(pk)}
+                                    onPaste={(e) => {
+                                      if (paste(pk, e.clipboardData.getData('text'))) e.preventDefault();
+                                    }}
+                                    onKeyDown={(e) => {
+                                      const up = e.key === 'ArrowUp' || (e.key === 'Enter' && e.shiftKey);
+                                      if (e.key === 'Enter' || e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                                        e.preventDefault();
+                                        const col = columnKeys(d);
+                                        if (commit(pk)) focusKey(col[col.indexOf(pk) + (up ? -1 : 1)], false);
+                                      } else if (e.key === 'Escape') {
+                                        setDrafts((x) => omit(x, pk));
+                                        setErrors((x) => omit(x, pk));
+                                      }
+                                    }}
+                                    className={`w-full h-10 pl-5 pr-2.5 scroll-mt-32 scroll-mb-36 bg-transparent text-right tabular outline-none focus:bg-white focus:text-slate-900 focus:outline-2 focus:-outline-offset-2 ${
+                                      pbad ? 'outline-2 -outline-offset-2 outline-rose-500 text-rose-700' : 'focus:outline-emerald-600 text-slate-600'
+                                    }`}
+                                  />
+                                  {inflight[pk] && <Loader2 className="absolute left-1 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-400 animate-spin" aria-hidden />}
+                                </span>
+                              ) : (
+                                <span className="block px-2.5 text-right text-slate-300">{r.past.get(d) ?? ''}</span>
+                              )}
+                            </td>
+                          );
+                        })}
                         <td
                           className={`p-0 border-b border-x-2 border-b-slate-200 border-x-emerald-600/70 ${r.now !== undefined ? 'bg-emerald-50' : 'bg-white'}`}
                         >
@@ -569,7 +667,8 @@ export const CountPage: React.FC = () => {
                                   const up = e.key === 'ArrowUp' || (e.key === 'Enter' && e.shiftKey);
                                   if (e.key === 'Enter' || e.key === 'ArrowDown' || e.key === 'ArrowUp') {
                                     e.preventDefault();
-                                    if (commit(key)) focusKey(keys[keys.indexOf(key) + (up ? -1 : 1)]);
+                                    const col = columnKeys(date);
+                                    if (commit(key)) focusKey(col[col.indexOf(key) + (up ? -1 : 1)]);
                                   } else if (e.key === 'Escape') {
                                     setDrafts((x) => omit(x, key));
                                     setErrors((x) => omit(x, key));
@@ -674,6 +773,7 @@ export const CountPage: React.FC = () => {
                     >
                       {t('kebun.total')}
                     </th>
+                    <td className="sticky bottom-0 z-20 bg-slate-100 border-t border-slate-200" />
                     {dates.map((d) => (
                       <td key={d} className="sticky bottom-0 z-20 bg-slate-100 px-2.5 py-2 text-right tabular border-t border-slate-200">
                         {fmt(total(d))}

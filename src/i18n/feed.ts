@@ -46,7 +46,7 @@ export const feed: Bundle = {
     'tree.jump.label': 'Ketik ID pohon lalu Enter',
     'tree.jump.none': 'Tidak ada pohon {id}',
 
-    'hv2.desc': 'Pekerja mengirim panen lewat WhatsApp: ID pohon, lalu Laporan PANEN (jumlah buah, berat dan nilai tiap buah). Tercatat di sini dengan sendirinya.',
+    'hv2.desc': 'Pekerja mengirim panen lewat WhatsApp: ID pohon, lalu Laporan PANEN (berat dan nilai tiap buah, masing-masing dengan kodenya). Tercatat di sini dengan sendirinya.',
     'hv2.add': 'Tambah panen',
     'hv2.season': 'Musim ini',
     'hv2.picked': 'Dipanen musim ini',
@@ -115,7 +115,7 @@ export const feed: Bundle = {
     'tree.jump.label': 'Type a tree ID and press Enter',
     'tree.jump.none': 'No tree {id}',
 
-    'hv2.desc': 'Workers send a harvest on WhatsApp: the tree ID, then Laporan PANEN (how many fruits, each one weighed and scored). It is recorded here by itself.',
+    'hv2.desc': 'Workers send a harvest on WhatsApp: the tree ID, then Laporan PANEN (each fruit weighed and scored, each with its own code). It is recorded here by itself.',
     'hv2.add': 'Add harvest',
     'hv2.season': 'This season',
     'hv2.picked': 'Picked this season',
