@@ -85,7 +85,7 @@ Two Flows (worker text in Indonesian), one endpoint (`POST /flow-endpoint`). A t
 messages, one button each: **Laporan KESEHATAN** and **Laporan PANEN**.
 
 - **Laporan Panen** (Laporan PANEN; same Flow as the report, `bot/flows/flow.json`, env `FLOW_ID`): one screen, a row
-  per fruit picked up today from the tree (up to 18; the rows filled are the fruits), each typed: weight in grams and aroma, kulit (skin), bentuk (shape) 1-5. Saved
+  per fruit picked up today from the tree (up to 16; the rows filled are the fruits), each typed: weight in grams and aroma, kulit (skin), bentuk (shape) 1-5. Saved
   as one harvest `harvests/wap_{hash}` (`fruits`, `weightKg` from the weights, `items`: `{code, weightG, aroma, skin,
   shape}`). `code` is the fruit's own ID: `{tree}-{YYYYMMDD}-{nn}`, nn counting the tree's coded fruits that day.
   Flow tokens `panen:<tree>:<phone>:<time>`.

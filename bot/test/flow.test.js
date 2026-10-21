@@ -148,7 +148,7 @@ test('no "penjarangan" in anything a worker reads', () => {
   assert.equal(/jarang/i.test(all), false);
 });
 
-test('the harvest screen: 18 fruit rows of typed numbers, fruit 1 shown, each next one once the one before has a weight', () => {
+test('the harvest screen: 16 fruit rows of typed numbers, fruit 1 shown, each next one once the one before has a weight', () => {
   const tree = flows['flow.json'];
   const panen = tree.screens.find((s) => s.id === 'PANEN');
   const inputs = [];
@@ -158,13 +158,14 @@ test('the harvest screen: 18 fruit rows of typed numbers, fruit 1 shown, each ne
     if (n.name && n.type && n.type !== 'Form' && n.type !== 'Footer') inputs.push(n);
   });
   assert.deepEqual(inputs.slice(0, 4).map((n) => n.name), ['berat_aa', 'aroma_aa', 'kulit_aa', 'bentuk_aa']);
-  assert.equal(inputs.length, 72);
-  assert.equal(inputs[71].name, 'bentuk_ar');
+  assert.equal(inputs.length, 64);
+  assert.equal(inputs[63].name, 'bentuk_ap');
+  assert.deepEqual(inputs.map((n) => n.required), inputs.map((_, i) => i < 4), 'only Buah 1 is required');
   for (const n of inputs) assert.ok(n.label.length <= 20, `${n.name} label "${n.label}" over 20 characters`);
   for (const n of inputs) assert.deepEqual([n.type, n['input-type']], ['TextInput', 'number'], n.name);
-  assert.equal(ifs.length, 17);
+  assert.equal(ifs.length, 15);
   assert.equal(ifs[0].condition, '${form.berat_aa} > 0');
-  assert.equal(ifs[16].condition, '${form.berat_aq} > 0');
+  assert.equal(ifs[14].condition, '${form.berat_ao} > 0');
   assert.equal(JSON.stringify(panen).includes('"count"'), false, 'no count question');
   assert.deepEqual(tree.routing_model.PANEN, ['DONE']);
 });

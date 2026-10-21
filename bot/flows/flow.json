@@ -121,70 +121,78 @@
               },
               {
                 "type": "TextBody",
-                "text": "Isi berat dan nilai setiap buah dari pohon ini yang dipungut hari ini. Buah berikutnya muncul setelah berat diisi. Paling banyak 18 buah; lebih dari itu, kirim laporan panen lagi."
+                "text": "Isi berat dan nilai setiap buah dari pohon ini yang dipungut hari ini. Buah berikutnya muncul setelah berat diisi. Paling banyak 16 buah; lebih dari itu, kirim laporan panen lagi."
               },
               {
                 "type": "TextCaption",
                 "text": "Nilai 1 sampai 5:\nAroma: 5 = wangi kuat & segar, 1 = tidak wangi\nKulit: 5 = mulus sempurna, 1 = cacat (bolong, retak)\nBentuk: 5 = bulat sempurna, 1 = peyang beberapa ruas"
               },
               {
+                "type": "TextSubheading",
+                "text": "Buah 1"
+              },
+              {
                 "type": "TextInput",
                 "name": "berat_aa",
-                "label": "Buah 1 · Berat (g)",
+                "label": "Berat (gram)",
                 "input-type": "number",
-                "helper-text": "Dalam gram. Contoh: 2350 untuk 2,35 kg",
-                "required": false
+                "helper-text": "Contoh: 2350 untuk 2,35 kg",
+                "required": true
               },
               {
                 "type": "TextInput",
                 "name": "aroma_aa",
-                "label": "Buah 1 · Aroma",
+                "label": "Aroma (1-5)",
                 "input-type": "number",
-                "required": false
+                "required": true
               },
               {
                 "type": "TextInput",
                 "name": "kulit_aa",
-                "label": "Buah 1 · Kulit",
+                "label": "Kulit (1-5)",
                 "input-type": "number",
-                "required": false
+                "required": true
               },
               {
                 "type": "TextInput",
                 "name": "bentuk_aa",
-                "label": "Buah 1 · Bentuk",
+                "label": "Bentuk (1-5)",
                 "input-type": "number",
-                "required": false
+                "required": true
               },
               {
                 "type": "If",
                 "condition": "${form.berat_aa} > 0",
                 "then": [
                   {
+                    "type": "TextSubheading",
+                    "text": "Buah 2"
+                  },
+                  {
                     "type": "TextInput",
                     "name": "berat_ab",
-                    "label": "Buah 2 · Berat (g)",
+                    "label": "Berat (gram)",
                     "input-type": "number",
                     "required": false
                   },
                   {
                     "type": "TextInput",
                     "name": "aroma_ab",
-                    "label": "Buah 2 · Aroma",
+                    "label": "Aroma (1-5)",
                     "input-type": "number",
                     "required": false
                   },
                   {
                     "type": "TextInput",
                     "name": "kulit_ab",
-                    "label": "Buah 2 · Kulit",
+                    "label": "Kulit (1-5)",
                     "input-type": "number",
                     "required": false
                   },
                   {
                     "type": "TextInput",
                     "name": "bentuk_ab",
-                    "label": "Buah 2 · Bentuk",
+                    "label": "Bentuk (1-5)",
                     "input-type": "number",
                     "required": false
                   }
@@ -195,30 +203,34 @@
                 "condition": "${form.berat_ab} > 0",
                 "then": [
                   {
+                    "type": "TextSubheading",
+                    "text": "Buah 3"
+                  },
+                  {
                     "type": "TextInput",
                     "name": "berat_ac",
-                    "label": "Buah 3 · Berat (g)",
+                    "label": "Berat (gram)",
                     "input-type": "number",
                     "required": false
                   },
                   {
                     "type": "TextInput",
                     "name": "aroma_ac",
-                    "label": "Buah 3 · Aroma",
+                    "label": "Aroma (1-5)",
                     "input-type": "number",
                     "required": false
                   },
                   {
                     "type": "TextInput",
                     "name": "kulit_ac",
-                    "label": "Buah 3 · Kulit",
+                    "label": "Kulit (1-5)",
                     "input-type": "number",
                     "required": false
                   },
                   {
                     "type": "TextInput",
                     "name": "bentuk_ac",
-                    "label": "Buah 3 · Bentuk",
+                    "label": "Bentuk (1-5)",
                     "input-type": "number",
                     "required": false
                   }
@@ -229,30 +241,34 @@
                 "condition": "${form.berat_ac} > 0",
                 "then": [
                   {
+                    "type": "TextSubheading",
+                    "text": "Buah 4"
+                  },
+                  {
                     "type": "TextInput",
                     "name": "berat_ad",
-                    "label": "Buah 4 · Berat (g)",
+                    "label": "Berat (gram)",
                     "input-type": "number",
                     "required": false
                   },
                   {
                     "type": "TextInput",
                     "name": "aroma_ad",
-                    "label": "Buah 4 · Aroma",
+                    "label": "Aroma (1-5)",
                     "input-type": "number",
                     "required": false
                   },
                   {
                     "type": "TextInput",
                     "name": "kulit_ad",
-                    "label": "Buah 4 · Kulit",
+                    "label": "Kulit (1-5)",
                     "input-type": "number",
                     "required": false
                   },
                   {
                     "type": "TextInput",
                     "name": "bentuk_ad",
-                    "label": "Buah 4 · Bentuk",
+                    "label": "Bentuk (1-5)",
                     "input-type": "number",
                     "required": false
                   }
@@ -263,30 +279,34 @@
                 "condition": "${form.berat_ad} > 0",
                 "then": [
                   {
+                    "type": "TextSubheading",
+                    "text": "Buah 5"
+                  },
+                  {
                     "type": "TextInput",
                     "name": "berat_ae",
-                    "label": "Buah 5 · Berat (g)",
+                    "label": "Berat (gram)",
                     "input-type": "number",
                     "required": false
                   },
                   {
                     "type": "TextInput",
                     "name": "aroma_ae",
-                    "label": "Buah 5 · Aroma",
+                    "label": "Aroma (1-5)",
                     "input-type": "number",
                     "required": false
                   },
                   {
                     "type": "TextInput",
                     "name": "kulit_ae",
-                    "label": "Buah 5 · Kulit",
+                    "label": "Kulit (1-5)",
                     "input-type": "number",
                     "required": false
                   },
                   {
                     "type": "TextInput",
                     "name": "bentuk_ae",
-                    "label": "Buah 5 · Bentuk",
+                    "label": "Bentuk (1-5)",
                     "input-type": "number",
                     "required": false
                   }
@@ -297,30 +317,34 @@
                 "condition": "${form.berat_ae} > 0",
                 "then": [
                   {
+                    "type": "TextSubheading",
+                    "text": "Buah 6"
+                  },
+                  {
                     "type": "TextInput",
                     "name": "berat_af",
-                    "label": "Buah 6 · Berat (g)",
+                    "label": "Berat (gram)",
                     "input-type": "number",
                     "required": false
                   },
                   {
                     "type": "TextInput",
                     "name": "aroma_af",
-                    "label": "Buah 6 · Aroma",
+                    "label": "Aroma (1-5)",
                     "input-type": "number",
                     "required": false
                   },
                   {
                     "type": "TextInput",
                     "name": "kulit_af",
-                    "label": "Buah 6 · Kulit",
+                    "label": "Kulit (1-5)",
                     "input-type": "number",
                     "required": false
                   },
                   {
                     "type": "TextInput",
                     "name": "bentuk_af",
-                    "label": "Buah 6 · Bentuk",
+                    "label": "Bentuk (1-5)",
                     "input-type": "number",
                     "required": false
                   }
@@ -331,30 +355,34 @@
                 "condition": "${form.berat_af} > 0",
                 "then": [
                   {
+                    "type": "TextSubheading",
+                    "text": "Buah 7"
+                  },
+                  {
                     "type": "TextInput",
                     "name": "berat_ag",
-                    "label": "Buah 7 · Berat (g)",
+                    "label": "Berat (gram)",
                     "input-type": "number",
                     "required": false
                   },
                   {
                     "type": "TextInput",
                     "name": "aroma_ag",
-                    "label": "Buah 7 · Aroma",
+                    "label": "Aroma (1-5)",
                     "input-type": "number",
                     "required": false
                   },
                   {
                     "type": "TextInput",
                     "name": "kulit_ag",
-                    "label": "Buah 7 · Kulit",
+                    "label": "Kulit (1-5)",
                     "input-type": "number",
                     "required": false
                   },
                   {
                     "type": "TextInput",
                     "name": "bentuk_ag",
-                    "label": "Buah 7 · Bentuk",
+                    "label": "Bentuk (1-5)",
                     "input-type": "number",
                     "required": false
                   }
@@ -365,30 +393,34 @@
                 "condition": "${form.berat_ag} > 0",
                 "then": [
                   {
+                    "type": "TextSubheading",
+                    "text": "Buah 8"
+                  },
+                  {
                     "type": "TextInput",
                     "name": "berat_ah",
-                    "label": "Buah 8 · Berat (g)",
+                    "label": "Berat (gram)",
                     "input-type": "number",
                     "required": false
                   },
                   {
                     "type": "TextInput",
                     "name": "aroma_ah",
-                    "label": "Buah 8 · Aroma",
+                    "label": "Aroma (1-5)",
                     "input-type": "number",
                     "required": false
                   },
                   {
                     "type": "TextInput",
                     "name": "kulit_ah",
-                    "label": "Buah 8 · Kulit",
+                    "label": "Kulit (1-5)",
                     "input-type": "number",
                     "required": false
                   },
                   {
                     "type": "TextInput",
                     "name": "bentuk_ah",
-                    "label": "Buah 8 · Bentuk",
+                    "label": "Bentuk (1-5)",
                     "input-type": "number",
                     "required": false
                   }
@@ -399,30 +431,34 @@
                 "condition": "${form.berat_ah} > 0",
                 "then": [
                   {
+                    "type": "TextSubheading",
+                    "text": "Buah 9"
+                  },
+                  {
                     "type": "TextInput",
                     "name": "berat_ai",
-                    "label": "Buah 9 · Berat (g)",
+                    "label": "Berat (gram)",
                     "input-type": "number",
                     "required": false
                   },
                   {
                     "type": "TextInput",
                     "name": "aroma_ai",
-                    "label": "Buah 9 · Aroma",
+                    "label": "Aroma (1-5)",
                     "input-type": "number",
                     "required": false
                   },
                   {
                     "type": "TextInput",
                     "name": "kulit_ai",
-                    "label": "Buah 9 · Kulit",
+                    "label": "Kulit (1-5)",
                     "input-type": "number",
                     "required": false
                   },
                   {
                     "type": "TextInput",
                     "name": "bentuk_ai",
-                    "label": "Buah 9 · Bentuk",
+                    "label": "Bentuk (1-5)",
                     "input-type": "number",
                     "required": false
                   }
@@ -433,30 +469,34 @@
                 "condition": "${form.berat_ai} > 0",
                 "then": [
                   {
+                    "type": "TextSubheading",
+                    "text": "Buah 10"
+                  },
+                  {
                     "type": "TextInput",
                     "name": "berat_aj",
-                    "label": "Buah 10 · Berat (g)",
+                    "label": "Berat (gram)",
                     "input-type": "number",
                     "required": false
                   },
                   {
                     "type": "TextInput",
                     "name": "aroma_aj",
-                    "label": "Buah 10 · Aroma",
+                    "label": "Aroma (1-5)",
                     "input-type": "number",
                     "required": false
                   },
                   {
                     "type": "TextInput",
                     "name": "kulit_aj",
-                    "label": "Buah 10 · Kulit",
+                    "label": "Kulit (1-5)",
                     "input-type": "number",
                     "required": false
                   },
                   {
                     "type": "TextInput",
                     "name": "bentuk_aj",
-                    "label": "Buah 10 · Bentuk",
+                    "label": "Bentuk (1-5)",
                     "input-type": "number",
                     "required": false
                   }
@@ -467,30 +507,34 @@
                 "condition": "${form.berat_aj} > 0",
                 "then": [
                   {
+                    "type": "TextSubheading",
+                    "text": "Buah 11"
+                  },
+                  {
                     "type": "TextInput",
                     "name": "berat_ak",
-                    "label": "Buah 11 · Berat (g)",
+                    "label": "Berat (gram)",
                     "input-type": "number",
                     "required": false
                   },
                   {
                     "type": "TextInput",
                     "name": "aroma_ak",
-                    "label": "Buah 11 · Aroma",
+                    "label": "Aroma (1-5)",
                     "input-type": "number",
                     "required": false
                   },
                   {
                     "type": "TextInput",
                     "name": "kulit_ak",
-                    "label": "Buah 11 · Kulit",
+                    "label": "Kulit (1-5)",
                     "input-type": "number",
                     "required": false
                   },
                   {
                     "type": "TextInput",
                     "name": "bentuk_ak",
-                    "label": "Buah 11 · Bentuk",
+                    "label": "Bentuk (1-5)",
                     "input-type": "number",
                     "required": false
                   }
@@ -501,30 +545,34 @@
                 "condition": "${form.berat_ak} > 0",
                 "then": [
                   {
+                    "type": "TextSubheading",
+                    "text": "Buah 12"
+                  },
+                  {
                     "type": "TextInput",
                     "name": "berat_al",
-                    "label": "Buah 12 · Berat (g)",
+                    "label": "Berat (gram)",
                     "input-type": "number",
                     "required": false
                   },
                   {
                     "type": "TextInput",
                     "name": "aroma_al",
-                    "label": "Buah 12 · Aroma",
+                    "label": "Aroma (1-5)",
                     "input-type": "number",
                     "required": false
                   },
                   {
                     "type": "TextInput",
                     "name": "kulit_al",
-                    "label": "Buah 12 · Kulit",
+                    "label": "Kulit (1-5)",
                     "input-type": "number",
                     "required": false
                   },
                   {
                     "type": "TextInput",
                     "name": "bentuk_al",
-                    "label": "Buah 12 · Bentuk",
+                    "label": "Bentuk (1-5)",
                     "input-type": "number",
                     "required": false
                   }
@@ -535,30 +583,34 @@
                 "condition": "${form.berat_al} > 0",
                 "then": [
                   {
+                    "type": "TextSubheading",
+                    "text": "Buah 13"
+                  },
+                  {
                     "type": "TextInput",
                     "name": "berat_am",
-                    "label": "Buah 13 · Berat (g)",
+                    "label": "Berat (gram)",
                     "input-type": "number",
                     "required": false
                   },
                   {
                     "type": "TextInput",
                     "name": "aroma_am",
-                    "label": "Buah 13 · Aroma",
+                    "label": "Aroma (1-5)",
                     "input-type": "number",
                     "required": false
                   },
                   {
                     "type": "TextInput",
                     "name": "kulit_am",
-                    "label": "Buah 13 · Kulit",
+                    "label": "Kulit (1-5)",
                     "input-type": "number",
                     "required": false
                   },
                   {
                     "type": "TextInput",
                     "name": "bentuk_am",
-                    "label": "Buah 13 · Bentuk",
+                    "label": "Bentuk (1-5)",
                     "input-type": "number",
                     "required": false
                   }
@@ -569,30 +621,34 @@
                 "condition": "${form.berat_am} > 0",
                 "then": [
                   {
+                    "type": "TextSubheading",
+                    "text": "Buah 14"
+                  },
+                  {
                     "type": "TextInput",
                     "name": "berat_an",
-                    "label": "Buah 14 · Berat (g)",
+                    "label": "Berat (gram)",
                     "input-type": "number",
                     "required": false
                   },
                   {
                     "type": "TextInput",
                     "name": "aroma_an",
-                    "label": "Buah 14 · Aroma",
+                    "label": "Aroma (1-5)",
                     "input-type": "number",
                     "required": false
                   },
                   {
                     "type": "TextInput",
                     "name": "kulit_an",
-                    "label": "Buah 14 · Kulit",
+                    "label": "Kulit (1-5)",
                     "input-type": "number",
                     "required": false
                   },
                   {
                     "type": "TextInput",
                     "name": "bentuk_an",
-                    "label": "Buah 14 · Bentuk",
+                    "label": "Bentuk (1-5)",
                     "input-type": "number",
                     "required": false
                   }
@@ -603,30 +659,34 @@
                 "condition": "${form.berat_an} > 0",
                 "then": [
                   {
+                    "type": "TextSubheading",
+                    "text": "Buah 15"
+                  },
+                  {
                     "type": "TextInput",
                     "name": "berat_ao",
-                    "label": "Buah 15 · Berat (g)",
+                    "label": "Berat (gram)",
                     "input-type": "number",
                     "required": false
                   },
                   {
                     "type": "TextInput",
                     "name": "aroma_ao",
-                    "label": "Buah 15 · Aroma",
+                    "label": "Aroma (1-5)",
                     "input-type": "number",
                     "required": false
                   },
                   {
                     "type": "TextInput",
                     "name": "kulit_ao",
-                    "label": "Buah 15 · Kulit",
+                    "label": "Kulit (1-5)",
                     "input-type": "number",
                     "required": false
                   },
                   {
                     "type": "TextInput",
                     "name": "bentuk_ao",
-                    "label": "Buah 15 · Bentuk",
+                    "label": "Bentuk (1-5)",
                     "input-type": "number",
                     "required": false
                   }
@@ -637,98 +697,34 @@
                 "condition": "${form.berat_ao} > 0",
                 "then": [
                   {
+                    "type": "TextSubheading",
+                    "text": "Buah 16"
+                  },
+                  {
                     "type": "TextInput",
                     "name": "berat_ap",
-                    "label": "Buah 16 · Berat (g)",
+                    "label": "Berat (gram)",
                     "input-type": "number",
                     "required": false
                   },
                   {
                     "type": "TextInput",
                     "name": "aroma_ap",
-                    "label": "Buah 16 · Aroma",
+                    "label": "Aroma (1-5)",
                     "input-type": "number",
                     "required": false
                   },
                   {
                     "type": "TextInput",
                     "name": "kulit_ap",
-                    "label": "Buah 16 · Kulit",
+                    "label": "Kulit (1-5)",
                     "input-type": "number",
                     "required": false
                   },
                   {
                     "type": "TextInput",
                     "name": "bentuk_ap",
-                    "label": "Buah 16 · Bentuk",
-                    "input-type": "number",
-                    "required": false
-                  }
-                ]
-              },
-              {
-                "type": "If",
-                "condition": "${form.berat_ap} > 0",
-                "then": [
-                  {
-                    "type": "TextInput",
-                    "name": "berat_aq",
-                    "label": "Buah 17 · Berat (g)",
-                    "input-type": "number",
-                    "required": false
-                  },
-                  {
-                    "type": "TextInput",
-                    "name": "aroma_aq",
-                    "label": "Buah 17 · Aroma",
-                    "input-type": "number",
-                    "required": false
-                  },
-                  {
-                    "type": "TextInput",
-                    "name": "kulit_aq",
-                    "label": "Buah 17 · Kulit",
-                    "input-type": "number",
-                    "required": false
-                  },
-                  {
-                    "type": "TextInput",
-                    "name": "bentuk_aq",
-                    "label": "Buah 17 · Bentuk",
-                    "input-type": "number",
-                    "required": false
-                  }
-                ]
-              },
-              {
-                "type": "If",
-                "condition": "${form.berat_aq} > 0",
-                "then": [
-                  {
-                    "type": "TextInput",
-                    "name": "berat_ar",
-                    "label": "Buah 18 · Berat (g)",
-                    "input-type": "number",
-                    "required": false
-                  },
-                  {
-                    "type": "TextInput",
-                    "name": "aroma_ar",
-                    "label": "Buah 18 · Aroma",
-                    "input-type": "number",
-                    "required": false
-                  },
-                  {
-                    "type": "TextInput",
-                    "name": "kulit_ar",
-                    "label": "Buah 18 · Kulit",
-                    "input-type": "number",
-                    "required": false
-                  },
-                  {
-                    "type": "TextInput",
-                    "name": "bentuk_ar",
-                    "label": "Buah 18 · Bentuk",
+                    "label": "Bentuk (1-5)",
                     "input-type": "number",
                     "required": false
                   }
@@ -803,15 +799,7 @@
                     "berat_ap": "${form.berat_ap}",
                     "aroma_ap": "${form.aroma_ap}",
                     "kulit_ap": "${form.kulit_ap}",
-                    "bentuk_ap": "${form.bentuk_ap}",
-                    "berat_aq": "${form.berat_aq}",
-                    "aroma_aq": "${form.aroma_aq}",
-                    "kulit_aq": "${form.kulit_aq}",
-                    "bentuk_aq": "${form.bentuk_aq}",
-                    "berat_ar": "${form.berat_ar}",
-                    "aroma_ar": "${form.aroma_ar}",
-                    "kulit_ar": "${form.kulit_ar}",
-                    "bentuk_ar": "${form.bentuk_ar}"
+                    "bentuk_ap": "${form.bentuk_ap}"
                   }
                 }
               }

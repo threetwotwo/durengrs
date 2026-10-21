@@ -108,32 +108,34 @@ const REPORT = screen(
 
 // =====================================================================================================
 // Laporan PANEN (same Flow), one screen: a row per fruit picked up from the tree today (weight in grams; aroma, kulit,
-// bentuk 1-5), all typed. Flows have no table or repeating field, so the screen holds 18 rows: fruit 1 is always
+// bentuk 1-5), all typed. Flows have no table or repeating field, so the screen holds 16 rows: fruit 1 is always
 // shown, each next one inside an If that shows it once the fruit before has a weight (`> 0`: a number field cannot be compared with text). The rows filled are the
 // fruits; the endpoint checks everything (lib/flowScreens.js handlePanen). Names may not hold digits: fruit 1 is
-// berat_aa. Meta allows 100 components per screen (an If counts, the Form doesn't): "Buah N" goes in each label
-// rather than a heading of its own, so a row is 5 and the screen 94.
+// berat_aa. Meta allows 100 components per screen (an If counts, the Form doesn't): a row is 6, the screen exactly 100.
+// Only Buah 1 is required: Meta adds "(optional)" to the others, but a required row that is showing (the next one
+// appears empty as soon as a weight is typed) would block Simpan.
 // =====================================================================================================
 
 const FRUIT_KEYS = require('../lib/rules').FRUIT_KEYS; // aa, ab, ... (LIMITS.harvestReportFruits.max of them)
-const numIn = (name, label, helper) => ({ type: 'TextInput', name, label, 'input-type': 'number', ...(helper ? { 'helper-text': helper } : {}), required: false });
+const numIn = (name, label, helper, required) => ({ type: 'TextInput', name, label, 'input-type': 'number', ...(helper ? { 'helper-text': helper } : {}), required });
 const FRUIT_FIELDS = ['berat', 'aroma', 'kulit', 'bentuk'];
 
 const PANEN = (() => {
   const children = [
     heading('${data.panen_title}'),
     caption('${data.today_caption}'),
-    body('Isi berat dan nilai setiap buah dari pohon ini yang dipungut hari ini. Buah berikutnya muncul setelah berat diisi. Paling banyak 18 buah; lebih dari itu, kirim laporan panen lagi.'),
+    body('Isi berat dan nilai setiap buah dari pohon ini yang dipungut hari ini. Buah berikutnya muncul setelah berat diisi. Paling banyak 16 buah; lebih dari itu, kirim laporan panen lagi.'),
     caption('Nilai 1 sampai 5:\nAroma: 5 = wangi kuat & segar, 1 = tidak wangi\nKulit: 5 = mulus sempurna, 1 = cacat (bolong, retak)\nBentuk: 5 = bulat sempurna, 1 = peyang beberapa ruas'),
   ];
   const payload = {};
   FRUIT_KEYS.forEach((k, i) => {
-    const n = `Buah ${i + 1}`;
+    const first = i === 0;
     const row = [
-      numIn(`berat_${k}`, `${n} · Berat (g)`, i === 0 ? 'Dalam gram. Contoh: 2350 untuk 2,35 kg' : ''),
-      numIn(`aroma_${k}`, `${n} · Aroma`),
-      numIn(`kulit_${k}`, `${n} · Kulit`),
-      numIn(`bentuk_${k}`, `${n} · Bentuk`),
+      { type: 'TextSubheading', text: `Buah ${i + 1}` },
+      numIn(`berat_${k}`, 'Berat (gram)', first ? 'Contoh: 2350 untuk 2,35 kg' : '', first),
+      numIn(`aroma_${k}`, 'Aroma (1-5)', '', first),
+      numIn(`kulit_${k}`, 'Kulit (1-5)', '', first),
+      numIn(`bentuk_${k}`, 'Bentuk (1-5)', '', first),
     ];
     if (i === 0) children.push(...row);
     else children.push({ type: 'If', condition: `\${form.berat_${FRUIT_KEYS[i - 1]}} > 0`, then: row });
