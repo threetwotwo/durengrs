@@ -156,7 +156,7 @@ function sendHarvestFlow(to, tree, intro) {
     header: treeHeader(tree),
     text: intro
       ? `${intro}\n\nAda buah lagi dari pohon ini? Ketuk tombol di bawah. Untuk pohon lain, kirim ID-nya.`
-      : '🧺 *Laporan PANEN*\nBuah yang dipungut hari ini dari pohon ini: jumlahnya, lalu berat, aroma, kulit, dan bentuk tiap buah.',
+      : '🧺 *Laporan PANEN*\nIsi berat, aroma, kulit, dan bentuk setiap buah yang dipungut hari ini dari pohon ini.',
     token: makeHarvestToken(tree.id, to),
     flowId: FLOW_ID,
     cta: 'Laporan PANEN',
