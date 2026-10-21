@@ -7,38 +7,6 @@
       "PANEN"
     ],
     "PANEN": [
-      "BUAH_A",
-      "DONE"
-    ],
-    "BUAH_A": [
-      "BUAH_B",
-      "DONE"
-    ],
-    "BUAH_B": [
-      "BUAH_C",
-      "DONE"
-    ],
-    "BUAH_C": [
-      "BUAH_D",
-      "DONE"
-    ],
-    "BUAH_D": [
-      "BUAH_E",
-      "DONE"
-    ],
-    "BUAH_E": [
-      "BUAH_F",
-      "DONE"
-    ],
-    "BUAH_F": [
-      "BUAH_G",
-      "DONE"
-    ],
-    "BUAH_G": [
-      "BUAH_H",
-      "DONE"
-    ],
-    "BUAH_H": [
       "DONE"
     ],
     "DONE": []
@@ -153,107 +121,7 @@
               },
               {
                 "type": "TextBody",
-                "text": "Hitung semua buah dari pohon ini yang dipungut hari ini. Setelah itu, isi berat dan nilai tiap buah."
-              },
-              {
-                "type": "TextInput",
-                "name": "count",
-                "label": "Berapa buah dipungut hari ini?",
-                "label-variant": "large",
-                "input-type": "number",
-                "helper-text": "Satu laporan paling banyak 40 buah.",
-                "required": true
-              },
-              {
-                "type": "Footer",
-                "label": "Lanjut",
-                "on-click-action": {
-                  "name": "data_exchange",
-                  "payload": {
-                    "count": "${form.count}"
-                  }
-                }
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "id": "BUAH_A",
-      "title": "Berat & Nilai Buah",
-      "data": {
-        "fruits_title": {
-          "type": "string",
-          "__example__": "Buah 1–5 dari 6"
-        },
-        "next_label": {
-          "type": "string",
-          "__example__": "Lanjut"
-        },
-        "count": {
-          "type": "string",
-          "__example__": "6"
-        },
-        "collected": {
-          "type": "string",
-          "__example__": "[]"
-        },
-        "show_a": {
-          "type": "boolean",
-          "__example__": true
-        },
-        "label_a": {
-          "type": "string",
-          "__example__": "Buah 1"
-        },
-        "show_b": {
-          "type": "boolean",
-          "__example__": true
-        },
-        "label_b": {
-          "type": "string",
-          "__example__": "Buah 2"
-        },
-        "show_c": {
-          "type": "boolean",
-          "__example__": true
-        },
-        "label_c": {
-          "type": "string",
-          "__example__": "Buah 3"
-        },
-        "show_d": {
-          "type": "boolean",
-          "__example__": true
-        },
-        "label_d": {
-          "type": "string",
-          "__example__": "Buah 4"
-        },
-        "show_e": {
-          "type": "boolean",
-          "__example__": true
-        },
-        "label_e": {
-          "type": "string",
-          "__example__": "Buah 5"
-        }
-      },
-      "layout": {
-        "type": "SingleColumnLayout",
-        "children": [
-          {
-            "type": "Form",
-            "name": "fruit_form_a",
-            "children": [
-              {
-                "type": "TextHeading",
-                "text": "${data.fruits_title}"
-              },
-              {
-                "type": "TextBody",
-                "text": "Timbang tiap buah. Lalu beri nilai 1 sampai 5:"
+                "text": "Isi satu baris untuk setiap buah dari pohon ini yang dipungut hari ini. Baris berikutnya muncul setelah berat diisi."
               },
               {
                 "type": "TextCaption",
@@ -269,2420 +137,1689 @@
               },
               {
                 "type": "TextSubheading",
-                "text": "${data.label_a}",
-                "visible": "${data.show_a}"
+                "text": "Buah 1"
               },
               {
                 "type": "TextInput",
-                "name": "berat_a",
+                "name": "berat_aa",
                 "label": "Berat (gram)",
                 "input-type": "number",
                 "helper-text": "Contoh: 2350 untuk 2,35 kg",
-                "required": false,
-                "visible": "${data.show_a}"
+                "required": false
               },
               {
                 "type": "TextInput",
-                "name": "aroma_a",
+                "name": "aroma_aa",
                 "label": "Aroma (1-5)",
                 "input-type": "number",
-                "required": false,
-                "visible": "${data.show_a}"
+                "required": false
               },
               {
                 "type": "TextInput",
-                "name": "kulit_a",
+                "name": "kulit_aa",
                 "label": "Kulit (1-5)",
                 "input-type": "number",
-                "required": false,
-                "visible": "${data.show_a}"
+                "required": false
               },
               {
                 "type": "TextInput",
-                "name": "bentuk_a",
+                "name": "bentuk_aa",
                 "label": "Bentuk (1-5)",
                 "input-type": "number",
-                "required": false,
-                "visible": "${data.show_a}"
+                "required": false
               },
               {
-                "type": "TextSubheading",
-                "text": "${data.label_b}",
-                "visible": "${data.show_b}"
-              },
-              {
-                "type": "TextInput",
-                "name": "berat_b",
-                "label": "Berat (gram)",
-                "input-type": "number",
-                "helper-text": "Contoh: 2350 untuk 2,35 kg",
-                "required": false,
-                "visible": "${data.show_b}"
-              },
-              {
-                "type": "TextInput",
-                "name": "aroma_b",
-                "label": "Aroma (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_b}"
-              },
-              {
-                "type": "TextInput",
-                "name": "kulit_b",
-                "label": "Kulit (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_b}"
-              },
-              {
-                "type": "TextInput",
-                "name": "bentuk_b",
-                "label": "Bentuk (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_b}"
-              },
-              {
-                "type": "TextSubheading",
-                "text": "${data.label_c}",
-                "visible": "${data.show_c}"
-              },
-              {
-                "type": "TextInput",
-                "name": "berat_c",
-                "label": "Berat (gram)",
-                "input-type": "number",
-                "helper-text": "Contoh: 2350 untuk 2,35 kg",
-                "required": false,
-                "visible": "${data.show_c}"
-              },
-              {
-                "type": "TextInput",
-                "name": "aroma_c",
-                "label": "Aroma (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_c}"
-              },
-              {
-                "type": "TextInput",
-                "name": "kulit_c",
-                "label": "Kulit (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_c}"
-              },
-              {
-                "type": "TextInput",
-                "name": "bentuk_c",
-                "label": "Bentuk (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_c}"
-              },
-              {
-                "type": "TextSubheading",
-                "text": "${data.label_d}",
-                "visible": "${data.show_d}"
-              },
-              {
-                "type": "TextInput",
-                "name": "berat_d",
-                "label": "Berat (gram)",
-                "input-type": "number",
-                "helper-text": "Contoh: 2350 untuk 2,35 kg",
-                "required": false,
-                "visible": "${data.show_d}"
-              },
-              {
-                "type": "TextInput",
-                "name": "aroma_d",
-                "label": "Aroma (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_d}"
-              },
-              {
-                "type": "TextInput",
-                "name": "kulit_d",
-                "label": "Kulit (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_d}"
-              },
-              {
-                "type": "TextInput",
-                "name": "bentuk_d",
-                "label": "Bentuk (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_d}"
-              },
-              {
-                "type": "TextSubheading",
-                "text": "${data.label_e}",
-                "visible": "${data.show_e}"
-              },
-              {
-                "type": "TextInput",
-                "name": "berat_e",
-                "label": "Berat (gram)",
-                "input-type": "number",
-                "helper-text": "Contoh: 2350 untuk 2,35 kg",
-                "required": false,
-                "visible": "${data.show_e}"
-              },
-              {
-                "type": "TextInput",
-                "name": "aroma_e",
-                "label": "Aroma (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_e}"
-              },
-              {
-                "type": "TextInput",
-                "name": "kulit_e",
-                "label": "Kulit (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_e}"
-              },
-              {
-                "type": "TextInput",
-                "name": "bentuk_e",
-                "label": "Bentuk (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_e}"
-              },
-              {
-                "type": "Footer",
-                "label": "${data.next_label}",
-                "on-click-action": {
-                  "name": "data_exchange",
-                  "payload": {
-                    "count": "${data.count}",
-                    "collected": "${data.collected}",
-                    "berat_a": "${form.berat_a}",
-                    "aroma_a": "${form.aroma_a}",
-                    "kulit_a": "${form.kulit_a}",
-                    "bentuk_a": "${form.bentuk_a}",
-                    "berat_b": "${form.berat_b}",
-                    "aroma_b": "${form.aroma_b}",
-                    "kulit_b": "${form.kulit_b}",
-                    "bentuk_b": "${form.bentuk_b}",
-                    "berat_c": "${form.berat_c}",
-                    "aroma_c": "${form.aroma_c}",
-                    "kulit_c": "${form.kulit_c}",
-                    "bentuk_c": "${form.bentuk_c}",
-                    "berat_d": "${form.berat_d}",
-                    "aroma_d": "${form.aroma_d}",
-                    "kulit_d": "${form.kulit_d}",
-                    "bentuk_d": "${form.bentuk_d}",
-                    "berat_e": "${form.berat_e}",
-                    "aroma_e": "${form.aroma_e}",
-                    "kulit_e": "${form.kulit_e}",
-                    "bentuk_e": "${form.bentuk_e}"
+                "type": "If",
+                "condition": "${form.berat_aa} != ''",
+                "then": [
+                  {
+                    "type": "TextSubheading",
+                    "text": "Buah 2"
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "berat_ab",
+                    "label": "Berat (gram)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "aroma_ab",
+                    "label": "Aroma (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "kulit_ab",
+                    "label": "Kulit (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "bentuk_ab",
+                    "label": "Bentuk (1-5)",
+                    "input-type": "number",
+                    "required": false
                   }
-                }
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "id": "BUAH_B",
-      "title": "Berat & Nilai Buah",
-      "data": {
-        "fruits_title": {
-          "type": "string",
-          "__example__": "Buah 1–5 dari 6"
-        },
-        "next_label": {
-          "type": "string",
-          "__example__": "Lanjut"
-        },
-        "count": {
-          "type": "string",
-          "__example__": "6"
-        },
-        "collected": {
-          "type": "string",
-          "__example__": "[]"
-        },
-        "show_a": {
-          "type": "boolean",
-          "__example__": true
-        },
-        "label_a": {
-          "type": "string",
-          "__example__": "Buah 1"
-        },
-        "show_b": {
-          "type": "boolean",
-          "__example__": true
-        },
-        "label_b": {
-          "type": "string",
-          "__example__": "Buah 2"
-        },
-        "show_c": {
-          "type": "boolean",
-          "__example__": true
-        },
-        "label_c": {
-          "type": "string",
-          "__example__": "Buah 3"
-        },
-        "show_d": {
-          "type": "boolean",
-          "__example__": true
-        },
-        "label_d": {
-          "type": "string",
-          "__example__": "Buah 4"
-        },
-        "show_e": {
-          "type": "boolean",
-          "__example__": true
-        },
-        "label_e": {
-          "type": "string",
-          "__example__": "Buah 5"
-        }
-      },
-      "layout": {
-        "type": "SingleColumnLayout",
-        "children": [
-          {
-            "type": "Form",
-            "name": "fruit_form_b",
-            "children": [
-              {
-                "type": "TextHeading",
-                "text": "${data.fruits_title}"
+                ]
               },
               {
-                "type": "TextBody",
-                "text": "Timbang tiap buah. Lalu beri nilai 1 sampai 5:"
-              },
-              {
-                "type": "TextCaption",
-                "text": "Aroma: 5 = wangi kuat & segar, 1 = tidak wangi"
-              },
-              {
-                "type": "TextCaption",
-                "text": "Kulit: 5 = mulus sempurna, 1 = cacat (bolong, retak)"
-              },
-              {
-                "type": "TextCaption",
-                "text": "Bentuk: 5 = bulat sempurna, 1 = peyang beberapa ruas"
-              },
-              {
-                "type": "TextSubheading",
-                "text": "${data.label_a}",
-                "visible": "${data.show_a}"
-              },
-              {
-                "type": "TextInput",
-                "name": "berat_a",
-                "label": "Berat (gram)",
-                "input-type": "number",
-                "helper-text": "Contoh: 2350 untuk 2,35 kg",
-                "required": false,
-                "visible": "${data.show_a}"
-              },
-              {
-                "type": "TextInput",
-                "name": "aroma_a",
-                "label": "Aroma (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_a}"
-              },
-              {
-                "type": "TextInput",
-                "name": "kulit_a",
-                "label": "Kulit (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_a}"
-              },
-              {
-                "type": "TextInput",
-                "name": "bentuk_a",
-                "label": "Bentuk (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_a}"
-              },
-              {
-                "type": "TextSubheading",
-                "text": "${data.label_b}",
-                "visible": "${data.show_b}"
-              },
-              {
-                "type": "TextInput",
-                "name": "berat_b",
-                "label": "Berat (gram)",
-                "input-type": "number",
-                "helper-text": "Contoh: 2350 untuk 2,35 kg",
-                "required": false,
-                "visible": "${data.show_b}"
-              },
-              {
-                "type": "TextInput",
-                "name": "aroma_b",
-                "label": "Aroma (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_b}"
-              },
-              {
-                "type": "TextInput",
-                "name": "kulit_b",
-                "label": "Kulit (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_b}"
-              },
-              {
-                "type": "TextInput",
-                "name": "bentuk_b",
-                "label": "Bentuk (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_b}"
-              },
-              {
-                "type": "TextSubheading",
-                "text": "${data.label_c}",
-                "visible": "${data.show_c}"
-              },
-              {
-                "type": "TextInput",
-                "name": "berat_c",
-                "label": "Berat (gram)",
-                "input-type": "number",
-                "helper-text": "Contoh: 2350 untuk 2,35 kg",
-                "required": false,
-                "visible": "${data.show_c}"
-              },
-              {
-                "type": "TextInput",
-                "name": "aroma_c",
-                "label": "Aroma (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_c}"
-              },
-              {
-                "type": "TextInput",
-                "name": "kulit_c",
-                "label": "Kulit (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_c}"
-              },
-              {
-                "type": "TextInput",
-                "name": "bentuk_c",
-                "label": "Bentuk (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_c}"
-              },
-              {
-                "type": "TextSubheading",
-                "text": "${data.label_d}",
-                "visible": "${data.show_d}"
-              },
-              {
-                "type": "TextInput",
-                "name": "berat_d",
-                "label": "Berat (gram)",
-                "input-type": "number",
-                "helper-text": "Contoh: 2350 untuk 2,35 kg",
-                "required": false,
-                "visible": "${data.show_d}"
-              },
-              {
-                "type": "TextInput",
-                "name": "aroma_d",
-                "label": "Aroma (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_d}"
-              },
-              {
-                "type": "TextInput",
-                "name": "kulit_d",
-                "label": "Kulit (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_d}"
-              },
-              {
-                "type": "TextInput",
-                "name": "bentuk_d",
-                "label": "Bentuk (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_d}"
-              },
-              {
-                "type": "TextSubheading",
-                "text": "${data.label_e}",
-                "visible": "${data.show_e}"
-              },
-              {
-                "type": "TextInput",
-                "name": "berat_e",
-                "label": "Berat (gram)",
-                "input-type": "number",
-                "helper-text": "Contoh: 2350 untuk 2,35 kg",
-                "required": false,
-                "visible": "${data.show_e}"
-              },
-              {
-                "type": "TextInput",
-                "name": "aroma_e",
-                "label": "Aroma (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_e}"
-              },
-              {
-                "type": "TextInput",
-                "name": "kulit_e",
-                "label": "Kulit (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_e}"
-              },
-              {
-                "type": "TextInput",
-                "name": "bentuk_e",
-                "label": "Bentuk (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_e}"
-              },
-              {
-                "type": "Footer",
-                "label": "${data.next_label}",
-                "on-click-action": {
-                  "name": "data_exchange",
-                  "payload": {
-                    "count": "${data.count}",
-                    "collected": "${data.collected}",
-                    "berat_a": "${form.berat_a}",
-                    "aroma_a": "${form.aroma_a}",
-                    "kulit_a": "${form.kulit_a}",
-                    "bentuk_a": "${form.bentuk_a}",
-                    "berat_b": "${form.berat_b}",
-                    "aroma_b": "${form.aroma_b}",
-                    "kulit_b": "${form.kulit_b}",
-                    "bentuk_b": "${form.bentuk_b}",
-                    "berat_c": "${form.berat_c}",
-                    "aroma_c": "${form.aroma_c}",
-                    "kulit_c": "${form.kulit_c}",
-                    "bentuk_c": "${form.bentuk_c}",
-                    "berat_d": "${form.berat_d}",
-                    "aroma_d": "${form.aroma_d}",
-                    "kulit_d": "${form.kulit_d}",
-                    "bentuk_d": "${form.bentuk_d}",
-                    "berat_e": "${form.berat_e}",
-                    "aroma_e": "${form.aroma_e}",
-                    "kulit_e": "${form.kulit_e}",
-                    "bentuk_e": "${form.bentuk_e}"
+                "type": "If",
+                "condition": "${form.berat_ab} != ''",
+                "then": [
+                  {
+                    "type": "TextSubheading",
+                    "text": "Buah 3"
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "berat_ac",
+                    "label": "Berat (gram)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "aroma_ac",
+                    "label": "Aroma (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "kulit_ac",
+                    "label": "Kulit (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "bentuk_ac",
+                    "label": "Bentuk (1-5)",
+                    "input-type": "number",
+                    "required": false
                   }
-                }
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "id": "BUAH_C",
-      "title": "Berat & Nilai Buah",
-      "data": {
-        "fruits_title": {
-          "type": "string",
-          "__example__": "Buah 1–5 dari 6"
-        },
-        "next_label": {
-          "type": "string",
-          "__example__": "Lanjut"
-        },
-        "count": {
-          "type": "string",
-          "__example__": "6"
-        },
-        "collected": {
-          "type": "string",
-          "__example__": "[]"
-        },
-        "show_a": {
-          "type": "boolean",
-          "__example__": true
-        },
-        "label_a": {
-          "type": "string",
-          "__example__": "Buah 1"
-        },
-        "show_b": {
-          "type": "boolean",
-          "__example__": true
-        },
-        "label_b": {
-          "type": "string",
-          "__example__": "Buah 2"
-        },
-        "show_c": {
-          "type": "boolean",
-          "__example__": true
-        },
-        "label_c": {
-          "type": "string",
-          "__example__": "Buah 3"
-        },
-        "show_d": {
-          "type": "boolean",
-          "__example__": true
-        },
-        "label_d": {
-          "type": "string",
-          "__example__": "Buah 4"
-        },
-        "show_e": {
-          "type": "boolean",
-          "__example__": true
-        },
-        "label_e": {
-          "type": "string",
-          "__example__": "Buah 5"
-        }
-      },
-      "layout": {
-        "type": "SingleColumnLayout",
-        "children": [
-          {
-            "type": "Form",
-            "name": "fruit_form_c",
-            "children": [
-              {
-                "type": "TextHeading",
-                "text": "${data.fruits_title}"
+                ]
               },
               {
-                "type": "TextBody",
-                "text": "Timbang tiap buah. Lalu beri nilai 1 sampai 5:"
-              },
-              {
-                "type": "TextCaption",
-                "text": "Aroma: 5 = wangi kuat & segar, 1 = tidak wangi"
-              },
-              {
-                "type": "TextCaption",
-                "text": "Kulit: 5 = mulus sempurna, 1 = cacat (bolong, retak)"
-              },
-              {
-                "type": "TextCaption",
-                "text": "Bentuk: 5 = bulat sempurna, 1 = peyang beberapa ruas"
-              },
-              {
-                "type": "TextSubheading",
-                "text": "${data.label_a}",
-                "visible": "${data.show_a}"
-              },
-              {
-                "type": "TextInput",
-                "name": "berat_a",
-                "label": "Berat (gram)",
-                "input-type": "number",
-                "helper-text": "Contoh: 2350 untuk 2,35 kg",
-                "required": false,
-                "visible": "${data.show_a}"
-              },
-              {
-                "type": "TextInput",
-                "name": "aroma_a",
-                "label": "Aroma (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_a}"
-              },
-              {
-                "type": "TextInput",
-                "name": "kulit_a",
-                "label": "Kulit (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_a}"
-              },
-              {
-                "type": "TextInput",
-                "name": "bentuk_a",
-                "label": "Bentuk (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_a}"
-              },
-              {
-                "type": "TextSubheading",
-                "text": "${data.label_b}",
-                "visible": "${data.show_b}"
-              },
-              {
-                "type": "TextInput",
-                "name": "berat_b",
-                "label": "Berat (gram)",
-                "input-type": "number",
-                "helper-text": "Contoh: 2350 untuk 2,35 kg",
-                "required": false,
-                "visible": "${data.show_b}"
-              },
-              {
-                "type": "TextInput",
-                "name": "aroma_b",
-                "label": "Aroma (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_b}"
-              },
-              {
-                "type": "TextInput",
-                "name": "kulit_b",
-                "label": "Kulit (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_b}"
-              },
-              {
-                "type": "TextInput",
-                "name": "bentuk_b",
-                "label": "Bentuk (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_b}"
-              },
-              {
-                "type": "TextSubheading",
-                "text": "${data.label_c}",
-                "visible": "${data.show_c}"
-              },
-              {
-                "type": "TextInput",
-                "name": "berat_c",
-                "label": "Berat (gram)",
-                "input-type": "number",
-                "helper-text": "Contoh: 2350 untuk 2,35 kg",
-                "required": false,
-                "visible": "${data.show_c}"
-              },
-              {
-                "type": "TextInput",
-                "name": "aroma_c",
-                "label": "Aroma (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_c}"
-              },
-              {
-                "type": "TextInput",
-                "name": "kulit_c",
-                "label": "Kulit (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_c}"
-              },
-              {
-                "type": "TextInput",
-                "name": "bentuk_c",
-                "label": "Bentuk (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_c}"
-              },
-              {
-                "type": "TextSubheading",
-                "text": "${data.label_d}",
-                "visible": "${data.show_d}"
-              },
-              {
-                "type": "TextInput",
-                "name": "berat_d",
-                "label": "Berat (gram)",
-                "input-type": "number",
-                "helper-text": "Contoh: 2350 untuk 2,35 kg",
-                "required": false,
-                "visible": "${data.show_d}"
-              },
-              {
-                "type": "TextInput",
-                "name": "aroma_d",
-                "label": "Aroma (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_d}"
-              },
-              {
-                "type": "TextInput",
-                "name": "kulit_d",
-                "label": "Kulit (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_d}"
-              },
-              {
-                "type": "TextInput",
-                "name": "bentuk_d",
-                "label": "Bentuk (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_d}"
-              },
-              {
-                "type": "TextSubheading",
-                "text": "${data.label_e}",
-                "visible": "${data.show_e}"
-              },
-              {
-                "type": "TextInput",
-                "name": "berat_e",
-                "label": "Berat (gram)",
-                "input-type": "number",
-                "helper-text": "Contoh: 2350 untuk 2,35 kg",
-                "required": false,
-                "visible": "${data.show_e}"
-              },
-              {
-                "type": "TextInput",
-                "name": "aroma_e",
-                "label": "Aroma (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_e}"
-              },
-              {
-                "type": "TextInput",
-                "name": "kulit_e",
-                "label": "Kulit (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_e}"
-              },
-              {
-                "type": "TextInput",
-                "name": "bentuk_e",
-                "label": "Bentuk (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_e}"
-              },
-              {
-                "type": "Footer",
-                "label": "${data.next_label}",
-                "on-click-action": {
-                  "name": "data_exchange",
-                  "payload": {
-                    "count": "${data.count}",
-                    "collected": "${data.collected}",
-                    "berat_a": "${form.berat_a}",
-                    "aroma_a": "${form.aroma_a}",
-                    "kulit_a": "${form.kulit_a}",
-                    "bentuk_a": "${form.bentuk_a}",
-                    "berat_b": "${form.berat_b}",
-                    "aroma_b": "${form.aroma_b}",
-                    "kulit_b": "${form.kulit_b}",
-                    "bentuk_b": "${form.bentuk_b}",
-                    "berat_c": "${form.berat_c}",
-                    "aroma_c": "${form.aroma_c}",
-                    "kulit_c": "${form.kulit_c}",
-                    "bentuk_c": "${form.bentuk_c}",
-                    "berat_d": "${form.berat_d}",
-                    "aroma_d": "${form.aroma_d}",
-                    "kulit_d": "${form.kulit_d}",
-                    "bentuk_d": "${form.bentuk_d}",
-                    "berat_e": "${form.berat_e}",
-                    "aroma_e": "${form.aroma_e}",
-                    "kulit_e": "${form.kulit_e}",
-                    "bentuk_e": "${form.bentuk_e}"
+                "type": "If",
+                "condition": "${form.berat_ac} != ''",
+                "then": [
+                  {
+                    "type": "TextSubheading",
+                    "text": "Buah 4"
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "berat_ad",
+                    "label": "Berat (gram)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "aroma_ad",
+                    "label": "Aroma (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "kulit_ad",
+                    "label": "Kulit (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "bentuk_ad",
+                    "label": "Bentuk (1-5)",
+                    "input-type": "number",
+                    "required": false
                   }
-                }
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "id": "BUAH_D",
-      "title": "Berat & Nilai Buah",
-      "data": {
-        "fruits_title": {
-          "type": "string",
-          "__example__": "Buah 1–5 dari 6"
-        },
-        "next_label": {
-          "type": "string",
-          "__example__": "Lanjut"
-        },
-        "count": {
-          "type": "string",
-          "__example__": "6"
-        },
-        "collected": {
-          "type": "string",
-          "__example__": "[]"
-        },
-        "show_a": {
-          "type": "boolean",
-          "__example__": true
-        },
-        "label_a": {
-          "type": "string",
-          "__example__": "Buah 1"
-        },
-        "show_b": {
-          "type": "boolean",
-          "__example__": true
-        },
-        "label_b": {
-          "type": "string",
-          "__example__": "Buah 2"
-        },
-        "show_c": {
-          "type": "boolean",
-          "__example__": true
-        },
-        "label_c": {
-          "type": "string",
-          "__example__": "Buah 3"
-        },
-        "show_d": {
-          "type": "boolean",
-          "__example__": true
-        },
-        "label_d": {
-          "type": "string",
-          "__example__": "Buah 4"
-        },
-        "show_e": {
-          "type": "boolean",
-          "__example__": true
-        },
-        "label_e": {
-          "type": "string",
-          "__example__": "Buah 5"
-        }
-      },
-      "layout": {
-        "type": "SingleColumnLayout",
-        "children": [
-          {
-            "type": "Form",
-            "name": "fruit_form_d",
-            "children": [
-              {
-                "type": "TextHeading",
-                "text": "${data.fruits_title}"
+                ]
               },
               {
-                "type": "TextBody",
-                "text": "Timbang tiap buah. Lalu beri nilai 1 sampai 5:"
-              },
-              {
-                "type": "TextCaption",
-                "text": "Aroma: 5 = wangi kuat & segar, 1 = tidak wangi"
-              },
-              {
-                "type": "TextCaption",
-                "text": "Kulit: 5 = mulus sempurna, 1 = cacat (bolong, retak)"
-              },
-              {
-                "type": "TextCaption",
-                "text": "Bentuk: 5 = bulat sempurna, 1 = peyang beberapa ruas"
-              },
-              {
-                "type": "TextSubheading",
-                "text": "${data.label_a}",
-                "visible": "${data.show_a}"
-              },
-              {
-                "type": "TextInput",
-                "name": "berat_a",
-                "label": "Berat (gram)",
-                "input-type": "number",
-                "helper-text": "Contoh: 2350 untuk 2,35 kg",
-                "required": false,
-                "visible": "${data.show_a}"
-              },
-              {
-                "type": "TextInput",
-                "name": "aroma_a",
-                "label": "Aroma (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_a}"
-              },
-              {
-                "type": "TextInput",
-                "name": "kulit_a",
-                "label": "Kulit (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_a}"
-              },
-              {
-                "type": "TextInput",
-                "name": "bentuk_a",
-                "label": "Bentuk (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_a}"
-              },
-              {
-                "type": "TextSubheading",
-                "text": "${data.label_b}",
-                "visible": "${data.show_b}"
-              },
-              {
-                "type": "TextInput",
-                "name": "berat_b",
-                "label": "Berat (gram)",
-                "input-type": "number",
-                "helper-text": "Contoh: 2350 untuk 2,35 kg",
-                "required": false,
-                "visible": "${data.show_b}"
-              },
-              {
-                "type": "TextInput",
-                "name": "aroma_b",
-                "label": "Aroma (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_b}"
-              },
-              {
-                "type": "TextInput",
-                "name": "kulit_b",
-                "label": "Kulit (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_b}"
-              },
-              {
-                "type": "TextInput",
-                "name": "bentuk_b",
-                "label": "Bentuk (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_b}"
-              },
-              {
-                "type": "TextSubheading",
-                "text": "${data.label_c}",
-                "visible": "${data.show_c}"
-              },
-              {
-                "type": "TextInput",
-                "name": "berat_c",
-                "label": "Berat (gram)",
-                "input-type": "number",
-                "helper-text": "Contoh: 2350 untuk 2,35 kg",
-                "required": false,
-                "visible": "${data.show_c}"
-              },
-              {
-                "type": "TextInput",
-                "name": "aroma_c",
-                "label": "Aroma (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_c}"
-              },
-              {
-                "type": "TextInput",
-                "name": "kulit_c",
-                "label": "Kulit (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_c}"
-              },
-              {
-                "type": "TextInput",
-                "name": "bentuk_c",
-                "label": "Bentuk (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_c}"
-              },
-              {
-                "type": "TextSubheading",
-                "text": "${data.label_d}",
-                "visible": "${data.show_d}"
-              },
-              {
-                "type": "TextInput",
-                "name": "berat_d",
-                "label": "Berat (gram)",
-                "input-type": "number",
-                "helper-text": "Contoh: 2350 untuk 2,35 kg",
-                "required": false,
-                "visible": "${data.show_d}"
-              },
-              {
-                "type": "TextInput",
-                "name": "aroma_d",
-                "label": "Aroma (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_d}"
-              },
-              {
-                "type": "TextInput",
-                "name": "kulit_d",
-                "label": "Kulit (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_d}"
-              },
-              {
-                "type": "TextInput",
-                "name": "bentuk_d",
-                "label": "Bentuk (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_d}"
-              },
-              {
-                "type": "TextSubheading",
-                "text": "${data.label_e}",
-                "visible": "${data.show_e}"
-              },
-              {
-                "type": "TextInput",
-                "name": "berat_e",
-                "label": "Berat (gram)",
-                "input-type": "number",
-                "helper-text": "Contoh: 2350 untuk 2,35 kg",
-                "required": false,
-                "visible": "${data.show_e}"
-              },
-              {
-                "type": "TextInput",
-                "name": "aroma_e",
-                "label": "Aroma (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_e}"
-              },
-              {
-                "type": "TextInput",
-                "name": "kulit_e",
-                "label": "Kulit (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_e}"
-              },
-              {
-                "type": "TextInput",
-                "name": "bentuk_e",
-                "label": "Bentuk (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_e}"
-              },
-              {
-                "type": "Footer",
-                "label": "${data.next_label}",
-                "on-click-action": {
-                  "name": "data_exchange",
-                  "payload": {
-                    "count": "${data.count}",
-                    "collected": "${data.collected}",
-                    "berat_a": "${form.berat_a}",
-                    "aroma_a": "${form.aroma_a}",
-                    "kulit_a": "${form.kulit_a}",
-                    "bentuk_a": "${form.bentuk_a}",
-                    "berat_b": "${form.berat_b}",
-                    "aroma_b": "${form.aroma_b}",
-                    "kulit_b": "${form.kulit_b}",
-                    "bentuk_b": "${form.bentuk_b}",
-                    "berat_c": "${form.berat_c}",
-                    "aroma_c": "${form.aroma_c}",
-                    "kulit_c": "${form.kulit_c}",
-                    "bentuk_c": "${form.bentuk_c}",
-                    "berat_d": "${form.berat_d}",
-                    "aroma_d": "${form.aroma_d}",
-                    "kulit_d": "${form.kulit_d}",
-                    "bentuk_d": "${form.bentuk_d}",
-                    "berat_e": "${form.berat_e}",
-                    "aroma_e": "${form.aroma_e}",
-                    "kulit_e": "${form.kulit_e}",
-                    "bentuk_e": "${form.bentuk_e}"
+                "type": "If",
+                "condition": "${form.berat_ad} != ''",
+                "then": [
+                  {
+                    "type": "TextSubheading",
+                    "text": "Buah 5"
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "berat_ae",
+                    "label": "Berat (gram)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "aroma_ae",
+                    "label": "Aroma (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "kulit_ae",
+                    "label": "Kulit (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "bentuk_ae",
+                    "label": "Bentuk (1-5)",
+                    "input-type": "number",
+                    "required": false
                   }
-                }
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "id": "BUAH_E",
-      "title": "Berat & Nilai Buah",
-      "data": {
-        "fruits_title": {
-          "type": "string",
-          "__example__": "Buah 1–5 dari 6"
-        },
-        "next_label": {
-          "type": "string",
-          "__example__": "Lanjut"
-        },
-        "count": {
-          "type": "string",
-          "__example__": "6"
-        },
-        "collected": {
-          "type": "string",
-          "__example__": "[]"
-        },
-        "show_a": {
-          "type": "boolean",
-          "__example__": true
-        },
-        "label_a": {
-          "type": "string",
-          "__example__": "Buah 1"
-        },
-        "show_b": {
-          "type": "boolean",
-          "__example__": true
-        },
-        "label_b": {
-          "type": "string",
-          "__example__": "Buah 2"
-        },
-        "show_c": {
-          "type": "boolean",
-          "__example__": true
-        },
-        "label_c": {
-          "type": "string",
-          "__example__": "Buah 3"
-        },
-        "show_d": {
-          "type": "boolean",
-          "__example__": true
-        },
-        "label_d": {
-          "type": "string",
-          "__example__": "Buah 4"
-        },
-        "show_e": {
-          "type": "boolean",
-          "__example__": true
-        },
-        "label_e": {
-          "type": "string",
-          "__example__": "Buah 5"
-        }
-      },
-      "layout": {
-        "type": "SingleColumnLayout",
-        "children": [
-          {
-            "type": "Form",
-            "name": "fruit_form_e",
-            "children": [
-              {
-                "type": "TextHeading",
-                "text": "${data.fruits_title}"
+                ]
               },
               {
-                "type": "TextBody",
-                "text": "Timbang tiap buah. Lalu beri nilai 1 sampai 5:"
-              },
-              {
-                "type": "TextCaption",
-                "text": "Aroma: 5 = wangi kuat & segar, 1 = tidak wangi"
-              },
-              {
-                "type": "TextCaption",
-                "text": "Kulit: 5 = mulus sempurna, 1 = cacat (bolong, retak)"
-              },
-              {
-                "type": "TextCaption",
-                "text": "Bentuk: 5 = bulat sempurna, 1 = peyang beberapa ruas"
-              },
-              {
-                "type": "TextSubheading",
-                "text": "${data.label_a}",
-                "visible": "${data.show_a}"
-              },
-              {
-                "type": "TextInput",
-                "name": "berat_a",
-                "label": "Berat (gram)",
-                "input-type": "number",
-                "helper-text": "Contoh: 2350 untuk 2,35 kg",
-                "required": false,
-                "visible": "${data.show_a}"
-              },
-              {
-                "type": "TextInput",
-                "name": "aroma_a",
-                "label": "Aroma (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_a}"
-              },
-              {
-                "type": "TextInput",
-                "name": "kulit_a",
-                "label": "Kulit (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_a}"
-              },
-              {
-                "type": "TextInput",
-                "name": "bentuk_a",
-                "label": "Bentuk (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_a}"
-              },
-              {
-                "type": "TextSubheading",
-                "text": "${data.label_b}",
-                "visible": "${data.show_b}"
-              },
-              {
-                "type": "TextInput",
-                "name": "berat_b",
-                "label": "Berat (gram)",
-                "input-type": "number",
-                "helper-text": "Contoh: 2350 untuk 2,35 kg",
-                "required": false,
-                "visible": "${data.show_b}"
-              },
-              {
-                "type": "TextInput",
-                "name": "aroma_b",
-                "label": "Aroma (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_b}"
-              },
-              {
-                "type": "TextInput",
-                "name": "kulit_b",
-                "label": "Kulit (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_b}"
-              },
-              {
-                "type": "TextInput",
-                "name": "bentuk_b",
-                "label": "Bentuk (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_b}"
-              },
-              {
-                "type": "TextSubheading",
-                "text": "${data.label_c}",
-                "visible": "${data.show_c}"
-              },
-              {
-                "type": "TextInput",
-                "name": "berat_c",
-                "label": "Berat (gram)",
-                "input-type": "number",
-                "helper-text": "Contoh: 2350 untuk 2,35 kg",
-                "required": false,
-                "visible": "${data.show_c}"
-              },
-              {
-                "type": "TextInput",
-                "name": "aroma_c",
-                "label": "Aroma (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_c}"
-              },
-              {
-                "type": "TextInput",
-                "name": "kulit_c",
-                "label": "Kulit (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_c}"
-              },
-              {
-                "type": "TextInput",
-                "name": "bentuk_c",
-                "label": "Bentuk (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_c}"
-              },
-              {
-                "type": "TextSubheading",
-                "text": "${data.label_d}",
-                "visible": "${data.show_d}"
-              },
-              {
-                "type": "TextInput",
-                "name": "berat_d",
-                "label": "Berat (gram)",
-                "input-type": "number",
-                "helper-text": "Contoh: 2350 untuk 2,35 kg",
-                "required": false,
-                "visible": "${data.show_d}"
-              },
-              {
-                "type": "TextInput",
-                "name": "aroma_d",
-                "label": "Aroma (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_d}"
-              },
-              {
-                "type": "TextInput",
-                "name": "kulit_d",
-                "label": "Kulit (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_d}"
-              },
-              {
-                "type": "TextInput",
-                "name": "bentuk_d",
-                "label": "Bentuk (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_d}"
-              },
-              {
-                "type": "TextSubheading",
-                "text": "${data.label_e}",
-                "visible": "${data.show_e}"
-              },
-              {
-                "type": "TextInput",
-                "name": "berat_e",
-                "label": "Berat (gram)",
-                "input-type": "number",
-                "helper-text": "Contoh: 2350 untuk 2,35 kg",
-                "required": false,
-                "visible": "${data.show_e}"
-              },
-              {
-                "type": "TextInput",
-                "name": "aroma_e",
-                "label": "Aroma (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_e}"
-              },
-              {
-                "type": "TextInput",
-                "name": "kulit_e",
-                "label": "Kulit (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_e}"
-              },
-              {
-                "type": "TextInput",
-                "name": "bentuk_e",
-                "label": "Bentuk (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_e}"
-              },
-              {
-                "type": "Footer",
-                "label": "${data.next_label}",
-                "on-click-action": {
-                  "name": "data_exchange",
-                  "payload": {
-                    "count": "${data.count}",
-                    "collected": "${data.collected}",
-                    "berat_a": "${form.berat_a}",
-                    "aroma_a": "${form.aroma_a}",
-                    "kulit_a": "${form.kulit_a}",
-                    "bentuk_a": "${form.bentuk_a}",
-                    "berat_b": "${form.berat_b}",
-                    "aroma_b": "${form.aroma_b}",
-                    "kulit_b": "${form.kulit_b}",
-                    "bentuk_b": "${form.bentuk_b}",
-                    "berat_c": "${form.berat_c}",
-                    "aroma_c": "${form.aroma_c}",
-                    "kulit_c": "${form.kulit_c}",
-                    "bentuk_c": "${form.bentuk_c}",
-                    "berat_d": "${form.berat_d}",
-                    "aroma_d": "${form.aroma_d}",
-                    "kulit_d": "${form.kulit_d}",
-                    "bentuk_d": "${form.bentuk_d}",
-                    "berat_e": "${form.berat_e}",
-                    "aroma_e": "${form.aroma_e}",
-                    "kulit_e": "${form.kulit_e}",
-                    "bentuk_e": "${form.bentuk_e}"
+                "type": "If",
+                "condition": "${form.berat_ae} != ''",
+                "then": [
+                  {
+                    "type": "TextSubheading",
+                    "text": "Buah 6"
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "berat_af",
+                    "label": "Berat (gram)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "aroma_af",
+                    "label": "Aroma (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "kulit_af",
+                    "label": "Kulit (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "bentuk_af",
+                    "label": "Bentuk (1-5)",
+                    "input-type": "number",
+                    "required": false
                   }
-                }
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "id": "BUAH_F",
-      "title": "Berat & Nilai Buah",
-      "data": {
-        "fruits_title": {
-          "type": "string",
-          "__example__": "Buah 1–5 dari 6"
-        },
-        "next_label": {
-          "type": "string",
-          "__example__": "Lanjut"
-        },
-        "count": {
-          "type": "string",
-          "__example__": "6"
-        },
-        "collected": {
-          "type": "string",
-          "__example__": "[]"
-        },
-        "show_a": {
-          "type": "boolean",
-          "__example__": true
-        },
-        "label_a": {
-          "type": "string",
-          "__example__": "Buah 1"
-        },
-        "show_b": {
-          "type": "boolean",
-          "__example__": true
-        },
-        "label_b": {
-          "type": "string",
-          "__example__": "Buah 2"
-        },
-        "show_c": {
-          "type": "boolean",
-          "__example__": true
-        },
-        "label_c": {
-          "type": "string",
-          "__example__": "Buah 3"
-        },
-        "show_d": {
-          "type": "boolean",
-          "__example__": true
-        },
-        "label_d": {
-          "type": "string",
-          "__example__": "Buah 4"
-        },
-        "show_e": {
-          "type": "boolean",
-          "__example__": true
-        },
-        "label_e": {
-          "type": "string",
-          "__example__": "Buah 5"
-        }
-      },
-      "layout": {
-        "type": "SingleColumnLayout",
-        "children": [
-          {
-            "type": "Form",
-            "name": "fruit_form_f",
-            "children": [
-              {
-                "type": "TextHeading",
-                "text": "${data.fruits_title}"
+                ]
               },
               {
-                "type": "TextBody",
-                "text": "Timbang tiap buah. Lalu beri nilai 1 sampai 5:"
-              },
-              {
-                "type": "TextCaption",
-                "text": "Aroma: 5 = wangi kuat & segar, 1 = tidak wangi"
-              },
-              {
-                "type": "TextCaption",
-                "text": "Kulit: 5 = mulus sempurna, 1 = cacat (bolong, retak)"
-              },
-              {
-                "type": "TextCaption",
-                "text": "Bentuk: 5 = bulat sempurna, 1 = peyang beberapa ruas"
-              },
-              {
-                "type": "TextSubheading",
-                "text": "${data.label_a}",
-                "visible": "${data.show_a}"
-              },
-              {
-                "type": "TextInput",
-                "name": "berat_a",
-                "label": "Berat (gram)",
-                "input-type": "number",
-                "helper-text": "Contoh: 2350 untuk 2,35 kg",
-                "required": false,
-                "visible": "${data.show_a}"
-              },
-              {
-                "type": "TextInput",
-                "name": "aroma_a",
-                "label": "Aroma (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_a}"
-              },
-              {
-                "type": "TextInput",
-                "name": "kulit_a",
-                "label": "Kulit (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_a}"
-              },
-              {
-                "type": "TextInput",
-                "name": "bentuk_a",
-                "label": "Bentuk (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_a}"
-              },
-              {
-                "type": "TextSubheading",
-                "text": "${data.label_b}",
-                "visible": "${data.show_b}"
-              },
-              {
-                "type": "TextInput",
-                "name": "berat_b",
-                "label": "Berat (gram)",
-                "input-type": "number",
-                "helper-text": "Contoh: 2350 untuk 2,35 kg",
-                "required": false,
-                "visible": "${data.show_b}"
-              },
-              {
-                "type": "TextInput",
-                "name": "aroma_b",
-                "label": "Aroma (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_b}"
-              },
-              {
-                "type": "TextInput",
-                "name": "kulit_b",
-                "label": "Kulit (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_b}"
-              },
-              {
-                "type": "TextInput",
-                "name": "bentuk_b",
-                "label": "Bentuk (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_b}"
-              },
-              {
-                "type": "TextSubheading",
-                "text": "${data.label_c}",
-                "visible": "${data.show_c}"
-              },
-              {
-                "type": "TextInput",
-                "name": "berat_c",
-                "label": "Berat (gram)",
-                "input-type": "number",
-                "helper-text": "Contoh: 2350 untuk 2,35 kg",
-                "required": false,
-                "visible": "${data.show_c}"
-              },
-              {
-                "type": "TextInput",
-                "name": "aroma_c",
-                "label": "Aroma (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_c}"
-              },
-              {
-                "type": "TextInput",
-                "name": "kulit_c",
-                "label": "Kulit (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_c}"
-              },
-              {
-                "type": "TextInput",
-                "name": "bentuk_c",
-                "label": "Bentuk (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_c}"
-              },
-              {
-                "type": "TextSubheading",
-                "text": "${data.label_d}",
-                "visible": "${data.show_d}"
-              },
-              {
-                "type": "TextInput",
-                "name": "berat_d",
-                "label": "Berat (gram)",
-                "input-type": "number",
-                "helper-text": "Contoh: 2350 untuk 2,35 kg",
-                "required": false,
-                "visible": "${data.show_d}"
-              },
-              {
-                "type": "TextInput",
-                "name": "aroma_d",
-                "label": "Aroma (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_d}"
-              },
-              {
-                "type": "TextInput",
-                "name": "kulit_d",
-                "label": "Kulit (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_d}"
-              },
-              {
-                "type": "TextInput",
-                "name": "bentuk_d",
-                "label": "Bentuk (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_d}"
-              },
-              {
-                "type": "TextSubheading",
-                "text": "${data.label_e}",
-                "visible": "${data.show_e}"
-              },
-              {
-                "type": "TextInput",
-                "name": "berat_e",
-                "label": "Berat (gram)",
-                "input-type": "number",
-                "helper-text": "Contoh: 2350 untuk 2,35 kg",
-                "required": false,
-                "visible": "${data.show_e}"
-              },
-              {
-                "type": "TextInput",
-                "name": "aroma_e",
-                "label": "Aroma (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_e}"
-              },
-              {
-                "type": "TextInput",
-                "name": "kulit_e",
-                "label": "Kulit (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_e}"
-              },
-              {
-                "type": "TextInput",
-                "name": "bentuk_e",
-                "label": "Bentuk (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_e}"
-              },
-              {
-                "type": "Footer",
-                "label": "${data.next_label}",
-                "on-click-action": {
-                  "name": "data_exchange",
-                  "payload": {
-                    "count": "${data.count}",
-                    "collected": "${data.collected}",
-                    "berat_a": "${form.berat_a}",
-                    "aroma_a": "${form.aroma_a}",
-                    "kulit_a": "${form.kulit_a}",
-                    "bentuk_a": "${form.bentuk_a}",
-                    "berat_b": "${form.berat_b}",
-                    "aroma_b": "${form.aroma_b}",
-                    "kulit_b": "${form.kulit_b}",
-                    "bentuk_b": "${form.bentuk_b}",
-                    "berat_c": "${form.berat_c}",
-                    "aroma_c": "${form.aroma_c}",
-                    "kulit_c": "${form.kulit_c}",
-                    "bentuk_c": "${form.bentuk_c}",
-                    "berat_d": "${form.berat_d}",
-                    "aroma_d": "${form.aroma_d}",
-                    "kulit_d": "${form.kulit_d}",
-                    "bentuk_d": "${form.bentuk_d}",
-                    "berat_e": "${form.berat_e}",
-                    "aroma_e": "${form.aroma_e}",
-                    "kulit_e": "${form.kulit_e}",
-                    "bentuk_e": "${form.bentuk_e}"
+                "type": "If",
+                "condition": "${form.berat_af} != ''",
+                "then": [
+                  {
+                    "type": "TextSubheading",
+                    "text": "Buah 7"
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "berat_ag",
+                    "label": "Berat (gram)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "aroma_ag",
+                    "label": "Aroma (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "kulit_ag",
+                    "label": "Kulit (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "bentuk_ag",
+                    "label": "Bentuk (1-5)",
+                    "input-type": "number",
+                    "required": false
                   }
-                }
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "id": "BUAH_G",
-      "title": "Berat & Nilai Buah",
-      "data": {
-        "fruits_title": {
-          "type": "string",
-          "__example__": "Buah 1–5 dari 6"
-        },
-        "next_label": {
-          "type": "string",
-          "__example__": "Lanjut"
-        },
-        "count": {
-          "type": "string",
-          "__example__": "6"
-        },
-        "collected": {
-          "type": "string",
-          "__example__": "[]"
-        },
-        "show_a": {
-          "type": "boolean",
-          "__example__": true
-        },
-        "label_a": {
-          "type": "string",
-          "__example__": "Buah 1"
-        },
-        "show_b": {
-          "type": "boolean",
-          "__example__": true
-        },
-        "label_b": {
-          "type": "string",
-          "__example__": "Buah 2"
-        },
-        "show_c": {
-          "type": "boolean",
-          "__example__": true
-        },
-        "label_c": {
-          "type": "string",
-          "__example__": "Buah 3"
-        },
-        "show_d": {
-          "type": "boolean",
-          "__example__": true
-        },
-        "label_d": {
-          "type": "string",
-          "__example__": "Buah 4"
-        },
-        "show_e": {
-          "type": "boolean",
-          "__example__": true
-        },
-        "label_e": {
-          "type": "string",
-          "__example__": "Buah 5"
-        }
-      },
-      "layout": {
-        "type": "SingleColumnLayout",
-        "children": [
-          {
-            "type": "Form",
-            "name": "fruit_form_g",
-            "children": [
-              {
-                "type": "TextHeading",
-                "text": "${data.fruits_title}"
+                ]
               },
               {
-                "type": "TextBody",
-                "text": "Timbang tiap buah. Lalu beri nilai 1 sampai 5:"
-              },
-              {
-                "type": "TextCaption",
-                "text": "Aroma: 5 = wangi kuat & segar, 1 = tidak wangi"
-              },
-              {
-                "type": "TextCaption",
-                "text": "Kulit: 5 = mulus sempurna, 1 = cacat (bolong, retak)"
-              },
-              {
-                "type": "TextCaption",
-                "text": "Bentuk: 5 = bulat sempurna, 1 = peyang beberapa ruas"
-              },
-              {
-                "type": "TextSubheading",
-                "text": "${data.label_a}",
-                "visible": "${data.show_a}"
-              },
-              {
-                "type": "TextInput",
-                "name": "berat_a",
-                "label": "Berat (gram)",
-                "input-type": "number",
-                "helper-text": "Contoh: 2350 untuk 2,35 kg",
-                "required": false,
-                "visible": "${data.show_a}"
-              },
-              {
-                "type": "TextInput",
-                "name": "aroma_a",
-                "label": "Aroma (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_a}"
-              },
-              {
-                "type": "TextInput",
-                "name": "kulit_a",
-                "label": "Kulit (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_a}"
-              },
-              {
-                "type": "TextInput",
-                "name": "bentuk_a",
-                "label": "Bentuk (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_a}"
-              },
-              {
-                "type": "TextSubheading",
-                "text": "${data.label_b}",
-                "visible": "${data.show_b}"
-              },
-              {
-                "type": "TextInput",
-                "name": "berat_b",
-                "label": "Berat (gram)",
-                "input-type": "number",
-                "helper-text": "Contoh: 2350 untuk 2,35 kg",
-                "required": false,
-                "visible": "${data.show_b}"
-              },
-              {
-                "type": "TextInput",
-                "name": "aroma_b",
-                "label": "Aroma (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_b}"
-              },
-              {
-                "type": "TextInput",
-                "name": "kulit_b",
-                "label": "Kulit (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_b}"
-              },
-              {
-                "type": "TextInput",
-                "name": "bentuk_b",
-                "label": "Bentuk (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_b}"
-              },
-              {
-                "type": "TextSubheading",
-                "text": "${data.label_c}",
-                "visible": "${data.show_c}"
-              },
-              {
-                "type": "TextInput",
-                "name": "berat_c",
-                "label": "Berat (gram)",
-                "input-type": "number",
-                "helper-text": "Contoh: 2350 untuk 2,35 kg",
-                "required": false,
-                "visible": "${data.show_c}"
-              },
-              {
-                "type": "TextInput",
-                "name": "aroma_c",
-                "label": "Aroma (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_c}"
-              },
-              {
-                "type": "TextInput",
-                "name": "kulit_c",
-                "label": "Kulit (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_c}"
-              },
-              {
-                "type": "TextInput",
-                "name": "bentuk_c",
-                "label": "Bentuk (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_c}"
-              },
-              {
-                "type": "TextSubheading",
-                "text": "${data.label_d}",
-                "visible": "${data.show_d}"
-              },
-              {
-                "type": "TextInput",
-                "name": "berat_d",
-                "label": "Berat (gram)",
-                "input-type": "number",
-                "helper-text": "Contoh: 2350 untuk 2,35 kg",
-                "required": false,
-                "visible": "${data.show_d}"
-              },
-              {
-                "type": "TextInput",
-                "name": "aroma_d",
-                "label": "Aroma (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_d}"
-              },
-              {
-                "type": "TextInput",
-                "name": "kulit_d",
-                "label": "Kulit (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_d}"
-              },
-              {
-                "type": "TextInput",
-                "name": "bentuk_d",
-                "label": "Bentuk (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_d}"
-              },
-              {
-                "type": "TextSubheading",
-                "text": "${data.label_e}",
-                "visible": "${data.show_e}"
-              },
-              {
-                "type": "TextInput",
-                "name": "berat_e",
-                "label": "Berat (gram)",
-                "input-type": "number",
-                "helper-text": "Contoh: 2350 untuk 2,35 kg",
-                "required": false,
-                "visible": "${data.show_e}"
-              },
-              {
-                "type": "TextInput",
-                "name": "aroma_e",
-                "label": "Aroma (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_e}"
-              },
-              {
-                "type": "TextInput",
-                "name": "kulit_e",
-                "label": "Kulit (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_e}"
-              },
-              {
-                "type": "TextInput",
-                "name": "bentuk_e",
-                "label": "Bentuk (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_e}"
-              },
-              {
-                "type": "Footer",
-                "label": "${data.next_label}",
-                "on-click-action": {
-                  "name": "data_exchange",
-                  "payload": {
-                    "count": "${data.count}",
-                    "collected": "${data.collected}",
-                    "berat_a": "${form.berat_a}",
-                    "aroma_a": "${form.aroma_a}",
-                    "kulit_a": "${form.kulit_a}",
-                    "bentuk_a": "${form.bentuk_a}",
-                    "berat_b": "${form.berat_b}",
-                    "aroma_b": "${form.aroma_b}",
-                    "kulit_b": "${form.kulit_b}",
-                    "bentuk_b": "${form.bentuk_b}",
-                    "berat_c": "${form.berat_c}",
-                    "aroma_c": "${form.aroma_c}",
-                    "kulit_c": "${form.kulit_c}",
-                    "bentuk_c": "${form.bentuk_c}",
-                    "berat_d": "${form.berat_d}",
-                    "aroma_d": "${form.aroma_d}",
-                    "kulit_d": "${form.kulit_d}",
-                    "bentuk_d": "${form.bentuk_d}",
-                    "berat_e": "${form.berat_e}",
-                    "aroma_e": "${form.aroma_e}",
-                    "kulit_e": "${form.kulit_e}",
-                    "bentuk_e": "${form.bentuk_e}"
+                "type": "If",
+                "condition": "${form.berat_ag} != ''",
+                "then": [
+                  {
+                    "type": "TextSubheading",
+                    "text": "Buah 8"
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "berat_ah",
+                    "label": "Berat (gram)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "aroma_ah",
+                    "label": "Aroma (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "kulit_ah",
+                    "label": "Kulit (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "bentuk_ah",
+                    "label": "Bentuk (1-5)",
+                    "input-type": "number",
+                    "required": false
                   }
-                }
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "id": "BUAH_H",
-      "title": "Berat & Nilai Buah",
-      "data": {
-        "fruits_title": {
-          "type": "string",
-          "__example__": "Buah 1–5 dari 6"
-        },
-        "next_label": {
-          "type": "string",
-          "__example__": "Lanjut"
-        },
-        "count": {
-          "type": "string",
-          "__example__": "6"
-        },
-        "collected": {
-          "type": "string",
-          "__example__": "[]"
-        },
-        "show_a": {
-          "type": "boolean",
-          "__example__": true
-        },
-        "label_a": {
-          "type": "string",
-          "__example__": "Buah 1"
-        },
-        "show_b": {
-          "type": "boolean",
-          "__example__": true
-        },
-        "label_b": {
-          "type": "string",
-          "__example__": "Buah 2"
-        },
-        "show_c": {
-          "type": "boolean",
-          "__example__": true
-        },
-        "label_c": {
-          "type": "string",
-          "__example__": "Buah 3"
-        },
-        "show_d": {
-          "type": "boolean",
-          "__example__": true
-        },
-        "label_d": {
-          "type": "string",
-          "__example__": "Buah 4"
-        },
-        "show_e": {
-          "type": "boolean",
-          "__example__": true
-        },
-        "label_e": {
-          "type": "string",
-          "__example__": "Buah 5"
-        }
-      },
-      "layout": {
-        "type": "SingleColumnLayout",
-        "children": [
-          {
-            "type": "Form",
-            "name": "fruit_form_h",
-            "children": [
-              {
-                "type": "TextHeading",
-                "text": "${data.fruits_title}"
+                ]
               },
               {
-                "type": "TextBody",
-                "text": "Timbang tiap buah. Lalu beri nilai 1 sampai 5:"
+                "type": "If",
+                "condition": "${form.berat_ah} != ''",
+                "then": [
+                  {
+                    "type": "TextSubheading",
+                    "text": "Buah 9"
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "berat_ai",
+                    "label": "Berat (gram)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "aroma_ai",
+                    "label": "Aroma (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "kulit_ai",
+                    "label": "Kulit (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "bentuk_ai",
+                    "label": "Bentuk (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  }
+                ]
+              },
+              {
+                "type": "If",
+                "condition": "${form.berat_ai} != ''",
+                "then": [
+                  {
+                    "type": "TextSubheading",
+                    "text": "Buah 10"
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "berat_aj",
+                    "label": "Berat (gram)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "aroma_aj",
+                    "label": "Aroma (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "kulit_aj",
+                    "label": "Kulit (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "bentuk_aj",
+                    "label": "Bentuk (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  }
+                ]
+              },
+              {
+                "type": "If",
+                "condition": "${form.berat_aj} != ''",
+                "then": [
+                  {
+                    "type": "TextSubheading",
+                    "text": "Buah 11"
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "berat_ak",
+                    "label": "Berat (gram)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "aroma_ak",
+                    "label": "Aroma (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "kulit_ak",
+                    "label": "Kulit (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "bentuk_ak",
+                    "label": "Bentuk (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  }
+                ]
+              },
+              {
+                "type": "If",
+                "condition": "${form.berat_ak} != ''",
+                "then": [
+                  {
+                    "type": "TextSubheading",
+                    "text": "Buah 12"
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "berat_al",
+                    "label": "Berat (gram)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "aroma_al",
+                    "label": "Aroma (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "kulit_al",
+                    "label": "Kulit (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "bentuk_al",
+                    "label": "Bentuk (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  }
+                ]
+              },
+              {
+                "type": "If",
+                "condition": "${form.berat_al} != ''",
+                "then": [
+                  {
+                    "type": "TextSubheading",
+                    "text": "Buah 13"
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "berat_am",
+                    "label": "Berat (gram)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "aroma_am",
+                    "label": "Aroma (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "kulit_am",
+                    "label": "Kulit (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "bentuk_am",
+                    "label": "Bentuk (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  }
+                ]
+              },
+              {
+                "type": "If",
+                "condition": "${form.berat_am} != ''",
+                "then": [
+                  {
+                    "type": "TextSubheading",
+                    "text": "Buah 14"
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "berat_an",
+                    "label": "Berat (gram)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "aroma_an",
+                    "label": "Aroma (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "kulit_an",
+                    "label": "Kulit (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "bentuk_an",
+                    "label": "Bentuk (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  }
+                ]
+              },
+              {
+                "type": "If",
+                "condition": "${form.berat_an} != ''",
+                "then": [
+                  {
+                    "type": "TextSubheading",
+                    "text": "Buah 15"
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "berat_ao",
+                    "label": "Berat (gram)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "aroma_ao",
+                    "label": "Aroma (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "kulit_ao",
+                    "label": "Kulit (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "bentuk_ao",
+                    "label": "Bentuk (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  }
+                ]
+              },
+              {
+                "type": "If",
+                "condition": "${form.berat_ao} != ''",
+                "then": [
+                  {
+                    "type": "TextSubheading",
+                    "text": "Buah 16"
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "berat_ap",
+                    "label": "Berat (gram)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "aroma_ap",
+                    "label": "Aroma (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "kulit_ap",
+                    "label": "Kulit (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "bentuk_ap",
+                    "label": "Bentuk (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  }
+                ]
+              },
+              {
+                "type": "If",
+                "condition": "${form.berat_ap} != ''",
+                "then": [
+                  {
+                    "type": "TextSubheading",
+                    "text": "Buah 17"
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "berat_aq",
+                    "label": "Berat (gram)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "aroma_aq",
+                    "label": "Aroma (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "kulit_aq",
+                    "label": "Kulit (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "bentuk_aq",
+                    "label": "Bentuk (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  }
+                ]
+              },
+              {
+                "type": "If",
+                "condition": "${form.berat_aq} != ''",
+                "then": [
+                  {
+                    "type": "TextSubheading",
+                    "text": "Buah 18"
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "berat_ar",
+                    "label": "Berat (gram)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "aroma_ar",
+                    "label": "Aroma (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "kulit_ar",
+                    "label": "Kulit (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "bentuk_ar",
+                    "label": "Bentuk (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  }
+                ]
+              },
+              {
+                "type": "If",
+                "condition": "${form.berat_ar} != ''",
+                "then": [
+                  {
+                    "type": "TextSubheading",
+                    "text": "Buah 19"
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "berat_as",
+                    "label": "Berat (gram)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "aroma_as",
+                    "label": "Aroma (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "kulit_as",
+                    "label": "Kulit (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "bentuk_as",
+                    "label": "Bentuk (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  }
+                ]
+              },
+              {
+                "type": "If",
+                "condition": "${form.berat_as} != ''",
+                "then": [
+                  {
+                    "type": "TextSubheading",
+                    "text": "Buah 20"
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "berat_at",
+                    "label": "Berat (gram)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "aroma_at",
+                    "label": "Aroma (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "kulit_at",
+                    "label": "Kulit (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "bentuk_at",
+                    "label": "Bentuk (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  }
+                ]
+              },
+              {
+                "type": "If",
+                "condition": "${form.berat_at} != ''",
+                "then": [
+                  {
+                    "type": "TextSubheading",
+                    "text": "Buah 21"
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "berat_au",
+                    "label": "Berat (gram)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "aroma_au",
+                    "label": "Aroma (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "kulit_au",
+                    "label": "Kulit (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "bentuk_au",
+                    "label": "Bentuk (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  }
+                ]
+              },
+              {
+                "type": "If",
+                "condition": "${form.berat_au} != ''",
+                "then": [
+                  {
+                    "type": "TextSubheading",
+                    "text": "Buah 22"
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "berat_av",
+                    "label": "Berat (gram)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "aroma_av",
+                    "label": "Aroma (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "kulit_av",
+                    "label": "Kulit (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "bentuk_av",
+                    "label": "Bentuk (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  }
+                ]
+              },
+              {
+                "type": "If",
+                "condition": "${form.berat_av} != ''",
+                "then": [
+                  {
+                    "type": "TextSubheading",
+                    "text": "Buah 23"
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "berat_aw",
+                    "label": "Berat (gram)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "aroma_aw",
+                    "label": "Aroma (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "kulit_aw",
+                    "label": "Kulit (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "bentuk_aw",
+                    "label": "Bentuk (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  }
+                ]
+              },
+              {
+                "type": "If",
+                "condition": "${form.berat_aw} != ''",
+                "then": [
+                  {
+                    "type": "TextSubheading",
+                    "text": "Buah 24"
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "berat_ax",
+                    "label": "Berat (gram)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "aroma_ax",
+                    "label": "Aroma (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "kulit_ax",
+                    "label": "Kulit (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "bentuk_ax",
+                    "label": "Bentuk (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  }
+                ]
+              },
+              {
+                "type": "If",
+                "condition": "${form.berat_ax} != ''",
+                "then": [
+                  {
+                    "type": "TextSubheading",
+                    "text": "Buah 25"
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "berat_ay",
+                    "label": "Berat (gram)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "aroma_ay",
+                    "label": "Aroma (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "kulit_ay",
+                    "label": "Kulit (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "bentuk_ay",
+                    "label": "Bentuk (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  }
+                ]
+              },
+              {
+                "type": "If",
+                "condition": "${form.berat_ay} != ''",
+                "then": [
+                  {
+                    "type": "TextSubheading",
+                    "text": "Buah 26"
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "berat_az",
+                    "label": "Berat (gram)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "aroma_az",
+                    "label": "Aroma (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "kulit_az",
+                    "label": "Kulit (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "bentuk_az",
+                    "label": "Bentuk (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  }
+                ]
+              },
+              {
+                "type": "If",
+                "condition": "${form.berat_az} != ''",
+                "then": [
+                  {
+                    "type": "TextSubheading",
+                    "text": "Buah 27"
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "berat_ba",
+                    "label": "Berat (gram)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "aroma_ba",
+                    "label": "Aroma (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "kulit_ba",
+                    "label": "Kulit (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "bentuk_ba",
+                    "label": "Bentuk (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  }
+                ]
+              },
+              {
+                "type": "If",
+                "condition": "${form.berat_ba} != ''",
+                "then": [
+                  {
+                    "type": "TextSubheading",
+                    "text": "Buah 28"
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "berat_bb",
+                    "label": "Berat (gram)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "aroma_bb",
+                    "label": "Aroma (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "kulit_bb",
+                    "label": "Kulit (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "bentuk_bb",
+                    "label": "Bentuk (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  }
+                ]
+              },
+              {
+                "type": "If",
+                "condition": "${form.berat_bb} != ''",
+                "then": [
+                  {
+                    "type": "TextSubheading",
+                    "text": "Buah 29"
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "berat_bc",
+                    "label": "Berat (gram)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "aroma_bc",
+                    "label": "Aroma (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "kulit_bc",
+                    "label": "Kulit (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "bentuk_bc",
+                    "label": "Bentuk (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  }
+                ]
+              },
+              {
+                "type": "If",
+                "condition": "${form.berat_bc} != ''",
+                "then": [
+                  {
+                    "type": "TextSubheading",
+                    "text": "Buah 30"
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "berat_bd",
+                    "label": "Berat (gram)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "aroma_bd",
+                    "label": "Aroma (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "kulit_bd",
+                    "label": "Kulit (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "bentuk_bd",
+                    "label": "Bentuk (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  }
+                ]
+              },
+              {
+                "type": "If",
+                "condition": "${form.berat_bd} != ''",
+                "then": [
+                  {
+                    "type": "TextSubheading",
+                    "text": "Buah 31"
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "berat_be",
+                    "label": "Berat (gram)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "aroma_be",
+                    "label": "Aroma (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "kulit_be",
+                    "label": "Kulit (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "bentuk_be",
+                    "label": "Bentuk (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  }
+                ]
+              },
+              {
+                "type": "If",
+                "condition": "${form.berat_be} != ''",
+                "then": [
+                  {
+                    "type": "TextSubheading",
+                    "text": "Buah 32"
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "berat_bf",
+                    "label": "Berat (gram)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "aroma_bf",
+                    "label": "Aroma (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "kulit_bf",
+                    "label": "Kulit (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "bentuk_bf",
+                    "label": "Bentuk (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  }
+                ]
+              },
+              {
+                "type": "If",
+                "condition": "${form.berat_bf} != ''",
+                "then": [
+                  {
+                    "type": "TextSubheading",
+                    "text": "Buah 33"
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "berat_bg",
+                    "label": "Berat (gram)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "aroma_bg",
+                    "label": "Aroma (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "kulit_bg",
+                    "label": "Kulit (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "bentuk_bg",
+                    "label": "Bentuk (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  }
+                ]
+              },
+              {
+                "type": "If",
+                "condition": "${form.berat_bg} != ''",
+                "then": [
+                  {
+                    "type": "TextSubheading",
+                    "text": "Buah 34"
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "berat_bh",
+                    "label": "Berat (gram)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "aroma_bh",
+                    "label": "Aroma (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "kulit_bh",
+                    "label": "Kulit (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "bentuk_bh",
+                    "label": "Bentuk (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  }
+                ]
+              },
+              {
+                "type": "If",
+                "condition": "${form.berat_bh} != ''",
+                "then": [
+                  {
+                    "type": "TextSubheading",
+                    "text": "Buah 35"
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "berat_bi",
+                    "label": "Berat (gram)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "aroma_bi",
+                    "label": "Aroma (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "kulit_bi",
+                    "label": "Kulit (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "bentuk_bi",
+                    "label": "Bentuk (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  }
+                ]
+              },
+              {
+                "type": "If",
+                "condition": "${form.berat_bi} != ''",
+                "then": [
+                  {
+                    "type": "TextSubheading",
+                    "text": "Buah 36"
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "berat_bj",
+                    "label": "Berat (gram)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "aroma_bj",
+                    "label": "Aroma (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "kulit_bj",
+                    "label": "Kulit (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "bentuk_bj",
+                    "label": "Bentuk (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  }
+                ]
+              },
+              {
+                "type": "If",
+                "condition": "${form.berat_bj} != ''",
+                "then": [
+                  {
+                    "type": "TextSubheading",
+                    "text": "Buah 37"
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "berat_bk",
+                    "label": "Berat (gram)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "aroma_bk",
+                    "label": "Aroma (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "kulit_bk",
+                    "label": "Kulit (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "bentuk_bk",
+                    "label": "Bentuk (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  }
+                ]
+              },
+              {
+                "type": "If",
+                "condition": "${form.berat_bk} != ''",
+                "then": [
+                  {
+                    "type": "TextSubheading",
+                    "text": "Buah 38"
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "berat_bl",
+                    "label": "Berat (gram)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "aroma_bl",
+                    "label": "Aroma (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "kulit_bl",
+                    "label": "Kulit (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "bentuk_bl",
+                    "label": "Bentuk (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  }
+                ]
+              },
+              {
+                "type": "If",
+                "condition": "${form.berat_bl} != ''",
+                "then": [
+                  {
+                    "type": "TextSubheading",
+                    "text": "Buah 39"
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "berat_bm",
+                    "label": "Berat (gram)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "aroma_bm",
+                    "label": "Aroma (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "kulit_bm",
+                    "label": "Kulit (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "bentuk_bm",
+                    "label": "Bentuk (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  }
+                ]
+              },
+              {
+                "type": "If",
+                "condition": "${form.berat_bm} != ''",
+                "then": [
+                  {
+                    "type": "TextSubheading",
+                    "text": "Buah 40"
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "berat_bn",
+                    "label": "Berat (gram)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "aroma_bn",
+                    "label": "Aroma (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "kulit_bn",
+                    "label": "Kulit (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  },
+                  {
+                    "type": "TextInput",
+                    "name": "bentuk_bn",
+                    "label": "Bentuk (1-5)",
+                    "input-type": "number",
+                    "required": false
+                  }
+                ]
               },
               {
                 "type": "TextCaption",
-                "text": "Aroma: 5 = wangi kuat & segar, 1 = tidak wangi"
-              },
-              {
-                "type": "TextCaption",
-                "text": "Kulit: 5 = mulus sempurna, 1 = cacat (bolong, retak)"
-              },
-              {
-                "type": "TextCaption",
-                "text": "Bentuk: 5 = bulat sempurna, 1 = peyang beberapa ruas"
-              },
-              {
-                "type": "TextSubheading",
-                "text": "${data.label_a}",
-                "visible": "${data.show_a}"
-              },
-              {
-                "type": "TextInput",
-                "name": "berat_a",
-                "label": "Berat (gram)",
-                "input-type": "number",
-                "helper-text": "Contoh: 2350 untuk 2,35 kg",
-                "required": false,
-                "visible": "${data.show_a}"
-              },
-              {
-                "type": "TextInput",
-                "name": "aroma_a",
-                "label": "Aroma (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_a}"
-              },
-              {
-                "type": "TextInput",
-                "name": "kulit_a",
-                "label": "Kulit (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_a}"
-              },
-              {
-                "type": "TextInput",
-                "name": "bentuk_a",
-                "label": "Bentuk (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_a}"
-              },
-              {
-                "type": "TextSubheading",
-                "text": "${data.label_b}",
-                "visible": "${data.show_b}"
-              },
-              {
-                "type": "TextInput",
-                "name": "berat_b",
-                "label": "Berat (gram)",
-                "input-type": "number",
-                "helper-text": "Contoh: 2350 untuk 2,35 kg",
-                "required": false,
-                "visible": "${data.show_b}"
-              },
-              {
-                "type": "TextInput",
-                "name": "aroma_b",
-                "label": "Aroma (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_b}"
-              },
-              {
-                "type": "TextInput",
-                "name": "kulit_b",
-                "label": "Kulit (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_b}"
-              },
-              {
-                "type": "TextInput",
-                "name": "bentuk_b",
-                "label": "Bentuk (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_b}"
-              },
-              {
-                "type": "TextSubheading",
-                "text": "${data.label_c}",
-                "visible": "${data.show_c}"
-              },
-              {
-                "type": "TextInput",
-                "name": "berat_c",
-                "label": "Berat (gram)",
-                "input-type": "number",
-                "helper-text": "Contoh: 2350 untuk 2,35 kg",
-                "required": false,
-                "visible": "${data.show_c}"
-              },
-              {
-                "type": "TextInput",
-                "name": "aroma_c",
-                "label": "Aroma (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_c}"
-              },
-              {
-                "type": "TextInput",
-                "name": "kulit_c",
-                "label": "Kulit (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_c}"
-              },
-              {
-                "type": "TextInput",
-                "name": "bentuk_c",
-                "label": "Bentuk (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_c}"
-              },
-              {
-                "type": "TextSubheading",
-                "text": "${data.label_d}",
-                "visible": "${data.show_d}"
-              },
-              {
-                "type": "TextInput",
-                "name": "berat_d",
-                "label": "Berat (gram)",
-                "input-type": "number",
-                "helper-text": "Contoh: 2350 untuk 2,35 kg",
-                "required": false,
-                "visible": "${data.show_d}"
-              },
-              {
-                "type": "TextInput",
-                "name": "aroma_d",
-                "label": "Aroma (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_d}"
-              },
-              {
-                "type": "TextInput",
-                "name": "kulit_d",
-                "label": "Kulit (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_d}"
-              },
-              {
-                "type": "TextInput",
-                "name": "bentuk_d",
-                "label": "Bentuk (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_d}"
-              },
-              {
-                "type": "TextSubheading",
-                "text": "${data.label_e}",
-                "visible": "${data.show_e}"
-              },
-              {
-                "type": "TextInput",
-                "name": "berat_e",
-                "label": "Berat (gram)",
-                "input-type": "number",
-                "helper-text": "Contoh: 2350 untuk 2,35 kg",
-                "required": false,
-                "visible": "${data.show_e}"
-              },
-              {
-                "type": "TextInput",
-                "name": "aroma_e",
-                "label": "Aroma (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_e}"
-              },
-              {
-                "type": "TextInput",
-                "name": "kulit_e",
-                "label": "Kulit (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_e}"
-              },
-              {
-                "type": "TextInput",
-                "name": "bentuk_e",
-                "label": "Bentuk (1-5)",
-                "input-type": "number",
-                "required": false,
-                "visible": "${data.show_e}"
+                "text": "Satu laporan paling banyak 40 buah. Lebih dari itu, kirim laporan panen lagi."
               },
               {
                 "type": "Footer",
-                "label": "${data.next_label}",
+                "label": "Simpan Panen",
                 "on-click-action": {
                   "name": "data_exchange",
                   "payload": {
-                    "count": "${data.count}",
-                    "collected": "${data.collected}",
-                    "berat_a": "${form.berat_a}",
-                    "aroma_a": "${form.aroma_a}",
-                    "kulit_a": "${form.kulit_a}",
-                    "bentuk_a": "${form.bentuk_a}",
-                    "berat_b": "${form.berat_b}",
-                    "aroma_b": "${form.aroma_b}",
-                    "kulit_b": "${form.kulit_b}",
-                    "bentuk_b": "${form.bentuk_b}",
-                    "berat_c": "${form.berat_c}",
-                    "aroma_c": "${form.aroma_c}",
-                    "kulit_c": "${form.kulit_c}",
-                    "bentuk_c": "${form.bentuk_c}",
-                    "berat_d": "${form.berat_d}",
-                    "aroma_d": "${form.aroma_d}",
-                    "kulit_d": "${form.kulit_d}",
-                    "bentuk_d": "${form.bentuk_d}",
-                    "berat_e": "${form.berat_e}",
-                    "aroma_e": "${form.aroma_e}",
-                    "kulit_e": "${form.kulit_e}",
-                    "bentuk_e": "${form.bentuk_e}"
+                    "berat_aa": "${form.berat_aa}",
+                    "aroma_aa": "${form.aroma_aa}",
+                    "kulit_aa": "${form.kulit_aa}",
+                    "bentuk_aa": "${form.bentuk_aa}",
+                    "berat_ab": "${form.berat_ab}",
+                    "aroma_ab": "${form.aroma_ab}",
+                    "kulit_ab": "${form.kulit_ab}",
+                    "bentuk_ab": "${form.bentuk_ab}",
+                    "berat_ac": "${form.berat_ac}",
+                    "aroma_ac": "${form.aroma_ac}",
+                    "kulit_ac": "${form.kulit_ac}",
+                    "bentuk_ac": "${form.bentuk_ac}",
+                    "berat_ad": "${form.berat_ad}",
+                    "aroma_ad": "${form.aroma_ad}",
+                    "kulit_ad": "${form.kulit_ad}",
+                    "bentuk_ad": "${form.bentuk_ad}",
+                    "berat_ae": "${form.berat_ae}",
+                    "aroma_ae": "${form.aroma_ae}",
+                    "kulit_ae": "${form.kulit_ae}",
+                    "bentuk_ae": "${form.bentuk_ae}",
+                    "berat_af": "${form.berat_af}",
+                    "aroma_af": "${form.aroma_af}",
+                    "kulit_af": "${form.kulit_af}",
+                    "bentuk_af": "${form.bentuk_af}",
+                    "berat_ag": "${form.berat_ag}",
+                    "aroma_ag": "${form.aroma_ag}",
+                    "kulit_ag": "${form.kulit_ag}",
+                    "bentuk_ag": "${form.bentuk_ag}",
+                    "berat_ah": "${form.berat_ah}",
+                    "aroma_ah": "${form.aroma_ah}",
+                    "kulit_ah": "${form.kulit_ah}",
+                    "bentuk_ah": "${form.bentuk_ah}",
+                    "berat_ai": "${form.berat_ai}",
+                    "aroma_ai": "${form.aroma_ai}",
+                    "kulit_ai": "${form.kulit_ai}",
+                    "bentuk_ai": "${form.bentuk_ai}",
+                    "berat_aj": "${form.berat_aj}",
+                    "aroma_aj": "${form.aroma_aj}",
+                    "kulit_aj": "${form.kulit_aj}",
+                    "bentuk_aj": "${form.bentuk_aj}",
+                    "berat_ak": "${form.berat_ak}",
+                    "aroma_ak": "${form.aroma_ak}",
+                    "kulit_ak": "${form.kulit_ak}",
+                    "bentuk_ak": "${form.bentuk_ak}",
+                    "berat_al": "${form.berat_al}",
+                    "aroma_al": "${form.aroma_al}",
+                    "kulit_al": "${form.kulit_al}",
+                    "bentuk_al": "${form.bentuk_al}",
+                    "berat_am": "${form.berat_am}",
+                    "aroma_am": "${form.aroma_am}",
+                    "kulit_am": "${form.kulit_am}",
+                    "bentuk_am": "${form.bentuk_am}",
+                    "berat_an": "${form.berat_an}",
+                    "aroma_an": "${form.aroma_an}",
+                    "kulit_an": "${form.kulit_an}",
+                    "bentuk_an": "${form.bentuk_an}",
+                    "berat_ao": "${form.berat_ao}",
+                    "aroma_ao": "${form.aroma_ao}",
+                    "kulit_ao": "${form.kulit_ao}",
+                    "bentuk_ao": "${form.bentuk_ao}",
+                    "berat_ap": "${form.berat_ap}",
+                    "aroma_ap": "${form.aroma_ap}",
+                    "kulit_ap": "${form.kulit_ap}",
+                    "bentuk_ap": "${form.bentuk_ap}",
+                    "berat_aq": "${form.berat_aq}",
+                    "aroma_aq": "${form.aroma_aq}",
+                    "kulit_aq": "${form.kulit_aq}",
+                    "bentuk_aq": "${form.bentuk_aq}",
+                    "berat_ar": "${form.berat_ar}",
+                    "aroma_ar": "${form.aroma_ar}",
+                    "kulit_ar": "${form.kulit_ar}",
+                    "bentuk_ar": "${form.bentuk_ar}",
+                    "berat_as": "${form.berat_as}",
+                    "aroma_as": "${form.aroma_as}",
+                    "kulit_as": "${form.kulit_as}",
+                    "bentuk_as": "${form.bentuk_as}",
+                    "berat_at": "${form.berat_at}",
+                    "aroma_at": "${form.aroma_at}",
+                    "kulit_at": "${form.kulit_at}",
+                    "bentuk_at": "${form.bentuk_at}",
+                    "berat_au": "${form.berat_au}",
+                    "aroma_au": "${form.aroma_au}",
+                    "kulit_au": "${form.kulit_au}",
+                    "bentuk_au": "${form.bentuk_au}",
+                    "berat_av": "${form.berat_av}",
+                    "aroma_av": "${form.aroma_av}",
+                    "kulit_av": "${form.kulit_av}",
+                    "bentuk_av": "${form.bentuk_av}",
+                    "berat_aw": "${form.berat_aw}",
+                    "aroma_aw": "${form.aroma_aw}",
+                    "kulit_aw": "${form.kulit_aw}",
+                    "bentuk_aw": "${form.bentuk_aw}",
+                    "berat_ax": "${form.berat_ax}",
+                    "aroma_ax": "${form.aroma_ax}",
+                    "kulit_ax": "${form.kulit_ax}",
+                    "bentuk_ax": "${form.bentuk_ax}",
+                    "berat_ay": "${form.berat_ay}",
+                    "aroma_ay": "${form.aroma_ay}",
+                    "kulit_ay": "${form.kulit_ay}",
+                    "bentuk_ay": "${form.bentuk_ay}",
+                    "berat_az": "${form.berat_az}",
+                    "aroma_az": "${form.aroma_az}",
+                    "kulit_az": "${form.kulit_az}",
+                    "bentuk_az": "${form.bentuk_az}",
+                    "berat_ba": "${form.berat_ba}",
+                    "aroma_ba": "${form.aroma_ba}",
+                    "kulit_ba": "${form.kulit_ba}",
+                    "bentuk_ba": "${form.bentuk_ba}",
+                    "berat_bb": "${form.berat_bb}",
+                    "aroma_bb": "${form.aroma_bb}",
+                    "kulit_bb": "${form.kulit_bb}",
+                    "bentuk_bb": "${form.bentuk_bb}",
+                    "berat_bc": "${form.berat_bc}",
+                    "aroma_bc": "${form.aroma_bc}",
+                    "kulit_bc": "${form.kulit_bc}",
+                    "bentuk_bc": "${form.bentuk_bc}",
+                    "berat_bd": "${form.berat_bd}",
+                    "aroma_bd": "${form.aroma_bd}",
+                    "kulit_bd": "${form.kulit_bd}",
+                    "bentuk_bd": "${form.bentuk_bd}",
+                    "berat_be": "${form.berat_be}",
+                    "aroma_be": "${form.aroma_be}",
+                    "kulit_be": "${form.kulit_be}",
+                    "bentuk_be": "${form.bentuk_be}",
+                    "berat_bf": "${form.berat_bf}",
+                    "aroma_bf": "${form.aroma_bf}",
+                    "kulit_bf": "${form.kulit_bf}",
+                    "bentuk_bf": "${form.bentuk_bf}",
+                    "berat_bg": "${form.berat_bg}",
+                    "aroma_bg": "${form.aroma_bg}",
+                    "kulit_bg": "${form.kulit_bg}",
+                    "bentuk_bg": "${form.bentuk_bg}",
+                    "berat_bh": "${form.berat_bh}",
+                    "aroma_bh": "${form.aroma_bh}",
+                    "kulit_bh": "${form.kulit_bh}",
+                    "bentuk_bh": "${form.bentuk_bh}",
+                    "berat_bi": "${form.berat_bi}",
+                    "aroma_bi": "${form.aroma_bi}",
+                    "kulit_bi": "${form.kulit_bi}",
+                    "bentuk_bi": "${form.bentuk_bi}",
+                    "berat_bj": "${form.berat_bj}",
+                    "aroma_bj": "${form.aroma_bj}",
+                    "kulit_bj": "${form.kulit_bj}",
+                    "bentuk_bj": "${form.bentuk_bj}",
+                    "berat_bk": "${form.berat_bk}",
+                    "aroma_bk": "${form.aroma_bk}",
+                    "kulit_bk": "${form.kulit_bk}",
+                    "bentuk_bk": "${form.bentuk_bk}",
+                    "berat_bl": "${form.berat_bl}",
+                    "aroma_bl": "${form.aroma_bl}",
+                    "kulit_bl": "${form.kulit_bl}",
+                    "bentuk_bl": "${form.bentuk_bl}",
+                    "berat_bm": "${form.berat_bm}",
+                    "aroma_bm": "${form.aroma_bm}",
+                    "kulit_bm": "${form.kulit_bm}",
+                    "bentuk_bm": "${form.bentuk_bm}",
+                    "berat_bn": "${form.berat_bn}",
+                    "aroma_bn": "${form.aroma_bn}",
+                    "kulit_bn": "${form.kulit_bn}",
+                    "bentuk_bn": "${form.bentuk_bn}"
                   }
                 }
               }

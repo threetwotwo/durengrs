@@ -693,7 +693,7 @@ test('rain: the farm\'s daily rain is filed by itself, a day a person recorded i
 
 // ---------- Laporan PANEN ----------
 
-test('harvest Flow: count, fruits screen by screen, saved as one harvest with each fruit', async () => {
+test('harvest Flow: one screen, the rows filled are the fruits, saved as one harvest with each fruit', async () => {
   seed({ blockBloomDaysAgo: 110 });
   const token = makeHarvestToken('A1', PHONE);
   const go = async (screen, data) =>
@@ -703,30 +703,17 @@ test('harvest Flow: count, fruits screen by screen, saved as one harvest with ea
   assert.equal(init.screen, 'PANEN');
   assert.match(init.data.panen_title, /A1/);
 
-  assert.match((await go('PANEN', { count: '0' })).data.error_message, /minimal 1/);
-  assert.match((await go('PANEN', { count: '41' })).data.error_message, /paling banyak 40/);
-  const s1 = await go('PANEN', { count: '6' });
-  assert.equal(s1.screen, 'BUAH_A');
-  assert.equal(s1.data.fruits_title, 'Buah 1–5 dari 6');
-  assert.deepEqual('abcde'.split('').map((x) => s1.data[`show_${x}`]), [true, true, true, true, true]);
-  assert.equal(s1.data.next_label, 'Lanjut');
-
   const fruit = (x, w) => ({ [`berat_${x}`]: String(w), [`aroma_${x}`]: '5', [`kulit_${x}`]: '4', [`bentuk_${x}`]: '3' });
-  const page1 = { count: '6', collected: '[]', ...fruit('a', 2000), ...fruit('b', 2500), ...fruit('c', 3000), ...fruit('d', 2200), ...fruit('e', 1800) };
-  // A missing or out-of-range score, and a weight in kilograms, are sent back with the same screen.
-  assert.match((await go('BUAH_A', { ...page1, aroma_c: '' })).data.error_message, /Buah 3: nilai aroma belum diisi/);
-  assert.match((await go('BUAH_A', { ...page1, kulit_d: '7' })).data.error_message, /Buah 4: nilai kulit harus angka bulat 1 sampai 5/);
-  assert.match((await go('BUAH_A', { ...page1, berat_b: '2,5' })).data.error_message, /gram, bukan kilogram/);
+  const keys = ['aa', 'ab', 'ac', 'ad', 'ae', 'af'];
+  const six = Object.assign({}, ...keys.map((k, i) => fruit(k, [2000, 2500, 3000, 2200, 1800, 2500][i])));
+  const empty = Object.fromEntries(R.FRUIT_KEYS.slice(6).flatMap((k) => ['berat', 'aroma', 'kulit', 'bentuk'].map((f) => [`${f}_${k}`, ''])));
+  // Nothing typed, a missing or out-of-range score, and a weight in kilograms come back on the same screen.
+  assert.match((await go('PANEN', empty)).data.error_message, /minimal satu buah/);
+  assert.match((await go('PANEN', { ...six, aroma_ac: '' })).data.error_message, /Buah 3: nilai aroma belum diisi/);
+  assert.match((await go('PANEN', { ...six, kulit_ad: '7' })).data.error_message, /Buah 4: nilai kulit harus angka bulat 1 sampai 5/);
+  assert.match((await go('PANEN', { ...six, berat_ab: '2,5' })).data.error_message, /gram, bukan kilogram/);
 
-  const s2 = await go('BUAH_A', page1);
-  assert.equal(s2.screen, 'BUAH_B');
-  assert.equal(s2.data.fruits_title, 'Buah 6 dari 6');
-  assert.deepEqual('abcde'.split('').map((x) => s2.data[`show_${x}`]), [true, false, false, false, false]);
-  assert.equal(s2.data.label_a, 'Buah 6');
-  assert.equal(s2.data.next_label, 'Simpan Panen');
-  assert.equal(JSON.parse(s2.data.collected).length, 5);
-
-  const doneRes = await go('BUAH_B', { count: '6', collected: s2.data.collected, ...fruit('a', 2500) });
+  const doneRes = await go('PANEN', { ...six, ...empty });
   assert.equal(doneRes.screen, 'DONE');
   assert.equal(doneRes.data.saved, true);
   assert.match(doneRes.data.message, /6 buah, 14 kg/);
@@ -741,11 +728,11 @@ test('harvest Flow: count, fruits screen by screen, saved as one harvest with ea
   assert.equal(h.items.length, 6);
   assert.match(doneRes.data.message, new RegExp(`Kode buah: A1-${day}-01 s/d A1-${day}-06`));
   // The same submit again (a network retry) is not a second harvest.
-  const again = await go('BUAH_B', { count: '6', collected: s2.data.collected, ...fruit('a', 2500) });
+  const again = await go('PANEN', { ...six, ...empty });
   assert.equal(again.data.title, '✅ Sudah tercatat');
   assert.equal(fake.all('harvests').length, 1);
   // A second report the same day numbers on: its fruit is the tree's 7th today.
   const token2 = makeHarvestToken('A1', PHONE) + '9';
-  const one = await route({ kind: 'harvest', action: 'data_exchange', screen: 'BUAH_A', data: { count: '1', collected: '[]', ...fruit('a', 3100) }, flowToken: token2, treeId: 'A1', workerPhone: PHONE });
+  const one = await route({ kind: 'harvest', action: 'data_exchange', screen: 'PANEN', data: fruit('aa', 3100), flowToken: token2, treeId: 'A1', workerPhone: PHONE });
   assert.equal(fake.get('harvests', one.data.report_id).items[0].code, `A1-${day}-07`);
 });

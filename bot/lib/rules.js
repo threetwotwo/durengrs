@@ -53,11 +53,8 @@ const LIMITS = {
 
 // ---------- harvest Flow: one fruit's quality, 1 to 5 ----------
 
-// Fruits per screen of the harvest Flow, and the screens' letters (scripts/build-flow.js draws them: BUAH_A..BUAH_H,
-// slots berat_a..berat_e; Flow ids may not hold digits). 5 x 8 = LIMITS.harvestReportFruits.max.
-const FRUITS_PER_SCREEN = 5;
-const FRUIT_PAGES = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
-const FRUIT_SLOTS = ['a', 'b', 'c', 'd', 'e'];
+// The harvest Flow's fruit rows, as letters (Flow names may not hold digits): fruit 1 is _aa, fruit 26 _az, 27 _ba.
+const FRUIT_KEYS = Array.from({ length: LIMITS.harvestReportFruits.max }, (_, i) => 'abcdefghijklmnopqrstuvwxyz'[Math.floor(i / 26)] + 'abcdefghijklmnopqrstuvwxyz'[i % 26]);
 
 // Each fruit's own code: tree, day, number of the tree's fruit that day. "A0-20261021-03".
 const fruitCode = (treeId, date, n) => `${treeId}-${String(date).replace(/-/g, '')}-${String(n).padStart(2, '0')}`;
@@ -151,17 +148,7 @@ function checkRain({ date, mm }, { today }) {
     : { ok: value };
 }
 
-// The number of fruits picked up today (the harvest Flow's first screen).
-function checkFruitCount(raw) {
-  const { min, max } = LIMITS.harvestReportFruits;
-  const r = parseNumber(raw, { label: 'Jumlah buah', min: 0, max: 1e6, integer: true });
-  if (r.error) return { error: r.error };
-  if (r.value < min) return { error: 'Jumlah buah minimal 1.' };
-  if (r.value > max) return { error: `Satu laporan paling banyak ${max} buah. Laporkan ${max} dulu, lalu kirim laporan panen lagi untuk sisanya.` };
-  return { ok: r.value };
-}
-
-// One fruit from a screen of the harvest Flow: weight in grams and three scores 1-5, all typed ("4"; ["4"] from an
+// One fruit (a row of the harvest Flow): weight in grams and three scores 1-5, all typed ("4"; ["4"] from an
 // older chips screen is read too). `n` is the fruit's number, for the message.
 function checkFruit({ weight, aroma, skin, shape }, n) {
   const w = parseNumber(weight, { label: `Berat buah ${n}`, min: 0, max: 1e7, integer: false });
@@ -187,5 +174,5 @@ module.exports = {
   parseNumber, cleanText,
   cropCountId, seasonTaskId, bloomWaveId, idFromToken, harvestIdForReport, harvestIdForFlow,
   checkSeasonTasks, checkRain,
-  FRUITS_PER_SCREEN, FRUIT_PAGES, FRUIT_SLOTS, QUALITY, QUALITY_LABELS, checkFruitCount, checkFruit, fruitCode, fruitCodeNumber,
+  FRUIT_KEYS, QUALITY, QUALITY_LABELS, checkFruit, fruitCode, fruitCodeNumber,
 };
