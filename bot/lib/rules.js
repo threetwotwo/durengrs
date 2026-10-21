@@ -47,7 +47,8 @@ const LIMITS = {
   rainMaxAgeDays: 7,
   notes: 500,
   // The harvest Flow (Laporan PANEN): fruits picked up from one tree in one report, and one fruit's weight in grams.
-  harvestReportFruits: { min: 1, max: 40 },
+  // 18: Meta allows 100 components per screen, and each fruit row is 5 (4 fields + its If).
+  harvestReportFruits: { min: 1, max: 18 },
   fruitWeightG: { min: 300, max: 9000 },
 };
 

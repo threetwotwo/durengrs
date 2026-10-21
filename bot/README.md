@@ -21,7 +21,7 @@ service-account JSON. They stay in Cloud Run. `.gitignore` in this folder blocks
 | Flow | opened by | file | env | screens |
 |---|---|---|---|---|
 | **Laporan Pohon**: Laporan KESEHATAN | the worker sends a tree ID, e.g. `A1`, then taps **Laporan KESEHATAN** | `flows/flow.json` | `FLOW_ID` | `REPORT` (1-3 photos + free text, both required) → `DONE` |
-| **Laporan Pohon**: Laporan PANEN | the same tree ID, then **Laporan PANEN** (same Flow, the token opens `PANEN`) | `flows/flow.json` | `FLOW_ID` | `PANEN` (one screen, a row per fruit picked up today, all typed: weight in grams 300-9000, aroma, kulit, bentuk 1-5; the next row appears once a weight is in; up to 40) → `DONE`; saved as `harvests/wap_…` with `items`, each fruit with its own `code` (`A0-20261021-01`, numbered on through the tree's day) |
+| **Laporan Pohon**: Laporan PANEN | the same tree ID, then **Laporan PANEN** (same Flow, the token opens `PANEN`) | `flows/flow.json` | `FLOW_ID` | `PANEN` (one screen, a row per fruit picked up today, all typed: weight in grams 300-9000, aroma, kulit, bentuk 1-5; the next row appears once a weight is in; up to 18, Meta allows 100 components per screen) → `DONE`; saved as `harvests/wap_…` with `items`, each fruit with its own `code` (`A0-20261021-01`, numbered on through the tree's day) |
 | **Catatan Kebun** | the "Hujan & Pekerjaan" button, or the word `KEBUN` | `flows/flow-farm.json` | `FARM_FLOW_ID` | `FARM_HOME` → `HUJAN` (Curah Hujan) or `KERJA` (Pekerjaan Selesai) → `DONE` |
 
 A tree ID is answered with the tree's last photos and two messages, each with one button (a WhatsApp message holds only

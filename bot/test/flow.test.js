@@ -94,6 +94,14 @@ for (const [file, flow] of Object.entries(flows)) {
     assert.deepEqual(bad, []);
   });
 
+  test(`${file}: at most 100 components per screen (Meta's limit; an If counts, Form and the layout don't)`, () => {
+    for (const s of flow.screens) {
+      let n = 0;
+      walk(s.layout.children, (x) => { if (x.type && x.type !== 'Form') n++; });
+      assert.ok(n <= 100, `${s.id}: ${n} components`);
+    }
+  });
+
   test(`${file}: no ChipsSelector (every answer is typed)`, () => {
     walk(flow.screens, (n) => assert.notEqual(n.type, 'ChipsSelector'));
   });
@@ -140,7 +148,7 @@ test('no "penjarangan" in anything a worker reads', () => {
   assert.equal(/jarang/i.test(all), false);
 });
 
-test('the harvest screen: 40 fruit rows of typed numbers, fruit 1 shown, each next one once the one before has a weight', () => {
+test('the harvest screen: 18 fruit rows of typed numbers, fruit 1 shown, each next one once the one before has a weight', () => {
   const tree = flows['flow.json'];
   const panen = tree.screens.find((s) => s.id === 'PANEN');
   const inputs = [];
@@ -150,12 +158,13 @@ test('the harvest screen: 40 fruit rows of typed numbers, fruit 1 shown, each ne
     if (n.name && n.type && n.type !== 'Form' && n.type !== 'Footer') inputs.push(n);
   });
   assert.deepEqual(inputs.slice(0, 4).map((n) => n.name), ['berat_aa', 'aroma_aa', 'kulit_aa', 'bentuk_aa']);
-  assert.equal(inputs.length, 160);
-  assert.equal(inputs[159].name, 'bentuk_bn');
+  assert.equal(inputs.length, 72);
+  assert.equal(inputs[71].name, 'bentuk_ar');
+  for (const n of inputs) assert.ok(n.label.length <= 20, `${n.name} label "${n.label}" over 20 characters`);
   for (const n of inputs) assert.deepEqual([n.type, n['input-type']], ['TextInput', 'number'], n.name);
-  assert.equal(ifs.length, 39);
+  assert.equal(ifs.length, 17);
   assert.equal(ifs[0].condition, "${form.berat_aa} != ''");
-  assert.equal(ifs[38].condition, "${form.berat_bm} != ''");
+  assert.equal(ifs[16].condition, "${form.berat_aq} != ''");
   assert.equal(JSON.stringify(panen).includes('"count"'), false, 'no count question');
   assert.deepEqual(tree.routing_model.PANEN, ['DONE']);
 });

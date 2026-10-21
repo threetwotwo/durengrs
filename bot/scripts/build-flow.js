@@ -108,10 +108,11 @@ const REPORT = screen(
 
 // =====================================================================================================
 // Laporan PANEN (same Flow), one screen: a row per fruit picked up from the tree today (weight in grams; aroma, kulit,
-// bentuk 1-5), all typed. Flows have no table or repeating field, so the screen holds 40 rows: fruit 1 is always
+// bentuk 1-5), all typed. Flows have no table or repeating field, so the screen holds 18 rows: fruit 1 is always
 // shown, each next one inside an If that shows it once the fruit before has a weight. The rows filled are the
 // fruits; the endpoint checks everything (lib/flowScreens.js handlePanen). Names may not hold digits: fruit 1 is
-// berat_aa, fruit 27 berat_ba.
+// berat_aa. Meta allows 100 components per screen (an If counts, the Form doesn't): "Buah N" goes in each label
+// rather than a heading of its own, so a row is 5 and the screen 94.
 // =====================================================================================================
 
 const FRUIT_KEYS = require('../lib/rules').FRUIT_KEYS; // aa, ab, ... (LIMITS.harvestReportFruits.max of them)
@@ -122,25 +123,22 @@ const PANEN = (() => {
   const children = [
     heading('${data.panen_title}'),
     caption('${data.today_caption}'),
-    body('Isi satu baris untuk setiap buah dari pohon ini yang dipungut hari ini. Baris berikutnya muncul setelah berat diisi.'),
-    caption('Aroma: 5 = wangi kuat & segar, 1 = tidak wangi'),
-    caption('Kulit: 5 = mulus sempurna, 1 = cacat (bolong, retak)'),
-    caption('Bentuk: 5 = bulat sempurna, 1 = peyang beberapa ruas'),
+    body('Isi berat dan nilai setiap buah dari pohon ini yang dipungut hari ini. Buah berikutnya muncul setelah berat diisi. Paling banyak 18 buah; lebih dari itu, kirim laporan panen lagi.'),
+    caption('Nilai 1 sampai 5:\nAroma: 5 = wangi kuat & segar, 1 = tidak wangi\nKulit: 5 = mulus sempurna, 1 = cacat (bolong, retak)\nBentuk: 5 = bulat sempurna, 1 = peyang beberapa ruas'),
   ];
   const payload = {};
   FRUIT_KEYS.forEach((k, i) => {
+    const n = `Buah ${i + 1}`;
     const row = [
-      { type: 'TextSubheading', text: `Buah ${i + 1}` },
-      numIn(`berat_${k}`, 'Berat (gram)', i === 0 ? 'Contoh: 2350 untuk 2,35 kg' : ''),
-      numIn(`aroma_${k}`, 'Aroma (1-5)'),
-      numIn(`kulit_${k}`, 'Kulit (1-5)'),
-      numIn(`bentuk_${k}`, 'Bentuk (1-5)'),
+      numIn(`berat_${k}`, `${n} · Berat (g)`, i === 0 ? 'Dalam gram. Contoh: 2350 untuk 2,35 kg' : ''),
+      numIn(`aroma_${k}`, `${n} · Aroma`),
+      numIn(`kulit_${k}`, `${n} · Kulit`),
+      numIn(`bentuk_${k}`, `${n} · Bentuk`),
     ];
     if (i === 0) children.push(...row);
     else children.push({ type: 'If', condition: `\${form.berat_${FRUIT_KEYS[i - 1]}} != ''`, then: row });
     for (const f of FRUIT_FIELDS) payload[`${f}_${k}`] = `\${form.${f}_${k}}`;
   });
-  children.push(caption('Satu laporan paling banyak 40 buah. Lebih dari itu, kirim laporan panen lagi.'));
   children.push(footer('Simpan Panen', exchange(payload)));
   return screen('PANEN', 'Laporan Panen', { panen_title: str('Panen A1 · MK · Blok A'), today_caption: str('Hari ini, 21 Okt 2026') }, [form('panen_form', children)]);
 })();
