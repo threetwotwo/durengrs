@@ -3,8 +3,7 @@
   "data_api_version": "3.0",
   "routing_model": {
     "REPORT": [
-      "DONE",
-      "PANEN"
+      "DONE"
     ],
     "PANEN": [
       "DONE"

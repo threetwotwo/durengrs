@@ -115,7 +115,7 @@ for (const [file, flow] of Object.entries(flows)) {
 test('the tree Flow: the report screen, the harvest screens, DONE; the farm Flow holds rain and finished work', () => {
   const tree = flows['flow.json'];
   assert.deepEqual(tree.screens.map((s) => s.id), ['REPORT', 'PANEN', 'DONE']);
-  assert.deepEqual(tree.routing_model.REPORT, ['DONE', 'PANEN']);
+  assert.deepEqual(tree.routing_model.REPORT, ['DONE'], 'PANEN is an entry screen of its own: nothing routes into it');
   const report = tree.screens[0];
   const picker = JSON.stringify(report).match(/"min-uploaded-photos":(\d+)/);
   assert.equal(picker[1], '1', 'at least one photo');

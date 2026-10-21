@@ -145,13 +145,14 @@ const PANEN = (() => {
   return screen('PANEN', 'Laporan Panen', { panen_title: str('Panen A1 · MK · Blok A'), today_caption: str('Hari ini, 21 Okt 2026') }, [form('panen_form', children)]);
 })();
 
-// One Flow for both buttons: the server opens REPORT or PANEN (the flow token says which). REPORT -> PANEN is never
-// taken; it keeps one entry screen. DONE is also where the Flow ends when the tree has gone while it was open.
+// One Flow for both buttons: the server opens REPORT or PANEN (the flow token says which), so both are entry screens:
+// nothing routes into them (an INIT answer may only open a screen no route leads to; REPORT -> PANEN made WhatsApp
+// fail to open PANEN). DONE is also where the Flow ends when the tree has gone while it was open.
 const treeFlow = {
   version: '7.3',
   data_api_version: '3.0',
   routing_model: {
-    REPORT: ['DONE', 'PANEN'],
+    REPORT: ['DONE'],
     PANEN: ['DONE'],
     DONE: [],
   },
