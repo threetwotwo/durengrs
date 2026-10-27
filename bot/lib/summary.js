@@ -5,6 +5,8 @@
 //   📋 Ringkasan Kebun Cilowong · Selasa, 27 Okt 2026
 //   Terima kasih, Udin! Yang Anda catat hari ini, semua sudah tersimpan: ✅ reports (trees), problems filed from them,
 //     harvest (fruit, kg, fruit codes), fruit counts, rain, season work
+//   Laporan terbaru: the latest reports and harvests from the others, one short line each, so the team shares the
+//     same picture ("14:20 B1 (Budi) 🟡 Bunga mulai mekar")
 //   Seluruh kebun hari ini: reports (trees, workers), harvest, counts, rain, new problems
 //   Perlu dicek: problems due for their re-check, trees nobody reported on for a week
 //
@@ -18,6 +20,9 @@ const S = require('./shared');
 
 const STALE_DAYS = 7;
 const LIST_MAX = 6;
+const RECENT_MAX = 8;
+const HEALTH_DOT = { hijau: '🟢', kuning: '🟡', merah: '🔴' };
+const timeFmt = new Intl.DateTimeFormat('id-ID', { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit', hour12: false });
 
 const ms = (t) => (t && typeof t.toMillis === 'function' ? t.toMillis() : t && t._seconds ? t._seconds * 1000 : Number(t) || 0);
 const num = (n, d = 1) => Number(n || 0).toLocaleString('id-ID', { maximumFractionDigits: d });
@@ -103,6 +108,41 @@ const fruitCodes = (items) => {
   return codes.length > 1 ? `${codes[0]} s/d ${codes[codes.length - 1].split('-').pop()}` : codes[0] || '';
 };
 
+/** A worker's words cut to a short line, on a word boundary. */
+function condense(text, max = 60) {
+  const t = String(text || '').replace(/\s+/g, ' ').trim().replace(/[.,;:!]+$/, '');
+  if (t.length <= max) return t;
+  const cut = t.slice(0, max);
+  return `${cut.slice(0, cut.lastIndexOf(' ') > max * 0.6 ? cut.lastIndexOf(' ') : max).trim()}…`;
+}
+
+/**
+ * The latest reports and harvests of the day from everyone but `phone`, newest first, one line each:
+ * "14:20 B1 (Budi) 🟡 Bunga mulai mekar". What Gemini read stands in for the words when the worker wrote little.
+ */
+function recentLines(data, phone, max = RECENT_MAX) {
+  const me = digits(phone);
+  const names = new Map((data.workers || []).map((w) => [digits(w.phone || w.id), w.name]));
+  const who = (p) => names.get(digits(p)) || (digits(p) ? `••${digits(p).slice(-4)}` : '');
+  const items = [];
+  for (const r of data.reports || []) {
+    if (me && digits(r.workerPhone) === me) continue;
+    const health = r.health || r.triage?.health;
+    const issues = (r.issues || (r.triage?.issues || []).map((i) => i.code) || []).filter((c) => S.ISSUE_INFO[c]).map((c) => S.ISSUE_INFO[c].label.id);
+    const words = condense(r.description);
+    const what = words.length >= 12 || !issues.length ? words : issues.join(', ');
+    items.push({ at: ms(r.createdAt), tree: r.treeId, who: who(r.workerPhone), text: `${HEALTH_DOT[health] ? `${HEALTH_DOT[health]} ` : ''}${what || 'Foto pohon'}` });
+  }
+  for (const h of data.harvests || []) {
+    if (me && digits(h.workerPhone) === me) continue;
+    items.push({ at: ms(h.createdAt), tree: h.treeId || `Blok ${h.block}`, who: who(h.workerPhone), text: `🧺 Panen ${num(h.fruits, 0)} buah${h.weightKg ? `, ${num(h.weightKg)} kg` : ''}` });
+  }
+  items.sort((a, b) => b.at - a.at);
+  const lines = items.slice(0, max).map((x) => `• ${x.at ? `${timeFmt.format(new Date(x.at)).replace('.', ':')} ` : ''}*${x.tree || '-'}*${x.who ? ` (${x.who})` : ''} ${x.text}`);
+  if (items.length > max) lines.push(`• … dan ${items.length - max} lainnya`);
+  return lines;
+}
+
 /** The full message for one worker (`phone`, `name`), or for nobody in particular. */
 function buildSummary(data, date, phone, now = Date.now(), name = '') {
   const d = digest(data, date, now);
@@ -129,6 +169,9 @@ function buildSummary(data, date, phone, now = Date.now(), name = '') {
     }
     lines.push('');
   }
+
+  const recent = recentLines(data, phone);
+  if (recent.length) lines.push(digits(phone) ? '*Laporan terbaru dari rekan*' : '*Laporan terbaru*', ...recent, '');
 
   lines.push('*Seluruh kebun hari ini*');
   lines.push(d.reports ? `• ${d.reports} laporan dari ${d.reportTrees} pohon, oleh ${d.reporters} pekerja` : '• Belum ada laporan pohon');
@@ -197,4 +240,4 @@ async function sendDailySummary({ date = R.todayStr(), to, dry = false, send }) 
   return { date, sent: out };
 }
 
-module.exports = { loadDay, digest, mine, buildSummary, summaryLine, sendDailySummary, dayTitle };
+module.exports = { loadDay, digest, mine, recentLines, condense, buildSummary, summaryLine, sendDailySummary, dayTitle };

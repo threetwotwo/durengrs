@@ -81,3 +81,25 @@ test('sending: everyone on the Workers page unless switched off, once a day; a t
   assert.equal(sent.length, 2, 'a dry run sends nothing');
   assert.match(dry.sent[0].text, /Udin/);
 });
+
+test('the latest reports from the others, newest first, one short line each', () => {
+  const { recentLines, condense } = require('../lib/summary');
+  const at = (h, m) => ({ toMillis: () => Date.parse(`2026-10-27T${String(h - 7).padStart(2, '0')}:${String(m).padStart(2, '0')}:00Z`) });
+  const d = {
+    workers: [{ phone: U, name: 'Udin' }, { phone: B, name: 'Budi' }],
+    reports: [
+      { id: 'a', treeId: 'A1', workerPhone: U, createdAt: at(9, 0), description: 'mine' },
+      { id: 'b', treeId: 'B1', workerPhone: B, createdAt: at(14, 20), health: 'kuning', description: '  Bunga mulai mekar.  ' },
+      { id: 'c', treeId: 'B2', workerPhone: '628155550000', createdAt: at(10, 5), triage: { health: 'merah', issues: [{ code: 'phytophthora_canker' }] }, description: 'getah' },
+      { id: 'd', treeId: 'B3', workerPhone: B, createdAt: at(8, 0), description: 'Daun banyak yang kuning di dahan bagian bawah dan ada bercak coklat di beberapa daun muda juga' },
+    ],
+    harvests: [{ treeId: 'A3', workerPhone: B, fruits: 3, weightKg: 6.1, createdAt: at(15, 2) }],
+  };
+  const lines = recentLines(d, U);
+  assert.deepEqual(lines.slice(0, 3), ['• 15:02 *A3* (Budi) 🧺 Panen 3 buah, 6,1 kg', '• 14:20 *B1* (Budi) 🟡 Bunga mulai mekar', '• 10:05 *B2* (••0000) 🔴 Kanker batang (getah merah)']);
+  assert.match(lines[3], /^• 08:00 \*B3\* \(Budi\) Daun banyak yang kuning di dahan bagian bawah dan ada…$/);
+  assert.equal(lines.some((l) => l.includes('mine')), false, "the worker's own reports are above, not here");
+  assert.equal(recentLines(d, U, 2).pop(), '• … dan 2 lainnya');
+  assert.equal(condense('pendek'), 'pendek');
+  assert.match(buildSummary(d, day, U, NOW, 'Udin'), /\*Laporan terbaru dari rekan\*\n• 15:02/);
+});

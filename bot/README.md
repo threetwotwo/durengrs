@@ -165,7 +165,8 @@ gcloud run services update durian-tree-lookup --region asia-southeast1 --min-ins
 
 Every worker on the webapp's Workers page gets a WhatsApp message at 17:00 (the bell there turns it off for one
 worker): first what *they* recorded today, each line marked ✅ as saved (reports and the problems filed from them,
-harvests with their fruit codes, fruit counts, rain, season work), then the farm's day, then what needs checking
+harvests with their fruit codes, fruit counts, rain, season work), then the latest reports and harvests from the
+others (up to 8, one short line each: time, tree, who, condition, their words cut short), then the farm's day, then what needs checking
 (problems due for a re-check, trees nobody reported on for a week). Sending **RINGKASAN** in the chat gets it any
 time. `lib/summary.js`; sent once a day per number (`farmMeta/dailySummary`).
 
