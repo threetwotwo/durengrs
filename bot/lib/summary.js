@@ -79,7 +79,13 @@ function digest(data, date, now = Date.now()) {
   const due = open.filter((c) => c.nextCheck && c.nextCheck <= date && c.openedOn !== date);
   const cutoff = now - STALE_DAYS * 86400e3;
   const reportedToday = new Set(reports.map((r) => r.treeId));
-  const stale = (data.trees || []).filter((t) => ms(t.lastReportAt) < cutoff && !reportedToday.has(t.id)).map((t) => t.id);
+  const staleTrees = (data.trees || []).filter((t) => ms(t.lastReportAt) < cutoff && !reportedToday.has(t.id));
+  const stale = staleTrees.map((t) => t.id);
+  // Many trees: per block ("Blok A 120 dari 130"), which says where to go; a few: their IDs.
+  const blockTotal = new Map();
+  for (const t of data.trees || []) blockTotal.set(t.block || '?', (blockTotal.get(t.block || '?') || 0) + 1);
+  const staleByBlock = new Map();
+  for (const t of staleTrees) staleByBlock.set(t.block || '?', (staleByBlock.get(t.block || '?') || 0) + 1);
   const weekFrom = now - 7 * 86400e3;
   const week = data.recentReports ? data.recentReports.filter((r) => ms(r.createdAt) >= weekFrom) : reports;
   const lastAt = Math.max(0, ...(data.recentReports || reports).map((r) => ms(r.createdAt)));
@@ -98,6 +104,8 @@ function digest(data, date, now = Date.now()) {
     fresh,
     due,
     stale,
+    staleBlocks: [...staleByBlock.entries()].sort((a, b) => idOrder(a[0], b[0])).map(([block, n]) => ({ block, n, of: blockTotal.get(block) })),
+    trees: (data.trees || []).length,
   };
 }
 
@@ -246,7 +254,10 @@ function buildSummary(data, date, phone, now = Date.now(), name = '') {
   if (d.due.length || d.stale.length) {
     lines.push('', '*Perlu dicek*');
     if (d.due.length) lines.push(`• Cek ulang masalah: ${list(d.due.map((c) => c.treeId))}`);
-    if (d.stale.length) lines.push(`• Belum dilaporkan ${STALE_DAYS} hari: ${d.stale.length} pohon (${list(d.stale)})`);
+    if (d.stale.length > 2 * LIST_MAX) {
+      lines.push(`• Belum dilaporkan ${STALE_DAYS} hari: ${d.stale.length} dari ${d.trees} pohon`);
+      for (const b of d.staleBlocks) lines.push(`   Blok ${b.block}: ${b.n} dari ${b.of}`);
+    } else if (d.stale.length) lines.push(`• Belum dilaporkan ${STALE_DAYS} hari: ${d.stale.length} pohon (${list(d.stale)})`);
   }
   lines.push('', 'Kirim ID pohon untuk lapor. Kirim *RINGKASAN* untuk melihat ringkasan ini lagi.');
   return lines.join('\n');

@@ -143,3 +143,9 @@ test('the latest harvests: today first, with the average scores of the fruits; t
   ]);
   assert.deepEqual(harvestLines({ recentHarvests: [] }, day), []);
 });
+
+test('many trees not reported for a week: counted per block, not listed', () => {
+  const trees = [...Array(20)].map((_, i) => ({ id: `A${i + 1}`, block: 'A' })).concat([...Array(5)].map((_, i) => ({ id: `B${i + 1}`, block: 'B', lastReportAt: i ? undefined : { toMillis: () => NOW } })));
+  const text = buildSummary({ reports: [], harvests: [], cases: [], counts: [], tasks: [], trees }, day, '', NOW);
+  assert.match(text, /• Belum dilaporkan 7 hari: 24 dari 25 pohon\n   Blok A: 20 dari 20\n   Blok B: 4 dari 5/);
+});
