@@ -19,6 +19,7 @@ const { syncRain } = require('./lib/rain');
 const { db: fdb, admin } = require('./lib/firestore');
 const { loadDay, buildSummary, sendDailySummary, dayTitle } = require('./lib/summary');
 const { todayStr } = require('./lib/rules');
+const { parseCommand } = require('./lib/commands');
 
 const app = express();
 app.use(express.json());
@@ -33,10 +34,7 @@ const sendContext = new AsyncLocalStorage();
 // Cloud Run injects PORT (8080) itself — never set it in env.yaml.
 const PORT = process.env.PORT || 8080;
 
-// Matches tree IDs like "A1", "B77" — adjust if your IDs ever look different.
-const TREE_ID_PATTERN = /^[A-Z]{1,3}\d{1,3}$/i;
-// Words that open the farm Flow (rain and finished work), compared without spaces: "curah hujan" -> CURAHHUJAN.
-const FARM_WORDS = /^(KEBUN|HUJAN|CURAHHUJAN|KERJA|PEKERJAAN|CATATANKEBUN)$/;
+// Tree IDs and command words (KEBUN, RINGKASAN...): lib/commands.js.
 
 // ---------- WhatsApp helpers ----------
 
@@ -235,7 +233,6 @@ const seenMessages = new Set();
 
 // ---------- daily summary (lib/summary.js) ----------
 
-const SUMMARY_WORDS = /^(RINGKASAN|REKAP|LAPORANHARIINI)$/;
 // WhatsApp lets a business send free text only within 24 hours of the person's last message; we keep the time of
 // each number's last message (chatSeen/{phone}) to know which way the summary can go.
 const WINDOW_MS = 23.5 * 3600e3;
@@ -332,12 +329,12 @@ async function handleIncomingMessage(body) {
     return sendHelp(to, 'Maaf, saya hanya bisa membaca teks. Foto dikirim lewat formulir laporan pohon.');
   }
 
-  const compact = (message.text?.body || '').replace(/\s+/g, '').toUpperCase(); // "a 1" -> "A1"
-
-  if (FARM_WORDS.test(compact)) return openFarmFlow(to);
-  if (SUMMARY_WORDS.test(compact)) return sendOwnSummary(to);
-
-  if (!TREE_ID_PATTERN.test(compact)) return sendHelp(to);
+  // Case, spaces and small typos don't matter (lib/commands.js): "a1", "ringkasan", "Ringakasan", "kebon".
+  const command = parseCommand(message.text?.body);
+  if (command.kind === 'farm') return openFarmFlow(to);
+  if (command.kind === 'summary') return sendOwnSummary(to);
+  if (command.kind !== 'tree') return sendHelp(to);
+  const compact = command.id;
 
   // Check first, so a typo gets a plain reply instead of a Flow with no
   // tree behind it (and a button that can't work).
