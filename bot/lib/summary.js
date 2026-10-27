@@ -5,8 +5,9 @@
 //   📋 Ringkasan Kebun Cilowong · Selasa, 27 Okt 2026
 //   Terima kasih, Udin! Yang Anda catat hari ini, semua sudah tersimpan: ✅ reports (trees), problems filed from them,
 //     harvest (fruit, kg, fruit codes), fruit counts, rain, season work
-//   Laporan terbaru: the latest reports and harvests from the others, one short line each, so the team shares the
-//     same picture ("14:20 B1 (Budi) 🟡 Bunga mulai mekar")
+//   Laporan terbaru: the latest reports from the others, one short line each, so the team shares the same picture
+//     ("14:20 B1 (Budi) 🟡 Bunga mulai mekar"); a quiet day shows the latest of the last two weeks, dated
+//   Panen terbaru: the latest harvests (Laporan PANEN) of the last two weeks: fruit, kg, average scores; the week's total
 //   Seluruh kebun hari ini: reports (trees, workers), harvest, counts, rain, new problems
 //   Perlu dicek: problems due for their re-check, trees nobody reported on for a week
 //
@@ -131,7 +132,7 @@ function condense(text, max = 60) {
 }
 
 /**
- * The latest reports and harvests of the day from everyone but `phone`, newest first, one line each:
+ * The latest reports of the day from everyone but `phone`, newest first, one line each:
  * "14:20 B1 (Budi) 🟡 Bunga mulai mekar". What Gemini read stands in for the words when the worker wrote little.
  */
 function recentLines(data, phone, max = RECENT_MAX, date = null) {
@@ -148,17 +149,14 @@ function recentLines(data, phone, max = RECENT_MAX, date = null) {
     const what = words.length >= 12 || !issues.length ? words : issues.join(', ');
     return { at: ms(r.createdAt), old, tree: r.treeId, who: who(r.workerPhone), text: `${HEALTH_DOT[health] ? `${HEALTH_DOT[health]} ` : ''}${what || 'Foto pohon'}` };
   };
-  const harvestLine = (h, old) => ({ at: ms(h.createdAt), old, day: h.date, tree: h.treeId || `Blok ${h.block}`, who: who(h.workerPhone), text: `🧺 Panen ${num(h.fruits, 0)} buah${h.weightKg ? `, ${num(h.weightKg)} kg` : ''}` });
   const notMine = (x) => !me || digits(x.workerPhone) !== me;
   for (const r of (data.reports || []).filter(notMine)) items.push(reportLine(r, false));
-  for (const h of (data.harvests || []).filter(notMine)) items.push(harvestLine(h, false));
   items.sort((a, b) => b.at - a.at);
   // A quiet day: the latest earlier ones (everyone's, the worker's own too), dated.
   const fill = [];
   if (items.length < RECENT_MIN) {
     for (const r of earlier) fill.push(reportLine(r, true));
-    for (const h of (data.recentHarvests || []).filter((h) => !(data.harvests || []).includes(h) && h.date !== date)) fill.push(harvestLine(h, true));
-    fill.sort((a, b) => (b.at || 0) - (a.at || 0) || String(b.day || '').localeCompare(String(a.day || '')));
+    fill.sort((a, b) => (b.at || 0) - (a.at || 0));
   }
   const shown = [...items.slice(0, max), ...fill.slice(0, Math.max(0, Math.min(max, RECENT_MIN + 2) - items.length))];
   const when = (x) => {
@@ -169,6 +167,35 @@ function recentLines(data, phone, max = RECENT_MAX, date = null) {
   const lines = shown.map((x) => `• ${when(x)}*${x.tree || '-'}*${x.who ? ` (${x.who})` : ''} ${x.text}`);
   if (items.length > max) lines.push(`• … dan ${items.length - max} lainnya`);
   return { lines, onlyEarlier: !items.length && fill.length > 0 };
+}
+
+const HARVEST_MAX = 5;
+
+/**
+ * The latest harvests (Laporan PANEN, or written in a report) of the last two weeks, everyone's, newest first:
+ * "Hari ini *A3* (Budi): 3 buah, 6,1 kg · aroma 3,3 · kulit 4 · bentuk 4,3", and the last 7 days' total.
+ */
+function harvestLines(data, date, max = HARVEST_MAX) {
+  const names = new Map((data.workers || []).map((w) => [digits(w.phone || w.id), w.name]));
+  const who = (p) => names.get(digits(p)) || (digits(p) ? `••${digits(p).slice(-4)}` : '');
+  const all = [...(data.recentHarvests || data.harvests || [])].sort((a, b) => String(b.date).localeCompare(String(a.date)) || ms(b.createdAt) - ms(a.createdAt));
+  if (!all.length) return [];
+  const avg = (items, k) => num(items.reduce((n, f) => n + (Number(f[k]) || 0), 0) / items.length);
+  const lines = all.slice(0, max).map((h) => {
+    const day = h.date === date ? 'Hari ini' : R.dateLabel(h.date).replace(/ \d{4}$/, '');
+    const items = (h.items || []).filter((f) => f && Number.isFinite(f.aroma));
+    const scores = items.length ? ` · aroma ${avg(items, 'aroma')} · kulit ${avg(items, 'skin')} · bentuk ${avg(items, 'shape')}` : '';
+    const w = who(h.workerPhone);
+    return `• ${day} *${h.treeId || `Blok ${h.block}`}*${w ? ` (${w})` : ''}: ${num(h.fruits, 0)} buah${h.weightKg ? `, ${num(h.weightKg)} kg` : ''}${scores}`;
+  });
+  if (all.length > max) lines.push(`• … dan ${all.length - max} panen lainnya`);
+  const week = all.filter((h) => h.date >= R.addDays(date, -6));
+  if (week.length) {
+    const fruits = week.reduce((n, h) => n + (Number(h.fruits) || 0), 0);
+    const kg = week.reduce((n, h) => n + (Number(h.weightKg) || 0), 0);
+    lines.push(`• 7 hari terakhir: ${num(fruits, 0)} buah${kg ? `, ${num(kg)} kg` : ''} dari ${new Set(week.map((h) => h.treeId).filter(Boolean)).size} pohon`);
+  }
+  return lines;
 }
 
 /** The full message for one worker (`phone`, `name`), or for nobody in particular. */
@@ -201,6 +228,8 @@ function buildSummary(data, date, phone, now = Date.now(), name = '') {
 
   const recent = recentLines(data, phone, RECENT_MAX, date);
   if (recent.lines.length) lines.push(recent.onlyEarlier ? '*Laporan terakhir di kebun*' : digits(phone) ? '*Laporan terbaru dari rekan*' : '*Laporan terbaru*', ...recent.lines, '');
+  const panen = harvestLines(data, date);
+  if (panen.length) lines.push('🧺 *Panen terbaru*', ...panen, '');
 
   lines.push('*Seluruh kebun hari ini*');
   lines.push(
@@ -277,4 +306,4 @@ async function sendDailySummary({ date = R.todayStr(), to, dry = false, send }) 
   return { date, sent: out };
 }
 
-module.exports = { loadDay, digest, mine, recentLines, condense, buildSummary, summaryLine, sendDailySummary, dayTitle };
+module.exports = { loadDay, digest, mine, recentLines, harvestLines, condense, buildSummary, summaryLine, sendDailySummary, dayTitle };

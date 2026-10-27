@@ -96,12 +96,12 @@ test('the latest reports from the others, newest first, one short line each', ()
     harvests: [{ treeId: 'A3', workerPhone: B, fruits: 3, weightKg: 6.1, createdAt: at(15, 2) }],
   };
   const lines = recentLines(d, U).lines;
-  assert.deepEqual(lines.slice(0, 3), ['• 15:02 *A3* (Budi) 🧺 Panen 3 buah, 6,1 kg', '• 14:20 *B1* (Budi) 🟡 Bunga mulai mekar', '• 10:05 *B2* (••0000) 🔴 Kanker batang (getah merah)']);
-  assert.match(lines[3], /^• 08:00 \*B3\* \(Budi\) Daun banyak yang kuning di dahan bagian bawah dan ada…$/);
+  assert.deepEqual(lines.slice(0, 2), ['• 14:20 *B1* (Budi) 🟡 Bunga mulai mekar', '• 10:05 *B2* (••0000) 🔴 Kanker batang (getah merah)']);
+  assert.match(lines[2], /^• 08:00 \*B3\* \(Budi\) Daun banyak yang kuning di dahan bagian bawah dan ada…$/);
   assert.equal(lines.some((l) => l.includes('mine')), false, "the worker's own reports are above, not here");
-  assert.equal(recentLines(d, U, 2).lines.pop(), '• … dan 2 lainnya');
+  assert.equal(recentLines(d, U, 2).lines.pop(), '• … dan 1 lainnya');
   assert.equal(condense('pendek'), 'pendek');
-  assert.match(buildSummary(d, day, U, NOW, 'Udin'), /\*Laporan terbaru dari rekan\*\n• 15:02/);
+  assert.match(buildSummary(d, day, U, NOW, 'Udin'), /\*Laporan terbaru dari rekan\*\n• 14:20/);
 });
 
 test('a quiet day is not empty: the latest earlier reports, dated, the last report day, the week', () => {
@@ -119,7 +119,27 @@ test('a quiet day is not empty: the latest earlier reports, dated, the last repo
   };
   const text = buildSummary(d, day, U, NOW, 'Udin');
   assert.match(text, /Belum ada catatan dari Anda hari ini\. Laporan terakhir Anda: 23 Okt 2026\./);
-  assert.match(text, /\*Laporan terakhir di kebun\*\n• 24 Okt 14:20 \*B1\* \(Budi\) 🟡 Bunga mulai mekar\n• 23 Okt 09:00 \*A1\* \(Udin\) Buah sebesar telur\n• 21 Okt 15:00 \*A3\* \(Budi\) 🧺 Panen 3 buah, 6,1 kg/);
+  assert.match(text, /\*Laporan terakhir di kebun\*\n• 24 Okt 14:20 \*B1\* \(Budi\) 🟡 Bunga mulai mekar\n• 23 Okt 09:00 \*A1\* \(Udin\) Buah sebesar telur\n/);
+  assert.match(text, /🧺 \*Panen terbaru\*\n• 21 Okt \*A3\* \(Budi\): 3 buah, 6,1 kg\n• 7 hari terakhir: 3 buah, 6,1 kg dari 1 pohon/);
   assert.match(text, /Belum ada laporan pohon hari ini \(terakhir 24 Okt 2026\)/);
   assert.match(text, /7 hari terakhir: 2 laporan dari 2 pohon/);
+});
+
+test('the latest harvests: today first, with the average scores of the fruits; the total of the week', () => {
+  const { harvestLines } = require('../lib/summary');
+  const d = {
+    workers: [{ phone: B, name: 'Budi' }],
+    recentHarvests: [
+      { treeId: 'A1', date: '2026-10-15', fruits: 9, weightKg: 20 },
+      { treeId: 'A3', date: day, fruits: 3, weightKg: 6.1, workerPhone: B, items: [{ aroma: 3, skin: 4, shape: 5 }, { aroma: 2, skin: 3, shape: 4 }, { aroma: 5, skin: 5, shape: 4 }] },
+      { treeId: 'A0', date: '2026-10-21', fruits: 2, weightKg: 4.9 },
+    ],
+  };
+  assert.deepEqual(harvestLines(d, day), [
+    '• Hari ini *A3* (Budi): 3 buah, 6,1 kg · aroma 3,3 · kulit 4 · bentuk 4,3',
+    '• 21 Okt *A0*: 2 buah, 4,9 kg',
+    '• 15 Okt *A1*: 9 buah, 20 kg',
+    '• 7 hari terakhir: 5 buah, 11 kg dari 2 pohon',
+  ]);
+  assert.deepEqual(harvestLines({ recentHarvests: [] }, day), []);
 });
