@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { Pencil, Trash2, UserPlus, Users } from 'lucide-react';
+import { BellOff, BellRing, Pencil, Trash2, UserPlus, Users } from 'lucide-react';
 import { useFarm } from '../context/FarmContext';
 import { useT } from '../i18n';
 import { fieldInput, fieldLabel } from './Sheet';
 import { btnPrimary } from './PageHeader';
-import { checkWorker, maskDigits, removeWorker, saveWorker } from '../lib/workers';
+import { checkWorker, maskDigits, removeWorker, saveWorker, setWorkerDaily } from '../lib/workers';
 
 /**
  * Who sends the field records: WhatsApp number -> name. The bot only knows numbers; with a name here, counts, harvests,
@@ -13,7 +13,7 @@ import { checkWorker, maskDigits, removeWorker, saveWorker } from '../lib/worker
 export const WorkersCard: React.FC<{ seenPhones?: string[] }> = ({ seenPhones = [] }) => {
   const { t } = useT();
   const { workers } = useFarm();
-  const [form, setForm] = useState<{ phone: string; name: string; editing?: string } | null>(null);
+  const [form, setForm] = useState<{ phone: string; name: string; editing?: string; daily?: boolean } | null>(null);
   const [touched, setTouched] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -23,7 +23,7 @@ export const WorkersCard: React.FC<{ seenPhones?: string[] }> = ({ seenPhones = 
   const check = form ? checkWorker(form, workers, form.editing) : null;
   const sorted = [...workers].sort((a, b) => a.name.localeCompare(b.name));
 
-  const open = (v: { phone: string; name: string; editing?: string }) => {
+  const open = (v: { phone: string; name: string; editing?: string; daily?: boolean }) => {
     setForm(v);
     setTouched(false);
     setError(null);
@@ -34,7 +34,7 @@ export const WorkersCard: React.FC<{ seenPhones?: string[] }> = ({ seenPhones = 
     setBusy(true);
     try {
       // A changed number is a new document; the old one goes.
-      await saveWorker({ phone: check.phone, name: check.name });
+      await saveWorker({ phone: check.phone, name: check.name, daily: form.daily });
       if (form.editing && form.editing !== check.phone) await removeWorker(form.editing);
       setForm(null);
     } catch (e: any) {
@@ -54,6 +54,7 @@ export const WorkersCard: React.FC<{ seenPhones?: string[] }> = ({ seenPhones = 
             {t('wk.title')}
           </h2>
           <p className="text-xs text-slate-600">{t('wk.help')}</p>
+          <p className="text-xs text-slate-600 mt-0.5">{t('wk.daily.help')}</p>
         </div>
         {!form && (
           <button type="button" onClick={() => open({ phone: '', name: '' })} className="min-h-9 px-3 rounded-lg border border-slate-300 text-sm font-semibold text-slate-800 inline-flex items-center gap-1.5 hover:bg-slate-50">
@@ -95,7 +96,18 @@ export const WorkersCard: React.FC<{ seenPhones?: string[] }> = ({ seenPhones = 
                 <span className="block text-sm font-semibold text-slate-900 truncate">{w.name}</span>
                 <span className="block text-xs text-slate-500 font-mono">{maskDigits(w.phone)}</span>
               </span>
-              <button type="button" onClick={() => open({ phone: w.phone, name: w.name, editing: w.phone })} className="p-2 rounded-lg text-slate-500 hover:bg-slate-100" aria-label={`${t('wk.edit')} ${w.name}`}>
+              <button
+                type="button"
+                aria-pressed={w.daily !== false}
+                onClick={() => setWorkerDaily(w.phone, w.daily === false).catch((e) => setError(e?.code === 'permission-denied' ? t('err.rulesRecords') : t('rec.saveError')))}
+                title={t(w.daily !== false ? 'wk.daily.on' : 'wk.daily.off')}
+                className={`min-h-9 px-2 rounded-lg inline-flex items-center gap-1 text-xs font-semibold ${w.daily !== false ? 'text-emerald-700 hover:bg-emerald-50' : 'text-slate-400 hover:bg-slate-100'}`}
+              >
+                {w.daily !== false ? <BellRing className="w-4 h-4" /> : <BellOff className="w-4 h-4" />}
+                <span className="hidden sm:inline">{t('wk.daily')}</span>
+                <span className="sr-only sm:hidden">{t('wk.daily')}</span>
+              </button>
+              <button type="button" onClick={() => open({ phone: w.phone, name: w.name, editing: w.phone, daily: w.daily })} className="p-2 rounded-lg text-slate-500 hover:bg-slate-100" aria-label={`${t('wk.edit')} ${w.name}`}>
                 <Pencil className="w-4 h-4" />
               </button>
               <button

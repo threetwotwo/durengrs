@@ -131,6 +131,7 @@ See `.env.example` (placeholders only). Never set `PORT` on Cloud Run.
 | `VERIFY_TOKEN` | webhook verification, also guards `/ai-check` and `/cases-backfill` |
 | `WHATSAPP_TOKEN`, `PHONE_NUMBER_ID` | sending messages (replies go out from the number that received the message; this is the fallback) |
 | `FLOW_ID`, `FARM_FLOW_ID` | the published tree Flow (KESEHATAN and PANEN) and farm Flow |
+| `SUMMARY_TEMPLATE` | optional: the approved WhatsApp template for the daily summary, for workers who have not messaged in 24 hours |
 | `FLOW_PRIVATE_KEY_FILE` | private key of the Flow endpoint |
 | `GOOGLE_SERVICE_ACCOUNT_KEY_FILE`, `STORAGE_BUCKET` | Firestore and Storage (bucket name from Firebase console → Storage) |
 | `GEMINI_API_KEY` | Google AI Studio key (`AIza…` or `AQ.…`); without it nothing is sent to Gemini |
@@ -159,6 +160,24 @@ gcloud run services update durian-tree-lookup --region asia-southeast1 --min-ins
    `env.yaml`, `service-account.json`, `private_key.pem`.
 3. Deploy (same command as always, run inside `bot/`):
    `gcloud run deploy durian-tree-lookup --source . --project whatsapp-survey-509713 --region asia-southeast1 --allow-unauthenticated --env-vars-file env.yaml`
+
+## Daily summary (17:00 WIB)
+
+Every worker on the webapp's Workers page gets a WhatsApp message at 17:00 (the bell there turns it off for one
+worker): first what *they* recorded today, each line marked ✅ as saved (reports and the problems filed from them,
+harvests with their fruit codes, fruit counts, rain, season work), then the farm's day, then what needs checking
+(problems due for a re-check, trees nobody reported on for a week). Sending **RINGKASAN** in the chat gets it any
+time. `lib/summary.js`; sent once a day per number (`farmMeta/dailySummary`).
+
+- **Test first:** `https://<service>/daily-summary?token=<VERIFY_TOKEN>&to=628…` sends it to that number only;
+  `&dry=1` shows every worker's message without sending anything.
+- **24-hour rule:** WhatsApp lets the bot send free text only within 24 hours of the worker's own last message
+  (`chatSeen/{phone}`). Outside that, it sends the approved template named in `SUMMARY_TEMPLATE` (category Utility,
+  language Indonesian `id`), with two values: {{1}} the day ("Selasa, 27 Okt 2026") and {{2}} a one-line version.
+  Suggested body: `📋 Ringkasan Kebun Cilowong, {{1}}` / `{{2}}` / `Balas *RINGKASAN* untuk melihat lengkapnya.`
+  Without the template those workers are skipped (the response says so).
+- **Schedule:** a Cloud Scheduler job calls the URL every day:
+  `gcloud scheduler jobs create http daily-summary --project whatsapp-survey-509713 --location asia-southeast1 --schedule "0 17 * * *" --time-zone "Asia/Jakarta" --http-method GET --attempt-deadline 300s --uri "https://<service>/daily-summary?token=<VERIFY_TOKEN>"`
 
 ## Flow setup
 

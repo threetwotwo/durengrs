@@ -40,12 +40,15 @@ const ref = (name, id) => ({
 });
 const query = (name, filters = []) => ({
   where: (f, op, v) => {
-    if (op !== '==') throw new Error('fake supports == only');
-    return query(name, [...filters, [f, v]]);
+    if (op !== '==' && op !== '>=') throw new Error('fake supports == and >= only');
+    return query(name, [...filters, [f, v, op]]);
   },
   select: () => query(name, filters),
   get: async () => {
-    const docs = [...col(name).keys()].filter((id) => filters.every(([f, v]) => col(name).get(id)[f] === v)).map((id) => snap(name, id));
+    // A server timestamp stands for now; Timestamp.fromDate keeps its time.
+    const toMs = (x) => (x && x._ts ? x.ms ?? Date.now() : x);
+    const hit = (d, [f, v, op]) => (op === '>=' ? toMs(d[f]) >= toMs(v) : d[f] === v);
+    const docs = [...col(name).keys()].filter((id) => filters.every((fl) => hit(col(name).get(id), fl))).map((id) => snap(name, id));
     return { docs, empty: !docs.length, forEach: (fn) => docs.forEach(fn) };
   },
 });
@@ -66,7 +69,7 @@ const db = {
       update: (r, d) => apply(r.__col, r.__id, d, true),
     }),
 };
-const admin = { firestore: { FieldValue: { serverTimestamp: () => TS, delete: () => DELETE } } };
+const admin = { firestore: { FieldValue: { serverTimestamp: () => TS, delete: () => DELETE }, Timestamp: { fromDate: (d) => ({ _ts: true, ms: d.getTime(), toDate: () => d }) } } };
 
 module.exports = {
   db,

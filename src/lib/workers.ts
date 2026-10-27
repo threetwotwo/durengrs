@@ -1,4 +1,4 @@
-import { deleteDoc, doc, serverTimestamp, setDoc } from 'firebase/firestore';
+import { deleteDoc, doc, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
 import { db } from './firebase';
 
 /** A field worker: the WhatsApp number the bot sees, and the name the owner knows them by. */
@@ -6,6 +6,8 @@ export interface Worker {
   /** Digits only, international form as WhatsApp sends it (e.g. 628111886551). Also the document id. */
   phone: string;
   name: string;
+  /** Gets the daily summary on WhatsApp at 17:00 (bot/lib/summary.js). On unless switched off. */
+  daily?: boolean;
 }
 
 export const WORKER_NAME_MAX = 40;
@@ -30,7 +32,13 @@ export function checkWorker(v: { phone: string; name: string }, existing: Worker
 }
 
 export async function saveWorker(w: Worker): Promise<void> {
-  await setDoc(doc(db, 'workers', w.phone), { phone: w.phone, name: w.name.trim(), updatedAt: serverTimestamp() });
+  // merge: a rename keeps the daily summary switch; a new number carries it over (w.daily).
+  await setDoc(doc(db, 'workers', w.phone), { phone: w.phone, name: w.name.trim(), ...(w.daily === false ? { daily: false } : {}), updatedAt: serverTimestamp() }, { merge: true });
+}
+
+/** The daily summary on WhatsApp for this worker, on or off. */
+export async function setWorkerDaily(phone: string, on: boolean): Promise<void> {
+  await updateDoc(doc(db, 'workers', phone), { daily: on, updatedAt: serverTimestamp() });
 }
 
 export async function removeWorker(phone: string): Promise<void> {

@@ -5,6 +5,7 @@
 //   flow token says which screen it starts on;
 //   KEBUN (or the "Hujan & Pekerjaan" button) gets the farm Flow (flows/flow-farm.json, FARM_FLOW_ID).
 //   When a report Flow completes, Gemini reads the report (lib/ai.js) and the reply comes with a fresh Flow message.
+//   RINGKASAN gets the day's summary (lib/summary.js); /daily-summary sends it to the workers at 17:00 (Cloud Scheduler).
 require('dotenv').config();
 const express = require('express');
 const { decryptRequest, encryptResponse } = require('./lib/encryption');
@@ -15,12 +16,15 @@ const { route, parseFlowToken, makeTreeToken, makeFarmToken, makeHarvestToken } 
 const { analyzeReport, checkGemini } = require('./lib/ai');
 const { backfillCases } = require('./lib/backfill');
 const { syncRain } = require('./lib/rain');
+const { db: fdb, admin } = require('./lib/firestore');
+const { loadDay, buildSummary, sendDailySummary, dayTitle } = require('./lib/summary');
+const { todayStr } = require('./lib/rules');
 
 const app = express();
 app.use(express.json());
 
 const { AsyncLocalStorage } = require('async_hooks');
-const { VERIFY_TOKEN, WHATSAPP_TOKEN, PHONE_NUMBER_ID, FLOW_ID, FARM_FLOW_ID } = process.env;
+const { VERIFY_TOKEN, WHATSAPP_TOKEN, PHONE_NUMBER_ID, FLOW_ID, FARM_FLOW_ID, SUMMARY_TEMPLATE } = process.env;
 
 // Replies go out from the WhatsApp number that RECEIVED the message (taken from the webhook),
 // so the test number and the production number can both work. PHONE_NUMBER_ID is only the fallback.
@@ -66,6 +70,9 @@ const HELP_BODY = [
   'Kirim ID pohon, contoh: *A1*. Lalu pilih:',
   '• *KESEHATAN*: foto + keterangan (bunga, buah, hama, penyakit)',
   '• *PANEN*: buah yang dipungut hari ini, ditimbang dan dinilai',
+  '',
+  '📋 *Ringkasan hari ini*',
+  'Kirim kata *RINGKASAN*: semua yang Anda catat hari ini.',
   '',
   '🌧️ *Hujan & pekerjaan kebun*',
   'Ketuk tombol di bawah, atau kirim kata *KEBUN*.',
@@ -226,6 +233,52 @@ async function openFarmFlow(to) {
 
 const seenMessages = new Set();
 
+// ---------- daily summary (lib/summary.js) ----------
+
+const SUMMARY_WORDS = /^(RINGKASAN|REKAP|LAPORANHARIINI)$/;
+// WhatsApp lets a business send free text only within 24 hours of the person's last message; we keep the time of
+// each number's last message (chatSeen/{phone}) to know which way the summary can go.
+const WINDOW_MS = 23.5 * 3600e3;
+async function noteSeen(phone) {
+  try {
+    await fdb.collection('chatSeen').doc(String(phone)).set({ at: admin.firestore.FieldValue.serverTimestamp() });
+  } catch (err) {
+    console.error('chatSeen write failed:', err.message);
+  }
+}
+async function lastSeen(phone) {
+  const snap = await fdb.collection('chatSeen').doc(String(phone)).get().catch(() => null);
+  const at = snap && snap.exists ? snap.data().at : null;
+  return at && typeof at.toMillis === 'function' ? at.toMillis() : 0;
+}
+
+async function sendOwnSummary(to) {
+  const date = todayStr();
+  const data = await loadDay(date);
+  const name = (data.workers.find((w) => String(w.phone || w.id).replace(/\D/g, '') === to) || {}).name || '';
+  return sendText(to, buildSummary(data, date, to, Date.now(), name).slice(0, 4000));
+}
+
+// One worker's summary: free text inside the 24-hour window, else the approved template (when SUMMARY_TEMPLATE is set).
+async function deliverSummary(to, text, line) {
+  if (Date.now() - (await lastSeen(to)) < WINDOW_MS) {
+    const r = await sendText(to, text.slice(0, 4000));
+    return r?.error ? { ok: false, via: 'text', error: r.error.message } : { ok: true, via: 'text' };
+  }
+  if (!SUMMARY_TEMPLATE) return { ok: false, via: 'none', error: 'no message from this number in 24 hours, and SUMMARY_TEMPLATE is not set' };
+  const r = await sendWhatsAppMessage({
+    messaging_product: 'whatsapp',
+    to,
+    type: 'template',
+    template: {
+      name: SUMMARY_TEMPLATE,
+      language: { code: 'id' },
+      components: [{ type: 'body', parameters: [{ type: 'text', text: dayTitle(todayStr()) }, { type: 'text', text: line.slice(0, 900) }] }],
+    },
+  });
+  return r?.error ? { ok: false, via: 'template', error: r.error.message } : { ok: true, via: 'template' };
+}
+
 // ---------- Regular WhatsApp webhook (incoming messages) ----------
 
 app.get('/webhook', (req, res) => {
@@ -265,6 +318,7 @@ async function handleIncomingMessage(body) {
   if (seenMessages.size > 500) seenMessages.delete(seenMessages.values().next().value);
 
   const to = message.from;
+  await noteSeen(to);
 
   // The "Hujan & Pekerjaan" button.
   if (message.type === 'interactive') {
@@ -281,6 +335,7 @@ async function handleIncomingMessage(body) {
   const compact = (message.text?.body || '').replace(/\s+/g, '').toUpperCase(); // "a 1" -> "A1"
 
   if (FARM_WORDS.test(compact)) return openFarmFlow(to);
+  if (SUMMARY_WORDS.test(compact)) return sendOwnSummary(to);
 
   if (!TREE_ID_PATTERN.test(compact)) return sendHelp(to);
 
@@ -316,6 +371,21 @@ app.post(['/send-tree-flow', '/send-tree-lookup'], async (req, res) => {
   const tree = await getTreeById(treeId.toUpperCase());
   if (!tree) return res.status(404).json({ error: `Pohon ${treeId} tidak ditemukan` });
   res.json({ kesehatan: await sendTreeFlow(to, tree), panen: await sendHarvestFlow(to, tree) });
+});
+
+// The daily summary. Cloud Scheduler calls https://<service>/daily-summary?token=<VERIFY_TOKEN> at 17:00 WIB: every
+// worker on the Workers page whose switch is on gets theirs (once a day, retries are skipped). Add &to=628… to send to
+// one number only (a test), &dry=1 to see the messages without sending anything.
+app.get('/daily-summary', async (req, res) => {
+  if (!VERIFY_TOKEN || req.query.token !== VERIFY_TOKEN) return res.sendStatus(403);
+  try {
+    const result = await sendDailySummary({ to: req.query.to, dry: req.query.dry === '1', send: deliverSummary });
+    console.log(`Daily summary ${result.date}: ${(result.sent || []).map((r) => `${r.to}:${r.ok ? r.via : r.skipped || r.error || 'dry'}`).join(' ') || result.note}`);
+    res.json(result);
+  } catch (err) {
+    console.error('Daily summary failed:', err);
+    res.status(500).json({ error: String(err.message || err).slice(0, 400) });
+  }
 });
 
 // Open https://<service>/ai-check?token=<VERIFY_TOKEN> in a browser: says whether the Gemini key and model work.

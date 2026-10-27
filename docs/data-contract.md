@@ -29,7 +29,9 @@ imports.
 | `seasonTasks/{block}_{season}_{task}` | bot (Catatan Kebun, and season jobs seen in a report), web app | both | `block, season, task (hand_pollination/fruit_thinning/bagging/ca_mg_spray/fruit_tying), date, source, workerPhone?`; the first record wins |
 | `weather/{date}` | bot (Catatan Kebun; and every day by itself from Open-Meteo, `source: 'open-meteo'`, `bot/lib/rain.js`), web app | both | `date, rainMm, source, workerPhone?, updatedAt`. A day a person recorded is never replaced by the fetched one |
 | `treatmentPlans/{auto}`, `treatments/{auto}` | web app | web app (bot: planned, see audit F3) | routines and applications; `plan.lastDone {block: date}` |
-| `workers/{phone}` | web app | both | `phone, name` |
+| `workers/{phone}` | web app | both | `phone, name`, ✱`daily` (false: no daily summary; missing = on) |
+| ✱`chatSeen/{phone}` | bot | bot | `at`: the number's last message, so the daily summary knows whether WhatsApp's 24-hour window is open (free text) or the template must be used |
+| ✱`farmMeta/dailySummary` | bot | bot | `date, sentTo[]`: who got today's summary (a retried call skips them) |
 | `variants/{code}` | web app | both | `code, name, ripeningDays, …` |
 | ✱`farmMeta/labelRules` | web app (Trees › Aturan label dan dosis) | web app | the owner's label limits and doses: `batang, tajuk, est, fruitset` limits, `dose {fruiting, vegetative, young, unit}`, `products`, `confirmed`, `updatedBy, updatedAt`, `previous` (the values it replaced). Read it with `mergeLabelRules(doc)`; a missing document means the sheet's values (`DEFAULT_LABEL_RULES`) |
 | `labResults/{auto}`, `guideNotes/{topic}`, `farmMeta/*` | web app | web app | lab values, Guide notes, weekly check, import markers |

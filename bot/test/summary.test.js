@@ -1,0 +1,83 @@
+// The daily summary (lib/summary.js): what a worker reads at 17:00, and who gets it.
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fake = require('./fakeFirestore');
+fake.install();
+const R = require('../lib/rules');
+const { buildSummary, summaryLine, sendDailySummary } = require('../lib/summary');
+
+const day = '2026-10-27';
+const U = '628111886551';
+const B = '628122223333';
+const OLD = { toMillis: () => Date.parse('2026-10-01T00:00:00Z') };
+const NEW = { toMillis: () => Date.parse('2026-10-27T03:00:00Z') };
+const NOW = Date.parse('2026-10-27T10:00:00Z');
+const data = {
+  reports: [
+    { id: 'r1', treeId: 'A1', workerPhone: U },
+    { id: 'r2', treeId: 'A2', workerPhone: U },
+    { id: 'r3', treeId: 'B1', workerPhone: B },
+  ],
+  cases: [
+    { treeId: 'A2', issue: 'phytophthora_canker', status: 'open', openedOn: day, openedReportId: 'r2' },
+    { treeId: 'A4', issue: 'leaf_blight', status: 'treated', openedOn: '2026-10-10', nextCheck: '2026-10-26' },
+    { treeId: 'A5', issue: 'leaf_blight', status: 'resolved', openedOn: '2026-10-01', nextCheck: null },
+  ],
+  harvests: [{ treeId: 'A3', block: 'A', fruits: 3, weightKg: 6.1, workerPhone: U, items: [{ code: 'A3-20261027-01' }, { code: 'A3-20261027-02' }, { code: 'A3-20261027-03' }] }],
+  counts: [{ treeId: 'A6', stage: 'onTree', by: U }, { treeId: 'B2', stage: 'onTree', by: B }],
+  rain: { rainMm: 12, workerPhone: B },
+  tasks: [],
+  trees: [{ id: 'A1', lastReportAt: NEW }, { id: 'A7', lastReportAt: OLD }, { id: 'A8' }],
+  workers: [],
+};
+
+test('a worker reads their own day first, everything marked as recorded; then the farm and what to check', () => {
+  const text = buildSummary(data, day, U, NOW, 'Udin');
+  assert.match(text, /Ringkasan Kebun Cilowong/);
+  assert.match(text, /Selasa, 27 Okt 2026/);
+  assert.match(text, /Terima kasih, Udin! .* semua sudah tersimpan/);
+  assert.match(text, /✅ 2 laporan pohon: A1, A2/);
+  assert.match(text, /✅ Masalah tercatat: A2 /);
+  assert.match(text, /✅ Panen A3: 3 buah, 6,1 kg \(A3-20261027-01 s\/d 03\)/);
+  assert.match(text, /✅ Hitung buah: 1 pohon \(A6\)/);
+  assert.doesNotMatch(text, /Curah hujan/, 'the rain was recorded by someone else');
+  assert.match(text, /3 laporan dari 3 pohon, oleh 2 pekerja/);
+  assert.match(text, /Panen: 3 buah, 6,1 kg dari 1 pohon/);
+  assert.match(text, /Hitung buah: 2 pohon/);
+  assert.match(text, /Hujan: 12 mm/);
+  assert.match(text, /Cek ulang masalah: A4/);
+  assert.match(text, /Belum dilaporkan 7 hari: 2 pohon \(A7, A8\)/);
+  // Someone with nothing today is nudged, not thanked.
+  assert.match(buildSummary(data, day, '6289999', NOW, 'Siti'), /Halo Siti! Belum ada catatan dari Anda hari ini/);
+  assert.match(buildSummary(data, day, B, NOW), /✅ Curah hujan: 12 mm/);
+});
+
+test('the template line: one line, the worker first', () => {
+  const line = summaryLine(data, day, U, NOW);
+  assert.equal(line.includes('\n'), false);
+  assert.match(line, /^Anda: 2 laporan, panen 3 buah, hitung 1 pohon, semua tersimpan ✅\. Kebun: 3 laporan dari 3 pohon/);
+});
+
+test('sending: everyone on the Workers page unless switched off, once a day; a test number gets it regardless', async () => {
+  fake.reset();
+  const today = R.todayStr();
+  fake.seed('workers', U, { phone: U, name: 'Udin' });
+  fake.seed('workers', B, { phone: B, name: 'Budi', daily: false });
+  fake.seed('reports', 'r1', { treeId: 'A1', workerPhone: U, createdAt: { _ts: true } });
+  fake.seed('trees', 'A1', { id: 'A1' });
+  const sent = [];
+  const send = async (to, text, line) => (sent.push({ to, text, line }), { ok: true, via: 'text' });
+  const first = await sendDailySummary({ date: today, send });
+  assert.deepEqual(first.sent.map((s) => [s.to, s.ok]), [[U, true]]);
+  assert.match(sent[0].text, /Terima kasih, Udin!/);
+  assert.match(sent[0].text, /✅ 1 laporan pohon: A1/);
+  const again = await sendDailySummary({ date: today, send });
+  assert.deepEqual(again.sent.map((s) => s.skipped), ['already sent today']);
+  assert.equal(sent.length, 1);
+  await sendDailySummary({ date: today, to: B, send });
+  assert.equal(sent.length, 2);
+  assert.match(sent[1].text, /Halo Budi!/);
+  const dry = await sendDailySummary({ date: today, dry: true, send });
+  assert.equal(sent.length, 2, 'a dry run sends nothing');
+  assert.match(dry.sent[0].text, /Udin/);
+});
