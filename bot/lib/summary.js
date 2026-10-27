@@ -1,15 +1,13 @@
 // lib/summary.js — the daily summary sent to workers on WhatsApp (GET /daily-summary, called at 17:00 WIB by Cloud
 // Scheduler; the word RINGKASAN in chat asks for it any time). Indonesian, like everything a worker reads.
-// Its point: workers who never see the webapp see that what they sent was recorded. So it opens with their own day:
+// Its point: workers who never see the webapp see that what they sent was recorded, and what the others sent:
 //
 //   📋 Ringkasan Kebun Cilowong · Selasa, 27 Okt 2026
-//   Terima kasih, Udin! Yang Anda catat hari ini, semua sudah tersimpan: ✅ reports (trees), problems filed from them,
-//     harvest (fruit, kg, fruit codes), fruit counts, rain, season work
-//   Laporan terbaru: the latest reports from the others, one short line each, so the team shares the same picture
-//     ("14:20 B1 (Budi) 🟡 Bunga mulai mekar"); a quiet day shows the latest of the last two weeks, dated
-//   Panen terbaru: the latest harvests (Laporan PANEN) of the last two weeks: fruit, kg, average scores; the week's total
-//   Seluruh kebun hari ini: reports (trees, workers), harvest, counts, rain, new problems
-//   Perlu dicek: problems due for their re-check, trees nobody reported on for a week
+//   Terima kasih, Udin! Catatan Anda hari ini sudah tersimpan ✅: 2 laporan KESEHATAN, 1 laporan PANEN (3 buah).
+//     (Nothing today: when they last reported.)
+//   🩺 Laporan KESEHATAN: the day's reports, everyone's, one short line each ("14:20 B1 (Budi) 🟡 Bunga mulai
+//     mekar", their own marked "(Anda) ✅"); a quiet day shows the latest of the last two weeks, dated; the week
+//   🧺 Laporan PANEN: the latest harvests of the last two weeks: fruit, kg, average scores; the week's total
 //
 // Who gets it: everyone on the webapp's Workers page (workers/{phone}) unless their switch is off (`daily: false`). A day's sends are kept
 // in farmMeta/dailySummary, so a retried call never sends twice; `to` sends to one number (a test) regardless.
@@ -139,62 +137,62 @@ function condense(text, max = 60) {
   return `${cut.slice(0, cut.lastIndexOf(' ') > max * 0.6 ? cut.lastIndexOf(' ') : max).trim()}…`;
 }
 
-/**
- * The latest reports of the day from everyone but `phone`, newest first, one line each:
- * "14:20 B1 (Budi) 🟡 Bunga mulai mekar". What Gemini read stands in for the words when the worker wrote little.
- */
-function recentLines(data, phone, max = RECENT_MAX, date = null) {
-  const me = digits(phone);
+const nameOf = (data) => {
   const names = new Map((data.workers || []).map((w) => [digits(w.phone || w.id), w.name]));
-  const who = (p) => names.get(digits(p)) || (digits(p) ? `••${digits(p).slice(-4)}` : '');
-  const items = [];
-  const todayIds = new Set((data.reports || []).map((r) => r.id));
-  const earlier = (data.recentReports || []).filter((r) => !todayIds.has(r.id));
-  const reportLine = (r, old) => {
+  return (p) => names.get(digits(p)) || (digits(p) ? `••${digits(p).slice(-4)}` : '');
+};
+const shortDay = (date) => R.dateLabel(date).replace(/ \d{4}$/, '');
+const clock = (t) => timeFmt.format(new Date(t)).replace('.', ':');
+
+/**
+ * Laporan KESEHATAN: the day's reports, everyone's, newest first, one line each ("14:20 *B1* (Budi) 🟡 Bunga mulai
+ * mekar"); the worker's own marked "(Anda) ✅". A quiet day fills up with the latest of the last two weeks, dated.
+ * What Gemini read stands in for the words when the worker wrote little.
+ */
+function healthLines(data, phone, max = RECENT_MAX) {
+  const me = digits(phone);
+  const who = nameOf(data);
+  const line = (r, old) => {
     const health = r.health || r.triage?.health;
     const issues = (r.issues || (r.triage?.issues || []).map((i) => i.code) || []).filter((c) => S.ISSUE_INFO[c]).map((c) => S.ISSUE_INFO[c].label.id);
     const words = condense(r.description);
     const what = words.length >= 12 || !issues.length ? words : issues.join(', ');
-    return { at: ms(r.createdAt), old, tree: r.treeId, who: who(r.workerPhone), text: `${HEALTH_DOT[health] ? `${HEALTH_DOT[health]} ` : ''}${what || 'Foto pohon'}` };
+    const at = ms(r.createdAt);
+    const when = at ? (old ? `${shortDay(R.todayStr(new Date(at)))} ${clock(at)} ` : `${clock(at)} `) : '';
+    const mineToo = me && digits(r.workerPhone) === me;
+    const w = mineToo ? 'Anda' : who(r.workerPhone);
+    return { at, text: `• ${when}*${r.treeId || '-'}*${w ? ` (${w})` : ''}${mineToo ? ' ✅' : ''} ${HEALTH_DOT[health] ? `${HEALTH_DOT[health]} ` : ''}${what || 'Foto pohon'}` };
   };
-  const notMine = (x) => !me || digits(x.workerPhone) !== me;
-  for (const r of (data.reports || []).filter(notMine)) items.push(reportLine(r, false));
-  items.sort((a, b) => b.at - a.at);
-  // A quiet day: the latest earlier ones (everyone's, the worker's own too), dated.
-  const fill = [];
-  if (items.length < RECENT_MIN) {
-    for (const r of earlier) fill.push(reportLine(r, true));
-    fill.sort((a, b) => (b.at || 0) - (a.at || 0));
-  }
-  const shown = [...items.slice(0, max), ...fill.slice(0, Math.max(0, Math.min(max, RECENT_MIN + 2) - items.length))];
-  const when = (x) => {
-    if (!x.at) return x.day ? `${R.dateLabel(x.day).replace(/ \d{4}$/, '')} ` : '';
-    const t = timeFmt.format(new Date(x.at)).replace('.', ':');
-    return x.old ? `${R.dateLabel(R.todayStr(new Date(x.at))).replace(/ \d{4}$/, '')} ${t} ` : `${t} `;
-  };
-  const lines = shown.map((x) => `• ${when(x)}*${x.tree || '-'}*${x.who ? ` (${x.who})` : ''} ${x.text}`);
-  if (items.length > max) lines.push(`• … dan ${items.length - max} lainnya`);
-  return { lines, onlyEarlier: !items.length && fill.length > 0 };
+  const today = (data.reports || []).map((r) => line(r, false)).sort((a, b) => b.at - a.at);
+  const todayIds = new Set((data.reports || []).map((r) => r.id));
+  const fill = today.length < RECENT_MIN
+    ? (data.recentReports || []).filter((r) => !todayIds.has(r.id)).map((r) => line(r, true)).sort((a, b) => b.at - a.at)
+    : [];
+  const lines = [...today.slice(0, max), ...fill.slice(0, Math.max(0, RECENT_MIN + 2 - today.length))].map((x) => x.text);
+  if (today.length > max) lines.push(`• … dan ${today.length - max} laporan lainnya`);
+  return { lines, onlyEarlier: !today.length && fill.length > 0 };
 }
 
 const HARVEST_MAX = 5;
 
 /**
- * The latest harvests (Laporan PANEN, or written in a report) of the last two weeks, everyone's, newest first:
- * "Hari ini *A3* (Budi): 3 buah, 6,1 kg · aroma 3,3 · kulit 4 · bentuk 4,3", and the last 7 days' total.
+ * Laporan PANEN: the latest harvests of the last two weeks, everyone's, newest first ("Hari ini *A3* (Budi): 3 buah,
+ * 6,1 kg · aroma 3,3 · kulit 4 · bentuk 4,3"; the worker's own today with their fruit codes), and the week's total.
  */
-function harvestLines(data, date, max = HARVEST_MAX) {
-  const names = new Map((data.workers || []).map((w) => [digits(w.phone || w.id), w.name]));
-  const who = (p) => names.get(digits(p)) || (digits(p) ? `••${digits(p).slice(-4)}` : '');
+function harvestLines(data, date, phone = '', max = HARVEST_MAX) {
+  const me = digits(phone);
+  const who = nameOf(data);
   const all = [...(data.recentHarvests || data.harvests || [])].sort((a, b) => String(b.date).localeCompare(String(a.date)) || ms(b.createdAt) - ms(a.createdAt));
   if (!all.length) return [];
   const avg = (items, k) => num(items.reduce((n, f) => n + (Number(f[k]) || 0), 0) / items.length);
   const lines = all.slice(0, max).map((h) => {
-    const day = h.date === date ? 'Hari ini' : R.dateLabel(h.date).replace(/ \d{4}$/, '');
+    const day = h.date === date ? 'Hari ini' : shortDay(h.date);
     const items = (h.items || []).filter((f) => f && Number.isFinite(f.aroma));
     const scores = items.length ? ` · aroma ${avg(items, 'aroma')} · kulit ${avg(items, 'skin')} · bentuk ${avg(items, 'shape')}` : '';
-    const w = who(h.workerPhone);
-    return `• ${day} *${h.treeId || `Blok ${h.block}`}*${w ? ` (${w})` : ''}: ${num(h.fruits, 0)} buah${h.weightKg ? `, ${num(h.weightKg)} kg` : ''}${scores}`;
+    const mineToo = me && digits(h.workerPhone) === me;
+    const w = mineToo ? 'Anda' : who(h.workerPhone);
+    const codes = mineToo && h.date === date ? fruitCodes(h.items) : '';
+    return `• ${day} *${h.treeId || `Blok ${h.block}`}*${w ? ` (${w})` : ''}${mineToo ? ' ✅' : ''}: ${num(h.fruits, 0)} buah${h.weightKg ? `, ${num(h.weightKg)} kg` : ''}${scores}${codes ? ` (${codes})` : ''}`;
   });
   if (all.length > max) lines.push(`• … dan ${all.length - max} panen lainnya`);
   const week = all.filter((h) => h.date >= R.addDays(date, -6));
@@ -206,76 +204,66 @@ function harvestLines(data, date, max = HARVEST_MAX) {
   return lines;
 }
 
-/** The full message for one worker (`phone`, `name`), or for nobody in particular. */
+/**
+ * The full message for one worker (`phone`, `name`), or for nobody in particular: a line about their own day, then
+ * Laporan KESEHATAN and Laporan PANEN.
+ */
 function buildSummary(data, date, phone, now = Date.now(), name = '') {
   const d = digest(data, date, now);
   const lines = [`📋 *Ringkasan Kebun Cilowong*`, dayTitle(date), ''];
 
   if (digits(phone)) {
     const m = mine(data, phone);
-    const any = m.reports.length || m.harvests.length || m.counts.length || m.clusters.length || m.rain || m.tasks.length;
-    if (any) {
-      lines.push(`Terima kasih${name ? `, ${name}` : ''}! 🙏 Yang Anda catat hari ini, semua sudah tersimpan:`);
-      if (m.reports.length) lines.push(`✅ ${m.reports.length} laporan pohon: ${list(m.reports.map((r) => r.treeId), 12)}`);
-      if (m.problems.length) lines.push(`✅ Masalah tercatat: ${m.problems.slice(0, LIST_MAX).map((c) => `${c.treeId} ${issueName(c)}`).join(', ')}`);
-      for (const h of m.harvests.slice(0, LIST_MAX)) {
-        const codes = fruitCodes(h.items);
-        lines.push(`✅ Panen ${h.treeId || `Blok ${h.block}`}: ${num(h.fruits, 0)} buah${h.weightKg ? `, ${num(h.weightKg, 2)} kg` : ''}${codes ? ` (${codes})` : ''}`);
-      }
-      if (m.harvests.length > LIST_MAX) lines.push(`✅ Panen ${m.harvests.length - LIST_MAX} pohon lainnya`);
-      if (m.counts.length) lines.push(`✅ Hitung buah: ${m.counts.length} pohon (${list(m.counts.map((c) => c.treeId))})`);
-      if (m.clusters.length) lines.push(`✅ Hitung tandan bunga: ${m.clusters.length} pohon`);
-      if (m.rain) lines.push(`✅ Curah hujan: ${num(m.rain.rainMm)} mm`);
-      if (m.tasks.length) lines.push(`✅ Pekerjaan: ${m.tasks.map((t) => `${R.SEASON_TASK_LABELS[t.task] || t.task} blok ${t.block}`).join(', ')}`);
+    const done = [
+      m.reports.length ? `${m.reports.length} laporan KESEHATAN` : '',
+      m.harvests.length ? `${m.harvests.length} laporan PANEN (${num(m.harvests.reduce((n, h) => n + (Number(h.fruits) || 0), 0), 0)} buah)` : '',
+    ].filter(Boolean);
+    const also = [
+      m.counts.length ? `hitung buah ${m.counts.length} pohon` : '',
+      m.clusters.length ? `hitung tandan bunga ${m.clusters.length} pohon` : '',
+      m.rain ? `curah hujan ${num(m.rain.rainMm)} mm` : '',
+      ...m.tasks.map((t) => `${R.SEASON_TASK_LABELS[t.task] || t.task} blok ${t.block}`),
+    ].filter(Boolean);
+    if (done.length || also.length) {
+      lines.push(`Terima kasih${name ? `, ${name}` : ''}! 🙏 Catatan Anda hari ini sudah tersimpan ✅${done.length ? `: ${done.join(', ')}` : ''}.`);
+      if (also.length) lines.push(`Juga tercatat: ${also.join(', ')}.`);
     } else {
-      const myLast = Math.max(0, ...(data.recentReports || []).filter((r) => digits(r.workerPhone) === digits(phone)).map((r) => ms(r.createdAt)));
-      lines.push(`Halo${name ? ` ${name}` : ''}! Belum ada catatan dari Anda hari ini.${myLast ? ` Laporan terakhir Anda: ${R.dateLabel(R.todayStr(new Date(myLast)))}.` : ''} Kirim ID pohon (contoh: *A1*) untuk lapor.`);
+      const me = digits(phone);
+      const last = Math.max(
+        0,
+        ...(data.recentReports || []).filter((r) => digits(r.workerPhone) === me).map((r) => ms(r.createdAt)),
+        ...(data.recentHarvests || []).filter((h) => digits(h.workerPhone) === me).map((h) => Date.parse(`${h.date}T12:00:00+07:00`))
+      );
+      lines.push(`Halo${name ? ` ${name}` : ''}! Belum ada laporan dari Anda hari ini${last ? ` (terakhir ${R.dateLabel(R.todayStr(new Date(last)))})` : ''}. Kirim ID pohon (contoh: *A1*) untuk lapor.`);
     }
     lines.push('');
   }
 
-  const recent = recentLines(data, phone, RECENT_MAX, date);
-  if (recent.lines.length) lines.push(recent.onlyEarlier ? '*Laporan terakhir di kebun*' : digits(phone) ? '*Laporan terbaru dari rekan*' : '*Laporan terbaru*', ...recent.lines, '');
-  const panen = harvestLines(data, date);
-  if (panen.length) lines.push('🧺 *Panen terbaru*', ...panen, '');
-
-  lines.push('*Seluruh kebun hari ini*');
-  lines.push(
-    d.reports
-      ? `• ${d.reports} laporan dari ${d.reportTrees} pohon, oleh ${d.reporters} pekerja`
-      : `• Belum ada laporan pohon hari ini${d.lastReportAt ? ` (terakhir ${R.dateLabel(R.todayStr(new Date(d.lastReportAt)))})` : ''}`
-  );
-  if (d.fruits) lines.push(`• Panen: ${num(d.fruits, 0)} buah${d.kg ? `, ${num(d.kg)} kg` : ''} dari ${d.harvestTrees} pohon`);
-  if (d.countTrees) lines.push(`• Hitung buah: ${d.countTrees} pohon`);
-  if (d.rainMm !== undefined) lines.push(`• Hujan: ${num(d.rainMm)} mm`);
+  const health = healthLines(data, phone);
+  lines.push(`🩺 *Laporan KESEHATAN*${health.onlyEarlier ? ' (terakhir)' : ''}`);
+  if (health.lines.length) lines.push(...health.lines);
+  else lines.push(`• Belum ada laporan dalam ${BACK_DAYS} hari terakhir`);
   if (data.recentReports) lines.push(`• 7 hari terakhir: ${d.weekReports} laporan dari ${d.weekTrees} pohon`);
-  if (d.fresh.length) lines.push(`• Masalah baru: ${d.fresh.slice(0, LIST_MAX).map((c) => `${c.treeId} ${issueName(c)}`).join(', ')}${d.fresh.length > LIST_MAX ? ` (+${d.fresh.length - LIST_MAX})` : ''}`);
 
-  if (d.due.length || d.stale.length) {
-    lines.push('', '*Perlu dicek*');
-    if (d.due.length) lines.push(`• Cek ulang masalah: ${list(d.due.map((c) => c.treeId))}`);
-    if (d.stale.length > 2 * LIST_MAX) {
-      lines.push(`• Belum dilaporkan ${STALE_DAYS} hari: ${d.stale.length} dari ${d.trees} pohon`);
-      for (const b of d.staleBlocks) lines.push(`   Blok ${b.block}: ${b.n} dari ${b.of}`);
-    } else if (d.stale.length) lines.push(`• Belum dilaporkan ${STALE_DAYS} hari: ${d.stale.length} pohon (${list(d.stale)})`);
-  }
+  const panen = harvestLines(data, date, phone);
+  lines.push('', '🧺 *Laporan PANEN*', ...(panen.length ? panen : [`• Belum ada panen dalam ${BACK_DAYS} hari terakhir`]));
+
   lines.push('', 'Kirim ID pohon untuk lapor. Kirim *RINGKASAN* untuk melihat ringkasan ini lagi.');
   return lines.join('\n');
 }
 
-/** One line for the template (no line breaks allowed in a template's values): the worker's own day, then the farm's. */
+/** One line for the template (no line breaks allowed in a template's values): KESEHATAN, then PANEN. */
 function summaryLine(data, date, phone, now = Date.now()) {
   const d = digest(data, date, now);
   const m = digits(phone) ? mine(data, phone) : null;
-  const own = m ? [m.reports.length ? `${m.reports.length} laporan` : '', m.harvests.length ? `panen ${num(m.harvests.reduce((n, h) => n + (Number(h.fruits) || 0), 0), 0)} buah` : '', m.counts.length ? `hitung ${m.counts.length} pohon` : ''].filter(Boolean) : [];
-  const farm = d.reports
-    ? `${d.reports} laporan dari ${d.reportTrees} pohon`
-    : `belum ada laporan hari ini${d.lastReportAt ? ` (terakhir ${R.dateLabel(R.todayStr(new Date(d.lastReportAt)))})` : ''}, 7 hari terakhir ${d.weekReports} laporan`;
-  const parts = [own.length ? `Anda: ${own.join(', ')}, semua tersimpan ✅. Kebun` : 'Kebun', farm];
-  if (d.fruits) parts.push(`panen ${num(d.fruits, 0)} buah${d.kg ? ` (${num(d.kg)} kg)` : ''}`);
-  if (d.fresh.length) parts.push(`${d.fresh.length} masalah baru`);
-  if (d.due.length) parts.push(`${d.due.length} pohon perlu cek ulang`);
-  return parts.join(', ').replace('. Kebun, ', '. Kebun: ').replace(/^Kebun, /, 'Kebun: ');
+  const mineNote = m && (m.reports.length || m.harvests.length) ? ` Catatan Anda hari ini sudah tersimpan ✅.` : '';
+  const kes = d.reports
+    ? `KESEHATAN: ${d.reports} laporan hari ini`
+    : `KESEHATAN: belum ada laporan hari ini${d.lastReportAt ? ` (terakhir ${shortDay(R.todayStr(new Date(d.lastReportAt)))})` : ''}`;
+  const week = (data.recentHarvests || []).filter((h) => h.date >= R.addDays(date, -6));
+  const weekFruits = week.reduce((n, h) => n + (Number(h.fruits) || 0), 0);
+  const pan = `PANEN: ${d.fruits ? `${num(d.fruits, 0)} buah hari ini` : 'belum ada hari ini'}${weekFruits ? `, ${num(weekFruits, 0)} buah dalam 7 hari` : ''}`;
+  return `${kes}. ${pan}.${mineNote}`;
 }
 
 const SENT_REF = () => db.collection('farmMeta').doc('dailySummary');
@@ -317,4 +305,4 @@ async function sendDailySummary({ date = R.todayStr(), to, dry = false, send }) 
   return { date, sent: out };
 }
 
-module.exports = { loadDay, digest, mine, recentLines, harvestLines, condense, buildSummary, summaryLine, sendDailySummary, dayTitle };
+module.exports = { loadDay, digest, mine, healthLines, harvestLines, condense, buildSummary, summaryLine, sendDailySummary, dayTitle };

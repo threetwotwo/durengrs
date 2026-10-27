@@ -164,13 +164,12 @@ gcloud run services update durian-tree-lookup --region asia-southeast1 --min-ins
 ## Daily summary (17:00 WIB)
 
 Every worker on the webapp's Workers page gets a WhatsApp message at 17:00 (the bell there turns it off for one
-worker): first what *they* recorded today, each line marked ✅ as saved (reports and the problems filed from them,
-harvests with their fruit codes, fruit counts, rain, season work), then the latest reports from the
-others (up to 8, one short line each: time, tree, who, condition, their words cut short; on a quiet day the latest
-ones from the last two weeks, dated), the latest harvests (Laporan PANEN, last two weeks: fruit, kg, average
-scores, the week's total), then the farm's day and the last 7 days, then what needs checking
-(problems due for a re-check, trees nobody reported on for a week). Sending **RINGKASAN** in the chat gets it any
-time. `lib/summary.js`; sent once a day per number (`farmMeta/dailySummary`).
+worker): a line thanking them for what they recorded today, all saved ✅ (or when they last reported), then two
+groups: **Laporan KESEHATAN** (the day's reports, everyone's, one short line each: time, tree, who, condition, their
+words cut short; their own marked "(Anda) ✅"; a quiet day shows the latest of the last two weeks, dated; the week's
+count) and **Laporan PANEN** (the latest harvests of two weeks: fruit, kg, average scores, their own with fruit
+codes; the week's total). Sending **RINGKASAN** in the chat gets it any time. `lib/summary.js`; sent once a day per
+number (`farmMeta/dailySummary`).
 
 - **Test first:** `https://<service>/daily-summary?token=<VERIFY_TOKEN>&to=628…` sends it to that number only;
   `&dry=1` shows every worker's message without sending anything.
