@@ -95,11 +95,31 @@ test('the latest reports from the others, newest first, one short line each', ()
     ],
     harvests: [{ treeId: 'A3', workerPhone: B, fruits: 3, weightKg: 6.1, createdAt: at(15, 2) }],
   };
-  const lines = recentLines(d, U);
+  const lines = recentLines(d, U).lines;
   assert.deepEqual(lines.slice(0, 3), ['• 15:02 *A3* (Budi) 🧺 Panen 3 buah, 6,1 kg', '• 14:20 *B1* (Budi) 🟡 Bunga mulai mekar', '• 10:05 *B2* (••0000) 🔴 Kanker batang (getah merah)']);
   assert.match(lines[3], /^• 08:00 \*B3\* \(Budi\) Daun banyak yang kuning di dahan bagian bawah dan ada…$/);
   assert.equal(lines.some((l) => l.includes('mine')), false, "the worker's own reports are above, not here");
-  assert.equal(recentLines(d, U, 2).pop(), '• … dan 2 lainnya');
+  assert.equal(recentLines(d, U, 2).lines.pop(), '• … dan 2 lainnya');
   assert.equal(condense('pendek'), 'pendek');
   assert.match(buildSummary(d, day, U, NOW, 'Udin'), /\*Laporan terbaru dari rekan\*\n• 15:02/);
+});
+
+test('a quiet day is not empty: the latest earlier reports, dated, the last report day, the week', () => {
+  const at = (iso) => ({ toMillis: () => Date.parse(iso) });
+  const d = {
+    workers: [{ phone: U, name: 'Udin' }, { phone: B, name: 'Budi' }],
+    reports: [],
+    harvests: [],
+    recentReports: [
+      { id: 'x', treeId: 'B1', workerPhone: B, createdAt: at('2026-10-24T07:20:00Z'), health: 'kuning', description: 'Bunga mulai mekar' },
+      { id: 'y', treeId: 'A1', workerPhone: U, createdAt: at('2026-10-23T02:00:00Z'), description: 'Buah sebesar telur' },
+    ],
+    recentHarvests: [{ treeId: 'A3', block: 'A', date: '2026-10-21', fruits: 3, weightKg: 6.1, workerPhone: B, createdAt: at('2026-10-21T08:00:00Z') }],
+    cases: [], counts: [], tasks: [], trees: [],
+  };
+  const text = buildSummary(d, day, U, NOW, 'Udin');
+  assert.match(text, /Belum ada catatan dari Anda hari ini\. Laporan terakhir Anda: 23 Okt 2026\./);
+  assert.match(text, /\*Laporan terakhir di kebun\*\n• 24 Okt 14:20 \*B1\* \(Budi\) 🟡 Bunga mulai mekar\n• 23 Okt 09:00 \*A1\* \(Udin\) Buah sebesar telur\n• 21 Okt 15:00 \*A3\* \(Budi\) 🧺 Panen 3 buah, 6,1 kg/);
+  assert.match(text, /Belum ada laporan pohon hari ini \(terakhir 24 Okt 2026\)/);
+  assert.match(text, /7 hari terakhir: 2 laporan dari 2 pohon/);
 });
