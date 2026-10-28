@@ -11,6 +11,7 @@ import { pick } from '../lib/guide';
 import { treeUrl } from '../lib/router';
 import type { ReportPhoto } from '../types';
 import { Link } from './Link';
+import { HarvestTile } from './HarvestBits';
 import { PhotoLightbox, type GalleryItem } from './PhotoLightbox';
 import { FIELD_KEY, TEXT_FIELDS, recordUrl, useEditValue } from './LogParts';
 
@@ -146,7 +147,7 @@ export function useRecordView() {
   const { workerLabel } = useFarm();
   const value = useEditValue();
   const num = (n: number) => n.toLocaleString(locale, { maximumFractionDigits: 1 });
-  const harvestLine = (fruits: number, kg?: number) => [t('feed.picked', { n: fruits }), kg ? `${kg} kg` : ''].filter(Boolean).join(', ');
+  const harvestLine = (fruits: number, kg?: number) => [t('feed.picked', { n: fruits }), kg ? `${kg.toLocaleString(locale, { maximumFractionDigits: 2 })} kg` : ''].filter(Boolean).join(', ');
 
   return (e: LogEntry, filed: LogEntry[] = []): RecordView => {
     const base = {
@@ -177,7 +178,8 @@ export function useRecordView() {
         const grades = GRADES.filter((g) => h.grades?.[g]).map((g) => `${t(`grade.${g}`)} ${h.grades![g]}`);
         const tags: Tag[] = grades.map((g) => ({ key: g, label: g, tone: 'plain' as TagTone }));
         for (const p of h.problems || []) tags.push({ key: `p:${p}`, label: t(`rec.hv.p.${p}`), tone: 'problem' });
-        const sc = harvestScores(h.items);
+        // The scores are on the tile when there is no photo; with photos, as a tag.
+        const sc = h.photos?.length ? harvestScores(h.items) : null;
         if (sc) tags.push({ key: 'scores', label: t('hv.scores', { a: num(sc.aroma), k: num(sc.skin), b: num(sc.shape) }), tone: 'plain' });
         return { ...base, kind: t('log.kind.harvest'), text: harvestLine(h.fruits, h.weightKg), tags };
       }
@@ -234,18 +236,18 @@ const TILE: Record<LogKind, string> = {
   treeData: 'bg-slate-100 text-slate-500',
 };
 
-/** In place of photos (a rain day, a count typed in the app): the record's number large, so every card lines up. */
+/** In place of photos (a rain day, a count typed in the app): the record's number large, so every card lines up; a
+ * harvest gets its summary (HarvestBits.tsx). */
 const NoPhotoTile: React.FC<{ entry: LogEntry }> = ({ entry: e }) => {
   const { t } = useT();
+  if (e.kind === 'harvest') return <HarvestTile harvest={e.rec} />;
   const Icon = KIND_ICON[e.kind] || CameraOff;
   const big =
-    e.kind === 'harvest'
-      ? { n: e.rec.fruits, unit: t('hv2.fruit') }
-      : e.kind === 'rain'
-        ? { n: e.rec.rainMm, unit: 'mm' }
-        : e.kind === 'count'
-          ? { n: e.rec.count, unit: t(`crop.stage.${e.rec.stage}`) }
-          : null;
+    e.kind === 'rain'
+      ? { n: e.rec.rainMm, unit: 'mm' }
+      : e.kind === 'count'
+        ? { n: e.rec.count, unit: t(`crop.stage.${e.rec.stage}`) }
+        : null;
   return (
     <div className={`aspect-[4/3] flex flex-col items-center justify-center gap-1.5 ${TILE[e.kind]}`} aria-hidden>
       <Icon className={big ? 'w-6 h-6' : 'w-10 h-10'} />
