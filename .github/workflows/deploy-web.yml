@@ -1,7 +1,7 @@
 # Deploys the webapp to Firebase Hosting (https://duren-db.web.app), with firestore.rules and storage.rules, on every
 # push to main that changes it, or by hand (Actions tab › Deploy webapp › Run workflow). Tests, type check and build
 # first; nothing is deployed when one fails. GCP_DEPLOY_KEY: the deploy account's key (bot/scripts/setup-github-deploy.sh).
-# Set up 2026-10-28: the deploy key is in place.
+# Set up 2026-10-28: the deploy key is in place; it has firebase.admin on duren-db.
 name: Deploy webapp
 
 on:
