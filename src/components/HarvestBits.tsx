@@ -4,84 +4,80 @@ import { GRADES, type Harvest, harvestScores } from '../lib/fieldData';
 
 /** How a 1-5 score reads: 4-5 good (green), 3 middling (amber), 1-2 poor (red); averages split at 3.5 and 2.5. */
 export const scoreTone = (v: number) => (v >= 3.5 ? 'good' : v >= 2.5 ? 'mid' : 'poor');
-const FILL = { good: 'bg-emerald-600', mid: 'bg-amber-500', poor: 'bg-rose-500' } as const;
-
-/** A 1-5 score as five steps, filled up to the score (3,2 fills three and a fifth); the colour says how good it is. */
-export const ScoreMeter: React.FC<{ v: number; track?: string }> = ({ v, track = 'bg-slate-200' }) => (
-  <span className="grid grid-cols-5 gap-0.5 w-full" aria-hidden>
-    {[0, 1, 2, 3, 4].map((i) => (
-      <span key={i} className={`h-2 rounded-sm overflow-hidden ${track}`}>
-        <span className={`block h-full ${FILL[scoreTone(v)]}`} style={{ width: `${Math.max(0, Math.min(1, v - i)) * 100}%` }} />
-      </span>
-    ))}
-  </span>
-);
+// Rows that fit on the tile; with more fruits the last row says how many more.
+const TILE_ROWS = 5;
 
 /**
- * Aroma, kulit and bentuk, one line each: the name, the five steps, the value. The same on a harvest card, Today and
- * a fruit's page; tables use ScoreChip, coloured alike.
- */
-export const ScoreMeters: React.FC<{ scores: { aroma: number; skin: number; shape: number }; track?: string; large?: boolean }> = ({ scores, track, large }) => {
-  const { t, locale } = useT();
-  const rows: Array<[string, number]> = [
-    [t('hv.col.aroma'), scores.aroma],
-    [t('hv.col.skin'), scores.skin],
-    [t('hv.col.shape'), scores.shape],
-  ];
-  return (
-    <dl className={large ? 'space-y-2.5' : 'space-y-1.5'}>
-      {rows.map(([label, v]) => (
-        <div key={label} className={`grid items-center gap-3 ${large ? 'grid-cols-[4.5rem_1fr_2.5rem] text-sm' : 'grid-cols-[3.75rem_1fr_2rem] text-xs'}`}>
-          <dt className="text-slate-600">{label}</dt>
-          <dd>
-            <ScoreMeter v={v} track={track} />
-          </dd>
-          <dd className="text-right font-bold tabular text-slate-900">{v.toLocaleString(locale, { maximumFractionDigits: 1 })}</dd>
-        </div>
-      ))}
-    </dl>
-  );
-};
-
-const WEIGHTS_SHOWN = 8;
-
-/**
- * In place of photos on a harvest card: the harvest at a glance. The fruit count is the headline, the weight under
- * it; then (Laporan PANEN) the three scores as meters and each fruit's weight in one line; a harvest written in a
- * report shows its grades instead. Spread over the whole tile, so cards line up with photo cards.
+ * In place of photos on a harvest card, the per-fruit table small: a headline (fruit, kilos), one row per fruit
+ * (number, weight, aroma, kulit, bentuk as chips), the averages at the bottom. A harvest written in a report has no
+ * fruits: its grades instead.
  */
 export const HarvestTile: React.FC<{ harvest: Harvest }> = ({ harvest: h }) => {
   const { t, locale } = useT();
-  const kg = (n: number, d = 1) => n.toLocaleString(locale, { maximumFractionDigits: d });
+  const kg = (n: number, d = 2) => n.toLocaleString(locale, { minimumFractionDigits: d, maximumFractionDigits: d });
   const items = (h.items || []).filter((f) => f && Number.isFinite(f.weightG));
   const scores = harvestScores(items);
-  const avgKg = items.length ? items.reduce((s, f) => s + f.weightG, 0) / items.length / 1000 : h.weightKg && h.fruits ? h.weightKg / h.fruits : 0;
   const grades = GRADES.filter((g) => h.grades?.[g]);
-  const weights = items.slice(0, WEIGHTS_SHOWN).map((f) => kg(f.weightG / 1000));
+  const shown = items.length > TILE_ROWS ? items.slice(0, TILE_ROWS - 1) : items;
+  const more = items.length - shown.length;
+  const th = 'px-1.5 first:pl-3 last:pr-3 py-1.5 text-[11px] font-semibold text-slate-500';
+  const td = 'px-1.5 first:pl-3 last:pr-3 py-1';
   return (
-    <div className="aspect-[4/3] bg-emerald-50 px-5 py-4 flex flex-col justify-between gap-3" aria-hidden>
-      <div>
-        <p className="leading-none text-emerald-950">
-          <span className="text-4xl font-bold tabular">{h.fruits}</span>
-          <span className="ml-1.5 text-base font-semibold">{t('hv2.fruit')}</span>
-        </p>
-        {!!h.weightKg && (
-          <p className="mt-1.5 text-sm text-emerald-900 tabular">
-            <span className="font-semibold">{kg(h.weightKg, 2)} kg</span>
-            {avgKg > 0 && h.fruits > 1 && <span className="text-emerald-800/80"> · {t('hv.tile.each', { kg: kg(avgKg, 2) })}</span>}
-          </p>
-        )}
-      </div>
-      {scores ? <ScoreMeters scores={scores} track="bg-white" /> : <span />}
-      {!items.length && grades.length > 0 ? (
-        <p className="text-sm text-emerald-900">{grades.map((g) => `${t(`grade.${g}`)} ${h.grades![g]}`).join(' · ')}</p>
-      ) : items.length > 1 ? (
-        <p className="text-xs text-emerald-900/80 tabular truncate">
-          {t('hv.tile.weights')}: {weights.join(' · ')} kg{items.length > WEIGHTS_SHOWN ? ` +${items.length - WEIGHTS_SHOWN}` : ''}
-        </p>
-      ) : (
-        <span />
-      )}
+    <div className="aspect-[4/3] bg-white border-b border-slate-100 flex flex-col overflow-hidden" aria-hidden>
+      <p className="px-3 pt-3 pb-2 flex items-baseline gap-1.5 text-slate-900">
+        <span className="text-2xl font-bold tabular leading-none">{h.fruits}</span>
+        <span className="text-sm font-semibold">{t('hv2.fruit')}</span>
+        {!!h.weightKg && <span className="text-sm text-slate-500 tabular">· {kg(h.weightKg, h.weightKg % 1 ? 2 : 0)} kg</span>}
+      </p>
+      {items.length > 0 ? (
+        <table className="w-full text-xs">
+          <thead className="bg-slate-50 border-y border-slate-200">
+            <tr>
+              <th className={`${th} text-left`}>#</th>
+              <th className={`${th} text-right`}>{t('hv.col.weight')}</th>
+              <th className={`${th} text-center`}>{t('hv.col.aroma')}</th>
+              <th className={`${th} text-center`}>{t('hv.col.skin')}</th>
+              <th className={`${th} text-center`}>{t('hv.col.shape')}</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {shown.map((f, i) => (
+              <tr key={f.code || i}>
+                <td className={`${td} font-mono font-bold text-emerald-800`}>{f.code ? f.code.split('-').pop() : i + 1}</td>
+                <td className={`${td} text-right font-semibold tabular text-slate-900`}>{kg(f.weightG / 1000)} kg</td>
+                <td className={`${td} text-center`}><ScoreChip v={f.aroma} size="sm" /></td>
+                <td className={`${td} text-center`}><ScoreChip v={f.skin} size="sm" /></td>
+                <td className={`${td} text-center`}><ScoreChip v={f.shape} size="sm" /></td>
+              </tr>
+            ))}
+            {more > 0 && (
+              <tr>
+                <td colSpan={5} className={`${td} text-slate-500`}>{t('hv.tile.more', { n: more })}</td>
+              </tr>
+            )}
+          </tbody>
+          {scores && items.length > 1 && (
+            <tfoot className="bg-slate-50 border-t border-slate-200">
+              <tr>
+                <th className={`${td} text-left text-[11px] font-semibold text-slate-600`}>{t('fr.avg')}</th>
+                <td className={`${td} text-right font-semibold tabular text-slate-700`}>{kg(items.reduce((s, f) => s + f.weightG, 0) / items.length / 1000)} kg</td>
+                <td className={`${td} text-center`}><ScoreChip v={scores.aroma} avg size="sm" /></td>
+                <td className={`${td} text-center`}><ScoreChip v={scores.skin} avg size="sm" /></td>
+                <td className={`${td} text-center`}><ScoreChip v={scores.shape} avg size="sm" /></td>
+              </tr>
+            </tfoot>
+          )}
+        </table>
+      ) : grades.length > 0 ? (
+        <ul className="border-t border-slate-200 divide-y divide-slate-100 text-sm">
+          {grades.map((g) => (
+            <li key={g} className="px-3 py-1.5 flex justify-between">
+              <span className="text-slate-600">{t(`grade.${g}`)}</span>
+              <span className="font-semibold tabular text-slate-900">{h.grades![g]}</span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
     </div>
   );
 };
@@ -98,11 +94,43 @@ export function harvestTotals(list: Harvest[]) {
   };
 }
 
-/** A 1-5 score as a small coloured box: 4-5 green, 3 amber, 1-2 red. */
-export const ScoreChip: React.FC<{ v: number; avg?: boolean }> = ({ v, avg }) => {
+const CHIP_TONE = { good: 'bg-emerald-100 text-emerald-800', mid: 'bg-amber-100 text-amber-900', poor: 'bg-rose-100 text-rose-800' } as const;
+const CHIP_SIZE = { sm: 'min-w-6 h-5 px-1 text-[11px]', md: 'min-w-7 h-6 px-1.5 text-xs', lg: 'min-w-9 h-8 px-2 text-sm' } as const;
+
+/**
+ * A 1-5 score as a small box, the one look for scores everywhere: a fruit's own score coloured (4-5 green, 3 amber,
+ * 1-2 red), an average (`avg`) plain grey, as in the per-fruit table's last row.
+ */
+export const ScoreChip: React.FC<{ v: number; avg?: boolean; size?: keyof typeof CHIP_SIZE }> = ({ v, avg, size = 'md' }) => {
   const { locale } = useT();
-  const tone = avg ? 'bg-slate-100 text-slate-800' : { good: 'bg-emerald-100 text-emerald-800', mid: 'bg-amber-100 text-amber-900', poor: 'bg-rose-100 text-rose-800' }[scoreTone(v)];
-  return <span className={`inline-flex min-w-7 h-6 px-1.5 items-center justify-center rounded-md text-xs font-semibold tabular ${tone}`}>{v.toLocaleString(locale, { maximumFractionDigits: 1 })}</span>;
+  const tone = avg ? 'bg-slate-100 text-slate-800' : CHIP_TONE[scoreTone(v)];
+  return (
+    <span className={`inline-flex items-center justify-center rounded-md font-semibold tabular ${CHIP_SIZE[size]} ${tone}`}>
+      {v.toLocaleString(locale, { maximumFractionDigits: 1 })}
+    </span>
+  );
+};
+
+/** The three scores in a row, each its name and a chip: "Aroma [3,8]  Kulit [3,6]  Bentuk [4]". */
+export const ScoreLine: React.FC<{ scores: { aroma: number; skin: number; shape: number }; avg?: boolean; size?: keyof typeof CHIP_SIZE }> = ({ scores, avg, size = 'md' }) => {
+  const { t } = useT();
+  const rows: Array<[string, number]> = [
+    [t('hv.col.aroma'), scores.aroma],
+    [t('hv.col.skin'), scores.skin],
+    [t('hv.col.shape'), scores.shape],
+  ];
+  return (
+    <dl className="flex flex-wrap gap-x-5 gap-y-1.5">
+      {rows.map(([label, v]) => (
+        <div key={label} className="flex items-center gap-2">
+          <dt className={size === 'lg' ? 'text-sm text-slate-600' : 'text-xs text-slate-500'}>{label}</dt>
+          <dd>
+            <ScoreChip v={v} avg={avg} size={size} />
+          </dd>
+        </div>
+      ))}
+    </dl>
+  );
 };
 
 /** Every fruit of a Laporan PANEN, one row each (opens the fruit), with the averages at the bottom. */

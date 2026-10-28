@@ -10,8 +10,9 @@ import { useGuideOn } from '../lib/guideMode';
 import type { TreeReport } from '../types';
 import { useCrops } from './useCrops';
 import { cropFunnel, fruitOnTree } from '../lib/crop';
-import { ScoreMeters, harvestTotals } from './HarvestBits';
-import { fruitsUrl, reportUrl } from '../lib/router';
+import { ScoreChip, harvestTotals } from './HarvestBits';
+import { harvestScores } from '../lib/fieldData';
+import { fruitsUrl, navigate, reportUrl } from '../lib/router';
 import { useGuideData, StagePill } from './GuideWidgets';
 import { ProblemsByTree } from './Problems';
 import { RecordCard, RecordGrid, reportEntry } from './Record';
@@ -168,6 +169,8 @@ export const Dashboard: React.FC = () => {
     return { today: harvestTotals(harvests.filter((h) => h.date === today)), week: harvestTotals(week), season, days, scores: harvestTotals(week.length ? week : harvests).scores, scoresWeek: week.some((h) => h.items?.length) };
   }, [harvests, crops, seasons, archivedHarvestTrees, today]);
   const kgFmt = (n: number) => n.toLocaleString(locale, { maximumFractionDigits: 1 });
+  const pth = 'px-2 first:pl-4 last:pr-4 py-2 text-xs font-semibold text-slate-500';
+  const ptd = 'px-2 first:pl-4 last:pr-4 py-1.5';
 
   if (loading) return <div className="h-96 bg-white rounded-xl border border-slate-200 animate-pulse" />;
 
@@ -194,7 +197,7 @@ export const Dashboard: React.FC = () => {
               <p className="p-5 text-sm text-slate-600">{t('hv2.none')}</p>
             ) : (
               <div>
-                <dl className="grid grid-cols-3 gap-3 px-4 pt-3 pb-2.5">
+                <dl className="grid grid-cols-3 gap-3 px-4 py-3">
                   {(
                     [
                       [t('today.panen.today'), panen.today.fruits, panen.today.kg],
@@ -212,33 +215,67 @@ export const Dashboard: React.FC = () => {
                     </div>
                   ))}
                 </dl>
-                {panen.scores && (
-                  <div className="px-4 pb-3">
-                    <p className="text-xs text-slate-500 mb-1.5">{t(panen.scoresWeek ? 'today.panen.scores.week' : 'today.panen.scores')}</p>
-                    <ScoreMeters scores={panen.scores} />
-                  </div>
-                )}
-                <div className="border-t border-slate-100 py-1">
+                {/* The latest harvests as the per-fruit table does it: a row each, scores as chips, grouped by day;
+                    the averages in grey at the bottom. A row opens its harvest. */}
+                <table className="w-full text-sm">
+                  <thead className="bg-slate-50 border-y border-slate-200">
+                    <tr>
+                      <th scope="col" className={`${pth} text-left`}>{t('fr.col.tree')}</th>
+                      <th scope="col" className={`${pth} text-right`}>{t('rec.f.fruits')}</th>
+                      <th scope="col" className={`${pth} text-right`}>{t('hv.col.weight')}</th>
+                      <th scope="col" className={`${pth} text-center`}>{t('hv.col.aroma')}</th>
+                      <th scope="col" className={`${pth} text-center`}>{t('hv.col.skin')}</th>
+                      <th scope="col" className={`${pth} text-center`}>{t('hv.col.shape')}</th>
+                    </tr>
+                  </thead>
                   {panen.days.map(([day, list]) => (
-                    <div key={day}>
-                      <p className="px-4 pt-2 pb-0.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">{day === today ? t('feed.today') : formatShortDate(day)}</p>
-                      <ul>
-                        {list.map((h) => (
-                          <li key={h.id}>
-                            <Link to={reportUrl(`harvest:${h.id}`)} className="flex items-center gap-3 px-4 py-1.5 hover:bg-slate-50 text-sm">
-                              <span className="w-10 shrink-0 font-mono font-bold text-slate-900">{h.treeId || h.block}</span>
-                              <span className="min-w-0 flex-1 truncate tabular">
-                                <span className="font-semibold text-slate-900">{h.fruits}</span> <span className="text-slate-600">{t('hv2.fruit')}</span>
-                                {h.weightKg ? <span className="text-slate-500"> · {kgFmt(h.weightKg)} kg</span> : null}
-                              </span>
-                              {h.workerPhone && <span className="text-xs text-slate-500 truncate max-w-24">{workerLabel(h.workerPhone)}</span>}
-                            </Link>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
+                    <tbody key={day} className="divide-y divide-slate-100">
+                      <tr>
+                        <th colSpan={6} scope="colgroup" className="px-4 pt-2.5 pb-1 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500 bg-white">
+                          {day === today ? t('feed.today') : formatShortDate(day)}
+                        </th>
+                      </tr>
+                      {list.map((h) => {
+                        const sc = harvestScores(h.items);
+                        const href = reportUrl(`harvest:${h.id}`);
+                        return (
+                          <tr key={h.id} onClick={() => navigate(href)} className="cursor-pointer hover:bg-slate-50" title={h.workerPhone ? workerLabel(h.workerPhone) : undefined}>
+                            <td className={ptd}>
+                              <Link to={href} onClick={(e) => e.stopPropagation()} className="font-mono font-bold text-slate-900 hover:underline">
+                                {h.treeId || h.block}
+                              </Link>
+                            </td>
+                            <td className={`${ptd} text-right font-semibold tabular text-slate-900`}>{h.fruits}</td>
+                            <td className={`${ptd} text-right tabular text-slate-700 whitespace-nowrap`}>{h.weightKg ? `${kgFmt(h.weightKg)} kg` : '—'}</td>
+                            {sc ? (
+                              (['aroma', 'skin', 'shape'] as const).map((k) => (
+                                <td key={k} className={`${ptd} text-center`}>
+                                  <ScoreChip v={sc[k]} />
+                                </td>
+                              ))
+                            ) : (
+                              <td colSpan={3} className={`${ptd} text-center text-xs text-slate-400`}>—</td>
+                            )}
+                          </tr>
+                        );
+                      })}
+                    </tbody>
                   ))}
-                </div>
+                  {panen.scores && (
+                    <tfoot className="bg-slate-50 border-t border-slate-200">
+                      <tr>
+                        <th scope="row" colSpan={3} className={`${ptd} text-left text-xs font-semibold text-slate-600`}>
+                          {t(panen.scoresWeek ? 'today.panen.avg.week' : 'today.panen.avg')}
+                        </th>
+                        {(['aroma', 'skin', 'shape'] as const).map((k) => (
+                          <td key={k} className={`${ptd} py-2 text-center`}>
+                            <ScoreChip v={panen.scores![k]} avg />
+                          </td>
+                        ))}
+                      </tr>
+                    </tfoot>
+                  )}
+                </table>
               </div>
             )}
           </section>
