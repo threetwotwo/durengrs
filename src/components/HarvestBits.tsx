@@ -4,72 +4,52 @@ import { GRADES, type Harvest, harvestScores } from '../lib/fieldData';
 
 /** How a 1-5 score reads: 4-5 good (green), 3 middling (amber), 1-2 poor (red); averages split at 3.5 and 2.5. */
 export const scoreTone = (v: number) => (v >= 3.5 ? 'good' : v >= 2.5 ? 'mid' : 'poor');
-// Rows that fit on the tile; with more fruits the last row says how many more.
-const TILE_ROWS = 5;
+const CARD_TONE = {
+  good: 'bg-emerald-50 border-emerald-200 text-emerald-900',
+  mid: 'bg-amber-50 border-amber-200 text-amber-900',
+  poor: 'bg-rose-50 border-rose-200 text-rose-900',
+  plain: 'bg-slate-50 border-slate-200 text-slate-900',
+} as const;
+
+/** One average as a card: its name, the value large; coloured by how good a score is (plain for a weight). */
+const AvgCard: React.FC<{ label: string; value: string; tone: keyof typeof CARD_TONE; unit?: string }> = ({ label, value, tone, unit }) => (
+  <div className={`rounded-lg border px-3 py-2 min-w-0 flex flex-col justify-center ${CARD_TONE[tone]}`}>
+    <dt className="text-xs font-medium opacity-80 truncate">{label}</dt>
+    <dd className="tabular leading-tight truncate">
+      <span className="text-3xl font-bold">{value}</span>
+      {unit && <span className="ml-0.5 text-xs opacity-60">{unit}</span>}
+    </dd>
+  </div>
+);
 
 /**
- * In place of photos on a harvest card, the per-fruit table small: a headline (fruit, kilos), one row per fruit
- * (number, weight, aroma, kulit, bentuk as chips), the averages at the bottom. A harvest written in a report has no
- * fruits: its grades instead.
+ * In place of photos on a harvest card: the harvest's averages. A headline (fruit, kilos), then four cards: the
+ * average weight and the average aroma, kulit and bentuk, coloured good/middling/poor. Every fruit is on the
+ * harvest's own page. A harvest written in a report has no fruits: its grades instead.
  */
 export const HarvestTile: React.FC<{ harvest: Harvest }> = ({ harvest: h }) => {
   const { t, locale } = useT();
-  const kg = (n: number, d = 2) => n.toLocaleString(locale, { minimumFractionDigits: d, maximumFractionDigits: d });
+  const num = (n: number, d = 1) => n.toLocaleString(locale, { maximumFractionDigits: d });
   const items = (h.items || []).filter((f) => f && Number.isFinite(f.weightG));
   const scores = harvestScores(items);
   const grades = GRADES.filter((g) => h.grades?.[g]);
-  const shown = items.length > TILE_ROWS ? items.slice(0, TILE_ROWS - 1) : items;
-  const more = items.length - shown.length;
-  const th = 'px-1.5 first:pl-3 last:pr-3 py-1.5 text-[11px] font-semibold text-slate-500';
-  const td = 'px-1.5 first:pl-3 last:pr-3 py-1';
+  const avgKg = items.length ? items.reduce((s, f) => s + f.weightG, 0) / items.length / 1000 : h.weightKg && h.fruits ? h.weightKg / h.fruits : 0;
   return (
-    <div className="aspect-[4/3] bg-white border-b border-slate-100 flex flex-col overflow-hidden" aria-hidden>
-      <p className="px-3 pt-3 pb-2 flex items-baseline gap-1.5 text-slate-900">
+    <div className="aspect-[4/3] bg-white border-b border-slate-100 p-3 flex flex-col gap-3" aria-hidden>
+      <p className="flex items-baseline gap-1.5 text-slate-900">
         <span className="text-2xl font-bold tabular leading-none">{h.fruits}</span>
         <span className="text-sm font-semibold">{t('hv2.fruit')}</span>
-        {!!h.weightKg && <span className="text-sm text-slate-500 tabular">· {kg(h.weightKg, h.weightKg % 1 ? 2 : 0)} kg</span>}
+        {!!h.weightKg && <span className="text-sm text-slate-500 tabular">· {num(h.weightKg, 2)} kg</span>}
       </p>
-      {items.length > 0 ? (
-        <table className="w-full text-xs">
-          <thead className="bg-slate-50 border-y border-slate-200">
-            <tr>
-              <th className={`${th} text-left`}>#</th>
-              <th className={`${th} text-right`}>{t('hv.col.weight')}</th>
-              <th className={`${th} text-center`}>{t('hv.col.aroma')}</th>
-              <th className={`${th} text-center`}>{t('hv.col.skin')}</th>
-              <th className={`${th} text-center`}>{t('hv.col.shape')}</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {shown.map((f, i) => (
-              <tr key={f.code || i}>
-                <td className={`${td} font-mono font-bold text-emerald-800`}>{f.code ? f.code.split('-').pop() : i + 1}</td>
-                <td className={`${td} text-right font-semibold tabular text-slate-900`}>{kg(f.weightG / 1000)} kg</td>
-                <td className={`${td} text-center`}><ScoreChip v={f.aroma} size="sm" /></td>
-                <td className={`${td} text-center`}><ScoreChip v={f.skin} size="sm" /></td>
-                <td className={`${td} text-center`}><ScoreChip v={f.shape} size="sm" /></td>
-              </tr>
-            ))}
-            {more > 0 && (
-              <tr>
-                <td colSpan={5} className={`${td} text-slate-500`}>{t('hv.tile.more', { n: more })}</td>
-              </tr>
-            )}
-          </tbody>
-          {scores && items.length > 1 && (
-            <tfoot className="bg-slate-50 border-t border-slate-200">
-              <tr>
-                <th className={`${td} text-left text-[11px] font-semibold text-slate-600`}>{t('fr.avg')}</th>
-                <td className={`${td} text-right font-semibold tabular text-slate-700`}>{kg(items.reduce((s, f) => s + f.weightG, 0) / items.length / 1000)} kg</td>
-                <td className={`${td} text-center`}><ScoreChip v={scores.aroma} avg size="sm" /></td>
-                <td className={`${td} text-center`}><ScoreChip v={scores.skin} avg size="sm" /></td>
-                <td className={`${td} text-center`}><ScoreChip v={scores.shape} avg size="sm" /></td>
-              </tr>
-            </tfoot>
-          )}
-        </table>
+      {scores ? (
+        <dl className="flex-1 grid grid-cols-2 grid-rows-2 gap-2">
+          <AvgCard label={t('hv.tile.avgWeight')} value={num(avgKg, 2)} unit="kg" tone="plain" />
+          <AvgCard label={t('hv.col.aroma')} value={num(scores.aroma)} unit="/5" tone={scoreTone(scores.aroma)} />
+          <AvgCard label={t('hv.col.skin')} value={num(scores.skin)} unit="/5" tone={scoreTone(scores.skin)} />
+          <AvgCard label={t('hv.col.shape')} value={num(scores.shape)} unit="/5" tone={scoreTone(scores.shape)} />
+        </dl>
       ) : grades.length > 0 ? (
-        <ul className="border-t border-slate-200 divide-y divide-slate-100 text-sm">
+        <ul className="rounded-lg border border-slate-200 divide-y divide-slate-100 text-sm">
           {grades.map((g) => (
             <li key={g} className="px-3 py-1.5 flex justify-between">
               <span className="text-slate-600">{t(`grade.${g}`)}</span>
@@ -77,6 +57,10 @@ export const HarvestTile: React.FC<{ harvest: Harvest }> = ({ harvest: h }) => {
             </li>
           ))}
         </ul>
+      ) : avgKg > 0 ? (
+        <dl className="grid grid-cols-2 gap-2">
+          <AvgCard label={t('hv.tile.avgWeight')} value={num(avgKg, 2)} unit="kg" tone="plain" />
+        </dl>
       ) : null}
     </div>
   );
