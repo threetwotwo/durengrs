@@ -8,7 +8,7 @@ import { updateHarvestItems } from '../lib/fieldData';
 import { diffDays, formatShortDate } from '../lib/treatments';
 import { PageHeader, btnPrimary, btnSecondary, inputCls } from './PageHeader';
 import { Link } from './Link';
-import { ScoreBoxes, ScoreChip } from './HarvestBits';
+import { ScoreChip, ScoreMeters } from './HarvestBits';
 
 /** Every fruit the farm loaded (this season's harvests), with the tree's variety when the harvest has none. */
 function useFruits(): FruitRow[] {
@@ -363,7 +363,7 @@ export const FruitPage: React.FC<{ fruitKey: string }> = ({ fruitKey }) => {
                 <span className="text-xs text-slate-500 block mb-1">{t('fr.col.weight')}</span>
                 <span className="text-2xl font-bold tabular text-slate-900">{(f.weightG / 1000).toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kg</span>
               </p>
-              <ScoreBoxes scores={{ aroma: f.aroma, skin: f.skin, shape: f.shape }} />
+              <ScoreMeters scores={{ aroma: f.aroma, skin: f.skin, shape: f.shape }} large />
             </div>
           )}
         </section>

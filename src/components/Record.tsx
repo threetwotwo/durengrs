@@ -175,13 +175,22 @@ export function useRecordView() {
       }
       case 'harvest': {
         const h = e.rec;
-        const grades = GRADES.filter((g) => h.grades?.[g]).map((g) => `${t(`grade.${g}`)} ${h.grades![g]}`);
+        const tiled = !h.photos?.length; // no photo: the tile carries fruit, kilos, grades and scores
+        const grades = tiled ? [] : GRADES.filter((g) => h.grades?.[g]).map((g) => `${t(`grade.${g}`)} ${h.grades![g]}`);
         const tags: Tag[] = grades.map((g) => ({ key: g, label: g, tone: 'plain' as TagTone }));
         for (const p of h.problems || []) tags.push({ key: `p:${p}`, label: t(`rec.hv.p.${p}`), tone: 'problem' });
         // The scores are on the tile when there is no photo; with photos, as a tag.
         const sc = h.photos?.length ? harvestScores(h.items) : null;
         if (sc) tags.push({ key: 'scores', label: t('hv.scores', { a: num(sc.aroma), k: num(sc.skin), b: num(sc.shape) }), tone: 'plain' });
-        return { ...base, kind: t('log.kind.harvest'), text: harvestLine(h.fruits, h.weightKg), tags };
+        // Under the tile, the fruits' codes rather than the same numbers again.
+        const codes = (h.items || []).map((f) => f?.code).filter(Boolean) as string[];
+        const text =
+          tiled && codes.length
+            ? codes.length === 1
+              ? t('hv.codes.one', { code: codes[0] })
+              : t('hv.codes', { from: codes[0], to: codes[codes.length - 1].split('-').pop()! })
+            : harvestLine(h.fruits, h.weightKg);
+        return { ...base, kind: t('log.kind.harvest'), text, tags };
       }
       case 'count':
         return { ...base, kind: t('log.kind.count'), text: `${t(`crop.stage.${e.rec.stage}`)}: ${e.rec.count}`, tags: [] };

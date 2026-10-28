@@ -4,14 +4,24 @@ import { GRADES, type Harvest, harvestScores } from '../lib/fieldData';
 
 /** How a 1-5 score reads: 4-5 good (green), 3 middling (amber), 1-2 poor (red); averages split at 3.5 and 2.5. */
 export const scoreTone = (v: number) => (v >= 3.5 ? 'good' : v >= 2.5 ? 'mid' : 'poor');
-const BOX_TONE = {
-  good: 'bg-emerald-50 border-emerald-200 text-emerald-900',
-  mid: 'bg-amber-50 border-amber-200 text-amber-900',
-  poor: 'bg-rose-50 border-rose-200 text-rose-900',
-} as const;
+const FILL = { good: 'bg-emerald-600', mid: 'bg-amber-500', poor: 'bg-rose-500' } as const;
 
-/** The three scores as boxes: label, the value large, out of 5; coloured by how good it is. */
-export const ScoreBoxes: React.FC<{ scores: { aroma: number; skin: number; shape: number }; size?: 'sm' | 'md' }> = ({ scores, size = 'md' }) => {
+/** A 1-5 score as five steps, filled up to the score (3,2 fills three and a fifth); the colour says how good it is. */
+export const ScoreMeter: React.FC<{ v: number; track?: string }> = ({ v, track = 'bg-slate-200' }) => (
+  <span className="grid grid-cols-5 gap-0.5 w-full" aria-hidden>
+    {[0, 1, 2, 3, 4].map((i) => (
+      <span key={i} className={`h-2 rounded-sm overflow-hidden ${track}`}>
+        <span className={`block h-full ${FILL[scoreTone(v)]}`} style={{ width: `${Math.max(0, Math.min(1, v - i)) * 100}%` }} />
+      </span>
+    ))}
+  </span>
+);
+
+/**
+ * Aroma, kulit and bentuk, one line each: the name, the five steps, the value. The same on a harvest card, Today and
+ * a fruit's page; tables use ScoreChip, coloured alike.
+ */
+export const ScoreMeters: React.FC<{ scores: { aroma: number; skin: number; shape: number }; track?: string; large?: boolean }> = ({ scores, track, large }) => {
   const { t, locale } = useT();
   const rows: Array<[string, number]> = [
     [t('hv.col.aroma'), scores.aroma],
@@ -19,14 +29,14 @@ export const ScoreBoxes: React.FC<{ scores: { aroma: number; skin: number; shape
     [t('hv.col.shape'), scores.shape],
   ];
   return (
-    <dl className="grid grid-cols-3 gap-2">
+    <dl className={large ? 'space-y-2.5' : 'space-y-1.5'}>
       {rows.map(([label, v]) => (
-        <div key={label} className={`rounded-lg border ${size === 'sm' ? 'px-2 py-1.5' : 'px-2.5 py-2'} ${BOX_TONE[scoreTone(v)]}`}>
-          <dt className="text-[11px] font-medium opacity-80">{label}</dt>
-          <dd className="leading-tight tabular">
-            <span className={`${size === 'sm' ? 'text-base' : 'text-xl'} font-bold`}>{v.toLocaleString(locale, { maximumFractionDigits: 1 })}</span>
-            <span className="text-xs opacity-60">/5</span>
+        <div key={label} className={`grid items-center gap-3 ${large ? 'grid-cols-[4.5rem_1fr_2.5rem] text-sm' : 'grid-cols-[3.75rem_1fr_2rem] text-xs'}`}>
+          <dt className="text-slate-600">{label}</dt>
+          <dd>
+            <ScoreMeter v={v} track={track} />
           </dd>
+          <dd className="text-right font-bold tabular text-slate-900">{v.toLocaleString(locale, { maximumFractionDigits: 1 })}</dd>
         </div>
       ))}
     </dl>
@@ -36,8 +46,9 @@ export const ScoreBoxes: React.FC<{ scores: { aroma: number; skin: number; shape
 const WEIGHTS_SHOWN = 8;
 
 /**
- * In place of photos on a harvest card: the harvest at a glance. Fruit and kilos large, then (Laporan PANEN) the
- * average scores as bars and each fruit's weight; a harvest written in a report shows its grades instead.
+ * In place of photos on a harvest card: the harvest at a glance. The fruit count is the headline, the weight under
+ * it; then (Laporan PANEN) the three scores as meters and each fruit's weight in one line; a harvest written in a
+ * report shows its grades instead. Spread over the whole tile, so cards line up with photo cards.
  */
 export const HarvestTile: React.FC<{ harvest: Harvest }> = ({ harvest: h }) => {
   const { t, locale } = useT();
@@ -46,41 +57,30 @@ export const HarvestTile: React.FC<{ harvest: Harvest }> = ({ harvest: h }) => {
   const scores = harvestScores(items);
   const avgKg = items.length ? items.reduce((s, f) => s + f.weightG, 0) / items.length / 1000 : h.weightKg && h.fruits ? h.weightKg / h.fruits : 0;
   const grades = GRADES.filter((g) => h.grades?.[g]);
+  const weights = items.slice(0, WEIGHTS_SHOWN).map((f) => kg(f.weightG / 1000));
   return (
-    <div className="aspect-[4/3] bg-emerald-50 text-emerald-950 px-5 py-4 flex flex-col justify-center gap-3.5" aria-hidden>
-      <dl className="grid grid-cols-3 gap-2">
-        {(
-          [
-            [t('rec.f.fruits'), String(h.fruits)],
-            [t('rec.f.weight'), h.weightKg ? `${kg(h.weightKg, 2)} kg` : '—'],
-            [t('hv.tile.avgLabel'), avgKg > 0 ? `${kg(avgKg, 2)} kg` : '—'],
-          ] as Array<[string, string]>
-        ).map(([label, v]) => (
-          <div key={label} className="min-w-0">
-            <dt className="text-xs text-emerald-800/80 truncate">{label}</dt>
-            <dd className="text-xl font-bold tabular leading-tight truncate">{v}</dd>
-          </div>
-        ))}
-      </dl>
-      {scores && <ScoreBoxes scores={scores} size="sm" />}
-      {items.length > 0 && (
-        <ul className="flex flex-wrap gap-1">
-          {items.slice(0, WEIGHTS_SHOWN).map((f, i) => (
-            <li key={f.code || i} className="px-1.5 py-0.5 rounded bg-white text-[11px] font-semibold tabular text-emerald-900 ring-1 ring-inset ring-emerald-900/10">
-              {kg(f.weightG / 1000)} kg
-            </li>
-          ))}
-          {items.length > WEIGHTS_SHOWN && <li className="px-1.5 py-0.5 text-[11px] font-semibold text-emerald-800">+{items.length - WEIGHTS_SHOWN}</li>}
-        </ul>
-      )}
-      {!items.length && grades.length > 0 && (
-        <ul className="flex flex-wrap gap-1">
-          {grades.map((g) => (
-            <li key={g} className="px-1.5 py-0.5 rounded bg-white text-[11px] font-semibold text-emerald-900 ring-1 ring-inset ring-emerald-900/10">
-              {t(`grade.${g}`)} {h.grades![g]}
-            </li>
-          ))}
-        </ul>
+    <div className="aspect-[4/3] bg-emerald-50 px-5 py-4 flex flex-col justify-between gap-3" aria-hidden>
+      <div>
+        <p className="leading-none text-emerald-950">
+          <span className="text-4xl font-bold tabular">{h.fruits}</span>
+          <span className="ml-1.5 text-base font-semibold">{t('hv2.fruit')}</span>
+        </p>
+        {!!h.weightKg && (
+          <p className="mt-1.5 text-sm text-emerald-900 tabular">
+            <span className="font-semibold">{kg(h.weightKg, 2)} kg</span>
+            {avgKg > 0 && h.fruits > 1 && <span className="text-emerald-800/80"> · {t('hv.tile.each', { kg: kg(avgKg, 2) })}</span>}
+          </p>
+        )}
+      </div>
+      {scores ? <ScoreMeters scores={scores} track="bg-white" /> : <span />}
+      {!items.length && grades.length > 0 ? (
+        <p className="text-sm text-emerald-900">{grades.map((g) => `${t(`grade.${g}`)} ${h.grades![g]}`).join(' · ')}</p>
+      ) : items.length > 1 ? (
+        <p className="text-xs text-emerald-900/80 tabular truncate">
+          {t('hv.tile.weights')}: {weights.join(' · ')} kg{items.length > WEIGHTS_SHOWN ? ` +${items.length - WEIGHTS_SHOWN}` : ''}
+        </p>
+      ) : (
+        <span />
       )}
     </div>
   );

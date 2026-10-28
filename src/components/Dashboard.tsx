@@ -10,7 +10,7 @@ import { useGuideOn } from '../lib/guideMode';
 import type { TreeReport } from '../types';
 import { useCrops } from './useCrops';
 import { cropFunnel, fruitOnTree } from '../lib/crop';
-import { ScoreBoxes, harvestTotals } from './HarvestBits';
+import { ScoreMeters, harvestTotals } from './HarvestBits';
 import { fruitsUrl, reportUrl } from '../lib/router';
 import { useGuideData, StagePill } from './GuideWidgets';
 import { ProblemsByTree } from './Problems';
@@ -215,7 +215,7 @@ export const Dashboard: React.FC = () => {
                 {panen.scores && (
                   <div className="px-4 pb-3">
                     <p className="text-xs text-slate-500 mb-1.5">{t(panen.scoresWeek ? 'today.panen.scores.week' : 'today.panen.scores')}</p>
-                    <ScoreBoxes scores={panen.scores} size="sm" />
+                    <ScoreMeters scores={panen.scores} />
                   </div>
                 )}
                 <div className="border-t border-slate-100 py-1">
