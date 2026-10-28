@@ -2,6 +2,7 @@
 # Deploy WhatsApp bot › Run workflow). The bot's secret files are written from the repository's secrets, never
 # committed: BOT_ENV_YAML (env.yaml), BOT_SERVICE_ACCOUNT (service-account.json), FLOW_PRIVATE_KEY (private_key.pem);
 # GCP_DEPLOY_KEY is the deploy account's key. One-time setup: bot/scripts/setup-github-deploy.sh.
+# Set up 2026-10-28: the four secrets are in place.
 name: Deploy WhatsApp bot
 
 on:
