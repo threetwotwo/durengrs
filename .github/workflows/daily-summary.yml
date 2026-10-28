@@ -1,0 +1,43 @@
+# Every morning at 06:00 WIB the workers get yesterday's summary on WhatsApp (bot/lib/summary.js): what they recorded,
+# all saved, then the latest KESEHATAN and PANEN reports. GitHub starts scheduled runs a few minutes late at times,
+# so it is set for 05:55 (22:55 UTC). The bot sends each worker once per day summarised, so a rerun sends nothing
+# twice. By hand: Actions › Daily summary to workers › Run workflow (pick the day).
+# The token is read from the BOT_ENV_YAML secret; the log shows counts only (the answer holds workers' numbers, and
+# this repository's logs are public).
+name: Daily summary to workers
+
+on:
+  schedule:
+    - cron: '55 22 * * *'
+  workflow_dispatch:
+    inputs:
+      date:
+        description: 'Which day to summarise: yesterday, today, or YYYY-MM-DD'
+        default: 'yesterday'
+        required: false
+
+concurrency:
+  group: daily-summary
+  cancel-in-progress: false
+
+jobs:
+  send:
+    if: github.repository == 'threetwotwo/durengrs'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Send the summary
+        env:
+          BOT_ENV_YAML: ${{ secrets.BOT_ENV_YAML }}
+          DAY: ${{ inputs.date || 'yesterday' }}
+        run: |
+          TOKEN=$(printf '%s\n' "$BOT_ENV_YAML" | sed -n 's/^VERIFY_TOKEN:[[:space:]]*//p' | head -1 | tr -d '\r' | sed -e 's/^["'"'"']//' -e 's/["'"'"'][[:space:]]*$//')
+          if [ -z "$TOKEN" ]; then echo "::error::VERIFY_TOKEN is not in the BOT_ENV_YAML secret"; exit 1; fi
+          echo "::add-mask::$TOKEN"
+          code=$(curl -sS -o out.json -w '%{http_code}' --max-time 280 -G \
+            "https://durian-tree-lookup-239637876270.asia-southeast1.run.app/daily-summary" \
+            --data-urlencode "token=$TOKEN" --data-urlencode "date=$DAY")
+          if [ "$code" != 200 ]; then echo "::error::The bot answered HTTP $code"; rm -f out.json; exit 1; fi
+          jq -r '"Summary of \(.date): \([.sent[] | select(.ok == true)] | length) sent, \([.sent[] | select(.skipped)] | length) already sent, \([.sent[] | select(.ok == false)] | length) not sent" + (if .note then " (\(.note))" else "" end)' out.json
+          jq -r '[.sent[] | select(.ok == false) | .error] | group_by(.) | map("\(length) not sent: \(.[0])") | .[]' out.json | while IFS= read -r l; do echo "::warning::$l"; done
+          rm -f out.json

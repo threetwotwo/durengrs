@@ -166,25 +166,27 @@ gcloud run services update durian-tree-lookup --region asia-southeast1 --min-ins
 3. Deploy (same command as always, run inside `bot/`):
    `gcloud run deploy durian-tree-lookup --source . --project whatsapp-survey-509713 --region asia-southeast1 --allow-unauthenticated --env-vars-file env.yaml`
 
-## Daily summary (17:00 WIB)
+## Daily summary (06:00 WIB)
 
-Every worker on the webapp's Workers page gets a WhatsApp message at 17:00 (the bell there turns it off for one
-worker): a line thanking them for what they recorded today, all saved ✅ (or when they last reported), then two
-groups: **Laporan KESEHATAN** (the day's reports, everyone's, one short line each: time, tree, who, condition, their
-words cut short; their own marked "(Anda) ✅"; a quiet day shows the latest of the last two weeks, dated; the week's
-count) and **Laporan PANEN** (the latest harvests of two weeks: fruit, kg, average scores, their own with fruit
-codes; the week's total). Sending **RINGKASAN** in the chat gets it any time. `lib/summary.js`; sent once a day per
-number (`farmMeta/dailySummary`).
+Every morning at 06:00 every worker on the webapp's Workers page gets **yesterday's** summary on WhatsApp (the bell
+there turns it off for one worker): a line thanking them for what they recorded, all saved ✅ (or when they last
+reported), then two groups: **Laporan KESEHATAN** (the day's reports, everyone's, one short line each: time, tree,
+who, condition, their words cut short; their own marked "(Anda) ✅"; a quiet day shows the latest of the last two
+weeks, dated; the week's count) and **Laporan PANEN** (the latest harvests of two weeks: fruit, kg, average scores,
+their own with fruit codes; the week's total). Sending **RINGKASAN** in the chat gets today's any time.
+`lib/summary.js`; sent once per day summarised per number (`farmMeta/dailySummary`).
 
-- **Test first:** `https://<service>/daily-summary?token=<VERIFY_TOKEN>&to=628…` sends it to that number only;
-  `&dry=1` shows every worker's message without sending anything.
+- **Schedule:** `.github/workflows/daily-summary.yml` (GitHub Actions, 05:55 WIB, as GitHub can start a few minutes
+  late) calls `/daily-summary?date=yesterday` with the token from the `BOT_ENV_YAML` secret. By hand: GitHub › Actions
+  › Daily summary to workers › Run workflow. Its log shows counts only. GitHub pauses scheduled runs in a repository
+  with no commits for 60 days.
+- **Test first:** `https://<service>/daily-summary?token=<VERIFY_TOKEN>&to=628…` sends today's to that number only
+  (`&date=yesterday` for yesterday's); `&dry=1` shows every worker's message without sending anything.
 - **24-hour rule:** WhatsApp lets the bot send free text only within 24 hours of the worker's own last message
   (`chatSeen/{phone}`). Outside that, it sends the approved template named in `SUMMARY_TEMPLATE` (category Utility,
   language Indonesian `id`), with two values: {{1}} the day ("Selasa, 27 Okt 2026") and {{2}} a one-line version.
   Suggested body: `📋 Ringkasan Kebun Cilowong, {{1}}` / `{{2}}` / `Balas *RINGKASAN* untuk melihat lengkapnya.`
   Without the template those workers are skipped (the response says so).
-- **Schedule:** a Cloud Scheduler job calls the URL every day:
-  `gcloud scheduler jobs create http daily-summary --project whatsapp-survey-509713 --location asia-southeast1 --schedule "0 17 * * *" --time-zone "Asia/Jakarta" --http-method GET --attempt-deadline 300s --uri "https://<service>/daily-summary?token=<VERIFY_TOKEN>"`
 
 ## Flow setup
 

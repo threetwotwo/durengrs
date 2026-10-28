@@ -110,3 +110,16 @@ test('sending: everyone on the Workers page unless switched off, once a day; a t
   assert.equal(sent.length, 2, 'a dry run sends nothing');
   assert.match(dry.sent[0].text, /Udin/);
 });
+
+test('the 06:00 summary is of yesterday: "kemarin" where the day summary says "hari ini"', () => {
+  const { dayWord } = require('../lib/summary');
+  const morning = Date.parse('2026-10-28T06:00:00+07:00');
+  assert.equal(dayWord('2026-10-27', morning), 'kemarin');
+  assert.equal(dayWord('2026-10-28', morning), 'hari ini');
+  assert.equal(dayWord('2026-10-20', morning), 'pada 20 Okt');
+  const text = buildSummary(busy(), day, U, morning, 'Udin');
+  assert.match(text, /Catatan Anda kemarin sudah tersimpan ✅/);
+  assert.match(text, /• Kemarin \*A3\* \(Anda\) ✅: 3 buah/);
+  assert.doesNotMatch(text, /hari ini/i);
+  assert.match(summaryLine(busy(), day, U, morning), /^KESEHATAN: 3 laporan kemarin\. PANEN: 3 buah kemarin/);
+});

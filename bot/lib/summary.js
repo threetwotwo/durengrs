@@ -1,5 +1,6 @@
-// lib/summary.js — the daily summary sent to workers on WhatsApp (GET /daily-summary, called at 17:00 WIB by Cloud
-// Scheduler; the word RINGKASAN in chat asks for it any time). Indonesian, like everything a worker reads.
+// lib/summary.js — the daily summary sent to workers on WhatsApp: yesterday's, every morning at 06:00 WIB
+// (GET /daily-summary?date=yesterday from .github/workflows/daily-summary.yml); the word RINGKASAN in chat asks for
+// today's any time. Indonesian, like everything a worker reads.
 // Its point: workers who never see the webapp see that what they sent was recorded, and what the others sent:
 //
 //   📋 Ringkasan Kebun Cilowong · Selasa, 27 Okt 2026
@@ -37,6 +38,15 @@ const list = (ids, max = LIST_MAX) => {
 };
 const issueName = (c) => c.name || S.ISSUE_INFO[c.issue]?.label.id || c.issue;
 
+/** The summary's day in words, from where `now` is: "hari ini", "kemarin", or "pada 25 Okt" (a 06:00 send is of yesterday). */
+function dayWord(date, now = Date.now()) {
+  const today = R.todayStr(new Date(now));
+  if (date === today) return 'hari ini';
+  if (date === R.addDays(today, -1)) return 'kemarin';
+  return `pada ${shortDay(date)}`;
+}
+const capital = (w) => w.charAt(0).toUpperCase() + w.slice(1);
+
 /** "Selasa, 27 Okt 2026" */
 function dayTitle(date) {
   const [y, m, d] = date.split('-').map(Number);
@@ -60,9 +70,13 @@ async function loadDay(date) {
     all(db.collection('workers')),
   ]);
   const startMs = start.toMillis ? start.toMillis() : start.ms;
-  const reports = recentReports.filter((r) => ms(r.createdAt) >= startMs);
-  const harvests = recentHarvests.filter((h) => h.date === date);
-  return { reports, harvests, recentReports, recentHarvests, counts, rain, tasks, cases, trees: trees.filter((t) => t.active !== false), workers };
+  const endMs = startMs + 86400e3;
+  // Only what came by the end of the day (a summary of yesterday leaves today out).
+  const upTo = recentReports.filter((r) => ms(r.createdAt) < endMs);
+  const harvestsUpTo = recentHarvests.filter((h) => h.date <= date);
+  const reports = upTo.filter((r) => ms(r.createdAt) >= startMs);
+  const harvests = harvestsUpTo.filter((h) => h.date === date);
+  return { reports, harvests, recentReports: upTo, recentHarvests: harvestsUpTo, counts, rain, tasks, cases, trees: trees.filter((t) => t.active !== false), workers };
 }
 
 /** The day in numbers (pure). `now` decides which trees count as not checked for a week. */
@@ -179,14 +193,14 @@ const HARVEST_MAX = 5;
  * Laporan PANEN: the latest harvests of the last two weeks, everyone's, newest first ("Hari ini *A3* (Budi): 3 buah,
  * 6,1 kg · aroma 3,3 · kulit 4 · bentuk 4,3"; the worker's own today with their fruit codes), and the week's total.
  */
-function harvestLines(data, date, phone = '', max = HARVEST_MAX) {
+function harvestLines(data, date, phone = '', max = HARVEST_MAX, now = Date.now()) {
   const me = digits(phone);
   const who = nameOf(data);
   const all = [...(data.recentHarvests || data.harvests || [])].sort((a, b) => String(b.date).localeCompare(String(a.date)) || ms(b.createdAt) - ms(a.createdAt));
   if (!all.length) return [];
   const avg = (items, k) => num(items.reduce((n, f) => n + (Number(f[k]) || 0), 0) / items.length);
   const lines = all.slice(0, max).map((h) => {
-    const day = h.date === date ? 'Hari ini' : shortDay(h.date);
+    const day = h.date === date && dayWord(date, now).indexOf('pada') !== 0 ? capital(dayWord(date, now)) : shortDay(h.date);
     const items = (h.items || []).filter((f) => f && Number.isFinite(f.aroma));
     const scores = items.length ? ` · aroma ${avg(items, 'aroma')} · kulit ${avg(items, 'skin')} · bentuk ${avg(items, 'shape')}` : '';
     const mineToo = me && digits(h.workerPhone) === me;
@@ -210,6 +224,7 @@ function harvestLines(data, date, phone = '', max = HARVEST_MAX) {
  */
 function buildSummary(data, date, phone, now = Date.now(), name = '') {
   const d = digest(data, date, now);
+  const when = dayWord(date, now);
   const lines = [`📋 *Ringkasan Kebun Cilowong*`, dayTitle(date), ''];
 
   if (digits(phone)) {
@@ -225,7 +240,7 @@ function buildSummary(data, date, phone, now = Date.now(), name = '') {
       ...m.tasks.map((t) => `${R.SEASON_TASK_LABELS[t.task] || t.task} blok ${t.block}`),
     ].filter(Boolean);
     if (done.length || also.length) {
-      lines.push(`Terima kasih${name ? `, ${name}` : ''}! 🙏 Catatan Anda hari ini sudah tersimpan ✅${done.length ? `: ${done.join(', ')}` : ''}.`);
+      lines.push(`Terima kasih${name ? `, ${name}` : ''}! 🙏 Catatan Anda ${when} sudah tersimpan ✅${done.length ? `: ${done.join(', ')}` : ''}.`);
       if (also.length) lines.push(`Juga tercatat: ${also.join(', ')}.`);
     } else {
       const me = digits(phone);
@@ -234,7 +249,7 @@ function buildSummary(data, date, phone, now = Date.now(), name = '') {
         ...(data.recentReports || []).filter((r) => digits(r.workerPhone) === me).map((r) => ms(r.createdAt)),
         ...(data.recentHarvests || []).filter((h) => digits(h.workerPhone) === me).map((h) => Date.parse(`${h.date}T12:00:00+07:00`))
       );
-      lines.push(`Halo${name ? ` ${name}` : ''}! Belum ada laporan dari Anda hari ini${last ? ` (terakhir ${R.dateLabel(R.todayStr(new Date(last)))})` : ''}. Kirim ID pohon (contoh: *A1*) untuk lapor.`);
+      lines.push(`Halo${name ? ` ${name}` : ''}! Belum ada laporan dari Anda ${when}${last ? ` (terakhir ${R.dateLabel(R.todayStr(new Date(last)))})` : ''}. Kirim ID pohon (contoh: *A1*) untuk lapor.`);
     }
     lines.push('');
   }
@@ -245,7 +260,7 @@ function buildSummary(data, date, phone, now = Date.now(), name = '') {
   else lines.push(`• Belum ada laporan dalam ${BACK_DAYS} hari terakhir`);
   if (data.recentReports) lines.push(`• 7 hari terakhir: ${d.weekReports} laporan dari ${d.weekTrees} pohon`);
 
-  const panen = harvestLines(data, date, phone);
+  const panen = harvestLines(data, date, phone, HARVEST_MAX, now);
   lines.push('', '🧺 *Laporan PANEN*', ...(panen.length ? panen : [`• Belum ada panen dalam ${BACK_DAYS} hari terakhir`]));
 
   lines.push('', 'Kirim ID pohon untuk lapor. Kirim *RINGKASAN* untuk melihat ringkasan ini lagi.');
@@ -255,14 +270,15 @@ function buildSummary(data, date, phone, now = Date.now(), name = '') {
 /** One line for the template (no line breaks allowed in a template's values): KESEHATAN, then PANEN. */
 function summaryLine(data, date, phone, now = Date.now()) {
   const d = digest(data, date, now);
+  const when = dayWord(date, now);
   const m = digits(phone) ? mine(data, phone) : null;
-  const mineNote = m && (m.reports.length || m.harvests.length) ? ` Catatan Anda hari ini sudah tersimpan ✅.` : '';
+  const mineNote = m && (m.reports.length || m.harvests.length) ? ` Catatan Anda ${when} sudah tersimpan ✅.` : '';
   const kes = d.reports
-    ? `KESEHATAN: ${d.reports} laporan hari ini`
-    : `KESEHATAN: belum ada laporan hari ini${d.lastReportAt ? ` (terakhir ${shortDay(R.todayStr(new Date(d.lastReportAt)))})` : ''}`;
+    ? `KESEHATAN: ${d.reports} laporan ${when}`
+    : `KESEHATAN: belum ada laporan ${when}${d.lastReportAt ? ` (terakhir ${shortDay(R.todayStr(new Date(d.lastReportAt)))})` : ''}`;
   const week = (data.recentHarvests || []).filter((h) => h.date >= R.addDays(date, -6));
   const weekFruits = week.reduce((n, h) => n + (Number(h.fruits) || 0), 0);
-  const pan = `PANEN: ${d.fruits ? `${num(d.fruits, 0)} buah hari ini` : 'belum ada hari ini'}${weekFruits ? `, ${num(weekFruits, 0)} buah dalam 7 hari` : ''}`;
+  const pan = `PANEN: ${d.fruits ? `${num(d.fruits, 0)} buah ${when}` : `belum ada ${when}`}${weekFruits ? `, ${num(weekFruits, 0)} buah dalam 7 hari` : ''}`;
   return `${kes}. ${pan}.${mineNote}`;
 }
 
@@ -294,7 +310,7 @@ async function sendDailySummary({ date = R.todayStr(), to, dry = false, send }) 
       out.push({ to: r.phone, name: r.name, skipped: 'already sent today' });
       continue;
     }
-    const res = await send(r.phone, text, line);
+    const res = await send(r.phone, text, line, date);
     out.push({ to: r.phone, name: r.name, ...res });
     if (res.ok && !to) {
       already.add(r.phone);
@@ -305,4 +321,4 @@ async function sendDailySummary({ date = R.todayStr(), to, dry = false, send }) 
   return { date, sent: out };
 }
 
-module.exports = { loadDay, digest, mine, healthLines, harvestLines, condense, buildSummary, summaryLine, sendDailySummary, dayTitle };
+module.exports = { dayWord, loadDay, digest, mine, healthLines, harvestLines, condense, buildSummary, summaryLine, sendDailySummary, dayTitle };

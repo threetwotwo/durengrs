@@ -5,7 +5,8 @@
 //   flow token says which screen it starts on;
 //   KEBUN (or the "Hujan & Pekerjaan" button) gets the farm Flow (flows/flow-farm.json, FARM_FLOW_ID).
 //   When a report Flow completes, Gemini reads the report (lib/ai.js) and the reply comes with a fresh Flow message.
-//   RINGKASAN gets the day's summary (lib/summary.js); /daily-summary sends it to the workers at 17:00 (Cloud Scheduler).
+//   RINGKASAN gets the day's summary (lib/summary.js); /daily-summary sends yesterday's to the workers at 06:00 WIB
+//   (.github/workflows/daily-summary.yml).
 require('dotenv').config();
 const express = require('express');
 const { decryptRequest, encryptResponse } = require('./lib/encryption');
@@ -18,7 +19,7 @@ const { backfillCases } = require('./lib/backfill');
 const { syncRain } = require('./lib/rain');
 const { db: fdb, admin } = require('./lib/firestore');
 const { loadDay, buildSummary, sendDailySummary, dayTitle } = require('./lib/summary');
-const { todayStr } = require('./lib/rules');
+const { todayStr, addDays } = require('./lib/rules');
 const { parseCommand } = require('./lib/commands');
 
 const app = express();
@@ -257,7 +258,7 @@ async function sendOwnSummary(to) {
 }
 
 // One worker's summary: free text inside the 24-hour window, else the approved template (when SUMMARY_TEMPLATE is set).
-async function deliverSummary(to, text, line) {
+async function deliverSummary(to, text, line, date = todayStr()) {
   if (Date.now() - (await lastSeen(to)) < WINDOW_MS) {
     const r = await sendText(to, text.slice(0, 4000));
     return r?.error ? { ok: false, via: 'text', error: r.error.message } : { ok: true, via: 'text' };
@@ -270,7 +271,7 @@ async function deliverSummary(to, text, line) {
     template: {
       name: SUMMARY_TEMPLATE,
       language: { code: 'id' },
-      components: [{ type: 'body', parameters: [{ type: 'text', text: dayTitle(todayStr()) }, { type: 'text', text: line.slice(0, 900) }] }],
+      components: [{ type: 'body', parameters: [{ type: 'text', text: dayTitle(date) }, { type: 'text', text: line.slice(0, 900) }] }],
     },
   });
   return r?.error ? { ok: false, via: 'template', error: r.error.message } : { ok: true, via: 'template' };
@@ -370,13 +371,17 @@ app.post(['/send-tree-flow', '/send-tree-lookup'], async (req, res) => {
   res.json({ kesehatan: await sendTreeFlow(to, tree), panen: await sendHarvestFlow(to, tree) });
 });
 
-// The daily summary. Cloud Scheduler calls https://<service>/daily-summary?token=<VERIFY_TOKEN> at 17:00 WIB: every
-// worker on the Workers page whose switch is on gets theirs (once a day, retries are skipped). Add &to=628… to send to
-// one number only (a test), &dry=1 to see the messages without sending anything.
+// The daily summary: https://<service>/daily-summary?token=<VERIFY_TOKEN>, called every morning at 06:00 WIB with
+// &date=yesterday (.github/workflows/daily-summary.yml): every worker on the Workers page whose switch is on gets theirs
+// (once per day summarised, retries are skipped). &date=YYYY-MM-DD for another day (default today); &to=628… sends to
+// one number only (a test), &dry=1 shows the messages without sending anything.
 app.get('/daily-summary', async (req, res) => {
   if (!VERIFY_TOKEN || req.query.token !== VERIFY_TOKEN) return res.sendStatus(403);
   try {
-    const result = await sendDailySummary({ to: req.query.to, dry: req.query.dry === '1', send: deliverSummary });
+    const today = todayStr();
+    const q = String(req.query.date || '');
+    const date = q === 'yesterday' ? addDays(today, -1) : /^\d{4}-\d{2}-\d{2}$/.test(q) && q <= today ? q : today;
+    const result = await sendDailySummary({ date, to: req.query.to, dry: req.query.dry === '1', send: deliverSummary });
     console.log(`Daily summary ${result.date}: ${(result.sent || []).map((r) => `${r.to}:${r.ok ? r.via : r.skipped || r.error || 'dry'}`).join(' ') || result.note}`);
     res.json(result);
   } catch (err) {

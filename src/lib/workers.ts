@@ -6,7 +6,7 @@ export interface Worker {
   /** Digits only, international form as WhatsApp sends it (e.g. 628111886551). Also the document id. */
   phone: string;
   name: string;
-  /** Gets the daily summary on WhatsApp at 17:00 (bot/lib/summary.js). On unless switched off. */
+  /** Gets yesterday's summary on WhatsApp every morning at 06:00 (bot/lib/summary.js). On unless switched off. */
   daily?: boolean;
 }
 
