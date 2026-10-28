@@ -143,6 +143,11 @@ See `.env.example` (placeholders only). Never set `PORT` on Cloud Run.
 
 ## Deploy
 
+Pushing to `main` deploys the bot by itself (`.github/workflows/deploy-bot.yml`, after the tests pass); see the root
+README, "Deploying (automatic)". One-time setup: `bash scripts/setup-github-deploy.sh` inside this folder with your
+env.yaml, service-account.json and private_key.pem. The steps below are the manual way, still working.
+
+
 ```
 gcloud run deploy durian-tree-lookup --source . --region asia-southeast1 --allow-unauthenticated --env-vars-file env.yaml
 ```

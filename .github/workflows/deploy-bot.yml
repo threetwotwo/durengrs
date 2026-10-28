@@ -1,0 +1,78 @@
+# Deploys the WhatsApp bot (bot/) to Cloud Run on every push to main that changes it, or by hand (Actions tab ›
+# Deploy WhatsApp bot › Run workflow). The bot's secret files are written from the repository's secrets, never
+# committed: BOT_ENV_YAML (env.yaml), BOT_SERVICE_ACCOUNT (service-account.json), FLOW_PRIVATE_KEY (private_key.pem);
+# GCP_DEPLOY_KEY is the deploy account's key. One-time setup: bot/scripts/setup-github-deploy.sh.
+name: Deploy WhatsApp bot
+
+on:
+  push:
+    branches: [main]
+    paths: ['bot/**', '.github/workflows/deploy-bot.yml']
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-bot
+  cancel-in-progress: false
+
+jobs:
+  # Until the one-time setup has stored the deploy key, pushes are skipped quietly instead of failing.
+  setup:
+    if: github.repository == 'threetwotwo/durengrs'
+    runs-on: ubuntu-latest
+    outputs:
+      ready: ${{ steps.check.outputs.ready }}
+    steps:
+      - id: check
+        env:
+          KEY: ${{ secrets.GCP_DEPLOY_KEY }}
+        run: |
+          if [ -n "$KEY" ]; then echo "ready=true" >> "$GITHUB_OUTPUT"; else echo "::notice::Not deploying: run bot/scripts/setup-github-deploy.sh once to set the deploy secrets."; fi
+
+  deploy:
+    needs: setup
+    if: needs.setup.outputs.ready == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: bot
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Test
+        run: |
+          npm install --no-audit --no-fund
+          npm test
+
+      - name: Write the bot's secret files
+        env:
+          BOT_ENV_YAML: ${{ secrets.BOT_ENV_YAML }}
+          BOT_SERVICE_ACCOUNT: ${{ secrets.BOT_SERVICE_ACCOUNT }}
+          FLOW_PRIVATE_KEY: ${{ secrets.FLOW_PRIVATE_KEY }}
+        run: |
+          for v in BOT_ENV_YAML BOT_SERVICE_ACCOUNT FLOW_PRIVATE_KEY; do
+            if [ -z "${!v}" ]; then echo "::error::Secret $v is missing (run bot/scripts/setup-github-deploy.sh once)"; exit 1; fi
+          done
+          printf '%s\n' "$BOT_ENV_YAML" > env.yaml
+          printf '%s\n' "$BOT_SERVICE_ACCOUNT" > service-account.json
+          printf '%s\n' "$FLOW_PRIVATE_KEY" > private_key.pem
+          rm -rf node_modules
+
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_DEPLOY_KEY }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Deploy to Cloud Run
+        run: >
+          gcloud run deploy durian-tree-lookup --source . --project whatsapp-survey-509713 --region asia-southeast1
+          --allow-unauthenticated --env-vars-file env.yaml --quiet
+
+      - name: Remove the secret files
+        if: always()
+        run: rm -f env.yaml service-account.json private_key.pem

@@ -38,6 +38,19 @@ Every page is in the navigation bar:
 - **Schedule** (routines and season work), **Varieties**, **Workers** and the **Guide** (sourced best practice applied
   to the farm's own data, when it is switched on).
 
+## Deploying (automatic)
+
+Every push to `main` deploys what it changed, so a change made from a phone goes live by itself:
+
+- `bot/` → the WhatsApp bot on Cloud Run (`.github/workflows/deploy-bot.yml`: tests, then `gcloud run deploy`).
+- the webapp, `firestore.rules`, `storage.rules` → Firebase Hosting, **https://duren-db.web.app**
+  (`.github/workflows/deploy-web.yml`: tests, type check, build, then `firebase deploy`).
+
+Either can also be run by hand: GitHub › Actions › the workflow › Run workflow. A failed test stops the deploy.
+The secrets (deploy key, the bot's env.yaml, service-account.json, private_key.pem) are encrypted GitHub secrets, set
+once by `bot/scripts/setup-github-deploy.sh` (run on a computer, inside the bot folder that has those files). To change
+one later (a new WhatsApp token), edit it in GitHub › Settings › Secrets and variables › Actions, or run the script again.
+
 ## Getting started
 
 Node.js 20+.

@@ -1,0 +1,71 @@
+# Deploys the webapp to Firebase Hosting (https://duren-db.web.app), with firestore.rules and storage.rules, on every
+# push to main that changes it, or by hand (Actions tab › Deploy webapp › Run workflow). Tests, type check and build
+# first; nothing is deployed when one fails. GCP_DEPLOY_KEY: the deploy account's key (bot/scripts/setup-github-deploy.sh).
+name: Deploy webapp
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - 'index.html'
+      - 'package.json'
+      - 'bun.lock'
+      - 'vite.config.ts'
+      - 'tsconfig.json'
+      - 'firebase.json'
+      - 'firebase-applet-config.json'
+      - 'firestore.rules'
+      - 'firestore.indexes.json'
+      - 'storage.rules'
+      - '.github/workflows/deploy-web.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-web
+  cancel-in-progress: true
+
+jobs:
+  # Until the one-time setup has stored the deploy key, pushes are skipped quietly instead of failing.
+  setup:
+    if: github.repository == 'threetwotwo/durengrs'
+    runs-on: ubuntu-latest
+    outputs:
+      ready: ${{ steps.check.outputs.ready }}
+    steps:
+      - id: check
+        env:
+          KEY: ${{ secrets.GCP_DEPLOY_KEY }}
+        run: |
+          if [ -n "$KEY" ]; then echo "ready=true" >> "$GITHUB_OUTPUT"; else echo "::notice::Not deploying: run bot/scripts/setup-github-deploy.sh once to set the deploy secrets."; fi
+
+  deploy:
+    needs: setup
+    if: needs.setup.outputs.ready == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Install
+        run: bun install
+
+      - name: Test, type check, build
+        run: |
+          npx tsx --test tests/*.test.ts
+          npx tsc --noEmit
+          npm run build
+
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_DEPLOY_KEY }}
+
+      - name: Deploy to Firebase
+        run: npx --yes firebase-tools@14 deploy --only hosting,firestore:rules,storage --project duren-db --non-interactive
