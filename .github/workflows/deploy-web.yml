@@ -69,4 +69,10 @@ jobs:
           credentials_json: ${{ secrets.GCP_DEPLOY_KEY }}
 
       - name: Deploy to Firebase
-        run: npx --yes firebase-tools@14 deploy --only hosting,firestore:rules,storage --project duren-db --non-interactive
+        run: |
+          set -o pipefail
+          if ! npx --yes firebase-tools@15 deploy --only hosting,firestore:rules,storage --project duren-db --non-interactive 2>&1 | tee deploy.log; then
+            # Firebase's own message as an annotation, so it can be read without opening the log.
+            grep -iE "error|denied|permission|not (been )?(set up|enabled)|HTTP" deploy.log | grep -viE "bearer|token|secret" | tail -8 | while IFS= read -r l; do echo "::error::${l:0:400}"; done
+            exit 1
+          fi
