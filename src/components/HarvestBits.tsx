@@ -15,10 +15,38 @@ export const ScoreBars: React.FC<{ scores: { aroma: number; skin: number; shape:
       {rows.map(([label, v]) => (
         <div key={label} className="grid grid-cols-[3.75rem_1fr_2rem] items-center gap-2 text-xs">
           <dt className="text-slate-600">{label}</dt>
-          <dd className="h-2 rounded-full bg-white/80 ring-1 ring-inset ring-emerald-900/10 overflow-hidden">
+          <dd className="h-1.5 rounded-full bg-white overflow-hidden">
             <span className="block h-full rounded-full bg-emerald-600" style={{ width: `${Math.max(0, Math.min(1, v / 5)) * 100}%` }} />
           </dd>
           <dd className="text-right font-semibold tabular text-slate-800">{v.toLocaleString(locale, { maximumFractionDigits: 1 })}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+};
+
+/** The three scores side by side, each a label, its value and a thin bar (the dashboard). */
+export const ScoreRow: React.FC<{ scores: { aroma: number; skin: number; shape: number } }> = ({ scores }) => {
+  const { t, locale } = useT();
+  const rows: Array<[string, number]> = [
+    [t('hv.col.aroma'), scores.aroma],
+    [t('hv.col.skin'), scores.skin],
+    [t('hv.col.shape'), scores.shape],
+  ];
+  return (
+    <dl className="grid grid-cols-3 gap-3">
+      {rows.map(([label, v]) => (
+        <div key={label} className="min-w-0">
+          <div className="flex items-baseline justify-between gap-1 text-xs">
+            <dt className="text-slate-500">{label}</dt>
+            <dd className="font-semibold tabular text-slate-800">
+              {v.toLocaleString(locale, { maximumFractionDigits: 1 })}
+              <span className="font-normal text-slate-400">/5</span>
+            </dd>
+          </div>
+          <dd className="mt-1 h-1 rounded-full bg-slate-100 overflow-hidden">
+            <span className="block h-full rounded-full bg-emerald-600" style={{ width: `${Math.max(0, Math.min(1, v / 5)) * 100}%` }} />
+          </dd>
         </div>
       ))}
     </dl>
@@ -39,7 +67,7 @@ export const HarvestTile: React.FC<{ harvest: Harvest }> = ({ harvest: h }) => {
   const avgKg = items.length ? items.reduce((s, f) => s + f.weightG, 0) / items.length / 1000 : h.weightKg && h.fruits ? h.weightKg / h.fruits : 0;
   const grades = GRADES.filter((g) => h.grades?.[g]);
   return (
-    <div className="aspect-[4/3] bg-emerald-50 text-emerald-900 p-4 flex flex-col gap-3" aria-hidden>
+    <div className="aspect-[4/3] bg-emerald-50 text-emerald-900 px-5 py-4 flex flex-col justify-center gap-3" aria-hidden>
       <div className="flex items-end justify-between gap-2">
         <p className="leading-none">
           <span className="text-4xl font-bold tabular">{h.fruits}</span>
@@ -54,7 +82,7 @@ export const HarvestTile: React.FC<{ harvest: Harvest }> = ({ harvest: h }) => {
       </div>
       {scores && <ScoreBars scores={scores} />}
       {items.length > 0 && (
-        <ul className="mt-auto flex flex-wrap gap-1">
+        <ul className="flex flex-wrap gap-1">
           {items.slice(0, WEIGHTS_SHOWN).map((f, i) => (
             <li key={f.code || i} className="px-1.5 py-0.5 rounded bg-white/80 text-[11px] font-semibold tabular text-emerald-900">
               {kg(f.weightG / 1000)} kg
@@ -64,7 +92,7 @@ export const HarvestTile: React.FC<{ harvest: Harvest }> = ({ harvest: h }) => {
         </ul>
       )}
       {!items.length && grades.length > 0 && (
-        <ul className="mt-auto flex flex-wrap gap-1">
+        <ul className="flex flex-wrap gap-1">
           {grades.map((g) => (
             <li key={g} className="px-1.5 py-0.5 rounded bg-white/80 text-[11px] font-semibold text-emerald-900">
               {t(`grade.${g}`)} {h.grades![g]}

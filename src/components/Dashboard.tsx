@@ -10,7 +10,7 @@ import { useGuideOn } from '../lib/guideMode';
 import type { TreeReport } from '../types';
 import { useCrops } from './useCrops';
 import { cropFunnel, fruitOnTree } from '../lib/crop';
-import { ScoreBars, harvestTotals } from './HarvestBits';
+import { ScoreRow, harvestTotals } from './HarvestBits';
 import { fruitsUrl, reportUrl } from '../lib/router';
 import { useGuideData, StagePill } from './GuideWidgets';
 import { ProblemsByTree } from './Problems';
@@ -219,8 +219,8 @@ export const Dashboard: React.FC = () => {
             {panen.season.entries === 0 ? (
               <p className="p-5 text-sm text-slate-600">{t('hv2.none')}</p>
             ) : (
-              <div className="divide-y divide-slate-100">
-                <dl className="grid grid-cols-3 divide-x divide-slate-100">
+              <div>
+                <dl className="grid grid-cols-3 gap-3 px-4 pt-3 pb-2.5">
                   {(
                     [
                       [t('today.panen.today'), panen.today.fruits, panen.today.kg],
@@ -228,34 +228,32 @@ export const Dashboard: React.FC = () => {
                       [t('today.panen.season'), panen.season.fruits, panen.season.weightKg],
                     ] as Array<[string, number, number]>
                   ).map(([label, n, kg]) => (
-                    <div key={label} className="px-3 py-3 text-center">
-                      <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{label}</dt>
-                      <dd className="text-2xl font-bold tabular text-slate-900 leading-tight">{n.toLocaleString(locale)}</dd>
-                      <dd className="text-xs text-slate-600 tabular">
-                        {t('hv2.fruit')}
-                        {kg > 0 ? ` · ${kgFmt(kg)} kg` : ''}
+                    <div key={label} className="min-w-0">
+                      <dt className="text-xs text-slate-500">{label}</dt>
+                      <dd className="leading-tight">
+                        <span className="text-lg font-bold tabular text-slate-900">{n.toLocaleString(locale)}</span>
+                        <span className="ml-1 text-xs text-slate-600">{t('hv2.fruit')}</span>
                       </dd>
+                      <dd className="text-xs text-slate-500 tabular">{kg > 0 ? `${kgFmt(kg)} kg` : '—'}</dd>
                     </div>
                   ))}
                 </dl>
                 {panen.scores && (
-                  <div className="px-4 py-3 space-y-1.5 bg-emerald-50/50">
-                    <p className="text-xs font-semibold text-slate-700">{t(panen.scoresWeek ? 'today.panen.scores.week' : 'today.panen.scores')}</p>
-                    <ScoreBars scores={panen.scores} compact />
+                  <div className="px-4 pb-3" title={t(panen.scoresWeek ? 'today.panen.scores.week' : 'today.panen.scores')}>
+                    <ScoreRow scores={panen.scores} />
                   </div>
                 )}
-                <ul className="divide-y divide-slate-100">
+                <ul className="border-t border-slate-100">
                   {panen.latest.map((h) => (
                     <li key={h.id}>
-                      <Link to={reportUrl(`harvest:${h.id}`)} className="flex items-center gap-3 px-4 py-2.5 hover:bg-slate-50 text-sm">
-                        <span className="w-14 shrink-0 text-xs text-slate-500 tabular">{h.date === today ? t('feed.today') : formatShortDate(h.date)}</span>
-                        <span className="font-mono font-bold text-slate-900 w-12 shrink-0">{h.treeId || h.block}</span>
+                      <Link to={reportUrl(`harvest:${h.id}`)} className="flex items-center gap-2.5 px-4 py-2 hover:bg-slate-50 text-sm">
+                        <span className="w-12 shrink-0 text-xs text-slate-500 tabular">{h.date === today ? t('feed.today') : formatShortDate(h.date)}</span>
+                        <span className="w-10 shrink-0 font-mono font-bold text-slate-900">{h.treeId || h.block}</span>
                         <span className="min-w-0 flex-1 truncate text-slate-700 tabular">
                           {h.fruits} {t('hv2.fruit')}
-                          {h.weightKg ? ` · ${kgFmt(h.weightKg)} kg` : ''}
+                          {h.weightKg ? <span className="text-slate-500"> · {kgFmt(h.weightKg)} kg</span> : null}
                         </span>
                         {h.workerPhone && <span className="text-xs text-slate-500 truncate max-w-24">{workerLabel(h.workerPhone)}</span>}
-                        <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
                       </Link>
                     </li>
                   ))}
