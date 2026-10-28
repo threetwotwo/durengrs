@@ -8,6 +8,7 @@ import { updateHarvestItems } from '../lib/fieldData';
 import { diffDays, formatShortDate } from '../lib/treatments';
 import { PageHeader, btnPrimary, btnSecondary, inputCls } from './PageHeader';
 import { Link } from './Link';
+import { ScoreBoxes, ScoreChip } from './HarvestBits';
 
 /** Every fruit the farm loaded (this season's harvests), with the tree's variety when the harvest has none. */
 function useFruits(): FruitRow[] {
@@ -46,6 +47,7 @@ export const FruitsPage: React.FC = () => {
   const sort = (FRUIT_SORTS as string[]).includes(params.get('sort') || '') ? (params.get('sort') as FruitSort) : null;
   const desc = params.get('dir') === 'desc';
   const fmt = (n: number, d = 0) => n.toLocaleString(locale, { maximumFractionDigits: d });
+  const kg = (g: number) => `${(g / 1000).toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kg`;
 
   const inScope = useMemo(() => all.filter((r) => (!block || r.block === block) && (!q || r.key.toUpperCase().includes(q) || (r.treeId || '').toUpperCase() === q)), [all, block, q]);
   const rows = useMemo(() => sortFruits(inScope.filter((r) => !variant || r.variant === variant), sort, desc), [inScope, variant, sort, desc]);
@@ -59,9 +61,12 @@ export const FruitsPage: React.FC = () => {
   const filtered = !!(q || variant || block);
 
   const sortBy = (k: FruitSort) => setParams({ sort: sort === k && desc ? null : k, dir: sort === k && !desc ? 'desc' : null });
-  const head = (k: FruitSort, label: string, right = false) => (
-    <th scope="col" aria-sort={sort === k ? (desc ? 'descending' : 'ascending') : undefined} className={`${th} ${right ? 'text-right' : 'text-left'}`}>
-      <button type="button" onClick={() => sortBy(k)} className={`inline-flex items-center gap-1 ${right ? 'flex-row-reverse' : ''} ${sort === k ? 'text-white' : ''}`}>
+  // On a phone the tree, variety and date columns are left out: tree and date are in the fruit's code
+  // (A3-20261028-01), the variety has its filter and the comparison above.
+  const wide = 'hidden sm:table-cell';
+  const head = (k: FruitSort, label: string, align: boolean | 'center' = false, extra = '') => (
+    <th scope="col" aria-sort={sort === k ? (desc ? 'descending' : 'ascending') : undefined} className={`${th} ${extra} ${align === 'center' ? 'text-center' : align ? 'text-right' : 'text-left'}`}>
+      <button type="button" onClick={() => sortBy(k)} className={`inline-flex items-center gap-1 ${align === true ? 'flex-row-reverse' : ''} ${sort === k ? 'text-white' : ''}`}>
         {label}
         {sort === k && (desc ? <ArrowDown className="w-3 h-3" /> : <ArrowUp className="w-3 h-3" />)}
       </button>
@@ -113,29 +118,29 @@ export const FruitsPage: React.FC = () => {
             <caption className="text-left px-3 pt-3 pb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">{t('fr.perVariety')}</caption>
             <thead>
               <tr className="text-[11px] uppercase tracking-wide text-slate-500">
-                <th scope="col" className="px-3 py-1.5 text-left font-semibold">{t('fr.variant')}</th>
-                <th scope="col" className="px-3 py-1.5 text-right font-semibold">{t('hv2.fruit')}</th>
-                <th scope="col" className="px-3 py-1.5 text-right font-semibold">kg</th>
-                <th scope="col" className="px-3 py-1.5 text-right font-semibold">{t('fr.col.weight')}</th>
-                <th scope="col" className="px-3 py-1.5 text-right font-semibold">{t('fr.col.aroma')}</th>
-                <th scope="col" className="px-3 py-1.5 text-right font-semibold">{t('fr.col.skin')}</th>
-                <th scope="col" className="px-3 py-1.5 text-right font-semibold">{t('fr.col.shape')}</th>
+                <th scope="col" className="px-2 sm:px-3 py-1.5 text-left font-semibold whitespace-nowrap">{t('fr.variant')}</th>
+                <th scope="col" className="px-2 sm:px-3 py-1.5 text-right font-semibold whitespace-nowrap hidden sm:table-cell">{t('hv2.fruit')}</th>
+                <th scope="col" className="px-2 sm:px-3 py-1.5 text-right font-semibold whitespace-nowrap hidden sm:table-cell">kg</th>
+                <th scope="col" className="px-2 sm:px-3 py-1.5 text-right font-semibold whitespace-nowrap">{t('fr.col.avgWeight')}</th>
+                <th scope="col" className="px-1.5 sm:px-3 py-1.5 text-center font-semibold whitespace-nowrap">{t('fr.col.aroma')}</th>
+                <th scope="col" className="px-1.5 sm:px-3 py-1.5 text-center font-semibold whitespace-nowrap">{t('fr.col.skin')}</th>
+                <th scope="col" className="px-1.5 sm:px-3 py-1.5 text-center font-semibold whitespace-nowrap">{t('fr.col.shape')}</th>
               </tr>
             </thead>
             <tbody className="tabular">
               {varieties.map(({ variant: v, summary: s }) => (
                 <tr key={v} className={`border-t border-slate-100 ${variant === v ? 'bg-emerald-50' : ''}`}>
-                  <th scope="row" className="px-3 py-2 text-left font-semibold whitespace-nowrap">
+                  <th scope="row" className="px-2 sm:px-3 py-2 text-left font-semibold whitespace-nowrap">
                     <button type="button" onClick={() => setParams({ variant: variant === v || !v ? null : v })} className="text-emerald-800 hover:underline">
                       {v ? name(v) : t('fr.noVariety')}
                     </button>
                   </th>
-                  <td className="px-3 py-2 text-right">{fmt(s.n)}</td>
-                  <td className="px-3 py-2 text-right">{fmt(s.kg, 1)}</td>
-                  <td className="px-3 py-2 text-right">{fmt(s.avgG)}</td>
-                  <td className="px-3 py-2 text-right">{fmt(s.aroma, 1)}</td>
-                  <td className="px-3 py-2 text-right">{fmt(s.skin, 1)}</td>
-                  <td className="px-3 py-2 text-right">{fmt(s.shape, 1)}</td>
+                  <td className="px-2 sm:px-3 py-2 text-right hidden sm:table-cell">{fmt(s.n)}</td>
+                  <td className="px-3 py-2 text-right hidden sm:table-cell">{fmt(s.kg, 1)}</td>
+                  <td className="px-2 sm:px-3 py-2 text-right whitespace-nowrap">{kg(s.avgG)}</td>
+                  <td className="px-1.5 sm:px-3 py-2 text-center"><ScoreChip v={s.aroma} /></td>
+                  <td className="px-1.5 sm:px-3 py-2 text-center"><ScoreChip v={s.skin} /></td>
+                  <td className="px-1.5 sm:px-3 py-2 text-center"><ScoreChip v={s.shape} /></td>
                 </tr>
               ))}
             </tbody>
@@ -158,13 +163,13 @@ export const FruitsPage: React.FC = () => {
             <thead>
               <tr>
                 {head('code', t('fr.col.code'))}
-                {head('tree', t('fr.col.tree'))}
-                {head('variant', t('fr.col.variant'))}
-                {head('date', t('fr.col.date'))}
+                {head('tree', t('fr.col.tree'), false, wide)}
+                {head('variant', t('fr.col.variant'), false, wide)}
+                {head('date', t('fr.col.date'), false, wide)}
                 {head('weight', t('fr.col.weight'), true)}
-                {head('aroma', t('fr.col.aroma'), true)}
-                {head('skin', t('fr.col.skin'), true)}
-                {head('shape', t('fr.col.shape'), true)}
+                {head('aroma', t('fr.col.aroma'), 'center')}
+                {head('skin', t('fr.col.skin'), 'center')}
+                {head('shape', t('fr.col.shape'), 'center')}
               </tr>
             </thead>
             <tbody className="tabular">
@@ -175,7 +180,7 @@ export const FruitsPage: React.FC = () => {
                       {r.code || `${r.treeId || '—'} #${r.index + 1}`}
                     </Link>
                   </td>
-                  <td className={td}>
+                  <td className={`${td} ${wide}`}>
                     {r.treeId ? (
                       <Link to={treeUrl(r.treeId)} className="font-mono font-bold text-slate-900 hover:underline">
                         {r.treeId}
@@ -184,27 +189,30 @@ export const FruitsPage: React.FC = () => {
                       r.block
                     )}
                   </td>
-                  <td className={`${td} text-slate-700`} title={name(r.variant)}>
+                  <td className={`${td} ${wide} text-slate-700`} title={name(r.variant)}>
                     {r.variant || '—'}
                   </td>
-                  <td className={`${td} text-slate-700`}>{formatShortDate(r.date)}</td>
-                  <td className={`${td} text-right font-semibold`}>{fmt(r.weightG)}</td>
-                  <td className={`${td} text-right`}>{r.aroma}</td>
-                  <td className={`${td} text-right`}>{r.skin}</td>
-                  <td className={`${td} text-right`}>{r.shape}</td>
+                  <td className={`${td} ${wide} text-slate-700`}>{formatShortDate(r.date)}</td>
+                  <td className={`${td} text-right font-semibold`}>{kg(r.weightG)}</td>
+                  <td className={`${td} text-center`}><ScoreChip v={r.aroma} /></td>
+                  <td className={`${td} text-center`}><ScoreChip v={r.skin} /></td>
+                  <td className={`${td} text-center`}><ScoreChip v={r.shape} /></td>
                 </tr>
               ))}
             </tbody>
             {sum && (
               <tfoot className="tabular font-semibold text-slate-800 bg-slate-50">
                 <tr>
-                  <th scope="row" colSpan={4} className="px-2.5 py-2 text-left text-xs font-semibold">
-                    {t('fr.sum', { n: fmt(sum.n), kg: fmt(sum.kg, 2), avg: fmt(sum.avgG) })}
+                  <th scope="row" className="px-2.5 py-2 text-left text-xs font-semibold sm:hidden">
+                    {t('fr.sum', { n: fmt(sum.n), kg: fmt(sum.kg, 2) })}
                   </th>
-                  <td className="px-2.5 py-2 text-right text-xs text-slate-500">{t('fr.avg')}</td>
-                  <td className="px-2.5 py-2 text-right">{fmt(sum.aroma, 1)}</td>
-                  <td className="px-2.5 py-2 text-right">{fmt(sum.skin, 1)}</td>
-                  <td className="px-2.5 py-2 text-right">{fmt(sum.shape, 1)}</td>
+                  <th scope="row" colSpan={4} className="px-2.5 py-2 text-left text-xs font-semibold hidden sm:table-cell">
+                    {t('fr.sum', { n: fmt(sum.n), kg: fmt(sum.kg, 2) })}
+                  </th>
+                  <td className="px-2.5 py-2 text-right whitespace-nowrap">{kg(sum.avgG)}</td>
+                  <td className="px-2.5 py-2 text-center"><ScoreChip v={sum.aroma} avg /></td>
+                  <td className="px-2.5 py-2 text-center"><ScoreChip v={sum.skin} avg /></td>
+                  <td className="px-2.5 py-2 text-center"><ScoreChip v={sum.shape} avg /></td>
                 </tr>
               </tfoot>
             )}
@@ -323,7 +331,7 @@ export const FruitPage: React.FC<{ fruitKey: string }> = ({ fruitKey }) => {
           {editing ? (
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
-                {field('weightG', t('fr.col.weight'))}
+                {field('weightG', `${t('fr.col.weight')} (gram)`)}
                 {SCORES.map(([k, label]) => (
                   <React.Fragment key={k}>{field(k, `${t(label)} (1-5)`, t(`fr.scale.${k}`))}</React.Fragment>
                 ))}
@@ -350,21 +358,13 @@ export const FruitPage: React.FC<{ fruitKey: string }> = ({ fruitKey }) => {
               </div>
             </div>
           ) : (
-            <dl className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              <div className="p-3 rounded-lg bg-slate-50">
-                <dt className="text-xs text-slate-500">{t('fr.col.weight')}</dt>
-                <dd className="text-lg font-bold tabular text-slate-900">{f.weightG.toLocaleString(locale)}</dd>
-              </div>
-              {SCORES.map(([k, label]) => (
-                <div key={k} className="p-3 rounded-lg bg-slate-50" title={t(`fr.scale.${k}`)}>
-                  <dt className="text-xs text-slate-500">{t(label)}</dt>
-                  <dd className="text-lg font-bold tabular text-slate-900">
-                    {f[k]}
-                    <span className="text-xs font-normal text-slate-500"> / 5</span>
-                  </dd>
-                </div>
-              ))}
-            </dl>
+            <div className="space-y-2">
+              <p className="leading-none">
+                <span className="text-xs text-slate-500 block mb-1">{t('fr.col.weight')}</span>
+                <span className="text-2xl font-bold tabular text-slate-900">{(f.weightG / 1000).toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kg</span>
+              </p>
+              <ScoreBoxes scores={{ aroma: f.aroma, skin: f.skin, shape: f.shape }} />
+            </div>
           )}
         </section>
 
@@ -378,7 +378,7 @@ export const FruitPage: React.FC<{ fruitKey: string }> = ({ fruitKey }) => {
                   <li key={r.key}>
                     <Link to={fruitUrl(r.key)} replace className="min-h-9 px-2.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 inline-flex items-center gap-2 text-xs">
                       <span className="font-mono font-semibold text-emerald-800">{r.code || `#${r.index + 1}`}</span>
-                      <span className="tabular text-slate-600">{r.weightG.toLocaleString(locale)} g</span>
+                      <span className="tabular text-slate-600">{(r.weightG / 1000).toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kg</span>
                     </Link>
                   </li>
                 ))}

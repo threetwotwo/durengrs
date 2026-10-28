@@ -10,7 +10,7 @@ import { useGuideOn } from '../lib/guideMode';
 import type { TreeReport } from '../types';
 import { useCrops } from './useCrops';
 import { cropFunnel, fruitOnTree } from '../lib/crop';
-import { ScoreRow, harvestTotals } from './HarvestBits';
+import { ScoreBoxes, harvestTotals } from './HarvestBits';
 import { fruitsUrl, reportUrl } from '../lib/router';
 import { useGuideData, StagePill } from './GuideWidgets';
 import { ProblemsByTree } from './Problems';
@@ -19,12 +19,12 @@ import { Link } from './Link';
 
 /**
  * Today: one screen that answers "what needs me now?".
+ *   0. Panen first: picked today, in 7 days and this season, the average scores, the latest harvests
  *   1. Needs you: problems getting worse or due for a photo check, trees to pick, routines due, trees nobody reported
  *      on this week (only what isn't zero)
  *   2. Problems on the farm, most urgent first
- *   3. Panen: picked today, in 7 days and this season (fruit, kg, trees), the average scores, the latest harvests
- *   4. The season per block: stages, harvest window, fruit on the trees, rain
- *   5. The latest reports, photos first
+ *   3. The season per block: stages, harvest window, fruit on the trees, rain
+ *   4. The latest reports, photos first
  */
 
 const LATEST = 6;
@@ -156,9 +156,16 @@ export const Dashboard: React.FC = () => {
   const panen = useMemo(() => {
     const weekFrom = diffDaysBack(today, 6);
     const season = cropFunnel(crops, seasons, harvests, archivedHarvestTrees).harvested;
-    const latest = [...harvests].sort((a, b) => b.date.localeCompare(a.date) || normalizeTimestamp((b as any).createdAt) - normalizeTimestamp((a as any).createdAt)).slice(0, 4);
+    const latest = [...harvests].sort((a, b) => b.date.localeCompare(a.date) || normalizeTimestamp((b as any).createdAt) - normalizeTimestamp((a as any).createdAt)).slice(0, 5);
+    // The latest harvests grouped by day, so the day is written once.
+    const days: Array<[string, typeof latest]> = [];
+    for (const h of latest) {
+      const last = days[days.length - 1];
+      if (last && last[0] === h.date) last[1].push(h);
+      else days.push([h.date, [h]]);
+    }
     const week = harvests.filter((h) => h.date >= weekFrom);
-    return { today: harvestTotals(harvests.filter((h) => h.date === today)), week: harvestTotals(week), season, latest, scores: harvestTotals(week.length ? week : harvests).scores, scoresWeek: week.some((h) => h.items?.length) };
+    return { today: harvestTotals(harvests.filter((h) => h.date === today)), week: harvestTotals(week), season, days, scores: harvestTotals(week.length ? week : harvests).scores, scoresWeek: week.some((h) => h.items?.length) };
   }, [harvests, crops, seasons, archivedHarvestTrees, today]);
   const kgFmt = (n: number) => n.toLocaleString(locale, { maximumFractionDigits: 1 });
 
@@ -181,6 +188,61 @@ export const Dashboard: React.FC = () => {
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-12 items-start">
         <div className="min-w-0 lg:col-span-7 space-y-5">
+          <section className={card} aria-labelledby="panen-h">
+            <SectionHead id="panen-h" title={t('today.panen')} to={panen.season.entries ? fruitsUrl() : '/harvest'} more={t(panen.season.entries ? 'fr.open' : 'hh.open')} />
+            {panen.season.entries === 0 ? (
+              <p className="p-5 text-sm text-slate-600">{t('hv2.none')}</p>
+            ) : (
+              <div>
+                <dl className="grid grid-cols-3 gap-3 px-4 pt-3 pb-2.5">
+                  {(
+                    [
+                      [t('today.panen.today'), panen.today.fruits, panen.today.kg],
+                      [t('today.panen.week'), panen.week.fruits, panen.week.kg],
+                      [t('today.panen.season'), panen.season.fruits, panen.season.weightKg],
+                    ] as Array<[string, number, number]>
+                  ).map(([label, n, kg]) => (
+                    <div key={label} className="min-w-0">
+                      <dt className="text-xs text-slate-500">{label}</dt>
+                      <dd className="leading-tight">
+                        <span className="text-lg font-bold tabular text-slate-900">{n.toLocaleString(locale)}</span>
+                        <span className="ml-1 text-xs text-slate-600">{t('hv2.fruit')}</span>
+                      </dd>
+                      <dd className="text-xs text-slate-500 tabular">{kg > 0 ? `${kgFmt(kg)} kg` : '—'}</dd>
+                    </div>
+                  ))}
+                </dl>
+                {panen.scores && (
+                  <div className="px-4 pb-3">
+                    <p className="text-xs text-slate-500 mb-1.5">{t(panen.scoresWeek ? 'today.panen.scores.week' : 'today.panen.scores')}</p>
+                    <ScoreBoxes scores={panen.scores} size="sm" />
+                  </div>
+                )}
+                <div className="border-t border-slate-100 py-1">
+                  {panen.days.map(([day, list]) => (
+                    <div key={day}>
+                      <p className="px-4 pt-2 pb-0.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">{day === today ? t('feed.today') : formatShortDate(day)}</p>
+                      <ul>
+                        {list.map((h) => (
+                          <li key={h.id}>
+                            <Link to={reportUrl(`harvest:${h.id}`)} className="flex items-center gap-3 px-4 py-1.5 hover:bg-slate-50 text-sm">
+                              <span className="w-10 shrink-0 font-mono font-bold text-slate-900">{h.treeId || h.block}</span>
+                              <span className="min-w-0 flex-1 truncate tabular">
+                                <span className="font-semibold text-slate-900">{h.fruits}</span> <span className="text-slate-600">{t('hv2.fruit')}</span>
+                                {h.weightKg ? <span className="text-slate-500"> · {kgFmt(h.weightKg)} kg</span> : null}
+                              </span>
+                              {h.workerPhone && <span className="text-xs text-slate-500 truncate max-w-24">{workerLabel(h.workerPhone)}</span>}
+                            </Link>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </section>
+
           <section className={card} aria-labelledby="need-h">
             <SectionHead id="need-h" title={t('today.need.title')} />
             {needs.length === 0 ? (
@@ -214,54 +276,6 @@ export const Dashboard: React.FC = () => {
         </div>
 
         <div className="min-w-0 lg:col-span-5 space-y-5">
-          <section className={card} aria-labelledby="panen-h">
-            <SectionHead id="panen-h" title={t('today.panen')} to={panen.season.entries ? fruitsUrl() : '/harvest'} more={t(panen.season.entries ? 'fr.open' : 'hh.open')} />
-            {panen.season.entries === 0 ? (
-              <p className="p-5 text-sm text-slate-600">{t('hv2.none')}</p>
-            ) : (
-              <div>
-                <dl className="grid grid-cols-3 gap-3 px-4 pt-3 pb-2.5">
-                  {(
-                    [
-                      [t('today.panen.today'), panen.today.fruits, panen.today.kg],
-                      [t('today.panen.week'), panen.week.fruits, panen.week.kg],
-                      [t('today.panen.season'), panen.season.fruits, panen.season.weightKg],
-                    ] as Array<[string, number, number]>
-                  ).map(([label, n, kg]) => (
-                    <div key={label} className="min-w-0">
-                      <dt className="text-xs text-slate-500">{label}</dt>
-                      <dd className="leading-tight">
-                        <span className="text-lg font-bold tabular text-slate-900">{n.toLocaleString(locale)}</span>
-                        <span className="ml-1 text-xs text-slate-600">{t('hv2.fruit')}</span>
-                      </dd>
-                      <dd className="text-xs text-slate-500 tabular">{kg > 0 ? `${kgFmt(kg)} kg` : '—'}</dd>
-                    </div>
-                  ))}
-                </dl>
-                {panen.scores && (
-                  <div className="px-4 pb-3" title={t(panen.scoresWeek ? 'today.panen.scores.week' : 'today.panen.scores')}>
-                    <ScoreRow scores={panen.scores} />
-                  </div>
-                )}
-                <ul className="border-t border-slate-100">
-                  {panen.latest.map((h) => (
-                    <li key={h.id}>
-                      <Link to={reportUrl(`harvest:${h.id}`)} className="flex items-center gap-2.5 px-4 py-2 hover:bg-slate-50 text-sm">
-                        <span className="w-12 shrink-0 text-xs text-slate-500 tabular">{h.date === today ? t('feed.today') : formatShortDate(h.date)}</span>
-                        <span className="w-10 shrink-0 font-mono font-bold text-slate-900">{h.treeId || h.block}</span>
-                        <span className="min-w-0 flex-1 truncate text-slate-700 tabular">
-                          {h.fruits} {t('hv2.fruit')}
-                          {h.weightKg ? <span className="text-slate-500"> · {kgFmt(h.weightKg)} kg</span> : null}
-                        </span>
-                        {h.workerPhone && <span className="text-xs text-slate-500 truncate max-w-24">{workerLabel(h.workerPhone)}</span>}
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </section>
-
           <section className={card} aria-labelledby="season-h">
             <SectionHead id="season-h" title={t('today.season')} to="/harvest" more={t('hh.open')} />
             <ul className="divide-y divide-slate-100">

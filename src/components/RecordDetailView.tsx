@@ -7,7 +7,7 @@ import { useT } from '../i18n';
 import { fruitUrl, goBack, navigate, reportUrl, treeUrl } from '../lib/router';
 import { fruitKey } from '../lib/fruits';
 import { buildFieldLog, type LogEntry, type LogKind, type TreeEdit } from '../lib/fieldLog';
-import { GRADES, harvestScores } from '../lib/fieldData';
+import { GRADES } from '../lib/fieldData';
 import { SEASON_TASKS } from '../lib/fieldInsights';
 import { TOPIC_BY_ID, pick } from '../lib/guide';
 import { diffDays, formatShortDate, todayStr } from '../lib/treatments';
@@ -17,6 +17,7 @@ import { ConditionBadge } from './ConditionBadge';
 import { improvingNow } from '../lib/trees';
 import { Link } from './Link';
 import { PhotoGrid, RecordCard, RecordGrid } from './Record';
+import { FruitTable } from './HarvestBits';
 import { StagePill, blockLine } from './GuideWidgets';
 import { TreeStageCell } from './StageBoard';
 import { useCrops } from './useCrops';
@@ -185,6 +186,9 @@ export const RecordDetailView: React.FC<{ kind: Kind; id: string }> = ({ kind, i
                 </div>
               ))}
             </dl>
+            {e.kind === 'harvest' && (
+              <FruitTable harvest={e.rec} hrefOf={(i) => fruitUrl(fruitKey(e.rec, e.rec.items![i], i))} onOpen={(href) => navigate(href)} />
+            )}
           </div>
 
           <footer className="px-4 sm:px-5 py-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-sm text-slate-600">
@@ -300,43 +304,10 @@ function recordRows(
     case 'harvest': {
       const h = e.rec;
       rows.push([t('rec.f.fruits'), <strong className="tabular">{h.fruits}</strong>]);
-      if (h.weightKg) rows.push([t('rec.f.weight'), `${h.weightKg} kg`]);
+      if (h.weightKg) rows.push([t('rec.f.weight'), `${h.weightKg.toLocaleString(lang === 'id' ? 'id-ID' : 'en-GB', { maximumFractionDigits: 2 })} kg`]);
       const graded = GRADES.filter((g) => h.grades?.[g]);
       if (graded.length) rows.push([t('rec.f.grades'), graded.map((g) => `${t(`grade.${g}`)} ${h.grades![g]}`).join(' · ')]);
-      if (h.items?.length) {
-        const sc = harvestScores(h.items)!;
-        const n = (x: number) => x.toLocaleString(lang === 'id' ? 'id-ID' : 'en-GB', { maximumFractionDigits: 1 });
-        rows.push([t('hv.avgScores'), t('hv.scores', { a: n(sc.aroma), k: n(sc.skin), b: n(sc.shape) })]);
-        rows.push([
-          t('hv.perFruit'),
-          <table className="text-xs tabular">
-            <thead>
-              <tr className="text-slate-500 text-left">
-                <th className="pr-3 font-medium">{h.items.some((f) => f.code) ? t('hv.col.code') : '#'}</th>
-                <th className="pr-3 font-medium text-right">{t('hv.col.weight')}</th>
-                <th className="pr-3 font-medium text-right">{t('hv.col.aroma')}</th>
-                <th className="pr-3 font-medium text-right">{t('hv.col.skin')}</th>
-                <th className="font-medium text-right">{t('hv.col.shape')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {h.items.map((f, i) => (
-                <tr key={i}>
-                  <td className="pr-3 whitespace-nowrap">
-                    <Link to={fruitUrl(fruitKey(h, f, i))} className="font-mono text-emerald-800 hover:underline">
-                      {f.code || i + 1}
-                    </Link>
-                  </td>
-                  <td className="pr-3 text-right">{f.weightG.toLocaleString(lang === 'id' ? 'id-ID' : 'en-GB')} g</td>
-                  <td className="pr-3 text-right">{f.aroma}</td>
-                  <td className="pr-3 text-right">{f.skin}</td>
-                  <td className="text-right">{f.shape}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>,
-        ]);
-      }
+      // The fruits' averages are the last row of the per-fruit table below.
       if (h.problems?.length) rows.push([t('rec.f.problems'), `${h.problems.map((p) => t(`rec.hv.p.${p}`)).join(', ')}${h.problemFruits ? ` (${t('log.s.fruit', { n: h.problemFruits })})` : ''}`]);
       if (h.variant) rows.push([t('common.variant'), h.variant]);
       rows.push([t('rec.f.pickedOn'), formatShortDate(h.date)]);
