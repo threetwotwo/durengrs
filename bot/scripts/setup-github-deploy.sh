@@ -4,7 +4,8 @@
 #
 #   bash scripts/setup-github-deploy.sh
 #
-# It needs gcloud (already signed in) and the GitHub CLI (brew install gh). It:
+# It needs gcloud (already signed in). With the GitHub CLI (gh) it stores the secrets itself; without it, it copies
+# each one to the clipboard and you paste it on GitHub's secrets page. It:
 #   1. creates a deploy account "github-deploy" in whatsapp-survey-509713, allowed to deploy the bot (Cloud Run) and
 #      the webapp (Firebase Hosting and rules in duren-db), and makes a key for it;
 #   2. stores that key and your three secret files as encrypted GitHub secrets of threetwotwo/durengrs.
@@ -20,8 +21,11 @@ for f in env.yaml service-account.json private_key.pem; do
   [ -f "$f" ] || { echo "❌ $f is not in this folder. Run this inside the bot folder you deploy from."; exit 1; }
 done
 command -v gcloud >/dev/null || { echo "❌ gcloud is not installed."; exit 1; }
-command -v gh >/dev/null || { echo "❌ GitHub CLI missing. Install it with: brew install gh"; exit 1; }
-gh auth status >/dev/null 2>&1 || gh auth login --hostname github.com --git-protocol https --web
+USE_GH=0
+if command -v gh >/dev/null; then
+  USE_GH=1
+  gh auth status >/dev/null 2>&1 || gh auth login --hostname github.com --git-protocol https --web
+fi
 
 echo "→ Deploy account"
 gcloud iam service-accounts describe "$SA" --project "$BOT" >/dev/null 2>&1 ||
@@ -36,9 +40,27 @@ trap 'rm -f "$KEY"' EXIT
 gcloud iam service-accounts keys create "$KEY" --iam-account "$SA" --project "$BOT" >/dev/null
 
 echo "→ GitHub secrets"
-gh secret set GCP_DEPLOY_KEY -R "$REPO" < "$KEY"
-gh secret set BOT_ENV_YAML -R "$REPO" < env.yaml
-gh secret set BOT_SERVICE_ACCOUNT -R "$REPO" < service-account.json
-gh secret set FLOW_PRIVATE_KEY -R "$REPO" < private_key.pem
+if [ "$USE_GH" = 1 ]; then
+  gh secret set GCP_DEPLOY_KEY -R "$REPO" < "$KEY"
+  gh secret set BOT_ENV_YAML -R "$REPO" < env.yaml
+  gh secret set BOT_SERVICE_ACCOUNT -R "$REPO" < service-account.json
+  gh secret set FLOW_PRIVATE_KEY -R "$REPO" < private_key.pem
+else
+  URL="https://github.com/$REPO/settings/secrets/actions/new"
+  echo ""
+  echo "Now 4 secrets go on GitHub. For each one this script copies the value to your clipboard."
+  echo "On the page that opens: type the Name shown, click in Secret, press Cmd+V, click 'Add secret'."
+  open "$URL" 2>/dev/null || echo "Open: $URL"
+  n=1
+  for pair in "GCP_DEPLOY_KEY:$KEY" "BOT_ENV_YAML:env.yaml" "BOT_SERVICE_ACCOUNT:service-account.json" "FLOW_PRIVATE_KEY:private_key.pem"; do
+    name="${pair%%:*}"; file="${pair#*:}"
+    pbcopy < "$file"
+    echo ""
+    echo "[$n/4] Copied. Name: $name"
+    read -r -p "      Paste it on GitHub, click 'Add secret', then press Enter here (and click 'New repository secret' for the next one)… " _
+    n=$((n + 1))
+  done
+  printf '' | pbcopy
+fi
 
 echo "✅ Done. Every push to main now deploys. First run by hand: https://github.com/$REPO/actions"
