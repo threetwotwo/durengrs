@@ -282,6 +282,18 @@ function summaryLine(data, date, phone, now = Date.now()) {
   return `${kes}. ${pan}.${mineNote}`;
 }
 
+/**
+ * Which day RINGKASAN in the chat shows: today, but in the morning (before 12:00 WIB) while the worker has recorded
+ * nothing yet today, yesterday — the day the 06:00 message was about ("Balas RINGKASAN untuk melihat lengkapnya").
+ * `today`: the day's data (loadDay of today).
+ */
+function ownSummaryDay(today, date, phone, now = Date.now()) {
+  const m = mine(today, phone);
+  const nothingYet = !m.reports.length && !m.harvests.length && !m.counts.length && !m.clusters.length && !m.rain && !m.tasks.length;
+  const hourWib = new Date(now + 7 * 3600e3).getUTCHours();
+  return nothingYet && hourWib < 12 ? R.addDays(date, -1) : date;
+}
+
 const SENT_REF = () => db.collection('farmMeta').doc('dailySummary');
 
 /**
@@ -321,4 +333,4 @@ async function sendDailySummary({ date = R.todayStr(), to, dry = false, send }) 
   return { date, sent: out };
 }
 
-module.exports = { dayWord, loadDay, digest, mine, healthLines, harvestLines, condense, buildSummary, summaryLine, sendDailySummary, dayTitle };
+module.exports = { dayWord, loadDay, digest, mine, healthLines, harvestLines, condense, buildSummary, summaryLine, sendDailySummary, dayTitle, ownSummaryDay };

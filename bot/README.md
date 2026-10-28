@@ -131,7 +131,7 @@ See `.env.example` (placeholders only). Never set `PORT` on Cloud Run.
 | `VERIFY_TOKEN` | webhook verification, also guards `/ai-check` and `/cases-backfill` |
 | `WHATSAPP_TOKEN`, `PHONE_NUMBER_ID` | sending messages (replies go out from the number that received the message; this is the fallback) |
 | `FLOW_ID`, `FARM_FLOW_ID` | the published tree Flow (KESEHATAN and PANEN) and farm Flow |
-| `SUMMARY_TEMPLATE` | optional: the approved WhatsApp template for the daily summary, for workers who have not messaged in 24 hours |
+| `SUMMARY_TEMPLATE` | the WhatsApp template for the daily summary, for workers who have not messaged in 24 hours; default `ringkasan_harian`, `""` for none |
 | `FLOW_PRIVATE_KEY_FILE` | private key of the Flow endpoint |
 | `GOOGLE_SERVICE_ACCOUNT_KEY_FILE`, `STORAGE_BUCKET` | Firestore and Storage (bucket name from Firebase console → Storage) |
 | `GEMINI_API_KEY` | Google AI Studio key (`AIza…` or `AQ.…`); without it nothing is sent to Gemini |
@@ -176,17 +176,19 @@ weeks, dated; the week's count) and **Laporan PANEN** (the latest harvests of tw
 their own with fruit codes; the week's total). Sending **RINGKASAN** in the chat gets today's any time.
 `lib/summary.js`; sent once per day summarised per number (`farmMeta/dailySummary`).
 
-- **Schedule:** `.github/workflows/daily-summary.yml` (GitHub Actions, 05:55 WIB, as GitHub can start a few minutes
-  late) calls `/daily-summary?date=yesterday` with the token from the `BOT_ENV_YAML` secret. By hand: GitHub › Actions
-  › Daily summary to workers › Run workflow. Its log shows counts only. GitHub pauses scheduled runs in a repository
-  with no commits for 60 days.
+- **Schedule:** the Cloud Scheduler job `daily-summary` (project `whatsapp-survey-509713`, `asia-southeast1`,
+  `0 6 * * *` Asia/Jakarta) calls `/daily-summary?token=<VERIFY_TOKEN>&date=yesterday`. Console › Cloud Scheduler ›
+  daily-summary › Force run sends now (nobody gets the same day twice). Backup: `.github/workflows/daily-summary.yml`
+  at 06:30 WIB reaches whoever the 06:00 run missed; its notice counts "already sent". By hand: GitHub › Actions ›
+  Daily summary to workers › Run workflow. Its log shows counts only.
 - **Test first:** `https://<service>/daily-summary?token=<VERIFY_TOKEN>&to=628…` sends today's to that number only
   (`&date=yesterday` for yesterday's); `&dry=1` shows every worker's message without sending anything.
 - **24-hour rule:** WhatsApp lets the bot send free text only within 24 hours of the worker's own last message
-  (`chatSeen/{phone}`). Outside that, it sends the approved template named in `SUMMARY_TEMPLATE` (category Utility,
-  language Indonesian `id`), with two values: {{1}} the day ("Selasa, 27 Okt 2026") and {{2}} a one-line version.
-  Suggested body: `📋 Ringkasan Kebun Cilowong, {{1}}` / `{{2}}` / `Balas *RINGKASAN* untuk melihat lengkapnya.`
-  Without the template those workers are skipped (the response says so).
+  (`chatSeen/{phone}`). Outside that, it sends the approved template `ringkasan_harian` (or the one named in
+  `SUMMARY_TEMPLATE`): category Utility, language Indonesian (`id`), two values: {{1}} the day ("Rabu, 28 Okt 2026")
+  and {{2}} a one-line version. Body: `📋 Ringkasan Kebun Cilowong, {{1}}` / `{{2}}` / `Balas *RINGKASAN* untuk
+  melihat lengkapnya.` Until Meta approves it those workers are not sent (the response says why). RINGKASAN in the
+  morning, before the worker has recorded anything that day, shows yesterday's, the day the message was about.
 
 ## Flow setup
 

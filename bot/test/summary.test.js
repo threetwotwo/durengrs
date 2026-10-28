@@ -123,3 +123,13 @@ test('the 06:00 summary is of yesterday: "kemarin" where the day summary says "h
   assert.doesNotMatch(text, /hari ini/i);
   assert.match(summaryLine(busy(), day, U, morning), /^KESEHATAN: 3 laporan kemarin\. PANEN: 3 buah kemarin/);
 });
+
+test('RINGKASAN in the morning, before the worker has recorded anything today, is of yesterday (as the 06:00 message)', () => {
+  const { ownSummaryDay } = require('../lib/summary');
+  const morning = Date.parse(`${day}T07:30:00+07:00`);
+  const afternoon = Date.parse(`${day}T13:00:00+07:00`);
+  assert.equal(ownSummaryDay(busy(), day, '628199990000', morning), '2026-10-26');
+  assert.equal(ownSummaryDay(busy(), day, '628199990000', afternoon), day);
+  assert.equal(ownSummaryDay(busy(), day, U, morning), day, 'Udin reported today: today');
+  assert.equal(ownSummaryDay(busy(), day, B, morning), day, 'Budi reported today: today');
+});

@@ -6,7 +6,7 @@
 //   KEBUN (or the "Hujan & Pekerjaan" button) gets the farm Flow (flows/flow-farm.json, FARM_FLOW_ID).
 //   When a report Flow completes, Gemini reads the report (lib/ai.js) and the reply comes with a fresh Flow message.
 //   RINGKASAN gets the day's summary (lib/summary.js); /daily-summary sends yesterday's to the workers at 06:00 WIB
-//   (.github/workflows/daily-summary.yml).
+//   (Cloud Scheduler job daily-summary; .github/workflows/daily-summary.yml at 06:30 as a backup).
 require('dotenv').config();
 const express = require('express');
 const { decryptRequest, encryptResponse } = require('./lib/encryption');
@@ -18,7 +18,7 @@ const { analyzeReport, checkGemini } = require('./lib/ai');
 const { backfillCases } = require('./lib/backfill');
 const { syncRain } = require('./lib/rain');
 const { db: fdb, admin } = require('./lib/firestore');
-const { loadDay, buildSummary, sendDailySummary, dayTitle } = require('./lib/summary');
+const { loadDay, buildSummary, sendDailySummary, dayTitle, ownSummaryDay } = require('./lib/summary');
 const { todayStr, addDays } = require('./lib/rules');
 const { parseCommand } = require('./lib/commands');
 
@@ -26,7 +26,10 @@ const app = express();
 app.use(express.json());
 
 const { AsyncLocalStorage } = require('async_hooks');
-const { VERIFY_TOKEN, WHATSAPP_TOKEN, PHONE_NUMBER_ID, FLOW_ID, FARM_FLOW_ID, SUMMARY_TEMPLATE } = process.env;
+const { VERIFY_TOKEN, WHATSAPP_TOKEN, PHONE_NUMBER_ID, FLOW_ID, FARM_FLOW_ID } = process.env;
+// The daily summary's WhatsApp template (WhatsApp Manager › Message templates). A name, not a secret, so it is set
+// here; SUMMARY_TEMPLATE in env.yaml overrides it ("" for none).
+const SUMMARY_TEMPLATE = process.env.SUMMARY_TEMPLATE ?? 'ringkasan_harian';
 
 // Replies go out from the WhatsApp number that RECEIVED the message (taken from the webhook),
 // so the test number and the production number can both work. PHONE_NUMBER_ID is only the fallback.
@@ -250,9 +253,12 @@ async function lastSeen(phone) {
   return at && typeof at.toMillis === 'function' ? at.toMillis() : 0;
 }
 
+// RINGKASAN: today's summary; in the morning, while the worker has recorded nothing yet today, yesterday's (lib/summary.js).
 async function sendOwnSummary(to) {
-  const date = todayStr();
-  const data = await loadDay(date);
+  const today = todayStr();
+  let data = await loadDay(today);
+  const date = ownSummaryDay(data, today, to);
+  if (date !== today) data = await loadDay(date);
   const name = (data.workers.find((w) => String(w.phone || w.id).replace(/\D/g, '') === to) || {}).name || '';
   return sendText(to, buildSummary(data, date, to, Date.now(), name).slice(0, 4000));
 }
@@ -372,7 +378,7 @@ app.post(['/send-tree-flow', '/send-tree-lookup'], async (req, res) => {
 });
 
 // The daily summary: https://<service>/daily-summary?token=<VERIFY_TOKEN>, called every morning at 06:00 WIB with
-// &date=yesterday (.github/workflows/daily-summary.yml): every worker on the Workers page whose switch is on gets theirs
+// &date=yesterday (Cloud Scheduler job daily-summary; the GitHub workflow at 06:30 as a backup): every worker on the Workers page whose switch is on gets theirs
 // (once per day summarised, retries are skipped). &date=YYYY-MM-DD for another day (default today); &to=628… sends to
 // one number only (a test), &dry=1 shows the messages without sending anything.
 app.get('/daily-summary', async (req, res) => {
