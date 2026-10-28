@@ -182,14 +182,17 @@ export function useRecordView() {
         // The scores are on the tile when there is no photo; with photos, as a tag.
         const sc = h.photos?.length ? harvestScores(h.items) : null;
         if (sc) tags.push({ key: 'scores', label: t('hv.scores', { a: num(sc.aroma), k: num(sc.skin), b: num(sc.shape) }), tone: 'plain' });
-        // Under the tile, the fruits' codes rather than the same numbers again.
+        // Under the tile, the fruits' codes rather than the same numbers again (the card keeps its own height: a
+        // glance, not a photo-sized block).
         const codes = (h.items || []).map((f) => f?.code).filter(Boolean) as string[];
         const text =
           tiled && codes.length
             ? codes.length === 1
               ? t('hv.codes.one', { code: codes[0] })
               : t('hv.codes', { from: codes[0], to: codes[codes.length - 1].split('-').pop()! })
-            : harvestLine(h.fruits, h.weightKg);
+            : tiled
+              ? '' // the tile already says fruit and kilos
+              : harvestLine(h.fruits, h.weightKg);
         return { ...base, kind: t('log.kind.harvest'), text, tags };
       }
       case 'count':
@@ -294,7 +297,7 @@ export const RecordCard: React.FC<{ entry: LogEntry; filed?: LogEntry[]; timeOnl
     <article
       className={`relative bg-white rounded-xl border overflow-hidden flex flex-col transition-colors hover:border-slate-400 focus-within:border-emerald-500 ${
         view.alert ? 'border-rose-300' : 'border-slate-200'
-      }`}
+      } ${!hasPhoto && e.kind === 'harvest' ? 'self-start' : ''}`}
     >
       <Link
         to={view.href}

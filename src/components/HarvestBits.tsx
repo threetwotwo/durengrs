@@ -11,21 +11,21 @@ const CARD_TONE = {
   plain: 'bg-slate-50 border-slate-200 text-slate-900',
 } as const;
 
-/** One average as a card: its name, the value large; coloured by how good a score is (plain for a weight). */
+/** One average as a small card: its name, the value; coloured by how good a score is (plain for a weight). */
 const AvgCard: React.FC<{ label: string; value: string; tone: keyof typeof CARD_TONE; unit?: string }> = ({ label, value, tone, unit }) => (
-  <div className={`rounded-lg border px-3 py-2 min-w-0 flex flex-col justify-center ${CARD_TONE[tone]}`}>
-    <dt className="text-xs font-medium opacity-80 truncate">{label}</dt>
+  <div className={`rounded-lg border px-2 py-1.5 min-w-0 ${CARD_TONE[tone]}`}>
+    <dt className="text-[11px] font-medium opacity-80 truncate">{label}</dt>
     <dd className="tabular leading-tight truncate">
-      <span className="text-3xl font-bold">{value}</span>
-      {unit && <span className="ml-0.5 text-xs opacity-60">{unit}</span>}
+      <span className="text-lg font-bold">{value}</span>
+      {unit && <span className="ml-0.5 text-[11px] opacity-60">{unit}</span>}
     </dd>
   </div>
 );
 
 /**
- * In place of photos on a harvest card: the harvest's averages. A headline (fruit, kilos), then four cards: the
- * average weight and the average aroma, kulit and bentuk, coloured good/middling/poor. Every fruit is on the
- * harvest's own page. A harvest written in a report has no fruits: its grades instead.
+ * In place of photos on a harvest card, the harvest at a glance (not photo-sized): a headline (fruit, kilos), then one
+ * row of small cards: the average weight per fruit and the average aroma, kulit and bentuk, coloured
+ * good/middling/poor. Every fruit is on the harvest's own page. A harvest written in a report: its grades instead.
  */
 export const HarvestTile: React.FC<{ harvest: Harvest }> = ({ harvest: h }) => {
   const { t, locale } = useT();
@@ -35,32 +35,21 @@ export const HarvestTile: React.FC<{ harvest: Harvest }> = ({ harvest: h }) => {
   const grades = GRADES.filter((g) => h.grades?.[g]);
   const avgKg = items.length ? items.reduce((s, f) => s + f.weightG, 0) / items.length / 1000 : h.weightKg && h.fruits ? h.weightKg / h.fruits : 0;
   return (
-    <div className="aspect-[4/3] bg-white border-b border-slate-100 p-3 flex flex-col gap-3" aria-hidden>
+    <div className="px-3 pt-3 pb-1 space-y-2.5" aria-hidden>
       <p className="flex items-baseline gap-1.5 text-slate-900">
         <span className="text-2xl font-bold tabular leading-none">{h.fruits}</span>
         <span className="text-sm font-semibold">{t('hv2.fruit')}</span>
         {!!h.weightKg && <span className="text-sm text-slate-500 tabular">· {num(h.weightKg, 2)} kg</span>}
       </p>
       {scores ? (
-        <dl className="flex-1 grid grid-cols-2 grid-rows-2 gap-2">
+        <dl className="grid grid-cols-4 gap-1.5">
           <AvgCard label={t('hv.tile.avgWeight')} value={num(avgKg, 2)} unit="kg" tone="plain" />
-          <AvgCard label={t('hv.col.aroma')} value={num(scores.aroma)} unit="/5" tone={scoreTone(scores.aroma)} />
-          <AvgCard label={t('hv.col.skin')} value={num(scores.skin)} unit="/5" tone={scoreTone(scores.skin)} />
-          <AvgCard label={t('hv.col.shape')} value={num(scores.shape)} unit="/5" tone={scoreTone(scores.shape)} />
+          <AvgCard label={t('hv.col.aroma')} value={num(scores.aroma)} tone={scoreTone(scores.aroma)} />
+          <AvgCard label={t('hv.col.skin')} value={num(scores.skin)} tone={scoreTone(scores.skin)} />
+          <AvgCard label={t('hv.col.shape')} value={num(scores.shape)} tone={scoreTone(scores.shape)} />
         </dl>
       ) : grades.length > 0 ? (
-        <ul className="rounded-lg border border-slate-200 divide-y divide-slate-100 text-sm">
-          {grades.map((g) => (
-            <li key={g} className="px-3 py-1.5 flex justify-between">
-              <span className="text-slate-600">{t(`grade.${g}`)}</span>
-              <span className="font-semibold tabular text-slate-900">{h.grades![g]}</span>
-            </li>
-          ))}
-        </ul>
-      ) : avgKg > 0 ? (
-        <dl className="grid grid-cols-2 gap-2">
-          <AvgCard label={t('hv.tile.avgWeight')} value={num(avgKg, 2)} unit="kg" tone="plain" />
-        </dl>
+        <p className="text-sm text-slate-700">{grades.map((g) => `${t(`grade.${g}`)} ${h.grades![g]}`).join(' · ')}</p>
       ) : null}
     </div>
   );
