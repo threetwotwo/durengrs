@@ -9,6 +9,10 @@ name: Daily summary to workers
 on:
   schedule:
     - cron: '55 22 * * *'
+  # A change to this file sends too (the bot sends each worker once per day summarised, so nothing goes twice).
+  push:
+    branches: [main]
+    paths: ['.github/workflows/daily-summary.yml']
   workflow_dispatch:
     inputs:
       date:
@@ -38,6 +42,6 @@ jobs:
             "https://durian-tree-lookup-239637876270.asia-southeast1.run.app/daily-summary" \
             --data-urlencode "token=$TOKEN" --data-urlencode "date=$DAY")
           if [ "$code" != 200 ]; then echo "::error::The bot answered HTTP $code"; rm -f out.json; exit 1; fi
-          jq -r '"Summary of \(.date): \([.sent[] | select(.ok == true)] | length) sent, \([.sent[] | select(.skipped)] | length) already sent, \([.sent[] | select(.ok == false)] | length) not sent" + (if .note then " (\(.note))" else "" end)' out.json
+          jq -r '"::notice::Summary of \(.date): \([.sent[] | select(.ok == true)] | length) sent, \([.sent[] | select(.skipped)] | length) already sent, \([.sent[] | select(.ok == false)] | length) not sent" + (if .note then " (\(.note))" else "" end)' out.json
           jq -r '[.sent[] | select(.ok == false) | .error] | group_by(.) | map("\(length) not sent: \(.[0])") | .[]' out.json | while IFS= read -r l; do echo "::warning::$l"; done
           rm -f out.json
