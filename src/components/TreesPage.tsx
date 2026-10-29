@@ -6,7 +6,7 @@ import { countUrl, treeUrl, useQueryParams } from '../lib/router';
 import { formatShortDate } from '../lib/treatments';
 import { improvingNow, plantedDateStr } from '../lib/trees';
 import { parseNum } from '../lib/num';
-import { type EditField, cellText, checkCell, countDates, countGrid, sameValue, toCsv, treeDraft } from '../lib/kebun';
+import { type EditField, avgOf, cellText, checkCell, countDates, countGrid, groupByVariety, sameValue, sumOf, tally, toCsv, treeDraft } from '../lib/kebun';
 import type { TreeCrop } from '../lib/crop';
 import {
   FARM_STAGES,
@@ -41,6 +41,8 @@ import { AddTreeSheet } from './AddTreeSheet';
  * counts, stage, health, labels, dose, notes). Type into a cell like in Google Sheets; every change is saved and
  * logged like the tree form. Paste from Google Sheets to update many cells at once; export what's shown as CSV.
  * Quick views: trees with an open problem, a problem due for a photo check, no report for a week, archived trees.
+ * Per variety (?by=variant): one row per variety of the trees shown, with how many trees, branches, clusters, fruit
+ * and counts added up, sizes averaged, and the stages, health and doses tallied; a variety opens its trees.
  */
 
 /** Quick views (`?show=`). Older links (?followup=1, ?stale=1) still land on the right one. */
@@ -63,6 +65,13 @@ interface Row {
   dose?: { product: string; dose: number };
 }
 
+/** A column's figure for a set of trees (one variety): what it sorts by, shows and exports. */
+interface Agg {
+  v?: number | string;
+  cell?: React.ReactNode;
+  csv?: string | number;
+}
+
 interface Col {
   key: string;
   group: Group;
@@ -73,7 +82,12 @@ interface Col {
   sort?: (r: Row) => number | string | undefined;
   csv: (r: Row) => string | number | undefined;
   cell?: (r: Row) => React.ReactNode;
+  /** Per variety: the column over the variety's trees (none: an empty cell). */
+  agg?: (rs: Row[]) => Agg;
 }
+
+const HEALTH_DOT: Record<Health, string> = { hijau: 'bg-emerald-500', kuning: 'bg-amber-400', merah: 'bg-rose-600' };
+const distinct = (list: Array<string | undefined>) => Array.from(new Set(list.filter((x): x is string => !!x))).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
 
 const num = (v: unknown) => {
   const n = typeof v === 'number' ? v : parseNum(String(v ?? ''));
@@ -97,7 +111,7 @@ const LABEL_CLS: Record<Label, string> = {
 };
 
 export const TreesPage: React.FC = () => {
-  const { t, lang } = useT();
+  const { t, lang, locale } = useT();
   const { trees, archivedTrees, cropCounts, updateTree, cases, variants } = useFarm();
   const [adding, setAdding] = useState(false);
   const { crops } = useCrops();
@@ -122,6 +136,8 @@ export const TreesPage: React.FC = () => {
     || (params.get('followup') === '1' ? 'due' : params.get('stale') === '1' ? 'stale' : params.get('archived') === '1' ? 'archived' : 'all');
   const sortKey = params.get('sort') || '';
   const desc = params.get('dir') === 'desc';
+  /** One row per variety instead of per tree. */
+  const byVariety = params.get('by') === 'variant';
 
   useEffect(() => {
     try {
@@ -168,6 +184,30 @@ export const TreesPage: React.FC = () => {
   };
 
   const cols: Col[] = useMemo(() => {
+    const fmt = (n: number) => n.toLocaleString(locale, { maximumFractionDigits: 2 });
+    const total = (f: (r: Row) => number | undefined) => (rs: Row[]): Agg => {
+      const v = sumOf(rs, f);
+      return { v, csv: v, cell: v === undefined ? null : fmt(v) };
+    };
+    const average = (f: (r: Row) => number | undefined) => (rs: Row[]): Agg => {
+      const a = avgOf(rs, f);
+      return a
+        ? {
+            v: a.avg,
+            csv: a.avg,
+            cell: (
+              <span title={t('kebun.avg.title', { n: a.n })}>
+                <span className="mr-0.5 text-xs text-slate-400" aria-hidden>ø</span>
+                {fmt(a.avg)}
+              </span>
+            ),
+          }
+        : {};
+    };
+    const list = (f: (r: Row) => string | undefined) => (rs: Row[]): Agg => {
+      const l = distinct(rs.map(f));
+      return { v: l.join(', '), csv: l.join(', '), cell: l.join(', ') };
+    };
     const field = (key: EditField, group: Group, label: string, right = true, title?: string): Col => ({
       key,
       group,
@@ -177,9 +217,17 @@ export const TreesPage: React.FC = () => {
       right,
       sort: (r) => (key === 'notes' || key === 'supplier' ? cellText(r.tree, key).toLowerCase() : num(r.tree[key])),
       csv: (r) => cellText(r.tree, key),
+      agg:
+        key === 'notes'
+          ? undefined
+          : key === 'supplier'
+            ? list((r) => cellText(r.tree, key))
+            : group === 'size'
+              ? average((r) => num(r.tree[key]))
+              : total((r) => num(r.tree[key])),
     });
     return [
-      { key: 'block', group: 'tree', label: t('common.block'), sort: (r) => r.tree.block, csv: (r) => r.tree.block, cell: (r) => r.tree.block },
+      { key: 'block', group: 'tree', label: t('common.block'), sort: (r) => r.tree.block, csv: (r) => r.tree.block, cell: (r) => r.tree.block, agg: list((r) => r.tree.block) },
       { key: 'variant', group: 'tree', label: t('common.variant'), sort: (r) => r.tree.variant, csv: (r) => r.tree.variant, cell: (r) => r.tree.variant },
       {
         key: 'planted',
@@ -188,6 +236,11 @@ export const TreesPage: React.FC = () => {
         sort: (r) => plantedDateStr(r.tree.datePlanted),
         csv: (r) => plantedDateStr(r.tree.datePlanted),
         cell: (r) => plantedDateStr(r.tree.datePlanted).slice(0, 4),
+        agg: (rs) => {
+          const years = distinct(rs.map((r) => plantedDateStr(r.tree.datePlanted).slice(0, 4)));
+          const text = years.length > 1 ? `${years[0]}–${years[years.length - 1]}` : years[0] || '';
+          return { v: years[0], csv: text, cell: text };
+        },
       },
       field('supplier', 'tree', t('trees.col.supplier'), false),
       field('canopySize', 'size', t('kebun.col.tajuk'), true, t('field.canopy')),
@@ -207,6 +260,7 @@ export const TreesPage: React.FC = () => {
             const c = r.counts?.get(d);
             return c ? <span title={t(`crop.stage.${c.stage}`)}>{c.count}</span> : null;
           },
+          agg: total((r) => r.counts?.get(d)?.count),
         })
       ),
       {
@@ -219,6 +273,24 @@ export const TreesPage: React.FC = () => {
         },
         csv: stageText,
         cell: (r) => <TreeStageCell tree={r.tree} crop={r.crop} compact />,
+        agg: (rs) => {
+          // The stages seen on the variety's trees, the most common first.
+          const seen = tally(rs, (r) => {
+            const s = observedNow(r.tree);
+            return s && !s.stale ? s.code : undefined;
+          });
+          const text = seen.map(([code, n]) => `${FARM_STAGE_INFO[code].label[lang]} ${n}`).join(', ');
+          return {
+            v: seen[0] ? FARM_STAGES.indexOf(seen[0][0]) : 99,
+            csv: text,
+            cell: seen.length ? (
+              <span title={text}>
+                {FARM_STAGE_INFO[seen[0][0]].label[lang]} <span className="text-slate-500 tabular">{seen[0][1]}</span>
+                {seen.length > 1 && <span className="text-xs text-slate-400"> +{seen.length - 1}</span>}
+              </span>
+            ) : null,
+          };
+        },
       },
       {
         key: 'health',
@@ -231,6 +303,25 @@ export const TreesPage: React.FC = () => {
             {r.health ? <HealthPill health={r.health} improving={improvingNow(r.tree)} /> : <span className="text-xs text-slate-400">{t('cond.not_assessed')}</span>}
           </span>
         ),
+        agg: (rs) => {
+          // How many trees are Hijau, Kuning and Merah.
+          const n = new Map(tally(rs, (r) => r.health));
+          const text = HEALTH.filter((h) => n.get(h)).map((h) => `${HEALTH_INFO[h].label[lang]} ${n.get(h)}`).join(', ');
+          return {
+            v: n.get('merah') || 0,
+            csv: text,
+            cell: (
+              <span className="inline-flex items-center gap-2.5" title={text}>
+                {HEALTH.filter((h) => n.get(h)).map((h) => (
+                  <span key={h} className="inline-flex items-center gap-1 tabular">
+                    <span className={`w-2 h-2 rounded-full ${HEALTH_DOT[h]}`} aria-hidden />
+                    {n.get(h)}
+                  </span>
+                ))}
+              </span>
+            ),
+          };
+        },
       },
       ...(['batang', 'tajuk', 'est', 'fruitset'] as const).map(
         (k): Col => ({
@@ -241,6 +332,25 @@ export const TreesPage: React.FC = () => {
           sort: (r) => (r.labels[k] ? ['skip', 'low', 'mid', 'high'].indexOf(r.labels[k]!) : -1),
           csv: (r) => r.labels[k] || '',
           cell: (r) => labelChip(r.labels[k]),
+          agg: (rs) => {
+            // How many trees have each label, in the label order.
+            const n = new Map(tally(rs, (r) => r.labels[k]));
+            const order = (['high', 'mid', 'low', 'skip'] as const).filter((l) => n.get(l));
+            return {
+              v: n.get('high') || 0,
+              csv: order.map((l) => `${t(`kebun.label.${l}`)} ${n.get(l)}`).join(', '),
+              cell: (
+                <span className="inline-flex items-center gap-1.5">
+                  {order.map((l) => (
+                    <span key={l} className="inline-flex items-center gap-0.5">
+                      {labelChip(l)}
+                      <span className="text-xs tabular text-slate-600">{n.get(l)}</span>
+                    </span>
+                  ))}
+                </span>
+              ),
+            };
+          },
         })
       ),
       {
@@ -258,13 +368,39 @@ export const TreesPage: React.FC = () => {
               {rules.dose.unit ? ` ${rules.dose.unit}` : ''} <span className="text-xs text-slate-500">{r.dose.product}</span>
             </span>
           ) : null,
+        agg: (rs) => {
+          // One total per product: different fertilisers are never added together.
+          const byProduct = new Map<string, number>();
+          for (const r of rs) if (r.dose) byProduct.set(r.dose.product, (byProduct.get(r.dose.product) || 0) + r.dose.dose);
+          const parts = [...byProduct].map(([product, n]) => ({ product, n: Math.round(n * 100) / 100 }));
+          return {
+            v: parts.reduce((s, p) => s + p.n, 0) || undefined,
+            csv: parts.map((p) => `${p.n}${rules.dose.unit ? ` ${rules.dose.unit}` : ''} ${p.product}`).join(', '),
+            cell: parts.map((p) => (
+              <span key={p.product} className="block whitespace-nowrap">
+                <strong className="tabular">{p.n}</strong>
+                {rules.dose.unit ? ` ${rules.dose.unit}` : ''} <span className="text-xs text-slate-500">{p.product}</span>
+              </span>
+            )),
+          };
+        },
       },
       field('notes', 'notes', t('common.notes'), false),
     ];
-  }, [t, lang, dates, rules]);
+  }, [t, lang, locale, dates, rules]);
 
   const shownCols = cols.filter((c) => !hidden.has(c.group));
   const editCols = shownCols.map((c, i) => (c.edit ? i : -1)).filter((i) => i >= 0);
+  // Per variety: how many trees first, and no variety column (each row is one).
+  const treesCol: Col = {
+    key: 'trees',
+    group: 'tree',
+    label: t('kebun.col.trees'),
+    right: true,
+    csv: () => 1,
+    agg: (rs) => ({ v: rs.length, csv: rs.length, cell: rs.length.toLocaleString(locale) }),
+  };
+  const viewCols = byVariety ? [treesCol, ...shownCols.filter((c) => c.key !== 'variant')] : shownCols;
 
   // Problems per tree (open and due for a photo check), for the quick views and the dot next to the ID.
   const problemsByTree = useMemo(() => {
@@ -344,6 +480,28 @@ export const TreesPage: React.FC = () => {
   }, [trees, variants]);
   const sum = (f: (r: Row) => number | undefined) => filtered.reduce((acc, r) => acc + (f(r) || 0), 0);
 
+  // Per variety: the trees shown, one row per variety, sorted by a column's figure (else by name).
+  const groups = (() => {
+    if (!byVariety) return [];
+    const names = new Map(variants.map((v) => [v.code, v.name]));
+    const list = [...groupByVariety(filtered)].map(([code, rs]) => ({ code, name: code ? names.get(code) || code : t('kebun.noVariety'), rows: rs }));
+    const byName = (a: (typeof list)[number], b: (typeof list)[number]) => (!a.code ? 1 : !b.code ? -1 : a.name.localeCompare(b.name));
+    const col = viewCols.find((c) => c.key === sortKey);
+    if (!col?.agg) return list.sort((a, b) => (sortKey === 'id' && desc ? -byName(a, b) : byName(a, b)));
+    const val = new Map(list.map((g) => [g.code, col.agg!(g.rows).v]));
+    return list.sort((a, b) => {
+      const x = val.get(a.code);
+      const y = val.get(b.code);
+      if (x === undefined && y === undefined) return byName(a, b);
+      if (x === undefined) return 1;
+      if (y === undefined) return -1;
+      const d = typeof x === 'number' && typeof y === 'number' ? x - y : String(x).localeCompare(String(y), undefined, { numeric: true });
+      return (desc ? -d : d) || byName(a, b);
+    });
+  })();
+  /** A variety's own trees: the per-tree sheet with the variety filter (the other filters kept). */
+  const openVariety = (code: string) => code && setParams({ by: null, variant: code, sort: null, dir: null });
+
   const focusCell = (ri: number, ci: number) =>
     requestAnimationFrame(() => (document.querySelector(`[data-cell="${ri}:${ci}"]`) as HTMLElement | null)?.focus());
 
@@ -378,13 +536,15 @@ export const TreesPage: React.FC = () => {
   };
 
   const exportCsv = () => {
-    const head = ['ID', ...shownCols.map((c) => c.label)];
-    const body = filtered.map((r) => [r.tree.id, ...shownCols.map((c) => c.csv(r))]);
+    const head = [byVariety ? t('kebun.col.variety') : 'ID', ...viewCols.map((c) => c.label)];
+    const body = byVariety
+      ? groups.map((g) => [g.code ? `${g.name}${g.name !== g.code ? ` (${g.code})` : ''}` : g.name, ...viewCols.map((c) => c.agg?.(g.rows).csv ?? '')])
+      : filtered.map((r) => [r.tree.id, ...shownCols.map((c) => c.csv(r))]);
     const blob = new Blob(['﻿' + toCsv([head, ...body])], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `kebun_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = `kebun_${byVariety ? 'varietas_' : ''}${new Date().toISOString().slice(0, 10)}.csv`;
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -394,7 +554,7 @@ export const TreesPage: React.FC = () => {
   const sortBy = (key: string) => setParams({ sort: sortKey === key && desc ? null : key, dir: sortKey === key && !desc ? 'desc' : null });
   const th = 'px-2.5 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-200 whitespace-nowrap border-b border-slate-700 bg-slate-900';
   const groupSpans = GROUPS.filter((g) => !hidden.has(g))
-    .map((g) => ({ g, n: shownCols.filter((c) => c.group === g).length }))
+    .map((g) => ({ g, n: viewCols.filter((c) => c.group === g).length }))
     .filter((x) => x.n > 0);
 
   return (
@@ -425,7 +585,7 @@ export const TreesPage: React.FC = () => {
       />
 
       <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-xs space-y-2.5">
-        <div className="grid grid-cols-2 lg:grid-cols-[1fr_auto_auto_auto_auto_auto] gap-2">
+        <div className="grid grid-cols-2 lg:grid-cols-[1fr_auto_auto_auto_auto_auto_auto] gap-2">
           <div className="relative col-span-2 lg:col-span-1">
             <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
@@ -437,36 +597,54 @@ export const TreesPage: React.FC = () => {
               className={`${inputCls} pl-9`}
             />
           </div>
-          <select value={block} onChange={(e) => setParams({ block: e.target.value || null })} aria-label={t('common.block')} className={inputCls}>
+          <select value={block} onChange={(e) => setParams({ block: e.target.value || null })} aria-label={t('common.block')} className={`${inputCls} order-2 lg:order-none`}>
             <option value="">{t('common.allBlocks')}</option>
             {blocks.map((b) => (
               <option key={b} value={b}>{t('common.blockN', { n: b })}</option>
             ))}
           </select>
-          <select value={variant} onChange={(e) => setParams({ variant: e.target.value || null })} aria-label={t('common.variant')} className={inputCls}>
+          <select value={variant} onChange={(e) => setParams({ variant: e.target.value || null })} aria-label={t('common.variant')} className={`${inputCls} order-2 lg:order-none`}>
             <option value="">{t('fr.allVariants')}</option>
             {varieties.map((v) => (
               <option key={v.code} value={v.code}>{v.name}</option>
             ))}
           </select>
-          <select value={stage} onChange={(e) => setParams({ stage: e.target.value || null })} aria-label={t('stage.col')} className={inputCls}>
+          <select value={stage} onChange={(e) => setParams({ stage: e.target.value || null })} aria-label={t('stage.col')} className={`${inputCls} order-2 lg:order-none`}>
             <option value="">{t('kebun.allStages')}</option>
             {FARM_STAGES.map((s) => (
               <option key={s} value={s}>{FARM_STAGE_INFO[s].label[lang]}</option>
             ))}
             <option value="unseen">{t('stage.unseen')}</option>
           </select>
-          <select value={health} onChange={(e) => setParams({ health: e.target.value || null, condition: null })} aria-label={t('kebun.col.health')} className={inputCls}>
+          <select value={health} onChange={(e) => setParams({ health: e.target.value || null, condition: null })} aria-label={t('kebun.col.health')} className={`${inputCls} order-2 lg:order-none`}>
             <option value="">{t('common.allConditions')}</option>
             {HEALTH.map((h) => (
               <option key={h} value={h}>{HEALTH_INFO[h].label[lang]}</option>
             ))}
             <option value="none">{t('cond.not_assessed')}</option>
           </select>
-          <button type="button" onClick={() => setShowCols((v) => !v)} aria-expanded={showCols} className={`${btnSecondary} !min-h-11`}>
+          <button type="button" onClick={() => setShowCols((v) => !v)} aria-expanded={showCols} className={`${btnSecondary} !min-h-11 col-span-2 lg:col-span-1 order-2 lg:order-none`}>
             <Columns3 className="w-4 h-4" />
             {t('kebun.columns')}
           </button>
+          {/* On a phone right under the search, the whole width; on a wide screen the last. */}
+          <div role="radiogroup" aria-label={t('kebun.by')} className="col-span-2 lg:col-span-1 order-1 lg:order-last grid grid-cols-2 gap-0.5 p-0.5 rounded-lg bg-slate-100 border border-slate-200">
+            {(['tree', 'variant'] as const).map((k) => {
+              const on = (k === 'variant') === byVariety;
+              return (
+                <button
+                  key={k}
+                  type="button"
+                  role="radio"
+                  aria-checked={on}
+                  onClick={() => !on && setParams({ by: k === 'variant' ? 'variant' : null, sort: null, dir: null })}
+                  className={`min-h-10 px-3 rounded-md text-sm font-semibold whitespace-nowrap ${on ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
+                >
+                  {t(`kebun.by.${k}`)}
+                </button>
+              );
+            })}
+          </div>
         </div>
         <div className="flex flex-wrap gap-1.5" role="group" aria-label={t('trees.show')}>
           {(
@@ -534,7 +712,8 @@ export const TreesPage: React.FC = () => {
           </div>
         )}
         <p className="text-xs text-slate-600">
-          {t('kebun.howto')} <span className="text-slate-500">{t('kebun.shown', { n: filtered.length })}</span>
+          {t(byVariety ? 'kebun.howto.var' : 'kebun.howto')}{' '}
+          <span className="text-slate-500">{byVariety ? t('kebun.shownVar', { v: groups.length, n: filtered.length }) : t('kebun.shown', { n: filtered.length })}</span>
         </p>
       </div>
 
@@ -558,7 +737,7 @@ export const TreesPage: React.FC = () => {
                 className={`${th} sticky left-0 top-0 z-30 min-w-[64px] border-r`}
               >
                 <button type="button" onClick={() => sortBy('id')} className={`inline-flex items-center gap-1 ${sortKey === 'id' ? 'text-white' : ''}`}>
-                  ID
+                  {byVariety ? t('kebun.col.variety') : 'ID'}
                   {sortKey === 'id' && (desc ? <ArrowDown className="w-3 h-3" /> : <ArrowUp className="w-3 h-3" />)}
                 </button>
               </th>
@@ -569,8 +748,8 @@ export const TreesPage: React.FC = () => {
               ))}
             </tr>
             <tr>
-              {shownCols.map((c, i) => {
-                const first = i === 0 || shownCols[i - 1].group !== c.group;
+              {viewCols.map((c, i) => {
+                const first = i === 0 || viewCols[i - 1].group !== c.group;
                 const active = sortKey === c.key;
                 return (
                   <th
@@ -580,7 +759,7 @@ export const TreesPage: React.FC = () => {
                     aria-sort={active ? (desc ? 'descending' : 'ascending') : undefined}
                     className={`${th} sticky top-7 z-20 h-9 ${c.right ? 'text-right' : ''} ${first ? 'border-l border-slate-700' : ''}`}
                   >
-                    <button type="button" onClick={() => c.sort && sortBy(c.key)} className={`inline-flex items-center gap-1 ${c.right ? 'flex-row-reverse' : ''} ${active ? 'text-white' : ''}`}>
+                    <button type="button" onClick={() => (byVariety ? c.agg : c.sort) && sortBy(c.key)} className={`inline-flex items-center gap-1 ${c.right ? 'flex-row-reverse' : ''} ${active ? 'text-white' : ''}`}>
                       {c.label}
                       {active && (desc ? <ArrowDown className="w-3 h-3" /> : <ArrowUp className="w-3 h-3" />)}
                     </button>
@@ -590,7 +769,42 @@ export const TreesPage: React.FC = () => {
             </tr>
           </thead>
           <tbody>
-            {filtered.map((r, ri) => (
+            {byVariety && groups.map((g) => (
+              <tr key={g.code || '-'} className={`group ${g.code ? 'cursor-pointer' : ''}`} onClick={() => openVariety(g.code)}>
+                <th scope="row" className="sticky left-0 z-10 bg-white group-hover:bg-slate-50 px-2.5 py-1.5 text-left border-b border-r border-slate-200 whitespace-nowrap">
+                  {g.code ? (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openVariety(g.code);
+                      }}
+                      title={t('kebun.var.open', { name: g.name })}
+                      className="font-bold text-emerald-800 hover:underline text-left"
+                    >
+                      {g.name}
+                      {g.name !== g.code && <span className="ml-1.5 font-mono text-xs font-normal text-slate-500">{g.code}</span>}
+                    </button>
+                  ) : (
+                    <span className="font-semibold text-slate-500">{g.name}</span>
+                  )}
+                </th>
+                {viewCols.map((c, ci) => {
+                  const first = ci === 0 || viewCols[ci - 1].group !== c.group;
+                  return (
+                    <td
+                      key={c.key}
+                      className={`border-b border-r border-slate-200 group-hover:bg-slate-50 px-2.5 py-1.5 whitespace-nowrap ${first ? 'border-l border-l-slate-300' : ''} ${c.right ? 'text-right tabular' : ''} ${
+                        c.key === 'trees' ? 'font-semibold text-slate-900' : 'text-slate-800'
+                      } ${c.key === 'supplier' ? 'max-w-[220px] truncate' : ''}`}
+                    >
+                      {c.agg?.(g.rows).cell ?? null}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+            {!byVariety && filtered.map((r, ri) => (
               <tr key={r.tree.id} className="group">
                 <th scope="row" className="sticky left-0 z-10 bg-white group-hover:bg-slate-50 px-2.5 py-1.5 text-left border-b border-r border-slate-200 whitespace-nowrap">
                   <Link to={treeUrl(r.tree.id)} className="font-mono font-bold text-emerald-800 hover:underline inline-flex items-center gap-1.5">
@@ -696,7 +910,13 @@ export const TreesPage: React.FC = () => {
                 <th scope="row" className="sticky left-0 bottom-0 z-10 bg-slate-100 px-2.5 py-2 text-left border-t border-r border-slate-200 whitespace-nowrap text-xs">
                   {t('kebun.total')}
                 </th>
-                {shownCols.map((c) => {
+                {viewCols.map((c) => {
+                  if (c.key === 'trees')
+                    return (
+                      <td key={c.key} className="sticky bottom-0 bg-slate-100 px-2.5 py-2 border-t border-slate-200 text-right tabular whitespace-nowrap">
+                        {filtered.length.toLocaleString(locale)}
+                      </td>
+                    );
                   const sumOf =
                     c.key === 'floweringBranches' || c.key === 'floweringClusters' || c.key === 'estimatedFruitCount'
                       ? sum((r) => num(r.tree[c.key as EditField]))

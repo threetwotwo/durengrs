@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { changesByTree, checkCell, countDates, countGrid, parsePaste, pasteDiff, toCsv, treeDraft } from '../src/lib/kebun';
+import { avgOf, changesByTree, checkCell, countDates, countGrid, groupByVariety, parsePaste, pasteDiff, sumOf, tally, toCsv, treeDraft } from '../src/lib/kebun';
 
 const trees = [
   { id: 'A1', block: 'A', variant: 'MK', condition: 'healthy', canopySize: '400', trunkSize: 60, floweringBranches: 2, notes: 'Pp', datePlanted: { seconds: 1, nanoseconds: 0 } },
@@ -100,4 +100,22 @@ test('a quoted cell may hold the separator, a line break or a quote', () => {
 test('CSV never hands a formula to the spreadsheet', () => {
   assert.equal(toCsv([['=HYPERLINK("x")', '+1', '@a', -3, 'ok']]), `"'=HYPERLINK(""x"")",'+1,'@a,-3,ok`);
   assert.equal(toCsv([['a\r\nb']]), '"a\r\nb"');
+});
+
+test('one row per variety: trees grouped by variety, numbers added up or averaged over the trees that have them', () => {
+  const rows = [
+    { tree: { id: 'A1', variant: 'MK' }, fruit: 30, canopy: 500 },
+    { tree: { id: 'A2', variant: 'ST' }, fruit: 12, canopy: undefined },
+    { tree: { id: 'A3', variant: 'MK' }, fruit: undefined, canopy: 560 },
+    { tree: { id: 'A4', variant: 'MK' }, fruit: 8.5, canopy: 455 },
+    { tree: { id: 'B1' }, fruit: 4, canopy: undefined },
+  ];
+  const g = groupByVariety(rows);
+  assert.deepEqual([...g].map(([k, rs]) => [k, rs.map((r) => r.tree.id)]), [['MK', ['A1', 'A3', 'A4']], ['ST', ['A2']], ['', ['B1']]]);
+  const mk = g.get('MK')!;
+  assert.equal(sumOf(mk, (r) => r.fruit), 38.5);
+  assert.equal(sumOf(g.get('')!, (r) => r.canopy), undefined, 'nobody has one: nothing, not 0');
+  assert.deepEqual(avgOf(mk, (r) => r.canopy), { avg: 505, n: 3 });
+  assert.equal(avgOf(g.get('ST')!, (r) => r.canopy), undefined);
+  assert.deepEqual(tally(rows, (r) => r.tree.variant), [['MK', 3], ['ST', 1]]);
 });

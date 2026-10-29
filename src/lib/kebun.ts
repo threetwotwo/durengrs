@@ -291,3 +291,52 @@ export function countGrid(counts: CropCount[]): Map<string, Map<string, { count:
   });
   return out;
 }
+
+// ---------- one row per variety ----------
+
+/** The rows by their tree's variety code ('' for none), each in the order given. */
+export function groupByVariety<T extends { tree: { variant?: string } }>(rows: T[]): Map<string, T[]> {
+  const out = new Map<string, T[]>();
+  for (const r of rows) {
+    const k = r.tree.variant || '';
+    const l = out.get(k);
+    if (l) l.push(r);
+    else out.set(k, [r]);
+  }
+  return out;
+}
+
+/** A number added up over the rows that have it; undefined when none has. */
+export function sumOf<T>(rows: T[], f: (r: T) => number | undefined): number | undefined {
+  let s: number | undefined;
+  for (const r of rows) {
+    const v = f(r);
+    if (v !== undefined && Number.isFinite(v)) s = (s ?? 0) + v;
+  }
+  return s === undefined ? undefined : Math.round(s * 100) / 100;
+}
+
+/** The average over the rows that have the number (to one decimal) and how many had it; undefined when none. */
+export function avgOf<T>(rows: T[], f: (r: T) => number | undefined): { avg: number; n: number } | undefined {
+  let s = 0;
+  let n = 0;
+  for (const r of rows) {
+    const v = f(r);
+    if (v !== undefined && Number.isFinite(v)) {
+      s += v;
+      n++;
+    }
+  }
+  return n ? { avg: Math.round((s / n) * 10) / 10, n } : undefined;
+}
+
+/** How many rows have each value (empty ones left out), most first, then in first-seen order. */
+export function tally<T, K>(rows: T[], f: (r: T) => K | undefined | null | ''): Array<[K, number]> {
+  const m = new Map<K, number>();
+  for (const r of rows) {
+    const k = f(r);
+    if (k === undefined || k === null || k === '') continue;
+    m.set(k as K, (m.get(k as K) || 0) + 1);
+  }
+  return [...m].sort((a, b) => b[1] - a[1]);
+}
