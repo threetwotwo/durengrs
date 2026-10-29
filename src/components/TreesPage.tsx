@@ -737,7 +737,14 @@ export const TreesPage: React.FC = () => {
                 className={`${th} sticky left-0 top-0 z-30 min-w-[64px] border-r`}
               >
                 <button type="button" onClick={() => sortBy('id')} className={`inline-flex items-center gap-1 ${sortKey === 'id' ? 'text-white' : ''}`}>
-                  {byVariety ? t('kebun.col.variety') : 'ID'}
+                  {byVariety ? (
+                    <>
+                      <span className="sm:hidden">{t('fr.col.variant')}</span>
+                      <span className="hidden sm:inline">{t('kebun.col.variety')}</span>
+                    </>
+                  ) : (
+                    'ID'
+                  )}
                   {sortKey === 'id' && (desc ? <ArrowDown className="w-3 h-3" /> : <ArrowUp className="w-3 h-3" />)}
                 </button>
               </th>
@@ -782,11 +789,18 @@ export const TreesPage: React.FC = () => {
                       title={t('kebun.var.open', { name: g.name })}
                       className="font-bold text-emerald-800 hover:underline text-left"
                     >
-                      {g.name}
-                      {g.name !== g.code && <span className="ml-1.5 font-mono text-xs font-normal text-slate-500">{g.code}</span>}
+                      {/* On a phone the code only, like the tree IDs, so the figures have the width. */}
+                      <span className="sm:hidden font-mono">{g.code}</span>
+                      <span className="hidden sm:inline">
+                        {g.name}
+                        {g.name !== g.code && <span className="ml-1.5 font-mono text-xs font-normal text-slate-500">{g.code}</span>}
+                      </span>
                     </button>
                   ) : (
-                    <span className="font-semibold text-slate-500">{g.name}</span>
+                    <span className="font-semibold text-slate-500" title={g.name}>
+                      <span className="sm:hidden">—</span>
+                      <span className="hidden sm:inline">{g.name}</span>
+                    </span>
                   )}
                 </th>
                 {viewCols.map((c, ci) => {
