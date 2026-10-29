@@ -164,6 +164,12 @@ export interface CropCount {
   photos?: ReportPhoto[];
   /** The WhatsApp report the count was read from. */
   reportId?: string;
+  /**
+   * Fruit counts: the estimated share of the counted fruit that will be grade A (high quality), a whole percent 0-100
+   * (Count sheet). 30 fruit at 50: about 15 grade A fruit (lib/recount.ts gradeAFruit). The same on each of the day's
+   * counts of the tree.
+   */
+  gradeAPct?: number;
 }
 
 export const cropCountId = (c: Pick<CropCount, 'treeId' | 'season' | 'stage' | 'date'>) => `${c.treeId}_${c.season}_${c.stage}_${c.date}`;
@@ -201,6 +207,13 @@ export async function saveCropCount(
 /** Adds photos to a count already saved (a photo that finished uploading after its count). */
 export async function addCountPhotos(id: string, photos: ReportPhoto[]): Promise<void> {
   if (photos.length) await updateDoc(doc(db, 'cropCounts', id), { photos: arrayUnion(...photos) });
+}
+
+/** Sets the estimated grade-A share (null: removes it) on a tree's counts of one day. */
+export async function setCountGradeA(ids: string[], pct: number | null): Promise<void> {
+  const batch = writeBatch(db);
+  for (const id of ids) batch.update(doc(db, 'cropCounts', id), { gradeAPct: pct === null ? deleteField() : pct });
+  await batch.commit();
 }
 
 export async function removeCropCount(id: string, photos?: ReportPhoto[]): Promise<void> {

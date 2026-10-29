@@ -68,4 +68,9 @@ test('a day of counts from the Count sheet is one card; WhatsApp counts and a lo
   assert.equal(out.length, 4); // the round, the WhatsApp count, the lone cluster count, last week's count
   assert.deepEqual([round.date, round.what, round.trees, round.total, round.blocks], ['2026-10-11', 'fruit', 3, 55, ['A', 'B']]);
   assert.equal(out.filter((e) => e.kind === 'count').length, 3);
+  assert.equal(round.gradeA, undefined, 'no % A typed: no grade A estimate');
+  const withA = groupCountRounds(
+    buildFieldLog({ counts: [{ ...count('A1', '2026-10-11', 30), gradeAPct: 50 }, { ...count('A2', '2026-10-11', 20), gradeAPct: 25 }, count('B1', '2026-10-11', 5)] })
+  ).find((e) => e.kind === 'round') as any;
+  assert.equal(withA.gradeA, 20, '15 + 5; B1 has no share');
 });

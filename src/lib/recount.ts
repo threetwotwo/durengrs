@@ -118,6 +118,41 @@ export function checkCount(raw: string, kind: CountKind): CountCheck {
   return n <= max ? { ok: true, value: n } : { ok: false, max };
 }
 
+// ---------- grade A ----------
+
+/** A typed grade-A share: a whole percent from 0 to 100 ("50" or "50%"); empty means none. */
+export function checkPct(raw: string): { ok: true; value: number | null } | { ok: false } {
+  const s = raw.replace(/\s/g, '').replace(/%$/, '');
+  if (!s) return { ok: true, value: null };
+  if (!/^\d+$/.test(s)) return { ok: false };
+  const n = Number(s);
+  return n <= 100 ? { ok: true, value: n } : { ok: false };
+}
+
+/** A tree's grade-A share on a day: the one set on its counts of that day (normally a single count). */
+export const dayPct = (day: Array<Pick<CropCount, 'gradeAPct'>>): number | undefined =>
+  day.find((c) => typeof c.gradeAPct === 'number' && Number.isFinite(c.gradeAPct))?.gradeAPct;
+
+/** The grade-A fruit a count is expected to give: 30 fruit at 50% are 15. Whole fruit. */
+export const gradeAFruit = (count: number, pct: number) => Math.round((count * pct) / 100);
+
+/**
+ * The grade-A totals of a day's sheet, over the trees counted that have a share: how many, their fruit, their
+ * grade-A fruit (each tree's rounded, added up) and the share that makes of their fruit.
+ */
+export function gradeASummary(rows: Array<{ now?: number; pct?: number }>) {
+  let trees = 0;
+  let fruit = 0;
+  let gradeA = 0;
+  for (const r of rows) {
+    if (r.now === undefined || r.pct === undefined) continue;
+    trees++;
+    fruit += r.now;
+    gradeA += gradeAFruit(r.now, r.pct);
+  }
+  return { trees, fruit, gradeA, pct: fruit ? Math.round((gradeA / fruit) * 100) : null };
+}
+
 /**
  * A column copied from Google Sheets (or typed on several lines): its cells in order, a blank cell kept as '' so
  * the trees stay lined up. Null for a single value (an ordinary paste into one box). Only the first column of a
@@ -198,6 +233,8 @@ export function planCount(p: {
       note: p.note || keep?.note,
       photos: photos.length ? photos : undefined,
       reportId: keep?.reportId,
+      // Typing the count again keeps the day's grade-A share.
+      gradeAPct: p.kind === 'fruit' ? dayPct(day) : undefined,
     },
     treeField: toTree ? { field, from: p.tree[field] } : undefined,
     replaces: day.map((c) => c.id),

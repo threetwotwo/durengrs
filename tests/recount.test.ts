@@ -145,3 +145,24 @@ test('saving one number for a tree: the day\'s counts become one, keeping its re
   assert.deepEqual([fl.count.season, fl.count.stage, fl.treeField], [W2, 'clusters', undefined]);
   assert.equal(planCount({ tree, waves: [], counts, kind: 'fruit', date: '2026-10-12', value: 3 }), null);
 });
+
+test('% grade A: a whole percent; 30 fruit at 50% are 15 grade A; totals over the trees given a share', async () => {
+  const { checkPct, dayPct, gradeAFruit, gradeASummary, planCount } = await import('../src/lib/recount');
+  assert.deepEqual(checkPct(' 50 '), { ok: true, value: 50 });
+  assert.deepEqual(checkPct('75%'), { ok: true, value: 75 });
+  assert.deepEqual(checkPct(''), { ok: true, value: null });
+  for (const bad of ['101', '50.5', '-5', 'abc']) assert.equal(checkPct(bad).ok, false, bad);
+  assert.equal(gradeAFruit(30, 50), 15);
+  assert.equal(gradeAFruit(7, 33), 2);
+  assert.equal(dayPct([{}, { gradeAPct: 40 }]), 40);
+  assert.equal(dayPct([{}]), undefined);
+  // Not counted, or no share: left out of the totals.
+  assert.deepEqual(gradeASummary([{ now: 30, pct: 50 }, { now: 10, pct: 20 }, { now: 99 }, { pct: 80 }]), { trees: 2, fruit: 40, gradeA: 17, pct: 43 });
+  assert.deepEqual(gradeASummary([{ now: 5 }]), { trees: 0, fruit: 0, gradeA: 0, pct: null });
+  // Typing the count again that day keeps its share.
+  const waves: any[] = [{ date: W1, partial: false, stage: 'grow' }];
+  const tree = { id: 'A1', block: 'A', estimatedFruitCount: 30 };
+  const counts = [{ ...c('A1', W1, 'onTree', '2026-10-11', 30), gradeAPct: 50 }];
+  assert.equal(planCount({ tree, waves, counts, kind: 'fruit', date: '2026-10-11', value: 28 })!.count.gradeAPct, 50);
+  assert.equal(planCount({ tree, waves, counts, kind: 'fruit', date: '2026-10-12', value: 28 })!.count.gradeAPct, undefined, 'a new day starts without one');
+});

@@ -94,14 +94,16 @@ async function saveBloom({ treeId, block, date, part, note, workerPhone, reportI
   return { duplicate: false, id };
 }
 
-// Counting again on the same day replaces the count. The tree record is kept current only with the newest
-// count of its kind, and only for a tree with a single flowering (same rule as the webapp).
+// Counting again on the same day replaces the count (its grade-A share, typed on the webapp's Count sheet, stays).
+// The tree record is kept current only with the newest count of its kind, and only for a tree with a single
+// flowering (same rule as the webapp).
 async function saveCount({ tree, season, stage, count, note, date, workerPhone, wavesCount, existing, reportId }) {
   const id = R.cropCountId({ treeId: tree.id, season, stage, date });
+  const gradeAPct = ((existing || []).find((c) => c.id === id) || {}).gradeAPct;
   const batch = db.batch();
   batch.set(
     db.collection('cropCounts').doc(id),
-    strip({ treeId: tree.id, block: tree.block, season, stage, count, date, by: workerPhone || undefined, note, source: 'whatsapp', reportId, createdAt: now() })
+    strip({ treeId: tree.id, block: tree.block, season, stage, count, date, by: workerPhone || undefined, note, source: 'whatsapp', reportId, gradeAPct, createdAt: now() })
   );
 
   const field = R.COUNT_STAGES[stage].treeField;

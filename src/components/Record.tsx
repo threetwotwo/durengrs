@@ -14,6 +14,7 @@ import { Link } from './Link';
 import { HarvestTile } from './HarvestBits';
 import { PhotoLightbox, type GalleryItem } from './PhotoLightbox';
 import { FIELD_KEY, TEXT_FIELDS, recordUrl, useEditValue } from './LogParts';
+import { gradeAFruit } from '../lib/recount';
 
 /**
  * One look for every record from the field, wherever it is listed (Reports, Today, a tree's history, a problem's
@@ -195,8 +196,11 @@ export function useRecordView() {
               : harvestLine(h.fruits, h.weightKg);
         return { ...base, kind: t('log.kind.harvest'), text, tags };
       }
-      case 'count':
-        return { ...base, kind: t('log.kind.count'), text: `${t(`crop.stage.${e.rec.stage}`)}: ${e.rec.count}`, tags: [] };
+      case 'count': {
+        const pct = e.rec.gradeAPct;
+        const a = typeof pct === 'number' ? ` · ${t('feed.round.gradeA', { n: gradeAFruit(e.rec.count, pct) })} (${pct}%)` : '';
+        return { ...base, kind: t('log.kind.count'), text: `${t(`crop.stage.${e.rec.stage}`)}: ${e.rec.count}${a}`, tags: [] };
+      }
       case 'bloom':
         return { ...base, kind: t('log.kind.bloom'), text: t('feed.bloom', { part: t(`guide.part.${e.rec.part}`) }), tags: [] };
       case 'task':
@@ -368,7 +372,10 @@ export const CountRoundCard: React.FC<{ round: CountRound; eager?: boolean }> = 
           <span className="text-sm font-semibold text-slate-700">{title}</span>
           <span className="ml-auto text-xs text-slate-500 tabular whitespace-nowrap">{when}</span>
         </header>
-        <p className="text-sm text-slate-800 tabular">{t('feed.round.line', { n: r.trees, total: r.total.toLocaleString(locale), unit })}</p>
+        <p className="text-sm text-slate-800 tabular">
+          {t('feed.round.line', { n: r.trees, total: r.total.toLocaleString(locale), unit })}
+          {r.gradeA !== undefined && <span className="font-semibold text-emerald-800"> · {t('feed.round.gradeA', { n: r.gradeA.toLocaleString(locale) })}</span>}
+        </p>
         {r.who && <p className="mt-auto pt-0.5 text-xs text-slate-500">{workerLabel(r.who)}</p>}
       </div>
     </article>

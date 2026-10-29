@@ -22,6 +22,7 @@ import { StagePill, blockLine } from './GuideWidgets';
 import { TreeStageCell } from './StageBoard';
 import { useCrops } from './useCrops';
 import { FIELD_KEY, TEXT_FIELDS, canDelete, deleteRecord, localDay, useEditValue } from './LogParts';
+import { gradeAFruit } from '../lib/recount';
 
 const card = 'bg-white rounded-xl border border-slate-200 p-4 space-y-3';
 const h2 = 'text-sm font-bold text-slate-900';
@@ -299,6 +300,8 @@ function recordRows(
         [t('rec.f.wave'), formatShortDate(e.rec.season)],
         [t('rec.f.countedOn'), formatShortDate(e.rec.date)]
       );
+      if (typeof e.rec.gradeAPct === 'number')
+        rows.push([t('rec.f.gradeA'), <span className="tabular">{t('rec.f.gradeA.value', { pct: e.rec.gradeAPct, n: gradeAFruit(e.rec.count, e.rec.gradeAPct) })}</span>]);
       note(e.rec.note);
       break;
     case 'harvest': {

@@ -2,6 +2,7 @@ import { ACTION_INFO, FARM_STAGE_INFO, HEALTH_INFO, ISSUE_INFO, healthOf, isActi
 import type { TreeReport } from '../types';
 import type { LogEntry } from './fieldLog';
 import { reportTriage } from './review';
+import { gradeAFruit } from './recount';
 
 /**
  * What a record says, the same on every list (Reports, Today, the tree's history, a problem's history): one model so
@@ -152,6 +153,8 @@ export interface CountRound {
   blocks: string[];
   trees: number;
   total: number;
+  /** Fruit: the estimated grade-A fruit of the trees given a share (see lib/recount.ts gradeAFruit); none given: undefined. */
+  gradeA?: number;
   who?: string;
   photos: NonNullable<Extract<LogEntry, { kind: 'count' }>['photos']>;
   entries: Array<Extract<LogEntry, { kind: 'count' }>>;
@@ -186,6 +189,8 @@ export function groupCountRounds(entries: LogEntry[], min = ROUND_MIN): FeedItem
     const [date, what] = k.split('|') as [string, 'fruit' | 'clusters'];
     const trees = new Map<string, number>();
     for (const c of list) trees.set(c.rec.treeId, (trees.get(c.rec.treeId) || 0) + c.rec.count);
+    const pcts = new Map<string, number>();
+    for (const c of list) if (typeof c.rec.gradeAPct === 'number' && !pcts.has(c.rec.treeId)) pcts.set(c.rec.treeId, c.rec.gradeAPct);
     out.push({
       kind: 'round',
       key: `round:${k}`,
@@ -195,6 +200,7 @@ export function groupCountRounds(entries: LogEntry[], min = ROUND_MIN): FeedItem
       blocks: Array.from(new Set(list.map((c) => c.rec.block).filter(Boolean))).sort(),
       trees: trees.size,
       total: [...trees.values()].reduce((s, n) => s + n, 0),
+      gradeA: what === 'fruit' && pcts.size ? [...pcts].reduce((s, [id, p]) => s + gradeAFruit(trees.get(id) || 0, p), 0) : undefined,
       who: list.find((c) => c.who)?.who,
       photos: list.flatMap((c) => c.photos || []),
       entries: list,

@@ -3,14 +3,18 @@ import { AlertTriangle, ArrowDown, ArrowUp, Camera, Loader2, Search } from 'luci
 import { normalizeTimestamp, useFarm } from '../context/FarmContext';
 import { useT } from '../i18n';
 import { reportUrl, setNavigationBlocker, treeUrl, treesUrl, useQueryParams } from '../lib/router';
-import { type CropCount, type CropStage, type Harvest, addCountPhotos, removeCropCount, saveCropCount } from '../lib/fieldData';
+import { type CropCount, type CropStage, type Harvest, addCountPhotos, removeCropCount, saveCropCount, setCountGradeA } from '../lib/fieldData';
 import {
   type CountKind,
   type Wave,
   checkCount,
+  checkPct,
   countTarget,
   dayCounts,
+  dayPct,
   expectedBefore,
+  gradeAFruit,
+  gradeASummary,
   pastColumns,
   pastCounts,
   pastedColumn,
@@ -36,6 +40,8 @@ import { useCrops } from './useCrops';
  * - Each number saves by itself (Enter, or leaving the box) as that day's count: the same record a count from
  *   WhatsApp makes (cropCounts, see lib/recount.ts for where it is filed). Typing again replaces it; emptying the box
  *   removes it. The earlier days' columns can be corrected the same way.
+ * - Fruit: next to the day's count, % A (the share of its fruit expected to be grade A, typed and saved the same way,
+ *   on the day's count) and Grade A, the fruit that makes (30 at 50% → 15); their totals at the bottom.
  * - Filter by block or variety; sort by tree ID or variety (#/count?variant=MK&sort=variant&dir=desc).
  * - A photo can be added once the tree is counted (shrunk on the phone, uploaded to count-photos/).
  * - A column copied from Google Sheets fills the trees from the box it is pasted into, in the sheet's order.
@@ -52,6 +58,8 @@ interface Row {
   /** The tree's counts of this kind on the day (normally one). */
   day: CropCount[];
   now?: number;
+  /** Fruit: the day's grade-A share (percent), when given. */
+  pct?: number;
   before?: number;
   past: Map<string, number>;
   photos: Array<{ p: ReportPhoto; href: string }>;
@@ -98,9 +106,11 @@ function useWide() {
 }
 
 const keyOf = (kind: CountKind, date: string, tree: string) => `${kind}|${date}|${tree}`;
+/** The day's % A box of a tree. */
+const pctKeyOf = (date: string, tree: string) => `pct|${date}|${tree}`;
 const parseKey = (k: string) => {
   const [kind, date, tree] = k.split('|');
-  return { kind: kind as CountKind, date, tree };
+  return { kind: kind as CountKind | 'pct', date, tree };
 };
 const inputFor = (key: string) => document.querySelector<HTMLInputElement>(`input[data-count="${CSS.escape(key)}"]`);
 const HEALTH_DOT: Record<string, string> = { hijau: 'bg-emerald-500', kuning: 'bg-amber-400', merah: 'bg-rose-600' };
@@ -164,6 +174,7 @@ export const CountPage: React.FC = () => {
             target: countTarget(crop.waves, kind, date),
             day,
             now: day.length ? dayTotal(day) : undefined,
+            pct: kind === 'fruit' ? dayPct(day) : undefined,
             before: expectedBefore(tc, harvestsByTree.get(id) || [], waveDates, kind, date, kind === 'fruit' ? estimates.current.get(id) : undefined),
             past: pastCounts(tc, waveDates, kind, date),
             photos: day.flatMap((c) => (c.photos || []).map((p) => ({ p, href: reportUrl(`count:${c.id}`) }))),
@@ -193,19 +204,24 @@ export const CountPage: React.FC = () => {
     return [...list].sort((a, b) => (desc ? -by(a, b) : by(a, b)));
   }, [allRows, block, variant, unflowered, sort, desc, varietyName]);
   const countable = useMemo(() => rows.filter((r) => r.target), [rows]);
+  /** Fruit: the % A and Grade A columns next to the day's count. */
+  const showA = kind === 'fruit';
   /** Can this tree's count on `d` be typed? (It had a flowering by then to file it under, or a count is there.) */
   const editable = (r: Row, d: string) => (d === date ? !!r.target : !!countTarget(r.waves, kind, d) || r.past.has(d));
   /** The boxes of one column, top to bottom: where Enter goes next. */
   const columnKeys = (d: string) => rows.filter((r) => editable(r, d)).map((r) => keyOf(kind, d, r.id));
+  /** The % A boxes, top to bottom: the trees counted that day. */
+  const pctKeys = () => rows.filter((r) => r.now !== undefined).map((r) => pctKeyOf(date, r.id));
   const wide = useWide();
-  // On a phone the two latest rounds, so the day's column is in view without scrolling sideways.
+  // On a phone the two latest rounds (fruit: one, for % A and Grade A), so the day's columns are in view without
+  // scrolling sideways.
   const dates = useMemo(
     () =>
       pastColumns(
         rows.map((r) => r.past),
-        wide ? 3 : 2
+        wide ? 3 : showA ? 1 : 2
       ),
-    [rows, wide]
+    [rows, wide, showA]
   );
   const summary = roundSummary(countable);
 
@@ -259,6 +275,29 @@ export const CountPage: React.FC = () => {
     if (!plan) return true;
     sent.current.set(key, raw);
     track(key, saveCropCount(plan.count, plan.treeField, plan.replaces));
+    return true;
+  };
+
+  /** Saves one % A box onto the tree's counts of the day. False when it is not a whole percent (the box keeps the focus). */
+  const commitPct = (key: string, rawIn?: string): boolean => {
+    const raw = rawIn ?? live.current.drafts[key];
+    if (raw === undefined) return true;
+    const { date: d, tree: treeId } = parseKey(key);
+    const row = live.current.allRows.find((r) => r.id === treeId);
+    if (!row || d !== live.current.date || live.current.kind !== 'fruit') return true;
+    const check = checkPct(raw);
+    if (!check.ok) {
+      setErrors((x) => ({ ...x, [key]: t('count.e.pct') }));
+      return false;
+    }
+    if (!row.day.length) {
+      if (check.value !== null) setErrors((x) => ({ ...x, [key]: t('count.pct.first') }));
+      return check.value === null;
+    }
+    setErrors((x) => omit(x, key));
+    if (sent.current.get(key) === raw || check.value === (row.pct ?? null)) return true;
+    sent.current.set(key, raw);
+    track(key, setCountGradeA(row.day.map((c) => c.id), check.value));
     return true;
   };
 
@@ -344,19 +383,21 @@ export const CountPage: React.FC = () => {
   const paste = (key: string, text: string): boolean => {
     const col = pastedColumn(text);
     if (!col) return false;
-    const { tree: from, date: d } = parseKey(key);
+    const { kind: k, tree: from, date: d } = parseKey(key);
+    const pct = k === 'pct';
     const start = rows.findIndex((r) => r.id === from);
     const targets = rows.slice(start, start + col.length);
     const next: Record<string, string> = {};
     targets.forEach((r, i) => {
-      if (editable(r, d) && col[i] !== '') next[keyOf(kind, d, r.id)] = col[i];
+      if (col[i] === '') return;
+      if (pct ? r.now !== undefined : editable(r, d)) next[pct ? pctKeyOf(d, r.id) : keyOf(kind, d, r.id)] = col[i];
     });
     setDrafts((d) => ({ ...d, ...next }));
-    Object.entries(next).forEach(([k, v]) => commit(k, v));
+    Object.entries(next).forEach(([k, v]) => (pct ? commitPct(k, v) : commit(k, v)));
     const filled = Object.keys(next).map((k) => parseKey(k).tree);
     setMsg(
       [
-        filled.length ? t('count.pasted', { n: filled.length, from: filled[0], to: filled[filled.length - 1] }) : '',
+        filled.length ? t(pct ? 'count.pasted.pct' : 'count.pasted', { n: filled.length, from: filled[0], to: filled[filled.length - 1] }) : '',
         col.length > targets.length ? t('count.pasted.cut', { n: col.length - targets.length }) : '',
       ]
         .filter(Boolean)
@@ -374,10 +415,22 @@ export const CountPage: React.FC = () => {
   const failed = Object.entries(uploads).find(([, l]) => l.some((x) => x.state === 'err' && !x.refused));
   const saving = Object.keys(inflight).length;
   const total = (d: string) => rows.reduce((s, r) => s + (r.past.get(d) || 0), 0);
+  /** A row's % A as it stands: a valid draft being typed, else the saved one. */
+  const pctOf = (r: Row) => {
+    const draft = drafts[pctKeyOf(date, r.id)];
+    const check = draft === undefined ? null : checkPct(draft);
+    return check?.ok ? (check.value ?? undefined) : r.pct;
+  };
+  const gradeA = gradeASummary(rows.map((r) => ({ now: r.now, pct: pctOf(r) })));
   // Fixed column widths: on a phone the sheet is wider than the screen and scrolls sideways (the problems column has a
   // width of its own); wider screens give the problems column what is left.
-  const W = wide ? { id: 84, variety: 64, date: 76, now: 104, photo: 92, status: 76, problems: 280 } : { id: 72, variety: 52, date: 64, now: 88, photo: 88, status: 64, problems: 240 };
-  const sheetWidth = W.id + W.variety + dates.length * W.date + W.now + W.photo + W.status + W.problems;
+  const W = wide
+    ? { id: 84, variety: 64, date: 76, now: 104, pct: 68, estA: 80, photo: 92, status: 76, problems: 280 }
+    : showA
+      ? // A phone, fruit: the day's count, % A and Grade A all in view (390 px wide) with one earlier round.
+        { id: 72, variety: 44, date: 56, now: 72, pct: 50, estA: 62, photo: 88, status: 64, problems: 240 }
+      : { id: 72, variety: 52, date: 64, now: 88, pct: 0, estA: 0, photo: 88, status: 64, problems: 240 };
+  const sheetWidth = W.id + W.variety + dates.length * W.date + W.now + (showA ? W.pct + W.estA : 0) + W.photo + W.status + W.problems;
   const sortBy = (k: 'id' | 'variant') => setParams({ sort: k === 'id' ? null : k, dir: sort === k && !desc ? 'desc' : null }, { replace: true });
   const sortHead = (k: 'id' | 'variant', label: string) => (
     <button type="button" onClick={() => sortBy(k)} className={`inline-flex items-center gap-1 ${sort === k && (k !== 'id' || desc) ? 'text-white' : ''}`}>
@@ -393,6 +446,8 @@ export const CountPage: React.FC = () => {
         <col key={d} style={{ width: W.date }} />
       ))}
       <col style={{ width: W.now }} />
+      {showA && <col style={{ width: W.pct }} />}
+      {showA && <col style={{ width: W.estA }} />}
       <col style={{ width: W.photo }} />
       <col style={{ width: W.status }} />
       <col style={wide ? undefined : { width: W.problems }} />
@@ -408,7 +463,7 @@ export const CountPage: React.FC = () => {
         <div className={wide ? 'space-y-4' : 'sticky left-4 w-[calc(100vw-2rem)] space-y-4'}>
           <PageHeader
             title={t(kind === 'clusters' ? 'count.title.clusters' : 'count.title.fruit')}
-            description={t('count.desc')}
+            description={showA ? `${t('count.desc')} ${t('count.desc.gradeA')}` : t('count.desc')}
             actions={
               <Link to={treesUrl({ block: block || null })} className={btnSecondary}>
                 {t('count.done')}
@@ -546,6 +601,16 @@ export const CountPage: React.FC = () => {
                     <th scope="col" className="px-2.5 sticky top-0 z-20 bg-emerald-700 text-white text-right border-b border-emerald-800 whitespace-nowrap">
                       <span className="text-[11px] font-bold sm:uppercase sm:tracking-wide">{formatShortDate(date)}</span>
                     </th>
+                    {showA && (
+                      <th scope="col" title={t('count.col.pctA.title')} className="px-2.5 sticky top-0 z-20 bg-emerald-800 text-emerald-50 text-right border-b border-emerald-900 whitespace-nowrap">
+                        <span className="text-[11px] font-bold">{t('count.col.pctA')}</span>
+                      </th>
+                    )}
+                    {showA && (
+                      <th scope="col" title={t('count.col.estA.title')} className={`${th} !px-1.5 sm:!px-2.5 text-right sticky top-0 z-20`}>
+                        {t('count.col.estA')}
+                      </th>
+                    )}
                     <th scope="col" className={`${th} text-left sticky top-0 z-20`}>
                       <span className="sr-only">{t('count.col.photo')}</span>
                       <Camera className="w-3.5 h-3.5" aria-hidden />
@@ -562,6 +627,9 @@ export const CountPage: React.FC = () => {
                   {rows.map((r) => {
                     const key = keyOf(kind, date, r.id);
                     const value = drafts[key] ?? (r.now !== undefined ? String(r.now) : '');
+                    const ak = pctKeyOf(date, r.id);
+                    const abad = !!errors[ak];
+                    const shownPct = showA ? pctOf(r) : undefined;
                     const bad = !!errors[key];
                     const busy = !!inflight[key];
                     const ups = uploads[r.id] || [];
@@ -686,6 +754,55 @@ export const CountPage: React.FC = () => {
                             </span>
                           )}
                         </td>
+                        {showA && (
+                          <td className="p-0 border-b border-r border-slate-200 group-hover:bg-slate-50">
+                            {r.now !== undefined ? (
+                              <span className="relative block">
+                                <input
+                                  type="text"
+                                  inputMode="numeric"
+                                  enterKeyHint="next"
+                                  autoComplete="off"
+                                  data-count={ak}
+                                  value={drafts[ak] ?? (r.pct !== undefined ? String(r.pct) : '')}
+                                  aria-label={`${r.id} · ${t('count.col.pctA')}`}
+                                  aria-invalid={abad || undefined}
+                                  onFocus={(e) => e.currentTarget.select()}
+                                  onChange={(e) => {
+                                    setDrafts((x) => ({ ...x, [ak]: e.target.value }));
+                                    if (abad) setErrors((x) => omit(x, ak));
+                                  }}
+                                  onBlur={() => commitPct(ak)}
+                                  onPaste={(e) => {
+                                    if (paste(ak, e.clipboardData.getData('text'))) e.preventDefault();
+                                  }}
+                                  onKeyDown={(e) => {
+                                    const up = e.key === 'ArrowUp' || (e.key === 'Enter' && e.shiftKey);
+                                    if (e.key === 'Enter' || e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                                      e.preventDefault();
+                                      const col = pctKeys();
+                                      if (commitPct(ak)) focusKey(col[col.indexOf(ak) + (up ? -1 : 1)], false);
+                                    } else if (e.key === 'Escape') {
+                                      setDrafts((x) => omit(x, ak));
+                                      setErrors((x) => omit(x, ak));
+                                    }
+                                  }}
+                                  className={`w-full h-10 pl-4 pr-2 sm:pl-5 sm:pr-2.5 scroll-mt-32 scroll-mb-36 bg-transparent text-right font-semibold tabular outline-none focus:bg-white focus:outline-2 focus:-outline-offset-2 ${
+                                    abad ? 'outline-2 -outline-offset-2 outline-rose-500 text-rose-700' : 'focus:outline-emerald-600 text-slate-900'
+                                  }`}
+                                />
+                                {inflight[ak] && <Loader2 className="absolute left-1 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-400 animate-spin" aria-hidden />}
+                              </span>
+                            ) : (
+                              <span className="block h-10" title={r.target ? t('count.pct.first') : undefined} />
+                            )}
+                          </td>
+                        )}
+                        {showA && (
+                          <td className="px-2 sm:px-2.5 text-right tabular border-b border-r border-slate-200 group-hover:bg-slate-50 font-semibold text-slate-800">
+                            {r.now !== undefined && shownPct !== undefined ? fmt(gradeAFruit(r.now, shownPct)) : ''}
+                          </td>
+                        )}
                         <td className="px-1.5 py-1 border-b border-r border-slate-200 group-hover:bg-slate-50">
                           <span className="flex items-center gap-1">
                             {r.photos[0] && (
@@ -791,6 +908,16 @@ export const CountPage: React.FC = () => {
                         </span>
                       )}
                     </td>
+                    {showA && (
+                      <td className="sticky bottom-0 z-20 bg-slate-100 px-2.5 py-2 text-right tabular border-t border-slate-200" title={t('count.col.pctA.title')}>
+                        {gradeA.pct !== null ? `${gradeA.pct}%` : ''}
+                      </td>
+                    )}
+                    {showA && (
+                      <td className="sticky bottom-0 z-20 bg-slate-100 px-2.5 py-2 text-right tabular border-t border-slate-200 text-slate-900" title={t('count.col.estA.title')}>
+                        {gradeA.trees ? fmt(gradeA.gradeA) : ''}
+                      </td>
+                    )}
                     <td colSpan={3} className="sticky bottom-0 z-20 bg-slate-100 border-t border-slate-200" />
                   </tr>
                 </tfoot>
