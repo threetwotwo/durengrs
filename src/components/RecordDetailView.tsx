@@ -307,7 +307,7 @@ function recordRows(
     case 'harvest': {
       const h = e.rec;
       rows.push([t('rec.f.fruits'), <strong className="tabular">{h.fruits}</strong>]);
-      if (h.weightKg) rows.push([t('rec.f.weight'), `${h.weightKg.toLocaleString(lang === 'id' ? 'id-ID' : 'en-GB', { maximumFractionDigits: 2 })} kg`]);
+      if (h.weightKg) rows.push([t('rec.f.totalWeight'), `${h.weightKg.toLocaleString(lang === 'id' ? 'id-ID' : 'en-GB', { maximumFractionDigits: 2 })} kg`]);
       const graded = GRADES.filter((g) => h.grades?.[g]);
       if (graded.length) rows.push([t('rec.f.grades'), graded.map((g) => `${t(`grade.${g}`)} ${h.grades![g]}`).join(' · ')]);
       // The fruits' averages are the last row of the per-fruit table below.

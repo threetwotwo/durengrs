@@ -6,6 +6,7 @@ import { LayoutDashboard, Sprout, ClipboardList, CalendarCheck, BookOpen, Wheat,
 import { setGuideOn, useGuideOn } from '../lib/guideMode';
 import { useRoute } from '../lib/router';
 import { isDue, isOpen } from '../lib/cases';
+import { scrollToTop } from '../lib/scrollTop';
 
 type Tone = 'new' | 'warn' | 'danger' | 'muted';
 interface NavItem {
@@ -127,7 +128,15 @@ export const Header: React.FC = () => {
   const navRef = useActiveInView(route.tab);
 
   return (
-    <header className="sticky top-0 z-30 bg-slate-900 text-white border-b border-slate-800">
+    // On a phone a tap on the bar (not on a button) goes back to the top, like the status bar in other apps.
+    <header
+      className="sticky top-0 z-30 bg-slate-900 text-white border-b border-slate-800"
+      onClick={(e) => {
+        if (window.matchMedia('(min-width: 768px)').matches) return;
+        if ((e.target as HTMLElement).closest('a, button, input, select, [role="switch"], [role="group"]')) return;
+        scrollToTop();
+      }}
+    >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between gap-3 h-14">
           {/* Desktop navigation: every page. On phones the bottom tab bar is used instead. */}
@@ -192,6 +201,13 @@ export const BottomNav: React.FC = () => {
             <li key={item.id} className="flex-1 min-w-[4.5rem]">
               <Link
                 to={tabPath(item.id)}
+                onClick={(e) => {
+                  // The tab already open (its own page, filters kept): back to the top instead.
+                  if (on && route.path === tabPath(item.id)) {
+                    e.preventDefault();
+                    scrollToTop();
+                  }
+                }}
                 aria-current={on ? 'page' : undefined}
                 aria-label={item.badge ? `${item.label}, ${item.badge.text}` : item.label}
                 className={`relative w-full min-h-14 flex flex-col items-center justify-center gap-0.5 font-semibold ${on ? 'text-emerald-400' : 'text-slate-400'}`}

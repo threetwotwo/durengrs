@@ -457,7 +457,7 @@ export const CountPage: React.FC = () => {
   return (
     // The page is its own scroll area (both ways), the sheet like a spreadsheet app's: one scroll, no lag. What sits
     // above the sheet keeps its place when the sheet is scrolled sideways.
-    <div ref={areaRef} className={`${AREA} z-20 overflow-auto overscroll-contain bg-slate-100`}>
+    <div ref={areaRef} data-scroll-area className={`${AREA} z-20 overflow-auto overscroll-contain bg-slate-100`}>
       {/* On a phone the area is as wide as the sheet; what sits above it is one screen wide and stays in view. */}
       <div className={wide ? 'max-w-7xl mx-auto px-6 lg:px-8 py-5 space-y-4' : 'w-max min-w-full px-4 py-5 space-y-4'}>
         <div className={wide ? 'space-y-4' : 'sticky left-4 w-[calc(100vw-2rem)] space-y-4'}>
