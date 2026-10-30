@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { CameraOff, CloudRain, Flower2, ListChecks, Ruler, Tally5, Wheat, ClipboardList } from 'lucide-react';
 import { useFarm, normalizeTimestamp } from '../context/FarmContext';
 import { useT } from '../i18n';
@@ -281,6 +281,26 @@ const NoPhotoTile: React.FC<{ entry: LogEntry }> = ({ entry: e }) => {
 
 // ---------- the card (lists) ----------
 
+/** A tree's variety (code, and name when it has one), from the tree (archived ones too); else the record's own. */
+function useVarietyOf() {
+  const { trees, archivedTrees, variants } = useFarm();
+  return useMemo(() => {
+    const names = new Map(variants.map((v) => [v.code, v.name]));
+    const byTree = new Map([...archivedTrees, ...trees].map((x) => [x.id, x.variant]));
+    return (treeId?: string, own?: string) => {
+      const code = (treeId && byTree.get(treeId)) || own || '';
+      return code ? { code, name: names.get(code) || code } : null;
+    };
+  }, [trees, archivedTrees, variants]);
+}
+
+/** The variety next to the tree ID on a card: its code, the name on hover. */
+const VarietyTag: React.FC<{ code: string; name: string }> = ({ code, name }) => (
+  <span title={name} className="shrink-0 px-1.5 rounded bg-slate-100 text-[11px] font-semibold leading-5 text-slate-600 whitespace-nowrap">
+    {code}
+  </span>
+);
+
 /**
  * One record as a card: photos on top, then tree and time, the words, the tags, who sent it. The whole card opens the
  * record; the tree ID opens the tree; a photo opens the viewer.
@@ -295,6 +315,7 @@ export const RecordCard: React.FC<{ entry: LogEntry; filed?: LogEntry[]; timeOnl
   const { t } = useT();
   const view = useRecordView()(e, filed);
   const when = useWhen()(e, timeOnly);
+  const variety = useVarietyOf()(e.treeId, e.kind === 'harvest' ? e.rec.variant : undefined);
   const hasPhoto = view.photos.length > 0;
   const remember = () => e.kind === 'issue' && rememberReport(e.rec);
   return (
@@ -325,6 +346,7 @@ export const RecordCard: React.FC<{ entry: LogEntry; filed?: LogEntry[]; timeOnl
               <span className="font-semibold text-slate-900">{view.where}</span>
             )
           )}
+          {showTree && e.treeId && variety && <VarietyTag code={variety.code} name={variety.name} />}
           {view.kind && <span className="text-sm font-semibold text-slate-700">{view.kind}</span>}
           <span className="ml-auto text-xs text-slate-500 tabular whitespace-nowrap">{when}</span>
         </header>
@@ -341,6 +363,16 @@ export const CountRoundCard: React.FC<{ round: CountRound; eager?: boolean }> = 
   const { t, locale } = useT();
   const { workerLabel } = useFarm();
   const when = useWhen()(r.entries[0], true);
+  // The varieties of the trees counted, the most counted first; three at most on the card.
+  const varietyOf = useVarietyOf();
+  const varieties = (() => {
+    const n = new Map<string, { code: string; name: string; trees: number }>();
+    for (const id of new Set(r.entries.map((c) => c.rec.treeId))) {
+      const v = varietyOf(id);
+      if (v) n.set(v.code, { ...v, trees: (n.get(v.code)?.trees || 0) + 1 });
+    }
+    return [...n.values()].sort((a, b) => b.trees - a.trees);
+  })();
   const q = new URLSearchParams({ date: r.date });
   if (r.blocks.length === 1) q.set('block', r.blocks[0]);
   if (r.what === 'clusters') q.set('what', 'clusters');
@@ -369,6 +401,12 @@ export const CountRoundCard: React.FC<{ round: CountRound; eager?: boolean }> = 
       <div className="p-3 flex-1 flex flex-col gap-1.5">
         <header className="flex items-baseline gap-2">
           <span className="font-semibold text-slate-900">{where}</span>
+          {varieties.length > 0 && (
+            <span className="shrink-0 px-1.5 rounded bg-slate-100 text-[11px] font-semibold leading-5 text-slate-600 whitespace-nowrap" title={varieties.map((v) => `${v.name} ${v.trees}`).join(', ')}>
+              {varieties.slice(0, 3).map((v) => v.code).join(', ')}
+              {varieties.length > 3 ? ` +${varieties.length - 3}` : ''}
+            </span>
+          )}
           <span className="text-sm font-semibold text-slate-700">{title}</span>
           <span className="ml-auto text-xs text-slate-500 tabular whitespace-nowrap">{when}</span>
         </header>
