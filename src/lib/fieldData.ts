@@ -59,6 +59,8 @@ export interface HarvestFruit {
   aroma: number;
   skin: number;
   shape: number;
+  /** Where the fruit went (a buyer, a shop, an order): typed on the fruits table, free text. */
+  deliverTo?: string;
 }
 
 /** Average aroma, skin and shape scores of a harvest's fruits (1-5), or null without scored fruits. */

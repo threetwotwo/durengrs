@@ -39,15 +39,23 @@ export function fruitRows(harvests: Harvest[], variantOfTree: (id: string) => st
   return out;
 }
 
-export type FruitSort = 'code' | 'tree' | 'variant' | 'date' | 'weight' | 'aroma' | 'skin' | 'shape';
-export const FRUIT_SORTS: FruitSort[] = ['code', 'tree', 'variant', 'date', 'weight', 'aroma', 'skin', 'shape'];
+export type FruitSort = 'code' | 'tree' | 'variant' | 'date' | 'weight' | 'aroma' | 'skin' | 'shape' | 'deliver';
+export const FRUIT_SORTS: FruitSort[] = ['code', 'tree', 'variant', 'date', 'weight', 'aroma', 'skin', 'shape', 'deliver'];
 
 const treeOrder = (a?: string, b?: string) => (a || '').localeCompare(b || '', undefined, { numeric: true });
 
-/** Newest first by default; any column either way. Ties: newest day, then the code. */
+/** Newest first by default; any column either way. Ties: newest day, then the code. Fruits not delivered: last. */
 export function sortFruits(rows: FruitRow[], sort: FruitSort | null, desc: boolean): FruitRow[] {
   const base = (a: FruitRow, b: FruitRow) => b.date.localeCompare(a.date) || treeOrder(a.key, b.key);
   if (!sort) return [...rows].sort(base);
+  if (sort === 'deliver')
+    return [...rows].sort((a, b) => {
+      const x = (a.deliverTo || '').toLowerCase();
+      const y = (b.deliverTo || '').toLowerCase();
+      if (!x || !y) return x === y ? base(a, b) : x ? -1 : 1;
+      const c = x.localeCompare(y, undefined, { numeric: true });
+      return (desc ? -c : c) || base(a, b);
+    });
   const val = (r: FruitRow): number | string =>
     sort === 'weight' ? r.weightG : sort === 'aroma' ? r.aroma : sort === 'skin' ? r.skin : sort === 'shape' ? r.shape
       : sort === 'tree' ? r.treeId || '' : sort === 'variant' ? r.variant || '' : sort === 'date' ? r.date : r.key;
@@ -100,4 +108,41 @@ export function checkFruit(f: { weightG: string; aroma: string; skin: string; sh
     out[k] = v;
   }
   return { ok: true, value: out };
+}
+
+// ---------- delivered to ----------
+
+/** "Deliver to" as typed: spaces tidied, at most 60 characters; empty means not set. */
+export const cleanDeliverTo = (raw: string) => raw.replace(/\s+/g, ' ').trim().slice(0, 60);
+
+/** A harvest's fruits with some of their "deliver to" changed (by place); empty takes it away. */
+export function withDeliveries(items: HarvestFruit[], changes: Array<{ index: number; value: string }>): HarvestFruit[] {
+  const out = [...items];
+  for (const { index, value } of changes) {
+    if (!out[index]) continue;
+    const { deliverTo: _old, ...rest } = out[index];
+    const v = cleanDeliverTo(value);
+    out[index] = v ? { ...rest, deliverTo: v } : rest;
+  }
+  return out;
+}
+
+/** The fruits shown, as a sheet for a CSV file: one row each, weight in kilos, the variety's name beside its code. */
+export function fruitsSheet(rows: FruitRow[], head: string[], varietyName: (code?: string) => string): Array<Array<string | number>> {
+  return [
+    head,
+    ...rows.map((r) => [
+      r.code || r.key,
+      r.treeId || '',
+      r.block || '',
+      r.variant || '',
+      varietyName(r.variant),
+      r.date,
+      Math.round(r.weightG) / 1000,
+      r.aroma,
+      r.skin,
+      r.shape,
+      r.deliverTo || '',
+    ]),
+  ];
 }

@@ -1,7 +1,7 @@
 // The fruits table: every fruit from Laporan PANEN as its own row, sorted, summed, checked.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { byVariety, checkFruit, fruitRows, sortFruits, summarizeFruits } from '../src/lib/fruits';
+import { byVariety, checkFruit, cleanDeliverTo, fruitRows, fruitsSheet, sortFruits, summarizeFruits, withDeliveries } from '../src/lib/fruits';
 import { parseHash } from '../src/lib/router';
 
 const h = (id: string, treeId: string, date: string, variant: string | undefined, items: any[]): any => ({ id, treeId, block: treeId[0], date, variant, fruits: items.length, items });
@@ -39,4 +39,26 @@ test('addresses: the fruits table and one fruit live under Harvest', () => {
   const one = parseHash('#/harvest/fruits/A3-20261021-01');
   assert.deepEqual([one.tab, one.fruitCode, one.pageKey], ['harvest', 'A3-20261021-01', 'fruits:A3-20261021-01']);
   assert.equal(parseHash('#/harvest/other').known, false);
+});
+
+test('deliver to: typed text tidied; set or taken away per fruit, the rest of the fruit kept; sorted with the empty ones last', () => {
+  assert.equal(cleanDeliverTo('  Toko   Jaya  '), 'Toko Jaya');
+  assert.equal(cleanDeliverTo('x'.repeat(80)).length, 60);
+  const items = [f('A1-1', 2000), { ...f('A1-2', 1500), deliverTo: 'Pak Ali' }, f('A1-3', 1800)];
+  const next = withDeliveries(items, [{ index: 0, value: ' Toko Jaya ' }, { index: 1, value: '' }, { index: 9, value: 'nobody' }]);
+  assert.deepEqual(next[0], { ...items[0], deliverTo: 'Toko Jaya' });
+  assert.deepEqual(next[1], f('A1-2', 1500), 'emptied: no deliverTo field at all');
+  assert.equal(next[2], items[2]);
+  assert.equal(next.length, 3);
+  const rows = fruitRows([h('a', 'A1', '2026-10-20', 'MK', [{ ...f('A1-1', 2000), deliverTo: 'budi' }, f('A1-2', 1500), { ...f('A1-3', 1800), deliverTo: 'Ani' }])]);
+  assert.deepEqual(sortFruits(rows, 'deliver', false).map((r) => r.deliverTo || ''), ['Ani', 'budi', '']);
+  assert.deepEqual(sortFruits(rows, 'deliver', true).map((r) => r.deliverTo || ''), ['budi', 'Ani', '']);
+});
+
+test('CSV: the fruits shown, one row each, weight in kilos, variety code and name', () => {
+  const rows = fruitRows([h('a', 'A1', '2026-10-20', 'MK', [{ ...f('A1-20261020-01', 1290, 2, 3, 4), deliverTo: 'Toko Jaya' }])]);
+  assert.deepEqual(fruitsSheet(rows, ['Code'], (c) => (c === 'MK' ? 'Musang King' : '')), [
+    ['Code'],
+    ['A1-20261020-01', 'A1', 'A', 'MK', 'Musang King', '2026-10-20', 1.29, 2, 3, 4, 'Toko Jaya'],
+  ]);
 });

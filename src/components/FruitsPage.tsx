@@ -1,10 +1,24 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowDown, ArrowLeft, ArrowUp, Pencil, Search } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { ArrowDown, ArrowLeft, ArrowUp, Download, Loader2, Pencil, Search } from 'lucide-react';
 import { useFarm } from '../context/FarmContext';
 import { useT } from '../i18n';
 import { fruitUrl, fruitsUrl, goBack, reportUrl, treeUrl, useQueryParams } from '../lib/router';
-import { FRUIT_SORTS, type FruitRow, type FruitSort, byVariety, checkFruit, fruitRows, sortFruits, summarizeFruits } from '../lib/fruits';
+import {
+  FRUIT_SORTS,
+  type FruitRow,
+  type FruitSort,
+  byVariety,
+  checkFruit,
+  cleanDeliverTo,
+  fruitRows,
+  fruitsSheet,
+  sortFruits,
+  summarizeFruits,
+  withDeliveries,
+} from '../lib/fruits';
 import { updateHarvestItems } from '../lib/fieldData';
+import { toCsv } from '../lib/kebun';
+import { pastedColumn } from '../lib/recount';
 import { diffDays, formatShortDate } from '../lib/treatments';
 import { PageHeader, btnPrimary, btnSecondary, inputCls } from './PageHeader';
 import { Link } from './Link';
@@ -25,6 +39,40 @@ const useVarietyName = () => {
     const names = new Map(variants.map((v) => [v.code, v.name]));
     return (code?: string) => (code ? names.get(code) || code : '');
   }, [variants]);
+};
+
+/**
+ * Saves "deliver to" for some fruits: one write per harvest, from its fruits as they are now (a pasted column with
+ * several fruits of one harvest writes it once, none lost).
+ */
+function useSaveDeliveries() {
+  const { harvests } = useFarm();
+  const live = useRef(harvests);
+  live.current = harvests;
+  return async (changes: Array<{ row: FruitRow; value: string }>) => {
+    const byHarvest = new Map<string, Array<{ index: number; value: string }>>();
+    for (const c of changes) byHarvest.set(c.row.harvest.id, [...(byHarvest.get(c.row.harvest.id) || []), { index: c.row.index, value: c.value }]);
+    await Promise.all(
+      [...byHarvest].map(async ([id, list]) => {
+        const h = live.current.find((x) => x.id === id);
+        if (h) await updateHarvestItems(id, withDeliveries(h.items || [], list));
+      })
+    );
+  };
+}
+
+const omitKeys = <T,>(o: Record<string, T>, keys: string[]) => Object.fromEntries(Object.entries(o).filter(([k]) => !keys.includes(k)));
+
+/** The names typed so far, offered while typing so one buyer is always spelled the same. */
+const DeliverOptions: React.FC<{ rows: FruitRow[] }> = ({ rows }) => {
+  const names = useMemo(() => Array.from(new Set(rows.map((r) => r.deliverTo).filter(Boolean) as string[])).sort((a, b) => a.localeCompare(b)), [rows]);
+  return (
+    <datalist id="deliver-options">
+      {names.map((n) => (
+        <option key={n} value={n} />
+      ))}
+    </datalist>
+  );
 };
 
 const th = 'px-2.5 h-10 text-[11px] font-semibold uppercase tracking-wide whitespace-nowrap bg-slate-900 text-slate-200';
@@ -49,7 +97,13 @@ export const FruitsPage: React.FC = () => {
   const fmt = (n: number, d = 0) => n.toLocaleString(locale, { maximumFractionDigits: d });
   const kg = (g: number) => `${(g / 1000).toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kg`;
 
-  const inScope = useMemo(() => all.filter((r) => (!block || r.block === block) && (!q || r.key.toUpperCase().includes(q) || (r.treeId || '').toUpperCase() === q)), [all, block, q]);
+  const inScope = useMemo(
+    () =>
+      all.filter(
+        (r) => (!block || r.block === block) && (!q || r.key.toUpperCase().includes(q) || (r.treeId || '').toUpperCase() === q || (r.deliverTo || '').toUpperCase().includes(q))
+      ),
+    [all, block, q]
+  );
   const rows = useMemo(() => sortFruits(inScope.filter((r) => !variant || r.variant === variant), sort, desc), [inScope, variant, sort, desc]);
   const sum = summarizeFruits(rows);
   const varieties = useMemo(() => byVariety(inScope), [inScope]);
@@ -59,6 +113,52 @@ export const FruitsPage: React.FC = () => {
     return [...seen].sort((a, b) => name(a).localeCompare(name(b)));
   }, [all, variants, name]);
   const filtered = !!(q || variant || block);
+
+  // ---------- deliver to: typed into the table, saved by itself ----------
+  const saveDeliveries = useSaveDeliveries();
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState<Record<string, true>>({});
+  const [msg, setMsg] = useState<{ text: string; bad?: boolean } | null>(null);
+  const cancelled = useRef<string | null>(null);
+  const commit = (changes: Array<{ row: FruitRow; value: string }>) => {
+    const real = changes.filter((c) => cleanDeliverTo(c.value) !== (c.row.deliverTo || ''));
+    const keys = changes.map((c) => c.row.key);
+    if (!real.length) return setDrafts((d) => omitKeys(d, keys));
+    setBusy((b) => ({ ...b, ...Object.fromEntries(real.map((c) => [c.row.key, true as const])) }));
+    saveDeliveries(real)
+      .then(() => setDrafts((d) => omitKeys(d, keys)))
+      .catch((e: any) => {
+        console.error('Deliver-to save failed:', e);
+        setMsg({ text: e?.code === 'permission-denied' ? t('err.rulesRecords') : t('fr.saveError'), bad: true });
+      })
+      .finally(() => setBusy((b) => omitKeys(b, real.map((c) => c.row.key))));
+  };
+  const focusDeliver = (key?: string) => (key ? document.querySelector<HTMLInputElement>(`input[data-deliver="${CSS.escape(key)}"]`) : null);
+  /** A column copied from Google Sheets, from this fruit down the table (blank cells skipped). */
+  const pasteDeliveries = (from: FruitRow, text: string): boolean => {
+    const col = pastedColumn(text);
+    if (!col) return false;
+    const start = rows.indexOf(from);
+    const changes = col.map((value, i) => ({ row: rows[start + i], value })).filter((c) => c.row && c.value.trim() !== '');
+    setDrafts((d) => ({ ...d, ...Object.fromEntries(changes.map((c) => [c.row.key, c.value])) }));
+    commit(changes);
+    if (changes.length) setMsg({ text: t('fr.pasted', { n: changes.length, from: changes[0].row.code || changes[0].row.key, to: changes[changes.length - 1].row.code || changes[changes.length - 1].row.key }) });
+    return true;
+  };
+  const delivered = rows.filter((r) => r.deliverTo).length;
+
+  const exportCsv = () => {
+    const head = [t('fr.col.code'), t('fr.col.tree'), t('common.block'), t('fr.col.variant'), t('fr.variant'), t('fr.col.date'), `${t('fr.col.weight')} (kg)`, t('fr.col.aroma'), t('fr.col.skin'), t('fr.col.shape'), t('fr.col.deliver')];
+    const blob = new Blob(['\ufeff' + toCsv(fruitsSheet(rows, head, name))], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `buah_${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
 
   const sortBy = (k: FruitSort) => setParams({ sort: sort === k && desc ? null : k, dir: sort === k && !desc ? 'desc' : null });
   // On a phone the tree, variety and date columns are left out: tree and date are in the fruit's code
@@ -79,7 +179,18 @@ export const FruitsPage: React.FC = () => {
         <ArrowLeft className="w-4 h-4" />
         {t('hp.title')}
       </button>
-      <PageHeader title={t('fr.title')} description={t('fr.desc')} />
+      <PageHeader
+        title={t('fr.title')}
+        description={t('fr.desc')}
+        actions={
+          rows.length > 0 && (
+            <button type="button" onClick={exportCsv} className={btnSecondary} title={t('fr.csv.title', { n: rows.length })}>
+              <Download className="w-4 h-4" />
+              <span>CSV</span>
+            </button>
+          )
+        }
+      />
 
       <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-xs grid grid-cols-2 lg:grid-cols-[1fr_12rem_10rem] gap-2">
         <div className="relative col-span-2 lg:col-span-1">
@@ -148,6 +259,13 @@ export const FruitsPage: React.FC = () => {
         </section>
       )}
 
+      {msg && (
+        <p role={msg.bad ? 'alert' : 'status'} className={`text-sm ${msg.bad ? 'p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-800' : 'text-slate-700'}`}>
+          {msg.text}
+        </p>
+      )}
+      <DeliverOptions rows={all} />
+
       {rows.length === 0 ? (
         <div className="p-8 text-center text-sm text-slate-600 bg-white rounded-xl border border-slate-200 space-y-3">
           <p>{all.length ? t('fr.noMatch') : t('fr.none')}</p>
@@ -162,7 +280,7 @@ export const FruitsPage: React.FC = () => {
           <table className="w-full text-sm border-separate border-spacing-0">
             <thead>
               <tr>
-                {head('code', t('fr.col.code'))}
+                {head('code', t('fr.col.code'), false, 'sticky left-0 z-10')}
                 {head('tree', t('fr.col.tree'), false, wide)}
                 {head('variant', t('fr.col.variant'), false, wide)}
                 {head('date', t('fr.col.date'), false, wide)}
@@ -170,12 +288,14 @@ export const FruitsPage: React.FC = () => {
                 {head('aroma', t('fr.col.aroma'), 'center')}
                 {head('skin', t('fr.col.skin'), 'center')}
                 {head('shape', t('fr.col.shape'), 'center')}
+                {head('deliver', t('fr.col.deliver'), false, 'min-w-[10rem]')}
               </tr>
             </thead>
             <tbody className="tabular">
               {rows.map((r) => (
-                <tr key={r.key} className="hover:bg-slate-50">
-                  <td className={td}>
+                <tr key={r.key} className="group hover:bg-slate-50">
+                  {/* The code stays in view while the table scrolls sideways (typing "deliver to" on a phone). */}
+                  <td className={`${td} sticky left-0 z-[1] bg-white group-hover:bg-slate-50`}>
                     <Link to={fruitUrl(r.key)} className="font-mono text-xs font-semibold text-emerald-800 hover:underline">
                       {r.code || `${r.treeId || '—'} #${r.index + 1}`}
                     </Link>
@@ -197,13 +317,52 @@ export const FruitsPage: React.FC = () => {
                   <td className={`${td} text-center`}><ScoreChip v={r.aroma} /></td>
                   <td className={`${td} text-center`}><ScoreChip v={r.skin} /></td>
                   <td className={`${td} text-center`}><ScoreChip v={r.shape} /></td>
+                  <td className="p-0 border-b border-l border-slate-100">
+                    <span className="relative block">
+                      <input
+                        data-deliver={r.key}
+                        list="deliver-options"
+                        value={drafts[r.key] ?? r.deliverTo ?? ''}
+                        maxLength={80}
+                        enterKeyHint="next"
+                        autoComplete="off"
+                        placeholder="—"
+                        aria-label={`${r.code || r.key} · ${t('fr.col.deliver')}`}
+                        onChange={(e) => setDrafts((d) => ({ ...d, [r.key]: e.target.value }))}
+                        onBlur={(e) => {
+                          if (cancelled.current === r.key) {
+                            cancelled.current = null;
+                            return;
+                          }
+                          commit([{ row: r, value: e.currentTarget.value }]);
+                        }}
+                        onPaste={(e) => {
+                          if (pasteDeliveries(r, e.clipboardData.getData('text'))) e.preventDefault();
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            const next = focusDeliver(rows[rows.indexOf(r) + (e.shiftKey ? -1 : 1)]?.key);
+                            if (next) next.focus();
+                            else e.currentTarget.blur();
+                          } else if (e.key === 'Escape') {
+                            cancelled.current = r.key;
+                            setDrafts((d) => omitKeys(d, [r.key]));
+                            e.currentTarget.blur();
+                          }
+                        }}
+                        className="w-full min-w-[10rem] h-10 pl-2.5 pr-6 bg-transparent text-sm text-slate-900 placeholder:text-slate-300 outline-none hover:bg-emerald-50/60 focus:bg-white focus:outline-2 focus:-outline-offset-2 focus:outline-emerald-600"
+                      />
+                      {busy[r.key] && <Loader2 className="absolute right-1.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 animate-spin" aria-hidden />}
+                    </span>
+                  </td>
                 </tr>
               ))}
             </tbody>
             {sum && (
               <tfoot className="tabular font-semibold text-slate-800 bg-slate-50">
                 <tr>
-                  <th scope="row" className="px-2.5 py-2 text-left text-xs font-semibold sm:hidden">
+                  <th scope="row" className="sticky left-0 bg-slate-50 px-2.5 py-2 text-left text-xs font-semibold sm:hidden">
                     {t('fr.sum', { n: fmt(sum.n), kg: fmt(sum.kg, 2) })}
                   </th>
                   <th scope="row" colSpan={4} className="px-2.5 py-2 text-left text-xs font-semibold hidden sm:table-cell">
@@ -213,6 +372,7 @@ export const FruitsPage: React.FC = () => {
                   <td className="px-2.5 py-2 text-center"><ScoreChip v={sum.aroma} avg /></td>
                   <td className="px-2.5 py-2 text-center"><ScoreChip v={sum.skin} avg /></td>
                   <td className="px-2.5 py-2 text-center"><ScoreChip v={sum.shape} avg /></td>
+                  <td className="px-2.5 py-2 text-left text-xs font-semibold text-slate-600 whitespace-nowrap">{delivered > 0 ? t('fr.deliveredN', { n: fmt(delivered) }) : ''}</td>
                 </tr>
               </tfoot>
             )}
@@ -270,7 +430,8 @@ export const FruitPage: React.FC<{ fruitKey: string }> = ({ fruitKey }) => {
     setSaving(true);
     try {
       const items = [...(h.items || [])];
-      items[f.index] = check.value;
+      // Corrected weight and scores; the rest of the fruit (where it went) stays.
+      items[f.index] = { ...items[f.index], ...check.value };
       await updateHarvestItems(h.id, items);
       setEditing(false);
     } catch (e: any) {
@@ -287,6 +448,7 @@ export const FruitPage: React.FC<{ fruitKey: string }> = ({ fruitKey }) => {
   ];
   if (h.floweredOn) facts.push([t('fr.fromBloom'), `${h.daysFromBloom ?? diffDays(h.date, h.floweredOn)} (${formatShortDate(h.floweredOn)})`]);
   if (h.workerPhone) facts.push([t('fr.by'), workerLabel(h.workerPhone)]);
+  facts.push([t('fr.col.deliver'), <DeliverField key={f.key} row={f} />]);
   const field = (k: 'weightG' | 'aroma' | 'skin' | 'shape', label: string, hint?: string) => (
     <label className="block space-y-1">
       <span className="text-sm font-semibold text-slate-800">{label}</span>
@@ -304,6 +466,7 @@ export const FruitPage: React.FC<{ fruitKey: string }> = ({ fruitKey }) => {
   return (
     <div className="space-y-4 max-w-2xl">
       {back}
+      <DeliverOptions rows={all} />
       <article className="bg-white rounded-xl border border-slate-200 overflow-hidden">
         <header className="p-4 sm:p-5 space-y-0.5 border-b border-slate-100">
           <h1 className="text-xl font-bold text-slate-900 font-mono break-all">{f.code || `${f.treeId || ''} #${f.index + 1}`}</h1>
@@ -393,5 +556,43 @@ export const FruitPage: React.FC<{ fruitKey: string }> = ({ fruitKey }) => {
         </footer>
       </article>
     </div>
+  );
+};
+
+/** "Deliver to" on a fruit's page: typed in place, saved when leaving the box or with Enter. */
+const DeliverField: React.FC<{ row: FruitRow }> = ({ row }) => {
+  const { t } = useT();
+  const save = useSaveDeliveries();
+  const [text, setText] = useState(row.deliverTo || '');
+  const [state, setState] = useState<'idle' | 'saving' | 'error'>('idle');
+  useEffect(() => setText(row.deliverTo || ''), [row.deliverTo]);
+  const commit = () => {
+    if (cleanDeliverTo(text) === (row.deliverTo || '')) return;
+    setState('saving');
+    save([{ row, value: text }])
+      .then(() => setState('idle'))
+      .catch((e) => {
+        console.error('Deliver-to save failed:', e);
+        setState('error');
+      });
+  };
+  return (
+    <span className="block">
+      <span className="relative block max-w-xs">
+        <input
+          list="deliver-options"
+          value={text}
+          maxLength={80}
+          placeholder={t('fr.deliver.placeholder')}
+          aria-label={t('fr.col.deliver')}
+          onChange={(e) => setText(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+          className={`${inputCls} !min-h-9 pr-8`}
+        />
+        {state === 'saving' && <Loader2 className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 animate-spin" aria-hidden />}
+      </span>
+      {state === 'error' && <span role="alert" className="block mt-1 text-xs text-rose-700">{t('fr.saveError')}</span>}
+    </span>
   );
 };
