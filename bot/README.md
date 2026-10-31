@@ -166,9 +166,9 @@ gcloud run services update durian-tree-lookup --region asia-southeast1 --min-ins
 3. Deploy (same command as always, run inside `bot/`):
    `gcloud run deploy durian-tree-lookup --source . --project whatsapp-survey-509713 --region asia-southeast1 --allow-unauthenticated --env-vars-file env.yaml`
 
-## Daily summary (06:00 WIB)
+## Daily summary (06:55 WIB)
 
-Every morning at 06:00 every worker on the webapp's Workers page gets **yesterday's** summary on WhatsApp (the bell
+Every morning at 06:55 every worker on the webapp's Workers page gets **yesterday's** summary on WhatsApp (the bell
 there turns it off for one worker): a line thanking them for what they recorded, all saved ✅ (or when they last
 reported), then two groups: **Laporan KESEHATAN** (the day's reports, everyone's, one short line each: time, tree,
 who, condition, their words cut short; their own marked "(Anda) ✅"; a quiet day shows the latest of the last two
@@ -177,9 +177,9 @@ their own with fruit codes; the week's total). Sending **RINGKASAN** in the chat
 `lib/summary.js`; sent once per day summarised per number (`farmMeta/dailySummary`).
 
 - **Schedule:** the Cloud Scheduler job `daily-summary` (project `whatsapp-survey-509713`, `asia-southeast1`,
-  `0 6 * * *` Asia/Jakarta) calls `/daily-summary?token=<VERIFY_TOKEN>&date=yesterday`. Console › Cloud Scheduler ›
+  `55 6 * * *` Asia/Jakarta) calls `/daily-summary?token=<VERIFY_TOKEN>&date=yesterday`. Console › Cloud Scheduler ›
   daily-summary › Force run sends now (nobody gets the same day twice). Backup: `.github/workflows/daily-summary.yml`
-  at 06:30 WIB reaches whoever the 06:00 run missed; its notice counts "already sent". By hand: GitHub › Actions ›
+  at 07:25 WIB reaches whoever the 06:55 run missed; its notice counts "already sent". By hand: GitHub › Actions ›
   Daily summary to workers › Run workflow. Its log shows counts only.
 - **Test first:** `https://<service>/daily-summary?token=<VERIFY_TOKEN>&to=628…` sends today's to that number only
   (`&date=yesterday` for yesterday's); `&dry=1` shows every worker's message without sending anything.

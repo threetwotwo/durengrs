@@ -1,4 +1,4 @@
-// lib/summary.js — the daily summary sent to workers on WhatsApp: yesterday's, every morning at 06:00 WIB
+// lib/summary.js — the daily summary sent to workers on WhatsApp: yesterday's, every morning at 06:55 WIB
 // (GET /daily-summary?date=yesterday from .github/workflows/daily-summary.yml); the word RINGKASAN in chat asks for
 // today's any time. Indonesian, like everything a worker reads.
 // Its point: workers who never see the webapp see that what they sent was recorded, and what the others sent:
@@ -38,7 +38,7 @@ const list = (ids, max = LIST_MAX) => {
 };
 const issueName = (c) => c.name || S.ISSUE_INFO[c.issue]?.label.id || c.issue;
 
-/** The summary's day in words, from where `now` is: "hari ini", "kemarin", or "pada 25 Okt" (a 06:00 send is of yesterday). */
+/** The summary's day in words, from where `now` is: "hari ini", "kemarin", or "pada 25 Okt" (the morning send is of yesterday). */
 function dayWord(date, now = Date.now()) {
   const today = R.todayStr(new Date(now));
   if (date === today) return 'hari ini';
@@ -284,7 +284,7 @@ function summaryLine(data, date, phone, now = Date.now()) {
 
 /**
  * Which day RINGKASAN in the chat shows: today, but in the morning (before 12:00 WIB) while the worker has recorded
- * nothing yet today, yesterday — the day the 06:00 message was about ("Balas RINGKASAN untuk melihat lengkapnya").
+ * nothing yet today, yesterday — the day the morning message was about ("Balas RINGKASAN untuk melihat lengkapnya").
  * `today`: the day's data (loadDay of today).
  */
 function ownSummaryDay(today, date, phone, now = Date.now()) {

@@ -1,8 +1,8 @@
-# Every morning at 06:00 WIB the workers get yesterday's summary on WhatsApp (bot/lib/summary.js): what they recorded,
-# all saved, then the latest KESEHATAN and PANEN reports. The 06:00 send is the Cloud Scheduler job "daily-summary"
-# (project whatsapp-survey-509713, asia-southeast1). This workflow is the backup at 06:30 WIB (23:30 UTC; GitHub starts
+# Every morning at 06:55 WIB the workers get yesterday's summary on WhatsApp (bot/lib/summary.js): what they recorded,
+# all saved, then the latest KESEHATAN and PANEN reports. The 06:55 send is the Cloud Scheduler job "daily-summary"
+# (project whatsapp-survey-509713, asia-southeast1). This workflow is the backup at 07:25 WIB (00:25 UTC; GitHub starts
 # scheduled runs late at times, or not at all): the bot sends each worker once per day summarised, so it only reaches
-# whoever the 06:00 run missed, and its notice says how many were already sent. By hand: Actions › Daily summary to
+# whoever the 06:55 run missed, and its notice says how many were already sent. By hand: Actions › Daily summary to
 # workers › Run workflow (pick the day).
 # The token is read from the BOT_ENV_YAML secret; the log shows counts only (the answer holds workers' numbers, and
 # this repository's logs are public).
@@ -10,7 +10,7 @@ name: Daily summary to workers
 
 on:
   schedule:
-    - cron: '30 23 * * *'
+    - cron: '25 0 * * *'
   workflow_dispatch:
     inputs:
       date:

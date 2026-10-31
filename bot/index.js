@@ -5,8 +5,8 @@
 //   flow token says which screen it starts on;
 //   KEBUN (or the "Hujan & Pekerjaan" button) gets the farm Flow (flows/flow-farm.json, FARM_FLOW_ID).
 //   When a report Flow completes, Gemini reads the report (lib/ai.js) and the reply comes with a fresh Flow message.
-//   RINGKASAN gets the day's summary (lib/summary.js); /daily-summary sends yesterday's to the workers at 06:00 WIB
-//   (Cloud Scheduler job daily-summary; .github/workflows/daily-summary.yml at 06:30 as a backup).
+//   RINGKASAN gets the day's summary (lib/summary.js); /daily-summary sends yesterday's to the workers at 06:55 WIB
+//   (Cloud Scheduler job daily-summary; .github/workflows/daily-summary.yml at 07:25 as a backup).
 require('dotenv').config();
 const express = require('express');
 const { decryptRequest, encryptResponse } = require('./lib/encryption');
@@ -377,8 +377,8 @@ app.post(['/send-tree-flow', '/send-tree-lookup'], async (req, res) => {
   res.json({ kesehatan: await sendTreeFlow(to, tree), panen: await sendHarvestFlow(to, tree) });
 });
 
-// The daily summary: https://<service>/daily-summary?token=<VERIFY_TOKEN>, called every morning at 06:00 WIB with
-// &date=yesterday (Cloud Scheduler job daily-summary; the GitHub workflow at 06:30 as a backup): every worker on the Workers page whose switch is on gets theirs
+// The daily summary: https://<service>/daily-summary?token=<VERIFY_TOKEN>, called every morning at 06:55 WIB with
+// &date=yesterday (Cloud Scheduler job daily-summary; the GitHub workflow at 07:25 as a backup): every worker on the Workers page whose switch is on gets theirs
 // (once per day summarised, retries are skipped). &date=YYYY-MM-DD for another day (default today); &to=628… sends to
 // one number only (a test), &dry=1 shows the messages without sending anything.
 app.get('/daily-summary', async (req, res) => {
