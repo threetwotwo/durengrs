@@ -75,3 +75,10 @@ test('by day; a fruit sent twice (same tree, day, weight and scores, another rep
   assert.deepEqual(withoutFruit([f('a', 1), f('b', 2)], 0), [f('b', 2)]);
   assert.equal(withoutFruit([f('a', 1)], 0), null);
 });
+
+test('short code for tables: the year left out', async () => {
+  const { shortCode } = await import('../src/lib/fruits');
+  assert.equal(shortCode('A3-20261102-02'), 'A3-1102-02');
+  assert.equal(shortCode('B29-20261031-12'), 'B29-1031-12');
+  assert.equal(shortCode('odd'), 'odd');
+});

@@ -183,3 +183,6 @@ export function withoutFruit(items: HarvestFruit[], index: number): HarvestFruit
   const out = items.filter((_, i) => i !== index);
   return out.length ? out : null;
 }
+
+/** A fruit code as shown in tables, without the year (the same all season): A3-20261102-02 -> A3-1102-02. */
+export const shortCode = (code: string) => code.replace(/^(.+)-\d{4}(\d{4})-(\d+)$/, '$1-$2-$3');

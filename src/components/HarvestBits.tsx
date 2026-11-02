@@ -1,6 +1,7 @@
 import React from 'react';
 import { useT } from '../i18n';
 import { GRADES, type Harvest, harvestScores } from '../lib/fieldData';
+import { shortCode } from '../lib/fruits';
 
 /** How a 1-5 score reads: 4-5 good (green), 3 middling (amber), 1-2 poor (red); averages split at 3.5 and 2.5. */
 export const scoreTone = (v: number) => (v >= 3.5 ? 'good' : v >= 2.5 ? 'mid' : 'poor');
@@ -137,8 +138,9 @@ export const FruitTable: React.FC<{ harvest: Harvest; hrefOf: (i: number) => str
           <tbody className="divide-y divide-slate-100">
             {rows.map(({ f, i }) => {
               const href = hrefOf(i);
-              const num = f.code ? f.code.split('-').pop() : String(i + 1);
-              const prefix = f.code ? f.code.slice(0, f.code.length - (num || '').length) : '';
+              const short = f.code ? shortCode(f.code) : '';
+              const num = short ? short.split('-').pop() : String(i + 1);
+              const prefix = short ? short.slice(0, short.length - (num || '').length) : '';
               return (
                 <tr key={f.code || i} onClick={() => onOpen(href)} className="cursor-pointer hover:bg-slate-50">
                   <td className={`${td} whitespace-nowrap`}>

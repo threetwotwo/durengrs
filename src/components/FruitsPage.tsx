@@ -14,6 +14,7 @@ import {
   fruitRows,
   fruitsSheet,
   likelyDuplicates,
+  shortCode,
   sortFruits,
   summarizeFruits,
   withDeliveries,
@@ -437,8 +438,8 @@ export const FruitsPage: React.FC = () => {
                 <tr className="group hover:bg-slate-50">
                   {/* The code stays in view while the table scrolls sideways (typing "deliver to" on a phone). */}
                   <td className={`${td} sticky left-0 z-[1] bg-white group-hover:bg-slate-50`}>
-                    <Link to={fruitUrl(r.key)} className="font-mono text-xs font-semibold text-emerald-800 hover:underline">
-                      {r.code || `${r.treeId || '—'} #${r.index + 1}`}
+                    <Link to={fruitUrl(r.key)} title={r.code} className="font-mono text-xs font-semibold text-emerald-800 hover:underline">
+                      {r.code ? shortCode(r.code) : `${r.treeId || '—'} #${r.index + 1}`}
                     </Link>
                     {dupes.has(r.key) && (
                       <span className="ml-1.5 px-1 rounded bg-amber-100 text-amber-900 text-[10px] font-bold" title={t('fr.dup', { code: dupes.get(r.key)! })}>
@@ -703,7 +704,7 @@ export const FruitPage: React.FC<{ fruitKey: string }> = ({ fruitKey }) => {
                 .map((r) => (
                   <li key={r.key}>
                     <Link to={fruitUrl(r.key)} replace className="min-h-9 px-2.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 inline-flex items-center gap-2 text-xs">
-                      <span className="font-mono font-semibold text-emerald-800">{r.code || `#${r.index + 1}`}</span>
+                      <span className="font-mono font-semibold text-emerald-800">{r.code ? shortCode(r.code) : `#${r.index + 1}`}</span>
                       <span className="tabular text-slate-600">{Math.round(r.weightG).toLocaleString(locale)}</span>
                     </Link>
                   </li>
