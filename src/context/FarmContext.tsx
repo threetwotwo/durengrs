@@ -237,7 +237,7 @@ export const FarmProvider: React.FC<{ children: React.ReactNode }> = ({ children
       ),
       onSnapshot(
         collection(db, 'workers'),
-        (s) => setWorkers(s.docs.map((d) => ({ phone: d.id, name: String(d.data().name || ''), daily: d.data().daily !== false }))),
+        (s) => setWorkers(s.docs.map((d) => ({ phone: d.id, name: String(d.data().name || ''), daily: d.data().daily !== false, prices: d.data().prices === true }))),
         onErr('Workers')
       ),
       onSnapshot(

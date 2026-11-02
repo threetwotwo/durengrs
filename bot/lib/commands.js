@@ -5,6 +5,7 @@ const TREE_ID_PATTERN = /^[A-Z]{1,3}\d{1,3}$/;
 const COMMANDS = {
   farm: ['KEBUN', 'HUJAN', 'CURAHHUJAN', 'KERJA', 'PEKERJAAN', 'CATATANKEBUN'],
   summary: ['RINGKASAN', 'REKAP', 'LAPORANHARIINI'],
+  prices: ['HARGA', 'HARGAPASAR'],
 };
 
 /** Letters to add, drop, swap or change to turn a into b (Damerau-Levenshtein, restricted). */
@@ -42,4 +43,15 @@ function parseCommand(text) {
   return best ? { kind: best.kind } : { kind: 'help' };
 }
 
-module.exports = { parseCommand, compactText, distance, TREE_ID_PATTERN };
+/**
+ * A message that starts with the word HARGA (a typo allowed) followed by more: the rest ("HARGA Toko Jaya MK 150rb"
+ * -> "Toko Jaya MK 150rb"). Null otherwise, or for HARGA alone.
+ */
+function priceText(text) {
+  const m = String(text || '').trim().match(/^(\S+)\s+([\s\S]+)$/);
+  if (!m) return null;
+  const w = compactText(m[1]);
+  return w && distance(w, 'HARGA') <= 1 ? m[2].trim() : null;
+}
+
+module.exports = { parseCommand, priceText, compactText, distance, TREE_ID_PATTERN };

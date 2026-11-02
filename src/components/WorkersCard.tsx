@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { BellOff, BellRing, Pencil, Trash2, UserPlus, Users } from 'lucide-react';
+import { BellOff, BellRing, Pencil, Trash2, UserPlus, Users, Coins } from 'lucide-react';
 import { useFarm } from '../context/FarmContext';
 import { useT } from '../i18n';
 import { fieldInput, fieldLabel } from './Sheet';
 import { btnPrimary } from './PageHeader';
-import { checkWorker, maskDigits, removeWorker, saveWorker, setWorkerDaily } from '../lib/workers';
+import { checkWorker, maskDigits, removeWorker, saveWorker, setWorkerDaily, setWorkerPrices } from '../lib/workers';
 
 /**
  * Who sends the field records: WhatsApp number -> name. The bot only knows numbers; with a name here, counts, harvests,
@@ -106,6 +106,17 @@ export const WorkersCard: React.FC<{ seenPhones?: string[] }> = ({ seenPhones = 
                 {w.daily !== false ? <BellRing className="w-4 h-4" /> : <BellOff className="w-4 h-4" />}
                 <span className="hidden sm:inline">{t('wk.daily')}</span>
                 <span className="sr-only sm:hidden">{t('wk.daily')}</span>
+              </button>
+              <button
+                type="button"
+                aria-pressed={!!w.prices}
+                onClick={() => setWorkerPrices(w.phone, !w.prices).catch((e) => setError(e?.code === 'permission-denied' ? t('err.rulesRecords') : t('rec.saveError')))}
+                title={t(w.prices ? 'wk.prices.on' : 'wk.prices.off')}
+                className={`min-h-9 px-2 rounded-lg inline-flex items-center gap-1 text-xs font-semibold ${w.prices ? 'text-amber-700 hover:bg-amber-50' : 'text-slate-400 hover:bg-slate-100'}`}
+              >
+                <Coins className="w-4 h-4" />
+                <span className="hidden sm:inline">{t('wk.prices')}</span>
+                <span className="sr-only sm:hidden">{t('wk.prices')}</span>
               </button>
               <button type="button" onClick={() => open({ phone: w.phone, name: w.name, editing: w.phone, daily: w.daily })} className="p-2 rounded-lg text-slate-500 hover:bg-slate-100" aria-label={`${t('wk.edit')} ${w.name}`}>
                 <Pencil className="w-4 h-4" />

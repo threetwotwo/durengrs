@@ -29,7 +29,10 @@ imports.
 | `seasonTasks/{block}_{season}_{task}` | bot (Catatan Kebun, and season jobs seen in a report), web app | both | `block, season, task (hand_pollination/fruit_thinning/bagging/ca_mg_spray/fruit_tying), date, source, workerPhone?`; the first record wins |
 | `weather/{date}` | bot (Catatan Kebun; and every day by itself from Open-Meteo, `source: 'open-meteo'`, `bot/lib/rain.js`), web app | both | `date, rainMm, source, workerPhone?, updatedAt`. A day a person recorded is never replaced by the fetched one |
 | `treatmentPlans/{auto}`, `treatments/{auto}` | web app | web app (bot: planned, see audit F3) | routines and applications; `plan.lastDone {block: date}` |
-| `workers/{phone}` | web app | both | `phone, name`, ✱`daily` (false: no daily summary; missing = on) |
+| `workers/{phone}` | web app | both | `phone, name`, ✱`daily` (false: no daily summary; missing = on), ✱`prices` (true: other vendors' prices in that summary) |
+| ✱`marketPrices/{auto}` | bot (a screenshot or text sent with HARGA, read by Gemini: `bot/lib/prices.js`), web app (corrects, deletes) | both | `date, vendor?, variety? (as written), varietyCode? (matched to variants), grade?, price (Rupiah), unit (kg/buah/other), fruitKg?, pricePerKg? (per kg, or per fruit over its weight), note?, photo? {path, url} (Storage market-prices/{date}/), raw? (the text), batchId, source, workerPhone, createdAt` |
+| ✱`storePrices/{variety code}` | web app (Harga pasar page) | both | `pricePerKg, updatedAt`: the store's own price, beside the market's in the page and the morning summary |
+| ✱`priceMode/{phone}` | bot | bot | `until` (ms): after HARGA, this number's screenshots and texts are read as prices for 15 minutes |
 | ✱`chatSeen/{phone}` | bot | bot | `at`: the number's last message, so the daily summary knows whether WhatsApp's 24-hour window is open (free text) or the template must be used |
 | ✱`farmMeta/dailySummary` | bot | bot | `date, sentTo[]`: who got today's summary (a retried call skips them) |
 | `variants/{code}` | web app | both | `code, name, ripeningDays, …` |

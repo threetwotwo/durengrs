@@ -20,7 +20,8 @@ const { syncRain } = require('./lib/rain');
 const { db: fdb, admin } = require('./lib/firestore');
 const { loadDay, buildSummary, sendDailySummary, dayTitle, ownSummaryDay } = require('./lib/summary');
 const { todayStr, addDays } = require('./lib/rules');
-const { parseCommand } = require('./lib/commands');
+const { parseCommand, priceText } = require('./lib/commands');
+const { readAndSavePrices, pricesReply, fetchWhatsAppMedia, startPriceMode, inPriceMode } = require('./lib/prices');
 
 const app = express();
 app.use(express.json());
@@ -253,14 +254,27 @@ async function lastSeen(phone) {
   return at && typeof at.toMillis === 'function' ? at.toMillis() : 0;
 }
 
+// Prices from other vendors: read by Gemini, saved, and each one read back so the sender can check it.
+async function handlePrices(to, { imageId, text, hint }) {
+  if (!process.env.GEMINI_API_KEY) return sendText(to, 'Pembacaan harga belum aktif. Mohon hubungi pemilik kebun.');
+  try {
+    const image = imageId ? await fetchWhatsAppMedia(imageId, WHATSAPP_TOKEN) : null;
+    const saved = await readAndSavePrices({ image, text, hint, workerPhone: to });
+    return sendText(to, pricesReply(saved));
+  } catch (err) {
+    console.error('Price reading failed:', err);
+    return sendText(to, 'Maaf, harga belum bisa dibaca sekarang. Coba kirim lagi sebentar lagi.');
+  }
+}
+
 // RINGKASAN: today's summary; in the morning, while the worker has recorded nothing yet today, yesterday's (lib/summary.js).
 async function sendOwnSummary(to) {
   const today = todayStr();
   let data = await loadDay(today);
   const date = ownSummaryDay(data, today, to);
   if (date !== today) data = await loadDay(date);
-  const name = (data.workers.find((w) => String(w.phone || w.id).replace(/\D/g, '') === to) || {}).name || '';
-  return sendText(to, buildSummary(data, date, to, Date.now(), name).slice(0, 4000));
+  const me = data.workers.find((w) => String(w.phone || w.id).replace(/\D/g, '') === to) || {};
+  return sendText(to, buildSummary(data, date, to, Date.now(), me.name || '', { prices: me.prices === true }).slice(0, 4000));
 }
 
 // One worker's summary: free text inside the 24-hour window, else the approved template (when SUMMARY_TEMPLATE is set).
@@ -331,13 +345,31 @@ async function handleIncomingMessage(body) {
     return;
   }
 
+  // Other vendors' prices (lib/prices.js): a screenshot with HARGA in its caption, or sent within 15 minutes of HARGA.
+  if (message.type === 'image' && message.image?.id) {
+    const caption = message.image.caption || '';
+    if (priceText(caption) !== null || parseCommand(caption).kind === 'prices' || (await inPriceMode(to)))
+      return handlePrices(to, { imageId: message.image.id, hint: caption });
+  }
+
   // Photos, voice notes, stickers...: explain where photos belong instead of staying silent.
   if (message.type !== 'text') {
     return sendHelp(to, 'Maaf, saya hanya bisa membaca teks. Foto dikirim lewat formulir laporan pohon.');
   }
 
   // Case, spaces and small typos don't matter (lib/commands.js): "a1", "ringkasan", "Ringakasan", "kebon".
-  const command = parseCommand(message.text?.body);
+  const typed = message.text?.body || '';
+  const typedPrices = priceText(typed);
+  if (typedPrices) return handlePrices(to, { text: typedPrices, hint: typedPrices });
+  const command = parseCommand(typed);
+  if (command.kind === 'prices') {
+    await startPriceMode(to);
+    return sendText(
+      to,
+      '💰 Kirim screenshot atau teks harga durian dari penjual lain (status WA, katalog, Instagram, Facebook) dalam 15 menit ke depan. Tulis nama tokonya di keterangan foto jika tidak terlihat di gambar.'
+    );
+  }
+  if (command.kind === 'help' && (await inPriceMode(to))) return handlePrices(to, { text: typed, hint: typed });
   if (command.kind === 'farm') return openFarmFlow(to);
   if (command.kind === 'summary') return sendOwnSummary(to);
   if (command.kind !== 'tree') return sendHelp(to);

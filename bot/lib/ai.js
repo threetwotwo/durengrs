@@ -462,4 +462,4 @@ async function checkGemini() {
   }
 }
 
-module.exports = { analyzeReport, toTriage, checkGemini };
+module.exports = { analyzeReport, toTriage, checkGemini, callGemini };

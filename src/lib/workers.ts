@@ -8,6 +8,8 @@ export interface Worker {
   name: string;
   /** Gets yesterday's summary on WhatsApp every morning at 06:00 (bot/lib/summary.js). On unless switched off. */
   daily?: boolean;
+  /** Gets other vendors' prices in that summary (the owner, a buyer): bot/lib/summary.js. Off unless switched on. */
+  prices?: boolean;
 }
 
 export const WORKER_NAME_MAX = 40;
@@ -37,6 +39,11 @@ export async function saveWorker(w: Worker): Promise<void> {
 }
 
 /** The daily summary on WhatsApp for this worker, on or off. */
+/** Other vendors' prices in this worker's morning summary, on or off. */
+export async function setWorkerPrices(phone: string, on: boolean): Promise<void> {
+  await updateDoc(doc(db, 'workers', phone), { prices: on, updatedAt: serverTimestamp() });
+}
+
 export async function setWorkerDaily(phone: string, on: boolean): Promise<void> {
   await updateDoc(doc(db, 'workers', phone), { daily: on, updatedAt: serverTimestamp() });
 }

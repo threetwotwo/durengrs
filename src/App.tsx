@@ -17,6 +17,7 @@ const ReportsPage = lazy(() => import('./components/ReportsPage').then((m) => ({
 const SchedulePage = lazy(() => import('./components/SchedulePage').then((m) => ({ default: m.SchedulePage })));
 const HarvestPage = lazy(() => import('./components/HarvestPage').then((m) => ({ default: m.HarvestPage })));
 const FruitsPage = lazy(() => import('./components/FruitsPage').then((m) => ({ default: m.FruitsPage })));
+const PricesPage = lazy(() => import('./components/PricesPage').then((m) => ({ default: m.PricesPage })));
 const FruitPage = lazy(() => import('./components/FruitsPage').then((m) => ({ default: m.FruitPage })));
 const GuidePage = lazy(() => import('./components/GuidePage').then((m) => ({ default: m.GuidePage })));
 const ProblemsPage = lazy(() => import('./components/Problems').then((m) => ({ default: m.ProblemsPage })));
@@ -38,7 +39,7 @@ const AppContent: React.FC = () => {
   // New page: scroll to top, update the tab title, move keyboard/screen-reader focus to the content.
   useEffect(() => {
     window.scrollTo(0, 0);
-    document.title = `${route.treeId ? t('app.title.tree', { id: route.treeId }) : route.reportId ? t('app.title.report') : route.pageKey === 'count' ? t('count.title') : route.fruitCode ? route.fruitCode : route.fruits ? t('fr.title') : t(TAB_TITLES[route.tab])} · Cilowong`;
+    document.title = `${route.treeId ? t('app.title.tree', { id: route.treeId }) : route.reportId ? t('app.title.report') : route.pageKey === 'count' ? t('count.title') : route.fruitCode ? route.fruitCode : route.prices ? t('mp.title') : route.fruits ? t('fr.title') : t(TAB_TITLES[route.tab])} · Cilowong`;
     mainRef.current?.focus({ preventScroll: true });
   }, [route.pageKey, lang]);
 
@@ -81,7 +82,7 @@ const AppContent: React.FC = () => {
           <ErrorBoundary key={lang} resetKey={route.pageKey}>
             <Suspense fallback={<div className="h-64 rounded-xl bg-white border border-slate-200 animate-pulse" />}>
               {route.tab === 'dashboard' && <Dashboard />}
-              {route.tab === 'harvest' && (route.fruitCode ? <FruitPage key={route.fruitCode} fruitKey={route.fruitCode} /> : route.fruits ? <FruitsPage /> : <HarvestPage />)}
+              {route.tab === 'harvest' && (route.prices ? <PricesPage /> : route.fruitCode ? <FruitPage key={route.fruitCode} fruitKey={route.fruitCode} /> : route.fruits ? <FruitsPage /> : <HarvestPage />)}
               {route.tab === 'schedule' && <SchedulePage />}
               {route.tab === 'trees' &&
                 (route.pageKey === 'count' ? (

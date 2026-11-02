@@ -15,6 +15,7 @@ import { useCallback, useSyncExternalStore } from 'react';
  *   #/harvest               crop tracking per tree, graded harvests, forecast
  *   #/harvest/fruits        every fruit from Laporan PANEN, one row each (?variant=MK&block=A&sort=weight)
  *   #/harvest/fruits/A3-20261021-01   one fruit
+ *   #/harvest/prices        other vendors' prices (?day=2026-11-02)
  *   #/schedule              routines (sprays, fertiliser rounds)
  *   #/variants
  *   #/guide                 research guide
@@ -38,6 +39,8 @@ export interface Route {
   /** #/harvest/fruits (the fruits table) and #/harvest/fruits/<code> (one fruit). */
   fruits: boolean;
   fruitCode: string | null;
+  /** #/harvest/prices: other vendors' prices. */
+  prices: boolean;
   params: URLSearchParams;
   /** Path without query, e.g. "/trees/A12". */
   path: string;
@@ -64,6 +67,7 @@ export function parseHash(hash: string): Route {
   let caseId: string | null = null;
   let fruits = false;
   let fruitCode: string | null = null;
+  let prices = false;
   let known = true;
 
   if (segs.length === 0) {
@@ -83,13 +87,13 @@ export function parseHash(hash: string): Route {
     else if (tab === 'harvest' && segs[1] === 'fruits' && segs.length <= 3) {
       fruits = true;
       fruitCode = segs[2] ? decodeURIComponent(segs[2]) : null;
-    }
+    } else if (tab === 'harvest' && segs[1] === 'prices' && segs.length === 2) prices = true;
     else if (segs.length > 1) known = false;
   } else {
     known = false;
   }
-  const pageKey = segs[0] === 'count' ? 'count' : fruits ? `fruits:${fruitCode ?? ''}` : `${tab}:${treeId ?? topicId ?? reportId ?? caseId ?? ''}`;
-  return { tab, treeId, topicId, reportId, caseId, fruits, fruitCode, params, path, pageKey, known };
+  const pageKey = segs[0] === 'count' ? 'count' : prices ? 'prices' : fruits ? `fruits:${fruitCode ?? ''}` : `${tab}:${treeId ?? topicId ?? reportId ?? caseId ?? ''}`;
+  return { tab, treeId, topicId, reportId, caseId, fruits, fruitCode, prices, params, path, pageKey, known };
 }
 
 // ---- store ----
@@ -221,6 +225,7 @@ export const fruitsUrl = (filters: Record<string, string | null | undefined> = {
   return '/harvest/fruits' + (qs ? `?${qs}` : '');
 };
 export const fruitUrl = (key: string) => `/harvest/fruits/${encodeURIComponent(key)}`;
+export const pricesUrl = () => '/harvest/prices';
 /** The Count page, optionally on one block. */
 export const countUrl = (block?: string) => (block ? `/count?block=${encodeURIComponent(block)}` : '/count');
 

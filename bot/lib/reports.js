@@ -258,4 +258,4 @@ async function createReport({ reportId, treeId, workerPhone, condition, descript
   });
 }
 
-module.exports = { getCollageUrl, processPhotos, createReport, reportExists };
+module.exports = { getCollageUrl, processPhotos, createReport, reportExists, compressPhoto, downloadUrl };

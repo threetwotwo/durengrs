@@ -80,6 +80,15 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
+    // Other vendors' durian prices (the bot reads them from screenshots sent with HARGA; the webapp corrects them)
+    // and the store's own price per variety
+    match /marketPrices/{id} {
+      allow read, write: if true;
+    }
+    match /storePrices/{code} {
+      allow read, write: if true;
+    }
+
     // Connection test document
     match /test/{docId} {
       allow read, write: if true;

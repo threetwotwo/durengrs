@@ -59,7 +59,7 @@ async function loadDay(date) {
   const start = admin.firestore.Timestamp.fromDate(new Date(`${date}T00:00:00+07:00`));
   const all = (q) => q.get().then((s) => s.docs.map((d) => ({ id: d.id, ...d.data() })));
   const back = admin.firestore.Timestamp.fromDate(new Date(`${R.addDays(date, -BACK_DAYS)}T00:00:00+07:00`));
-  const [recentReports, recentHarvests, counts, rain, tasks, cases, trees, workers] = await Promise.all([
+  const [recentReports, recentHarvests, counts, rain, tasks, cases, trees, workers, prices, storePrices, variants] = await Promise.all([
     all(db.collection('reports').where('createdAt', '>=', back)),
     all(db.collection('harvests').where('date', '>=', R.addDays(date, -BACK_DAYS))),
     all(db.collection('cropCounts').where('date', '==', date)),
@@ -68,6 +68,10 @@ async function loadDay(date) {
     all(db.collection('cases')),
     all(db.collection('trees')),
     all(db.collection('workers')),
+    // Other vendors' prices of the last week (lib/prices.js) and the store's own, for whoever has prices on.
+    all(db.collection('marketPrices').where('date', '>=', R.addDays(date, -6))).catch(() => []),
+    all(db.collection('storePrices')).catch(() => []),
+    all(db.collection('variants')).catch(() => []),
   ]);
   const startMs = start.toMillis ? start.toMillis() : start.ms;
   const endMs = startMs + 86400e3;
@@ -76,7 +80,21 @@ async function loadDay(date) {
   const harvestsUpTo = recentHarvests.filter((h) => h.date <= date);
   const reports = upTo.filter((r) => ms(r.createdAt) >= startMs);
   const harvests = harvestsUpTo.filter((h) => h.date === date);
-  return { reports, harvests, recentReports: upTo, recentHarvests: harvestsUpTo, counts, rain, tasks, cases, trees: trees.filter((t) => t.active !== false), workers };
+  return {
+    reports,
+    harvests,
+    recentReports: upTo,
+    recentHarvests: harvestsUpTo,
+    counts,
+    rain,
+    tasks,
+    cases,
+    trees: trees.filter((t) => t.active !== false),
+    workers,
+    prices: prices.filter((p) => p.date <= date),
+    storePrices,
+    variants,
+  };
 }
 
 /** The day in numbers (pure). `now` decides which trees count as not checked for a week. */
@@ -222,7 +240,46 @@ function harvestLines(data, date, phone = '', max = HARVEST_MAX, now = Date.now(
  * The full message for one worker (`phone`, `name`), or for nobody in particular: a line about their own day, then
  * Laporan KESEHATAN and Laporan PANEN.
  */
-function buildSummary(data, date, phone, now = Date.now(), name = '') {
+const rp = (n) => `Rp${Math.round(n).toLocaleString('id-ID')}`;
+
+/**
+ * Other vendors' prices for the summary: the day's (else the latest day of the week before), one line per variety:
+ * the range per kg and how many sellers, the store's own price beside it. Empty when there are none.
+ */
+function priceLines(data, date) {
+  const all = data.prices || [];
+  if (!all.length) return { day: null, lines: [] };
+  const day = all.some((p) => p.date === date) ? date : all.map((p) => p.date).sort().pop();
+  const names = new Map((data.variants || []).map((v) => [v.id || v.code, v.name || v.id || v.code]));
+  const store = new Map((data.storePrices || []).map((x) => [x.id, Number(x.pricePerKg) || 0]));
+  const groups = new Map();
+  for (const p of all.filter((x) => x.date === day)) {
+    const key = p.varietyCode || String(p.variety || 'Durian').toLowerCase();
+    const g = groups.get(key) || { name: p.varietyCode ? names.get(p.varietyCode) || p.varietyCode : p.variety || 'Durian', code: p.varietyCode, kg: [], fruit: [], vendors: new Set() };
+    if (p.pricePerKg) g.kg.push(p.pricePerKg);
+    else if (p.unit === 'buah') g.fruit.push(p.price);
+    if (p.vendor) g.vendors.add(p.vendor.toLowerCase());
+    groups.set(key, g);
+  }
+  const range = (xs, unit) => {
+    const lo = Math.min(...xs);
+    const hi = Math.max(...xs);
+    return `${lo === hi ? rp(lo) : `${rp(lo)}–${rp(hi)}`}/${unit}`;
+  };
+  const lines = [...groups.values()]
+    .filter((g) => g.kg.length || g.fruit.length)
+    .sort((a, b) => b.kg.length + b.fruit.length - (a.kg.length + a.fruit.length))
+    .slice(0, 8)
+    .map((g) => {
+      const parts = [g.kg.length ? range(g.kg, 'kg') : '', g.fruit.length ? range(g.fruit, 'buah') : ''].filter(Boolean).join(', ');
+      const sellers = g.vendors.size ? ` (${g.vendors.size} penjual)` : '';
+      const ours = g.code && store.get(g.code) ? ` · toko kita ${rp(store.get(g.code))}/kg` : '';
+      return `• ${g.name}: ${parts}${sellers}${ours}`;
+    });
+  return { day, lines };
+}
+
+function buildSummary(data, date, phone, now = Date.now(), name = '', opts = {}) {
   const d = digest(data, date, now);
   const when = dayWord(date, now);
   const lines = [`📋 *Ringkasan Kebun Cilowong*`, dayTitle(date), ''];
@@ -262,6 +319,12 @@ function buildSummary(data, date, phone, now = Date.now(), name = '') {
 
   const panen = harvestLines(data, date, phone, HARVEST_MAX, now);
   lines.push('', '🧺 *Laporan PANEN*', ...(panen.length ? panen : [`• Belum ada panen dalam ${BACK_DAYS} hari terakhir`]));
+
+  if (opts.prices) {
+    const p = priceLines(data, date);
+    lines.push('', `💰 *Harga pasar*${p.day && p.day !== date ? ` (${R.dateLabel(p.day)})` : ''}`);
+    lines.push(...(p.lines.length ? p.lines : ['• Belum ada harga minggu ini. Kirim *HARGA* lalu screenshot harga penjual lain.']));
+  }
 
   lines.push('', 'Kirim ID pohon untuk lapor. Kirim *RINGKASAN* untuk melihat ringkasan ini lagi.');
   return lines.join('\n');
@@ -305,14 +368,14 @@ async function sendDailySummary({ date = R.todayStr(), to, dry = false, send }) 
   const data = await loadDay(date);
   const named = new Map(data.workers.map((w) => [digits(w.phone || w.id), w.name]));
   const recipients = to
-    ? [{ phone: digits(to), name: named.get(digits(to)) || '' }]
-    : data.workers.filter((w) => w.daily !== false).map((w) => ({ phone: digits(w.phone || w.id), name: w.name }));
+    ? [{ phone: digits(to), name: named.get(digits(to)) || '', prices: data.workers.some((w) => digits(w.phone || w.id) === digits(to) && w.prices === true) }]
+    : data.workers.filter((w) => w.daily !== false).map((w) => ({ phone: digits(w.phone || w.id), name: w.name, prices: w.prices === true }));
   const sentDoc = to || dry ? null : await SENT_REF().get();
   const already = new Set(sentDoc && sentDoc.exists && sentDoc.data().date === date ? sentDoc.data().sentTo || [] : []);
   const out = [];
   for (const r of recipients) {
     if (!r.phone) continue;
-    const text = buildSummary(data, date, r.phone, Date.now(), r.name);
+    const text = buildSummary(data, date, r.phone, Date.now(), r.name, { prices: r.prices });
     const line = summaryLine(data, date, r.phone);
     if (dry) {
       out.push({ to: r.phone, name: r.name, text, line });
@@ -333,4 +396,4 @@ async function sendDailySummary({ date = R.todayStr(), to, dry = false, send }) 
   return { date, sent: out };
 }
 
-module.exports = { dayWord, loadDay, digest, mine, healthLines, harvestLines, condense, buildSummary, summaryLine, sendDailySummary, dayTitle, ownSummaryDay };
+module.exports = { priceLines, dayWord, loadDay, digest, mine, healthLines, harvestLines, condense, buildSummary, summaryLine, sendDailySummary, dayTitle, ownSummaryDay };

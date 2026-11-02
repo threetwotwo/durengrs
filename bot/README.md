@@ -190,6 +190,16 @@ their own with fruit codes; the week's total). Sending **RINGKASAN** in the chat
   melihat lengkapnya.` Until Meta approves it those workers are not sent (the response says why). RINGKASAN in the
   morning, before the worker has recorded anything that day, shows yesterday's, the day the message was about.
 
+## Market prices (HARGA)
+
+Other vendors' durian prices, for pricing the farm's store (`lib/prices.js`). Send the word **HARGA** to the bot, then
+within 15 minutes the price screenshots (WhatsApp status or catalog, Instagram, Facebook) or texts; or one message,
+`HARGA Toko Jaya, Musang King A 150rb/kg`, or a screenshot with HARGA in its caption. Gemini reads each price (vendor,
+variety matched to `variants`, grade, Rupiah, per kg or per fruit) into `marketPrices`, keeps the screenshot in Storage
+(`market-prices/{date}/`) and replies with what it read. The webapp's **Panen › Harga pasar** shows the day per variety
+(range, middle, sellers, a suggested price) beside the store's own price (`storePrices`), and corrects or deletes a
+price. Workers with **Harga pasar** switched on (Workers page) get the prices in their morning summary.
+
 ## Flow setup
 
 A published Flow can't be edited. After changing a file in `flows/`, create a new Flow,
