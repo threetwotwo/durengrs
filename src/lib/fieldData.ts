@@ -118,6 +118,13 @@ export async function updateHarvestItems(id: string, items: HarvestFruit[]): Pro
   await updateDoc(doc(db, 'harvests', id), { items, fruits: items.length, weightKg: Math.round(totalG / 10) / 100, updatedAt: serverTimestamp() });
 }
 
+/** Takes one fruit out of a harvest (sent twice, or typed by mistake); the last fruit takes the harvest with it. */
+export async function removeHarvestFruit(h: { id: string; items?: HarvestFruit[] }, index: number): Promise<void> {
+  const items = (h.items || []).filter((_, i) => i !== index);
+  if (!items.length) return removeHarvest(h.id);
+  await updateHarvestItems(h.id, items);
+}
+
 export async function removeHarvest(id: string): Promise<void> {
   await deleteDoc(doc(db, 'harvests', id));
 }

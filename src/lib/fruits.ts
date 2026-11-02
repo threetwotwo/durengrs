@@ -146,3 +146,40 @@ export function fruitsSheet(rows: FruitRow[], head: string[], varietyName: (code
     ]),
   ];
 }
+
+// ---------- by day ----------
+
+/** The days fruits were picked (newest first), each with its fruit and grams. */
+export function fruitDays(rows: FruitRow[]): Array<{ date: string; n: number; g: number }> {
+  const m = new Map<string, { date: string; n: number; g: number }>();
+  for (const r of rows) {
+    const d = m.get(r.date) || { date: r.date, n: 0, g: 0 };
+    d.n++;
+    d.g += r.weightG;
+    m.set(r.date, d);
+  }
+  return [...m.values()].sort((a, b) => b.date.localeCompare(a.date));
+}
+
+/**
+ * Fruits that look sent twice: the same tree and day, and the same weight and three scores as a fruit reported
+ * earlier (its code lower). Fruit key -> the earlier fruit's code.
+ */
+export function likelyDuplicates(rows: FruitRow[]): Map<string, string> {
+  const out = new Map<string, string>();
+  const first = new Map<string, FruitRow>();
+  const order = [...rows].sort((a, b) => a.key.localeCompare(b.key, undefined, { numeric: true }));
+  for (const r of order) {
+    const sig = [r.treeId || r.block, r.date, Math.round(r.weightG), r.aroma, r.skin, r.shape].join('|');
+    const f = first.get(sig);
+    if (f && f.harvest.id !== r.harvest.id) out.set(r.key, f.code || f.key);
+    else if (!f) first.set(sig, r);
+  }
+  return out;
+}
+
+/** A harvest's fruits without one (by place); null when it was the only one (the harvest itself goes). */
+export function withoutFruit(items: HarvestFruit[], index: number): HarvestFruit[] | null {
+  const out = items.filter((_, i) => i !== index);
+  return out.length ? out : null;
+}

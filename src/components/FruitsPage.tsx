@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowDown, ArrowLeft, ArrowUp, Download, Loader2, Pencil, Search } from 'lucide-react';
+import { ArrowDown, ArrowLeft, ArrowUp, Download, Loader2, Pencil, Search, Trash2 } from 'lucide-react';
 import { useFarm } from '../context/FarmContext';
 import { useT } from '../i18n';
 import { fruitUrl, fruitsUrl, goBack, reportUrl, treeUrl, useQueryParams } from '../lib/router';
@@ -10,16 +10,18 @@ import {
   byVariety,
   checkFruit,
   cleanDeliverTo,
+  fruitDays,
   fruitRows,
   fruitsSheet,
+  likelyDuplicates,
   sortFruits,
   summarizeFruits,
   withDeliveries,
 } from '../lib/fruits';
-import { updateHarvestItems } from '../lib/fieldData';
+import { removeHarvestFruit, updateHarvestItems } from '../lib/fieldData';
 import { toCsv } from '../lib/kebun';
 import { pastedColumn } from '../lib/recount';
-import { diffDays, formatShortDate } from '../lib/treatments';
+import { diffDays, formatShortDate, todayStr } from '../lib/treatments';
 import { PageHeader, btnPrimary, btnSecondary, inputCls } from './PageHeader';
 import { Link } from './Link';
 import { ScoreChip, ScoreLine } from './HarvestBits';
@@ -75,6 +77,19 @@ const DeliverOptions: React.FC<{ rows: FruitRow[] }> = ({ rows }) => {
   );
 };
 
+/** A day as a heading: "Hari ini", "Kemarin", else "Sen, 2 Nov". */
+function useDayLabel() {
+  const { t, locale } = useT();
+  const today = todayStr();
+  return (d: string) => {
+    const n = diffDays(today, d);
+    if (n === 0) return t('fr.today');
+    if (n === 1) return t('fr.yesterday');
+    const [y, m, dd] = d.split('-').map(Number);
+    return new Date(y, m - 1, dd).toLocaleDateString(locale, { weekday: 'short', day: 'numeric', month: 'short' });
+  };
+}
+
 const th = 'px-2.5 h-10 text-[11px] font-semibold uppercase tracking-wide whitespace-nowrap bg-slate-900 text-slate-200';
 const td = 'px-2.5 py-2 border-b border-slate-100 whitespace-nowrap';
 
@@ -104,7 +119,16 @@ export const FruitsPage: React.FC = () => {
       ),
     [all, block, q]
   );
-  const rows = useMemo(() => sortFruits(inScope.filter((r) => !variant || r.variant === variant), sort, desc), [inScope, variant, sort, desc]);
+  const day = /^\d{4}-\d{2}-\d{2}$/.test(params.get('day') || '') ? params.get('day')! : '';
+  const days = useMemo(() => fruitDays(inScope.filter((r) => !variant || r.variant === variant)), [inScope, variant]);
+  const rows = useMemo(
+    () => sortFruits(inScope.filter((r) => (!variant || r.variant === variant) && (!day || r.date === day)), sort, desc),
+    [inScope, variant, day, sort, desc]
+  );
+  const dupes = useMemo(() => likelyDuplicates(all), [all]);
+  const dayLabel = useDayLabel();
+  // Newest first or by date: a line above each day's fruits (the date column is hidden on a phone).
+  const byDay = !day && (!sort || sort === 'date');
   const sum = summarizeFruits(rows);
   const varieties = useMemo(() => byVariety(inScope), [inScope]);
   const codes = useMemo(() => {
@@ -112,7 +136,7 @@ export const FruitsPage: React.FC = () => {
     variants.forEach((v) => seen.add(v.code));
     return [...seen].sort((a, b) => name(a).localeCompare(name(b)));
   }, [all, variants, name]);
-  const filtered = !!(q || variant || block);
+  const filtered = !!(q || variant || block || day);
 
   // ---------- deliver to: typed into the table, saved by itself ----------
   const saveDeliveries = useSaveDeliveries();
@@ -192,7 +216,7 @@ export const FruitsPage: React.FC = () => {
         }
       />
 
-      <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-xs grid grid-cols-2 lg:grid-cols-[1fr_12rem_10rem] gap-2">
+      <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-xs grid grid-cols-2 lg:grid-cols-[1fr_12rem_10rem_13rem] gap-2">
         <div className="relative col-span-2 lg:col-span-1">
           <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" aria-hidden />
           <input
@@ -218,6 +242,14 @@ export const FruitsPage: React.FC = () => {
           {blocks.map((b) => (
             <option key={b} value={b}>
               {t('common.blockN', { n: b })}
+            </option>
+          ))}
+        </select>
+        <select value={day} onChange={(e) => setParams({ day: e.target.value || null })} aria-label={t('fr.day')} className={`${inputCls} col-span-2 lg:col-span-1`}>
+          <option value="">{t('fr.allDays')}</option>
+          {days.map((d) => (
+            <option key={d.date} value={d.date}>
+              {dayLabel(d.date)} · {t('fr.dayN', { n: d.n })}
             </option>
           ))}
         </select>
@@ -270,7 +302,7 @@ export const FruitsPage: React.FC = () => {
         <div className="p-8 text-center text-sm text-slate-600 bg-white rounded-xl border border-slate-200 space-y-3">
           <p>{all.length ? t('fr.noMatch') : t('fr.none')}</p>
           {filtered && (
-            <button type="button" onClick={() => setParams({ q: null, variant: null, block: null })} className={btnSecondary}>
+            <button type="button" onClick={() => setParams({ q: null, variant: null, block: null, day: null })} className={btnSecondary}>
               {t('fr.clear')}
             </button>
           )}
@@ -292,13 +324,34 @@ export const FruitsPage: React.FC = () => {
               </tr>
             </thead>
             <tbody className="tabular">
-              {rows.map((r) => (
-                <tr key={r.key} className="group hover:bg-slate-50">
+              {rows.map((r, i) => (
+                <React.Fragment key={r.key}>
+                {byDay && r.date !== rows[i - 1]?.date && (
+                  <tr>
+                    <td colSpan={9} className="p-0 bg-slate-100 border-b border-slate-200">
+                      <span className="sticky left-0 inline-flex items-baseline gap-2 px-2.5 py-1.5 text-xs">
+                        <strong className="text-slate-900">{dayLabel(r.date)}</strong>
+                        <span className="text-slate-600 tabular">
+                          {(() => {
+                            const d = days.find((x) => x.date === r.date);
+                            return d ? `${t('fr.dayN', { n: d.n })} · ${fmt(d.g / 1000, 1)} kg` : '';
+                          })()}
+                        </span>
+                      </span>
+                    </td>
+                  </tr>
+                )}
+                <tr className="group hover:bg-slate-50">
                   {/* The code stays in view while the table scrolls sideways (typing "deliver to" on a phone). */}
                   <td className={`${td} sticky left-0 z-[1] bg-white group-hover:bg-slate-50`}>
                     <Link to={fruitUrl(r.key)} className="font-mono text-xs font-semibold text-emerald-800 hover:underline">
                       {r.code || `${r.treeId || '—'} #${r.index + 1}`}
                     </Link>
+                    {dupes.has(r.key) && (
+                      <span className="ml-1.5 px-1 rounded bg-amber-100 text-amber-900 text-[10px] font-bold" title={t('fr.dup', { code: dupes.get(r.key)! })}>
+                        2×?
+                      </span>
+                    )}
                   </td>
                   <td className={`${td} ${wide}`}>
                     {r.treeId ? (
@@ -357,6 +410,7 @@ export const FruitsPage: React.FC = () => {
                     </span>
                   </td>
                 </tr>
+                </React.Fragment>
               ))}
             </tbody>
             {sum && (
@@ -420,6 +474,17 @@ export const FruitPage: React.FC<{ fruitKey: string }> = ({ fruitKey }) => {
 
   const h = f.harvest;
   const siblings = all.filter((r) => r.harvest.id === h.id);
+  const twinOf = likelyDuplicates(all).get(f.key);
+  const remove = async () => {
+    if (!window.confirm(t(siblings.length > 1 ? 'fr.remove.confirm' : 'fr.remove.confirmLast', { code: f.code || f.key }))) return;
+    try {
+      await removeHarvestFruit(h, f.index);
+      goBack(fruitsUrl());
+    } catch (e: any) {
+      console.error('Fruit remove failed:', e);
+      setError(e?.code === 'permission-denied' ? t('err.rulesRecords') : t('fr.saveError'));
+    }
+  };
   const save = async () => {
     const check = checkFruit(form, f.code);
     if (!check.ok) {
@@ -468,6 +533,11 @@ export const FruitPage: React.FC<{ fruitKey: string }> = ({ fruitKey }) => {
       {back}
       <DeliverOptions rows={all} />
       <article className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+        {twinOf && (
+          <p role="note" className="px-4 sm:px-5 py-2.5 bg-amber-50 border-b border-amber-200 text-sm text-amber-900">
+            {t('fr.dup.long', { code: twinOf })}
+          </p>
+        )}
         <header className="p-4 sm:p-5 space-y-0.5 border-b border-slate-100">
           <h1 className="text-xl font-bold text-slate-900 font-mono break-all">{f.code || `${f.treeId || ''} #${f.index + 1}`}</h1>
           <p className="text-sm text-slate-600">{t('fr.of', { i: f.index + 1, n: siblings.length })}</p>
@@ -549,10 +619,14 @@ export const FruitPage: React.FC<{ fruitKey: string }> = ({ fruitKey }) => {
           </section>
         )}
 
-        <footer className="px-4 sm:px-5 py-3 border-t border-slate-100 text-sm">
+        <footer className="px-4 sm:px-5 py-3 border-t border-slate-100 text-sm flex flex-wrap items-center justify-between gap-2">
           <Link to={reportUrl(`harvest:${h.id}`)} className="font-semibold text-emerald-700 hover:underline min-h-9 inline-flex items-center">
             {t('fr.harvest.open', { n: siblings.length })}
           </Link>
+          <button type="button" onClick={remove} className="min-h-9 px-3 rounded-lg text-sm font-semibold text-rose-700 hover:bg-rose-50 inline-flex items-center gap-1.5">
+            <Trash2 className="w-4 h-4" />
+            {t('fr.remove')}
+          </button>
         </footer>
       </article>
     </div>

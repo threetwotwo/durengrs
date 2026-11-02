@@ -62,3 +62,16 @@ test('CSV: the fruits shown, one row each, weight in kilos, variety code and nam
     ['A1-20261020-01', 'A1', 'A', 'MK', 'Musang King', '2026-10-20', 1.29, 2, 3, 4, 'Toko Jaya'],
   ]);
 });
+
+test('by day; a fruit sent twice (same tree, day, weight and scores, another report) is flagged; removing a fruit', async () => {
+  const { fruitDays, likelyDuplicates, withoutFruit } = await import('../src/lib/fruits');
+  const rows = fruitRows([
+    h('w1', 'D36', '2026-11-02', 'OC', [f('D36-20261102-01', 2710, 2, 5, 5)]),
+    h('w2', 'D36', '2026-11-02', 'OC', [f('D36-20261102-02', 2710, 2, 5, 5), f('D36-20261102-03', 1600, 1, 2, 3)]),
+    h('w3', 'A1', '2026-11-01', 'MK', [f('A1-20261101-01', 1500), f('A1-20261101-02', 1500)]),
+  ]);
+  assert.deepEqual(fruitDays(rows), [{ date: '2026-11-02', n: 3, g: 7020 }, { date: '2026-11-01', n: 2, g: 3000 }]);
+  assert.deepEqual([...likelyDuplicates(rows)], [['D36-20261102-02', 'D36-20261102-01']], 'twins in one report are not flagged');
+  assert.deepEqual(withoutFruit([f('a', 1), f('b', 2)], 0), [f('b', 2)]);
+  assert.equal(withoutFruit([f('a', 1)], 0), null);
+});
