@@ -202,7 +202,7 @@ export const FruitsPage: React.FC = () => {
   const desc = params.get('dir') === 'desc';
   const fmt = (n: number, d = 0) => n.toLocaleString(locale, { maximumFractionDigits: d });
   // A fruit's weight (and the averages) in grams, as weighed; totals stay in kilos.
-  const kg = (g: number) => `${Math.round(g).toLocaleString(locale)} g`;
+  const kg = (g: number) => Math.round(g).toLocaleString(locale);
 
   const inScope = useMemo(
     () =>
@@ -272,7 +272,7 @@ export const FruitsPage: React.FC = () => {
   const delivered = rows.filter((r) => r.deliverTo).length;
 
   const exportCsv = () => {
-    const head = [t('fr.col.code'), t('fr.col.tree'), t('common.block'), t('fr.col.variant'), t('fr.variant'), t('fr.col.date'), `${t('fr.col.weight')} (g)`, t('fr.col.aroma'), t('fr.col.skin'), t('fr.col.shape'), t('fr.col.deliver')];
+    const head = [t('fr.col.code'), t('fr.col.tree'), t('common.block'), t('fr.col.variant'), t('fr.variant'), t('fr.col.date'), t('fr.col.weight'), t('fr.col.aroma'), t('fr.col.skin'), t('fr.col.shape'), t('fr.col.deliver')];
     const blob = new Blob(['\ufeff' + toCsv(fruitsSheet(rows, head, name))], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -657,7 +657,7 @@ export const FruitPage: React.FC<{ fruitKey: string }> = ({ fruitKey }) => {
           {editing ? (
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
-                {field('weightG', `${t('fr.col.weight')} (gram)`)}
+                {field('weightG', t('fr.col.weight'))}
                 {SCORES.map(([k, label]) => (
                   <React.Fragment key={k}>{field(k, `${t(label)} (1-5)`, t(`fr.scale.${k}`))}</React.Fragment>
                 ))}
@@ -687,7 +687,7 @@ export const FruitPage: React.FC<{ fruitKey: string }> = ({ fruitKey }) => {
             <div className="space-y-2">
               <p className="leading-none">
                 <span className="text-xs text-slate-500 block mb-1">{t('fr.col.weight')}</span>
-                <span className="text-2xl font-bold tabular text-slate-900">{Math.round(f.weightG).toLocaleString(locale)} g</span>
+                <span className="text-2xl font-bold tabular text-slate-900">{Math.round(f.weightG).toLocaleString(locale)}</span>
               </p>
               <ScoreLine scores={{ aroma: f.aroma, skin: f.skin, shape: f.shape }} size="lg" />
             </div>
@@ -704,7 +704,7 @@ export const FruitPage: React.FC<{ fruitKey: string }> = ({ fruitKey }) => {
                   <li key={r.key}>
                     <Link to={fruitUrl(r.key)} replace className="min-h-9 px-2.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 inline-flex items-center gap-2 text-xs">
                       <span className="font-mono font-semibold text-emerald-800">{r.code || `#${r.index + 1}`}</span>
-                      <span className="tabular text-slate-600">{Math.round(r.weightG).toLocaleString(locale)} g</span>
+                      <span className="tabular text-slate-600">{Math.round(r.weightG).toLocaleString(locale)}</span>
                     </Link>
                   </li>
                 ))}

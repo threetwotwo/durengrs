@@ -113,7 +113,7 @@ export const FruitTable: React.FC<{ harvest: Harvest; hrefOf: (i: number) => str
   const rows = (h.items || []).map((f, i) => ({ f, i })).filter(({ f }) => f && Number.isFinite(f.weightG));
   const items = rows.map((r) => r.f);
   if (!items.length) return null;
-  const kg = (g: number) => `${Math.round(g).toLocaleString(locale)} g`;
+  const kg = (g: number) => Math.round(g).toLocaleString(locale);
   const sc = harvestScores(items);
   const avgG = items.reduce((s, f) => s + f.weightG, 0) / items.length;
   const th = 'px-2 sm:px-3 py-2 text-xs font-semibold text-slate-500';
@@ -128,7 +128,7 @@ export const FruitTable: React.FC<{ harvest: Harvest; hrefOf: (i: number) => str
           <thead className="bg-slate-50 border-b border-slate-200">
             <tr>
               <th scope="col" className={`${th} text-left`}>{items.some((f) => f.code) ? t('hv.col.code') : '#'}</th>
-              <th scope="col" className={`${th} text-right`}>{t('hv.col.weight')}</th>
+              <th scope="col" className={`${th} text-right`}>{t('fr.col.weight')}</th>
               <th scope="col" className={`${th} text-center`}>{t('hv.col.aroma')}</th>
               <th scope="col" className={`${th} text-center`}>{t('hv.col.skin')}</th>
               <th scope="col" className={`${th} text-center`}>{t('hv.col.shape')}</th>
