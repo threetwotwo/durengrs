@@ -22,6 +22,8 @@ export interface MarketPrice {
   photo?: { path: string; url: string };
   raw?: string;
   workerPhone?: string;
+  /** Sent by the vendor to the prices number (their WhatsApp number). */
+  vendorPhone?: string;
   source?: string;
   batchId?: string;
   createdAt?: unknown;

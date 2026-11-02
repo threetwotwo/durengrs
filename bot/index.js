@@ -31,6 +31,9 @@ const { VERIFY_TOKEN, WHATSAPP_TOKEN, PHONE_NUMBER_ID, FLOW_ID, FARM_FLOW_ID } =
 // The daily summary's WhatsApp template (WhatsApp Manager › Message templates). A name, not a secret, so it is set
 // here; SUMMARY_TEMPLATE in env.yaml overrides it ("" for none).
 const SUMMARY_TEMPLATE = process.env.SUMMARY_TEMPLATE ?? 'ringkasan_harian';
+// A second WhatsApp number only for other vendors' prices (same Meta app and webhook). Its phone number ID is not a
+// secret: set it here or in env.yaml (PRICES_PHONE_NUMBER_ID). Empty: no prices number.
+const PRICES_PHONE_NUMBER_ID = process.env.PRICES_PHONE_NUMBER_ID ?? '';
 
 // Replies go out from the WhatsApp number that RECEIVED the message (taken from the webhook),
 // so the test number and the production number can both work. PHONE_NUMBER_ID is only the fallback.
@@ -267,6 +270,22 @@ async function handlePrices(to, { imageId, text, hint }) {
   }
 }
 
+// A vendor's message to the prices number: a picture (with its caption) or a text, read for prices, no reply.
+async function handleVendorPrices(from, vendorName, message) {
+  if (!process.env.GEMINI_API_KEY) return;
+  try {
+    const isImage = message.type === 'image' && message.image?.id;
+    const text = message.type === 'text' ? message.text?.body || '' : '';
+    if (!isImage && text.trim().length < 6) return; // stickers, voice notes, "ok"
+    const image = isImage ? await fetchWhatsAppMedia(message.image.id, WHATSAPP_TOKEN) : null;
+    const hint = [vendorName && `Penjual: ${vendorName}`, isImage ? message.image.caption : ''].filter(Boolean).join('. ');
+    const saved = await readAndSavePrices({ image, text: text || undefined, hint, vendorPhone: from, vendorName });
+    console.log(`Vendor prices from ${vendorName || 'a vendor'}: ${saved.length} read`);
+  } catch (err) {
+    console.error('Vendor price reading failed:', err);
+  }
+}
+
 // RINGKASAN: today's summary; in the morning, while the worker has recorded nothing yet today, yesterday's (lib/summary.js).
 async function sendOwnSummary(to) {
   const today = todayStr();
@@ -336,6 +355,15 @@ async function handleIncomingMessage(body) {
   if (seenMessages.size > 500) seenMessages.delete(seenMessages.values().next().value);
 
   const to = message.from;
+
+  // The prices number (PRICES_PHONE_NUMBER_ID): vendors send or broadcast their price lists to it. Every picture or
+  // text is read for prices and saved quietly; the vendor gets no reply, nothing else happens there.
+  const atNumber = body.entry?.[0]?.changes?.[0]?.value?.metadata?.phone_number_id;
+  if (PRICES_PHONE_NUMBER_ID && atNumber === PRICES_PHONE_NUMBER_ID) {
+    const vendorName = body.entry?.[0]?.changes?.[0]?.value?.contacts?.[0]?.profile?.name || '';
+    return handleVendorPrices(to, vendorName, message);
+  }
+
   await noteSeen(to);
 
   // The "Hujan & Pekerjaan" button.

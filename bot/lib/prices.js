@@ -108,20 +108,20 @@ async function keepImage(buffer, date) {
  * Reads prices from a text or an image and saves them. `hint`: what was written with it (a caption, or the text
  * itself). Returns the saved records (empty when nothing could be read).
  */
-async function readAndSavePrices({ text, image, hint, workerPhone, today = R.todayStr() }) {
+async function readAndSavePrices({ text, image, hint, workerPhone, vendorPhone, vendorName, today = R.todayStr() }) {
   const varieties = await loadVarieties();
   const parts = [{ text: prompt(varieties, hint) }];
   if (image) parts.push({ inlineData: { mimeType: image.mime, data: image.buffer.toString('base64') } });
   if (text) parts.push({ text: `The price list:\n${text}` });
   const answer = await callGemini(parts, { schema: SCHEMA });
-  const prices = (answer?.prices || []).map((p) => toPrice(p, { vendor: answer.vendor, varieties })).filter(Boolean);
+  const prices = (answer?.prices || []).map((p) => toPrice(p, { vendor: answer.vendor || vendorName, varieties })).filter(Boolean);
   if (!prices.length) return [];
   const photo = image ? await keepImage(image.buffer, today).catch((e) => (console.error('Price photo not kept:', e.message), null)) : null;
   const batchId = crypto.randomUUID().slice(0, 8);
   const batch = db.batch();
   const saved = prices.map((p) => {
     const ref = db.collection('marketPrices').doc();
-    const rec = strip({ ...p, date: today, batchId, source: 'whatsapp', workerPhone, photo: photo || undefined, raw: text ? text.slice(0, 500) : undefined, createdAt: admin.firestore.FieldValue.serverTimestamp() });
+    const rec = strip({ ...p, date: today, batchId, source: vendorPhone ? 'vendor' : 'whatsapp', workerPhone, vendorPhone, photo: photo || undefined, raw: text ? text.slice(0, 500) : undefined, createdAt: admin.firestore.FieldValue.serverTimestamp() });
     batch.set(ref, rec);
     return { id: ref.id, ...rec };
   });

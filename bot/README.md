@@ -200,6 +200,11 @@ variety matched to `variants`, grade, Rupiah, per kg or per fruit) into `marketP
 (range, middle, sellers, a suggested price) beside the store's own price (`storePrices`), and corrects or deletes a
 price. Workers with **Harga pasar** switched on (Workers page) get the prices in their morning summary.
 
+**Prices number (optional):** a second WhatsApp number in the same Meta app, only for vendors. Its phone number ID goes
+in `PRICES_PHONE_NUMBER_ID`. Every picture or text sent to it (a vendor's message or broadcast) is read for prices
+and saved with the vendor's WhatsApp name and number, no HARGA needed and no reply sent. WhatsApp does not pass on
+statuses or catalogs: vendors have to send to the number (e.g. add it to their broadcast list).
+
 ## Flow setup
 
 A published Flow can't be edited. After changing a file in `flows/`, create a new Flow,

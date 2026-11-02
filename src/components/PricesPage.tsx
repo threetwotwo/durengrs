@@ -168,7 +168,7 @@ export const PricesPage: React.FC = () => {
               </thead>
               <tbody className="tabular">
                 {ofDay.map((p) => (
-                  <PriceRow key={p.id} p={p} variants={variants} onError={fail} who={p.workerPhone ? workerLabel(p.workerPhone) : ''} />
+                  <PriceRow key={p.id} p={p} variants={variants} onError={fail} who={p.workerPhone ? workerLabel(p.workerPhone) : p.vendorPhone ? `+${p.vendorPhone}` : ''} />
                 ))}
               </tbody>
             </table>
