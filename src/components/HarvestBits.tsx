@@ -43,7 +43,7 @@ export const HarvestTile: React.FC<{ harvest: Harvest }> = ({ harvest: h }) => {
       </p>
       {scores ? (
         <dl className="grid grid-cols-4 gap-1.5">
-          <AvgCard label={t('hv.tile.avgWeight')} value={num(avgKg, 2)} unit="kg" tone="plain" />
+          <AvgCard label={t('hv.tile.avgWeight')} value={num(avgKg * 1000, 0)} unit="g" tone="plain" />
           <AvgCard label={t('hv.col.aroma')} value={num(scores.aroma)} tone={scoreTone(scores.aroma)} />
           <AvgCard label={t('hv.col.skin')} value={num(scores.skin)} tone={scoreTone(scores.skin)} />
           <AvgCard label={t('hv.col.shape')} value={num(scores.shape)} tone={scoreTone(scores.shape)} />
@@ -113,7 +113,7 @@ export const FruitTable: React.FC<{ harvest: Harvest; hrefOf: (i: number) => str
   const rows = (h.items || []).map((f, i) => ({ f, i })).filter(({ f }) => f && Number.isFinite(f.weightG));
   const items = rows.map((r) => r.f);
   if (!items.length) return null;
-  const kg = (g: number) => `${(g / 1000).toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kg`;
+  const kg = (g: number) => `${Math.round(g).toLocaleString(locale)} g`;
   const sc = harvestScores(items);
   const avgG = items.reduce((s, f) => s + f.weightG, 0) / items.length;
   const th = 'px-2 sm:px-3 py-2 text-xs font-semibold text-slate-500';

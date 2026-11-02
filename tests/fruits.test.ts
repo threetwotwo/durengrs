@@ -55,11 +55,11 @@ test('deliver to: typed text tidied; set or taken away per fruit, the rest of th
   assert.deepEqual(sortFruits(rows, 'deliver', true).map((r) => r.deliverTo || ''), ['budi', 'Ani', '']);
 });
 
-test('CSV: the fruits shown, one row each, weight in kilos, variety code and name', () => {
+test('CSV: the fruits shown, one row each, weight in grams, variety code and name', () => {
   const rows = fruitRows([h('a', 'A1', '2026-10-20', 'MK', [{ ...f('A1-20261020-01', 1290, 2, 3, 4), deliverTo: 'Toko Jaya' }])]);
   assert.deepEqual(fruitsSheet(rows, ['Code'], (c) => (c === 'MK' ? 'Musang King' : '')), [
     ['Code'],
-    ['A1-20261020-01', 'A1', 'A', 'MK', 'Musang King', '2026-10-20', 1.29, 2, 3, 4, 'Toko Jaya'],
+    ['A1-20261020-01', 'A1', 'A', 'MK', 'Musang King', '2026-10-20', 1290, 2, 3, 4, 'Toko Jaya'],
   ]);
 });
 

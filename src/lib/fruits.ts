@@ -127,7 +127,7 @@ export function withDeliveries(items: HarvestFruit[], changes: Array<{ index: nu
   return out;
 }
 
-/** The fruits shown, as a sheet for a CSV file: one row each, weight in kilos, the variety's name beside its code. */
+/** The fruits shown, as a sheet for a CSV file: one row each, weight in grams, the variety's name beside its code. */
 export function fruitsSheet(rows: FruitRow[], head: string[], varietyName: (code?: string) => string): Array<Array<string | number>> {
   return [
     head,
@@ -138,7 +138,7 @@ export function fruitsSheet(rows: FruitRow[], head: string[], varietyName: (code
       r.variant || '',
       varietyName(r.variant),
       r.date,
-      Math.round(r.weightG) / 1000,
+      Math.round(r.weightG),
       r.aroma,
       r.skin,
       r.shape,
