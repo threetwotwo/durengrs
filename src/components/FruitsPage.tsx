@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowDown, ArrowLeft, ArrowUp, Download, Loader2, Pencil, Search, Trash2 } from 'lucide-react';
+import { ArrowDown, ArrowLeft, ArrowUp, CalendarDays, ChevronLeft, ChevronRight, Download, Loader2, Pencil, Search, Trash2 } from 'lucide-react';
 import { useFarm } from '../context/FarmContext';
 import { useT } from '../i18n';
 import { fruitUrl, fruitsUrl, goBack, reportUrl, treeUrl, useQueryParams } from '../lib/router';
@@ -90,6 +90,97 @@ function useDayLabel() {
   };
 }
 
+/**
+ * The harvest days as a month calendar: a day with fruit shows how many; tap days to pick one or several (tap again
+ * to leave one out). Folded under a button that says what is picked, so the page stays short on a phone.
+ */
+const DayCalendar: React.FC<{
+  days: Array<{ date: string; n: number; g: number }>;
+  picked: Set<string>;
+  onToggle: (d: string) => void;
+  onClear: () => void;
+}> = ({ days, picked, onToggle, onClear }) => {
+  const { t, locale } = useT();
+  const [open, setOpen] = useState(false);
+  const byDate = useMemo(() => new Map(days.map((d) => [d.date, d])), [days]);
+  const today = todayStr();
+  const start = [...picked].sort().reverse()[0] || days[0]?.date || today;
+  const [month, setMonth] = useState(start.slice(0, 7));
+  const [y, m] = month.split('-').map(Number);
+  const first = new Date(y, m - 1, 1);
+  const lead = (first.getDay() + 6) % 7; // weeks start on Monday
+  const count = new Date(y, m, 0).getDate();
+  const iso = (d: number) => `${month}-${String(d).padStart(2, '0')}`;
+  const shift = (k: number) => {
+    const d = new Date(y, m - 1 + k, 1);
+    setMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+  };
+  const weekdays = Array.from({ length: 7 }, (_, i) => new Date(2026, 10, 2 + i).toLocaleDateString(locale, { weekday: 'narrow' }));
+  const sel = days.filter((d) => picked.has(d.date));
+  const summary = picked.size
+    ? `${t('fr.daysN', { n: picked.size })} · ${t('fr.dayN', { n: sel.reduce((s, d) => s + d.n, 0) })}`
+    : t('fr.allDays');
+  return (
+    <div className="col-span-2 lg:col-span-3">
+      <div className="flex items-center gap-2">
+        <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} className={`${btnSecondary} !min-h-10`}>
+          <CalendarDays className="w-4 h-4" />
+          {summary}
+        </button>
+        {picked.size > 0 && (
+          <button type="button" onClick={onClear} className="min-h-10 px-3 rounded-lg text-sm font-semibold text-slate-600 hover:bg-slate-100">
+            {t('fr.allDays')}
+          </button>
+        )}
+      </div>
+      {open && (
+        <div className="mt-2 w-full max-w-sm rounded-xl border border-slate-200 p-2.5">
+          <div className="flex items-center justify-between mb-1.5">
+            <button type="button" onClick={() => shift(-1)} aria-label={t('fr.cal.prev')} className="w-9 h-9 rounded-lg hover:bg-slate-100 inline-flex items-center justify-center">
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <span className="text-sm font-bold text-slate-900">{first.toLocaleDateString(locale, { month: 'long', year: 'numeric' })}</span>
+            <button type="button" onClick={() => shift(1)} aria-label={t('fr.cal.next')} className="w-9 h-9 rounded-lg hover:bg-slate-100 inline-flex items-center justify-center">
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="grid grid-cols-7 gap-1 text-center">
+            {weekdays.map((w, i) => (
+              <span key={i} className="text-[11px] font-semibold text-slate-400 pb-0.5">{w}</span>
+            ))}
+            {Array.from({ length: lead }, (_, i) => <span key={`b${i}`} />)}
+            {Array.from({ length: count }, (_, i) => {
+              const d = iso(i + 1);
+              const h = byDate.get(d);
+              const on = picked.has(d);
+              return (
+                <button
+                  key={d}
+                  type="button"
+                  disabled={!h}
+                  aria-pressed={h ? on : undefined}
+                  onClick={() => onToggle(d)}
+                  title={h ? `${t('fr.dayN', { n: h.n })} · ${(h.g / 1000).toLocaleString(locale, { maximumFractionDigits: 1 })} kg` : undefined}
+                  className={`h-11 rounded-lg flex flex-col items-center justify-center leading-none text-sm tabular ${
+                    on
+                      ? 'bg-emerald-700 text-white font-bold'
+                      : h
+                        ? 'bg-emerald-50 text-slate-900 font-semibold hover:bg-emerald-100'
+                        : 'text-slate-300'
+                  } ${d === today && !on ? 'ring-1 ring-slate-400' : ''}`}
+                >
+                  {i + 1}
+                  {h && <span className={`mt-0.5 text-[10px] ${on ? 'text-emerald-100' : 'text-emerald-700'}`}>{h.n}</span>}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const th = 'px-2.5 h-10 text-[11px] font-semibold uppercase tracking-wide whitespace-nowrap bg-slate-900 text-slate-200';
 const td = 'px-2.5 py-2 border-b border-slate-100 whitespace-nowrap';
 
@@ -119,16 +210,24 @@ export const FruitsPage: React.FC = () => {
       ),
     [all, block, q]
   );
-  const day = /^\d{4}-\d{2}-\d{2}$/.test(params.get('day') || '') ? params.get('day')! : '';
+  // Days picked (?day=2026-11-02,2026-11-01): any number of them; none means every day.
+  const picked = useMemo(() => new Set((params.get('day') || '').split(',').filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d))), [params]);
+  const day = [...picked].sort().reverse().join(',');
+  const toggleDay = (d: string) => {
+    const next = new Set(picked);
+    if (next.has(d)) next.delete(d);
+    else next.add(d);
+    setParams({ day: next.size ? [...next].sort().reverse().join(',') : null }, { replace: true });
+  };
   const days = useMemo(() => fruitDays(inScope.filter((r) => !variant || r.variant === variant)), [inScope, variant]);
   const rows = useMemo(
-    () => sortFruits(inScope.filter((r) => (!variant || r.variant === variant) && (!day || r.date === day)), sort, desc),
-    [inScope, variant, day, sort, desc]
+    () => sortFruits(inScope.filter((r) => (!variant || r.variant === variant) && (!picked.size || picked.has(r.date))), sort, desc),
+    [inScope, variant, picked, sort, desc]
   );
   const dupes = useMemo(() => likelyDuplicates(all), [all]);
   const dayLabel = useDayLabel();
   // Newest first or by date: a line above each day's fruits (the date column is hidden on a phone).
-  const byDay = !day && (!sort || sort === 'date');
+  const byDay = picked.size !== 1 && (!sort || sort === 'date');
   const sum = summarizeFruits(rows);
   const varieties = useMemo(() => byVariety(inScope), [inScope]);
   const codes = useMemo(() => {
@@ -216,7 +315,7 @@ export const FruitsPage: React.FC = () => {
         }
       />
 
-      <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-xs grid grid-cols-2 lg:grid-cols-[1fr_12rem_10rem_13rem] gap-2">
+      <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-xs grid grid-cols-2 lg:grid-cols-[1fr_12rem_10rem] gap-2">
         <div className="relative col-span-2 lg:col-span-1">
           <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" aria-hidden />
           <input
@@ -245,14 +344,7 @@ export const FruitsPage: React.FC = () => {
             </option>
           ))}
         </select>
-        <select value={day} onChange={(e) => setParams({ day: e.target.value || null })} aria-label={t('fr.day')} className={`${inputCls} col-span-2 lg:col-span-1`}>
-          <option value="">{t('fr.allDays')}</option>
-          {days.map((d) => (
-            <option key={d.date} value={d.date}>
-              {dayLabel(d.date)} · {t('fr.dayN', { n: d.n })}
-            </option>
-          ))}
-        </select>
+        <DayCalendar days={days} picked={picked} onToggle={toggleDay} onClear={() => setParams({ day: null }, { replace: true })} />
       </div>
 
       {varieties.length > 1 && (
