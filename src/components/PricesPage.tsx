@@ -118,7 +118,27 @@ export const PricesPage: React.FC = () => {
             {grid.length === 0 ? (
               <p className="px-3 pb-3 text-sm text-slate-500">{t('mp.noFruit')}</p>
             ) : (
-              <table className="w-full text-sm">
+              <>
+              {/* On a phone: one card per variety, whole and kupas in two columns. */}
+              <ul className="sm:hidden divide-y divide-slate-100">
+                {grid.map((g) => (
+                  <li key={g.key} className="px-3 py-2.5">
+                    <p className="flex items-baseline justify-between gap-2">
+                      <span className="font-semibold text-slate-900">{g.name}</span>
+                      <span className="shrink-0 text-[11px] text-slate-500">
+                        {!g.matched && <span className="mr-1 text-amber-700">{t('mp.unmatched')}</span>}
+                        {g.sellers ? t(g.sellers === 1 ? 'mp.sellers1' : 'mp.sellersN', { n: g.sellers }) : ''}
+                      </span>
+                    </p>
+                    <div className="mt-1.5 grid grid-cols-2 gap-1.5">
+                      {(['utuh', 'kupas'] as const).map((f) => (
+                        <FormCard key={f} r={g[f]} form={f} onError={fail} />
+                      ))}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+              <table className="hidden sm:table w-full text-sm">
                 <thead>
                   <tr>
                     <th scope="col" rowSpan={2} className={`${th} text-left align-bottom sticky left-0 bg-white`}>{t('fr.variant')}</th>
@@ -141,7 +161,7 @@ export const PricesPage: React.FC = () => {
                       <th scope="row" className={`${td} text-left font-semibold text-slate-900 sticky left-0 bg-white`}>
                         {g.name}
                         <span className="block text-[11px] font-normal text-slate-500">
-                          {g.sellers ? t('mp.sellersN', { n: g.sellers }) : ''}
+                          {g.sellers ? t(g.sellers === 1 ? 'mp.sellers1' : 'mp.sellersN', { n: g.sellers }) : ''}
                           {!g.matched && <span className="ml-1 text-amber-700" title={t('mp.unmatched.title')}>{t('mp.unmatched')}</span>}
                         </span>
                       </th>
@@ -152,6 +172,7 @@ export const PricesPage: React.FC = () => {
                   ))}
                 </tbody>
               </table>
+              </>
             )}
             <p className="px-3 py-2 text-xs text-slate-500 border-t border-slate-100">{t('mp.perKgNote')}</p>
           </section>
@@ -222,6 +243,40 @@ export const PricesPage: React.FC = () => {
   );
 };
 
+/** Rupiah in short, for a phone: 165000 -> "165rb", 1200000 -> "1,2jt". */
+const rpShort = (n?: number) =>
+  n === undefined ? '' : n >= 1e6 ? `${(n / 1e6).toLocaleString('id-ID', { maximumFractionDigits: 1 })}jt` : `${Math.round(n / 1000).toLocaleString('id-ID')}rb`;
+
+/** One form on a phone card: the market (range, or one price), the middle and suggestion, our price. */
+const FormCard: React.FC<{ r?: VarietyMarket; form: Form; onError: (e: unknown) => void }> = ({ r, form, onError }) => {
+  const { t } = useT();
+  const tone = form === 'kupas' ? 'bg-amber-50 border-amber-200' : 'bg-emerald-50/60 border-emerald-200';
+  return (
+    <div className={`rounded-lg border px-2 py-1.5 min-w-0 ${r ? tone : 'bg-slate-50 border-slate-200'}`}>
+      <p className={`text-[11px] font-semibold ${form === 'kupas' ? 'text-amber-800' : 'text-emerald-800'}`}>{t(`mp.form.${form}`)} /kg</p>
+      {!r ? (
+        <p className="text-sm text-slate-300">—</p>
+      ) : (
+        <>
+          <p className="text-base font-bold tabular text-slate-900 leading-tight">
+            {r.low !== undefined ? (r.low === r.high ? rpShort(r.low) : `${rpShort(r.low)}–${rpShort(r.high)}`) : r.perFruit.length ? `${rpShort(Math.min(...r.perFruit))}/${t('mp.perFruit')}` : '—'}
+          </p>
+          {r.suggested !== undefined && (
+            <p className="text-[11px] text-slate-600 tabular">
+              {t('mp.suggested')} <strong className="text-emerald-800">{rpShort(r.suggested)}</strong>
+            </p>
+          )}
+          {r.code && (
+            <div className="mt-1">
+              <StorePriceInput code={r.code} form={form} value={r.store} median={r.median} onError={onError} compact />
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+};
+
 /** One form's three cells in the Buah grid: the market (range, middle below), the suggestion, our price. */
 const FormCells: React.FC<{ r?: VarietyMarket; form: Form; onError: (e: unknown) => void }> = ({ r, form, onError }) => {
   const { t } = useT();
@@ -274,7 +329,14 @@ const RowActions: React.FC<{ p: MarketPrice; who: string; onError: (e: unknown) 
 
 
 /** The store's own price per kg, typed in place ("150000", "150rb"), saved when leaving the box; how far off the market. */
-const StorePriceInput: React.FC<{ code: string; form: Form; value?: number; median?: number; onError: (e: unknown) => void }> = ({ code, form, value, median, onError }) => {
+const StorePriceInput: React.FC<{ code: string; form: Form; value?: number; median?: number; onError: (e: unknown) => void; compact?: boolean }> = ({
+  code,
+  form,
+  value,
+  median,
+  onError,
+  compact,
+}) => {
   const { t } = useT();
   const [text, setText] = useState(value ? String(value) : '');
   const [bad, setBad] = useState(false);
@@ -293,17 +355,17 @@ const StorePriceInput: React.FC<{ code: string; form: Form; value?: number; medi
   const diff = value && median ? Math.round(((value - median) / median) * 100) : null;
   return (
     <span className="flex items-center gap-2">
-      <span className="relative">
+      <span className={compact ? 'relative flex-1 min-w-0' : 'relative'}>
         <input
           inputMode="numeric"
           value={text}
           onChange={(e) => setText(e.target.value)}
           onBlur={commit}
           onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
-          placeholder="Rp/kg"
+          placeholder={compact ? t('mp.oursPh') : 'Rp/kg'}
           aria-label={t('mp.ours')}
           aria-invalid={bad || undefined}
-          className={`w-28 h-9 px-2 rounded-lg border text-right text-sm tabular ${bad ? 'border-rose-400' : 'border-slate-300'}`}
+          className={`${compact ? 'w-full h-8 bg-white' : 'w-28 h-9'} px-2 rounded-lg border text-right text-sm tabular ${bad ? 'border-rose-400' : 'border-slate-300'}`}
         />
         {busy && <Loader2 className="absolute -left-4 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-400 animate-spin" aria-hidden />}
       </span>

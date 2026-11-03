@@ -176,7 +176,9 @@ export function fruitGrid(rows: VarietyMarket[]): FruitGridRow[] {
     g.sellers = Math.max(g.sellers, r.sellers);
     out.set(k, g);
   }
-  return [...out.values()];
+  // Local, matched varieties first (what the store sells), then those from elsewhere or frozen, then unmatched.
+  const rank = (g: FruitGridRow) => (!g.matched ? 2 : g.name.includes('(') ? 1 : 0);
+  return [...out.values()].sort((a, b) => rank(a) - rank(b) || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
 }
 
 /** Olahan by product, then size, then price. */
