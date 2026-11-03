@@ -460,6 +460,20 @@ app.post(['/send-tree-flow', '/send-tree-lookup'], async (req, res) => {
 // &date=yesterday (Cloud Scheduler job daily-summary; the GitHub workflow at 07:25 as a backup): every worker on the Workers page whose switch is on gets theirs
 // (once per day summarised, retries are skipped). &date=YYYY-MM-DD for another day (default today); &to=628… sends to
 // one number only (a test), &dry=1 shows the messages without sending anything.
+// Checking the price reading: https://<service>/prices-test?token=<VERIFY_TOKEN>&text=<a vendor's message> answers
+// what Gemini reads from it, as JSON; nothing is saved.
+app.get('/prices-test', async (req, res) => {
+  if (!VERIFY_TOKEN || req.query.token !== VERIFY_TOKEN) return res.sendStatus(403);
+  const text = String(req.query.text || '').slice(0, 6000);
+  if (!text.trim()) return res.status(400).json({ error: 'text: a vendor message' });
+  try {
+    const prices = await readAndSavePrices({ text, hint: String(req.query.vendor || ''), vendorName: String(req.query.vendor || ''), dry: true });
+    res.json({ n: prices.length, prices });
+  } catch (err) {
+    res.status(500).json({ error: String(err.message || err).slice(0, 300) });
+  }
+});
+
 // The prices number, set up from a phone: https://<service>/prices-number?token=<VERIFY_TOKEN>&id=<phone number ID>&pin=<6 digits>
 // registers the number with WhatsApp (the bot's own token) and makes it the prices number; &off=1 stops it.
 app.get('/prices-number', async (req, res) => {

@@ -18,6 +18,7 @@ const SCHEMA = {
         type: 'OBJECT',
         properties: {
           vendor: { type: 'STRING' },
+          sent_date: { type: 'STRING' },
           category: { type: 'STRING', enum: ['buah', 'olahan'] },
           product: { type: 'STRING' },
           size: { type: 'STRING' },
@@ -49,16 +50,19 @@ Return every durian price you can read, one entry per variety and grade (and per
 - For "olahan": product = its type as written, short ("Pancake Durian Musang King", "Durian Egg Roll", "Dreamy Musangking Cake"); size = as written ("L", "M", "S", "1 box isi 4", "1 pcs", "can", "box"); price = the price of that item; unit "other"; variety = the durian variety in it if named, else ""; form, origin, fruit_kg as for fruit only when they apply.
 - price: in Rupiah as a plain number. "150rb", "150k", "150.000", "Rp150.000" are 150000; "1,2jt" is 1200000. Sellers often leave out the thousands: "275/kg", "425/kg", "210/pack" mean 275000, 425000, 210000.
 - A heading applies to the lines under it until the next heading: "Durian utuh Chilled" makes the lines below whole and chilled; "Ready Durian Pack 400 Gram" makes them packs of 0.4 kg; "Mau info stock buah hari ini" is not a heading of any kind.
-- origin: where the fruit is from, as written, in short: "Malaysia" for "malay", "Malaysia", "import"; "Lokal" for "lokal"; a region when named ("Medan", "Palu", "Sulawesi", "Bangka"); else "". The same variety from two origins is two entries (Musang King malay and Musang King lokal differ a lot).
+- origin: where the fruit is from, in short: "Malaysia" for "malay", "Malaysia", "Malaysia Pahang"; "Thailand"; "Lokal" for "lokal", "lokal nusantara"; an Indonesian region when named ("Medan", "Palu", "Sulawesi", "Bangka"); else "". "Import" alone is "Malaysia" only when nothing else says where from. The same variety from two origins is two entries (Musang King malay and Musang King lokal differ a lot).
 - condition: "frozen" for frozen, "chilled" for chilled (dingin), else "fresh".
 - available: "no" when marked sold out (❌, "habis", "sold out", "kosong"), "yes" when marked in stock (✅, "ready", "ada"), else "unknown".
 - form: "kupas" for peeled flesh ("kupas", "daging", "isi", in a box, mika or tray); "utuh" for the whole fruit (the default, also "fresh", "gelondong", "butiran"). Most sellers price each variety both ways: give each its own entry.
 - unit: "kg" for a price per kilo ("/kg"); "buah" for a price per whole fruit ("/buah", "per biji", "per pcs"); "pack" for a box, mika or tray ("per box 400gr"); "other" for anything else.
-- fruit_kg: the weight in kg of the fruit (unit buah, "±2kg") or of the pack (unit pack, "400gr" is 0.4) when it is written, else 0.
+- fruit_kg: the weight in kg of the fruit (unit buah, "±2kg") or of the pack (unit pack, "400gr" is 0.4) when it is written, else 0. A range is its middle: "400-450 Gram" is 0.425, "900 - 1 KG" is 0.95, "500-550 Gram" is 0.525.
+- A price written with a weight or a weight range and no "/kg" ("Premium 405.000 (400-450 Gram)", "Premium 320.000" under "(900 - 1 KG)") is the price of that amount of flesh: unit "pack", fruit_kg from the weight, form "kupas" (sellers who sell whole fruit say so: "utuh", "bulatan", "gelondong", or a price "/kg" under a heading like "BUAH BULATAN UTUH").
+- Leave out what is not a durian price: packaging (styrofoam, box, ice), delivery, "harga fluktuatif" and other remarks.
 - variety: as written (e.g. "Musang King", "Bawor", "Black Thorn", "Montong"). variety_code: the matching code from the farm's list, else "". The farm's varieties: ${list}. Treat "MK" and "Musangking" as Musang King, "Ochee", "Black Thorn" and "Blackthorn" as the same, "Queen", "Durian Queen" and "Musang Queen" as "Musang Queen".
-- grade: as written ("A", "B", "Super", "Kupas", "Jumbo"), else "".
-- vendor: the seller (shop or account name shown), else "". The top-level vendor is the seller of the whole list.${hint ? `\nThe person sending it wrote: "${hint}" (it may name the vendor).` : ''}
-- note: anything that changes the price (e.g. "kupas", "frozen", "promo hari ini"), short; else "".
+- grade: as written, short ("A", "AA", "A+", "Premium", "Premium AA", "Super", "Jumbo"), else "". Not the form: "kupas" is form, not grade.
+- note: the seller's description of the flesh or the cross ("Kuning, daging tebal, biji kecil"; "persilangan bawor + monthong"), short.
+- Pasted or forwarded WhatsApp chats start each message with "[11/3, 10:19] Durian Buis JKT:" (or "11/3/26 10.19 - Durian Buis JKT:"): the name after the time is the vendor of every price in that message (until the next such line), and the date is when it was sent: give it as sent_date exactly as written ("11/3", "11/3/26"), else "". A message with no prices (a question like "hr ini ada pa") gives nothing.
+- vendor: the seller (shop or account name shown, or the chat name above), else "". The top-level vendor is the seller of the whole list.${hint ? `\nThe person sending it wrote: "${hint}" (it may name the vendor).` : ''}
 - confidence 0 to 1. Leave out prices you cannot read; never guess a number.`;
 }
 
@@ -72,13 +76,38 @@ async function loadVarieties() {
  * One read price as a record: the price per kg when it can be worked out (per kg, or per fruit with its weight),
  * the variety matched to the farm's own code when Gemini found one on the list.
  */
-function toPrice(p, { vendor, varieties }) {
+/**
+ * A chat date as written ("11/3", "3/11/26", "11/3/2026") as YYYY-MM-DD: phones write day/month or month/day, so of
+ * the two readings the one on or before today and nearest to it (within 60 days). Empty when it is not one.
+ */
+function resolveDate(raw, today = R.todayStr()) {
+  const m = String(raw || '').match(/^\s*(\d{1,2})[/.-](\d{1,2})(?:[/.-](\d{2,4}))?/);
+  if (!m) return '';
+  const a = Number(m[1]);
+  const b = Number(m[2]);
+  const ty = Number(today.slice(0, 4));
+  const y = m[3] ? (m[3].length === 2 ? 2000 + Number(m[3]) : Number(m[3])) : ty;
+  const best = [
+    [a, b],
+    [b, a],
+  ]
+    .filter(([mo, d]) => mo >= 1 && mo <= 12 && d >= 1 && d <= 31)
+    .flatMap(([mo, d]) => (m[3] ? [y] : [ty, ty - 1]).map((yy) => `${yy}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`))
+    .filter((s) => s <= today && s >= R.addDays(today, -60))
+    .sort()
+    .pop();
+  return best || '';
+}
+
+function toPrice(p, { vendor, varieties, today = R.todayStr() }) {
+  const date = resolveDate(p.sent_date, today) || undefined;
   if (p.category === 'olahan') {
     let price = Math.round(Number(p.price) || 0);
     if (price >= 10 && price < 10000) price *= 1000;
     if (!(price >= 1000 && price <= 20000000) || (Number(p.confidence) || 0) < 0.4) return null;
     const code = varieties.find((v) => v.code === p.variety_code) ? p.variety_code : undefined;
     return strip({
+      date,
       category: 'olahan',
       vendor: String(p.vendor || vendor || '').trim().slice(0, 60) || undefined,
       product: String(p.product || p.variety || '').trim().slice(0, 60) || undefined,
@@ -104,6 +133,7 @@ function toPrice(p, { vendor, varieties }) {
   const available = p.available === 'no' ? false : p.available === 'yes' ? true : undefined;
   const code = varieties.find((v) => v.code === p.variety_code) ? p.variety_code : undefined;
   return strip({
+    date,
     vendor: String(p.vendor || vendor || '').trim().slice(0, 60) || undefined,
     variety: String(p.variety || '').trim().slice(0, 40) || undefined,
     varietyCode: code,
@@ -157,14 +187,14 @@ async function readAndSavePrices({ text, image, hint, workerPhone, vendorPhone, 
   if (image) parts.push({ inlineData: { mimeType: image.mime, data: image.buffer.toString('base64') } });
   if (text) parts.push({ text: `The price list:\n${text}` });
   const answer = await callGemini(parts, { schema: SCHEMA });
-  const prices = (answer?.prices || []).map((p) => toPrice(p, { vendor: answer.vendor || vendorName, varieties })).filter(Boolean);
+  const prices = (answer?.prices || []).map((p) => toPrice(p, { vendor: answer.vendor || vendorName, varieties, today })).filter(Boolean);
   if (!prices.length || dry) return prices;
   const photo = image ? await keepImage(image.buffer, today).catch((e) => (console.error('Price photo not kept:', e.message), null)) : null;
   const batchId = crypto.randomUUID().slice(0, 8);
   const batch = db.batch();
   const saved = prices.map((p) => {
     const ref = db.collection('marketPrices').doc();
-    const rec = strip({ ...p, date: today, batchId, source: vendorPhone ? 'vendor' : 'whatsapp', workerPhone, vendorPhone, photo: photo || undefined, raw: text ? text.slice(0, 500) : undefined, createdAt: admin.firestore.FieldValue.serverTimestamp() });
+    const rec = strip({ ...p, date: p.date || today, batchId, source: vendorPhone ? 'vendor' : 'whatsapp', workerPhone, vendorPhone, photo: photo || undefined, raw: text ? text.slice(0, 500) : undefined, createdAt: admin.firestore.FieldValue.serverTimestamp() });
     batch.set(ref, rec);
     return { id: ref.id, ...rec };
   });
@@ -205,4 +235,4 @@ async function inPriceMode(phone) {
   return false;
 }
 
-module.exports = { readAndSavePrices, pricesReply, toPrice, fetchWhatsAppMedia, startPriceMode, inPriceMode, prompt, SCHEMA };
+module.exports = { resolveDate, readAndSavePrices, pricesReply, toPrice, fetchWhatsAppMedia, startPriceMode, inPriceMode, prompt, SCHEMA };

@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const fake = require('./fakeFirestore');
 fake.install();
 const { priceText, parseCommand, looksLikePrices } = require('../lib/commands');
-const { toPrice } = require('../lib/prices');
+const { toPrice, resolveDate } = require('../lib/prices');
 const { priceLines } = require('../lib/summary');
 
 test('HARGA: alone opens the 15 minutes for screenshots; with words after it, those are the prices (a typo allowed)', () => {
@@ -67,4 +67,15 @@ test('a price list is noticed without HARGA; tree IDs, words and chatter are not
   assert.equal(looksLikePrices('Pancake Durian Montong 1box *60.000* (4pcs)'), true);
   assert.equal(looksLikePrices('MK Rp 150000'), true);
   for (const no of ['A1', 'ringkasan', 'kebun', 'pohon A12 daunnya kuning', 'ok siap', 'jam 7 ke blok B']) assert.equal(looksLikePrices(no), false, no);
+});
+
+test('a pasted chat: the date in [11/3, 10:19] read either way round, the one on or before today and nearest', () => {
+  assert.equal(resolveDate('11/3', '2026-11-03'), '2026-11-03', 'month/day: 3 Nov, not 11 Mar');
+  assert.equal(resolveDate('3/11', '2026-11-03'), '2026-11-03', 'day/month');
+  assert.equal(resolveDate('2/11/26', '2026-11-03'), '2026-11-02');
+  assert.equal(resolveDate('28/10', '2026-11-03'), '2026-10-28');
+  assert.equal(resolveDate('12/25', '2026-11-03'), '', 'Christmas is not yet');
+  assert.equal(resolveDate('', '2026-11-03'), '');
+  const p = toPrice({ sent_date: '11/2', variety: 'Bawor', price: 395, unit: 'kg', confidence: 0.9 }, { vendor: 'Durian Buis JKT', varieties: [], today: '2026-11-03' });
+  assert.deepEqual([p.date, p.vendor, p.price], ['2026-11-02', 'Durian Buis JKT', 395000]);
 });
