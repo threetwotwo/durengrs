@@ -19,6 +19,11 @@ const { readAndSavePrices } = require('../lib/prices');
 async function save() {
   const dir = path.join(root, 'test', 'fixtures');
   for (const f of fs.readdirSync(dir).filter((x) => /^prices-.+\.txt$/.test(x))) {
+    const done = await db.collection('marketPrices').where('sampleFile', '==', f).limit(1).get();
+    if (!done.empty) {
+      console.log(`${f}: already saved, skipped`);
+      continue;
+    }
     const saved = await readAndSavePrices({ text: fs.readFileSync(path.join(dir, f), 'utf8'), tag: { sample: true, sampleFile: f } });
     const vendors = [...new Set(saved.map((p) => p.vendor || '?'))].join(', ');
     console.log(`${f}: ${saved.length} prices saved (${vendors})`);

@@ -187,7 +187,8 @@ async function readAndSavePrices({ text, image, hint, workerPhone, vendorPhone, 
   const parts = [{ text: prompt(varieties, hint) }];
   if (image) parts.push({ inlineData: { mimeType: image.mime, data: image.buffer.toString('base64') } });
   if (text) parts.push({ text: `The price list:\n${text}` });
-  const answer = await callGemini(parts, { schema: SCHEMA });
+  // Long price lists (twenty-odd items) take Gemini a while: more time than a report reading.
+  const answer = await callGemini(parts, { schema: SCHEMA, timeoutMs: Math.max(Number(process.env.GEMINI_TIMEOUT_MS) || 0, 120000) });
   const prices = (answer?.prices || []).map((p) => toPrice(p, { vendor: answer.vendor || vendorName, varieties, today })).filter(Boolean);
   if (!prices.length || dry) return prices;
   const photo = image ? await keepImage(image.buffer, today).catch((e) => (console.error('Price photo not kept:', e.message), null)) : null;
