@@ -182,7 +182,7 @@ async function keepImage(buffer, date) {
  * Reads prices from a text or an image and saves them. `hint`: what was written with it (a caption, or the text
  * itself). Returns the saved records (empty when nothing could be read).
  */
-async function readAndSavePrices({ text, image, hint, workerPhone, vendorPhone, vendorName, today = R.todayStr(), dry = false }) {
+async function readAndSavePrices({ text, image, hint, workerPhone, vendorPhone, vendorName, today = R.todayStr(), dry = false, tag = {} }) {
   const varieties = await loadVarieties();
   const parts = [{ text: prompt(varieties, hint) }];
   if (image) parts.push({ inlineData: { mimeType: image.mime, data: image.buffer.toString('base64') } });
@@ -195,7 +195,7 @@ async function readAndSavePrices({ text, image, hint, workerPhone, vendorPhone, 
   const batch = db.batch();
   const saved = prices.map((p) => {
     const ref = db.collection('marketPrices').doc();
-    const rec = strip({ ...p, date: p.date || today, batchId, source: vendorPhone ? 'vendor' : 'whatsapp', workerPhone, vendorPhone, photo: photo || undefined, raw: text ? text.slice(0, 500) : undefined, createdAt: admin.firestore.FieldValue.serverTimestamp() });
+    const rec = strip({ ...p, ...tag, date: p.date || today, batchId, source: vendorPhone ? 'vendor' : 'whatsapp', workerPhone, vendorPhone, photo: photo || undefined, raw: text ? text.slice(0, 500) : undefined, createdAt: admin.firestore.FieldValue.serverTimestamp() });
     batch.set(ref, rec);
     return { id: ref.id, ...rec };
   });
