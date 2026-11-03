@@ -14,6 +14,12 @@ export interface MarketPrice {
   varietyCode?: string;
   /** Whole fruit (utuh, the default) or peeled flesh (kupas: by the kg, or a box of it). */
   form?: Form;
+  /** Where the fruit is from, as the vendor wrote it ("Malaysia", "Lokal", "Medan"). */
+  origin?: string;
+  /** Not fresh: chilled or frozen. */
+  condition?: 'chilled' | 'frozen';
+  /** Marked in stock (✅) or sold out (❌) by the vendor. */
+  available?: boolean;
   grade?: string;
   price: number;
   unit: 'kg' | 'buah' | 'pack' | 'other';
@@ -42,8 +48,17 @@ export interface StorePrice {
   kupas?: number;
 }
 
-/** The variety a price is about, as a group key: the farm's code, else the vendor's name for it. */
-export const varietyKey = (p: Pick<MarketPrice, 'varietyCode' | 'variety'>) => (p.varietyCode ? `code:${p.varietyCode}` : `name:${(p.variety || 'Durian').trim().toLowerCase()}`);
+/** Grown here (no origin written, or "lokal") rather than brought in (Malaysia, another island). */
+export const isLocal = (p: Pick<MarketPrice, 'origin'>) => !p.origin || /^lokal$/i.test(p.origin.trim());
+
+/**
+ * The variety a price is about, as a group key: the farm's code, else the vendor's name for it; with its origin when
+ * it is not local (Musang King from Malaysia is another product) and frozen apart from fresh.
+ */
+export const varietyKey = (p: Pick<MarketPrice, 'varietyCode' | 'variety' | 'origin' | 'condition'>) =>
+  [p.varietyCode ? `code:${p.varietyCode}` : `name:${(p.variety || 'Durian').trim().toLowerCase()}`, isLocal(p) ? '' : (p.origin || '').trim().toLowerCase(), p.condition === 'frozen' ? 'frozen' : '']
+    .filter(Boolean)
+    .join('~');
 
 const median = (xs: number[]) => {
   const s = [...xs].sort((a, b) => a - b);
@@ -56,6 +71,8 @@ export const suggestPrice = (perKg: number[]) => (perKg.length ? Math.round(medi
 
 export interface VarietyMarket {
   key: string;
+  /** Matched to one of the farm's varieties. */
+  matched: boolean;
   code?: string;
   form: Form;
   name: string;
@@ -82,7 +99,10 @@ export function marketByVariety(prices: MarketPrice[], names: (code: string) => 
   }
   return [...groups.entries()]
     .map(([key, { list }]) => {
-      const code = list[0].varietyCode;
+      // The store's own price sits beside local, not frozen fruit only (what the farm sells).
+      const local = isLocal(list[0]) && list[0].condition !== 'frozen';
+      const code = local ? list[0].varietyCode : undefined;
+      const extra = [isLocal(list[0]) ? '' : list[0].origin, list[0].condition === 'frozen' ? 'frozen' : ''].filter(Boolean).join(', ');
       const perKg = list.map((p) => p.pricePerKg).filter((x): x is number => !!x);
       const perFruit = list.filter((p) => !p.pricePerKg && p.unit === 'buah').map((p) => p.price);
       const form = formOf(list[0]);
@@ -90,7 +110,8 @@ export function marketByVariety(prices: MarketPrice[], names: (code: string) => 
         key,
         code,
         form,
-        name: code ? names(code) : list[0].variety || 'Durian',
+        name: `${list[0].varietyCode ? names(list[0].varietyCode) : list[0].variety || 'Durian'}${extra ? ` (${extra})` : ''}`,
+        matched: !!list[0].varietyCode,
         perKg,
         perFruit,
         low: perKg.length ? Math.min(...perKg) : undefined,
@@ -104,7 +125,7 @@ export function marketByVariety(prices: MarketPrice[], names: (code: string) => 
     .sort((a, b) => {
       const va = a.key.split('|')[0];
       const vb = b.key.split('|')[0];
-      return (quoted.get(vb) || 0) - (quoted.get(va) || 0) || a.name.localeCompare(b.name) || va.localeCompare(vb) || FORMS.indexOf(a.form) - FORMS.indexOf(b.form);
+      return (quoted.get(vb) || 0) - (quoted.get(va) || 0) || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0) || va.localeCompare(vb) || FORMS.indexOf(a.form) - FORMS.indexOf(b.form);
     });
 }
 

@@ -129,7 +129,7 @@ export const PricesPage: React.FC = () => {
                     <th scope="row" className={`${td} text-left font-semibold text-slate-900`}>
                       {r.name}
                       <FormTag form={r.form} />
-                      {!r.code && <span className="ml-1.5 text-[11px] font-normal text-amber-700" title={t('mp.unmatched.title')}>{t('mp.unmatched')}</span>}
+                      {!r.matched && <span className="ml-1.5 text-[11px] font-normal text-amber-700" title={t('mp.unmatched.title')}>{t('mp.unmatched')}</span>}
                     </th>
                     <td className={`${td} text-right`}>
                       {r.low !== undefined ? (r.low === r.high ? rp(r.low) : `${rp(r.low)}–${rp(r.high)}`) : ''}
@@ -296,8 +296,15 @@ const PriceRow: React.FC<{ p: MarketPrice; variants: Array<{ code: string; name:
         />
       </td>
       <td className={`${cell} text-right whitespace-nowrap text-slate-700`} title={p.note}>
-        {rp(p.price)}/{p.unit === 'kg' ? 'kg' : p.unit === 'buah' ? t('mp.perFruit') : p.unit === 'pack' ? 'box' : '…'}
-        {p.fruitKg ? <span className="block text-xs text-slate-500">±{p.fruitKg} kg</span> : null}
+        <span className={p.available === false ? 'line-through decoration-rose-400' : ''}>
+          {rp(p.price)}/{p.unit === 'kg' ? 'kg' : p.unit === 'buah' ? t('mp.perFruit') : p.unit === 'pack' ? 'box' : '…'}
+        </span>
+        {p.available === false && <span className="ml-1" title={t('mp.soldOut')}>❌</span>}
+        {(p.fruitKg || p.origin || p.condition) && (
+          <span className="block text-xs text-slate-500">
+            {[p.origin, p.condition ? t(`mp.cond.${p.condition}`) : '', p.fruitKg ? `${p.unit === 'pack' ? '' : '±'}${Math.round(p.fruitKg * 1000)} g` : ''].filter(Boolean).join(' · ')}
+          </span>
+        )}
       </td>
       <td className={cell}>
         <input

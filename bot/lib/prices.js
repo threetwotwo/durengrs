@@ -21,6 +21,9 @@ const SCHEMA = {
           variety: { type: 'STRING' },
           variety_code: { type: 'STRING' },
           form: { type: 'STRING', enum: ['utuh', 'kupas'] },
+          origin: { type: 'STRING' },
+          condition: { type: 'STRING', enum: ['fresh', 'chilled', 'frozen'] },
+          available: { type: 'STRING', enum: ['yes', 'no', 'unknown'] },
           grade: { type: 'STRING' },
           price: { type: 'NUMBER' },
           unit: { type: 'STRING', enum: ['kg', 'buah', 'pack', 'other'] },
@@ -38,8 +41,13 @@ const SCHEMA = {
 function prompt(varieties, hint) {
   const list = varieties.map((v) => `${v.code} = ${v.name || v.code}`).join('; ') || 'none listed';
   return `You read durian price lists from Indonesian sellers (a WhatsApp status or catalog, an Instagram or Facebook post, a chat), for a durian farm that prices its own store from them.
-Return every durian price you can read, one entry per variety and grade (and per size when priced separately).
-- price: in Rupiah as a plain number. "150rb", "150k", "150.000", "Rp150.000" are 150000; "1,2jt" is 1200000.
+Return every durian price you can read, one entry per variety and grade (and per origin, form and size when priced separately).
+Only fresh durian sold as fruit or as flesh. Leave out processed products: cakes, pancakes, egg rolls, dessert boxes, kapit, ice cream, drinks.
+- price: in Rupiah as a plain number. "150rb", "150k", "150.000", "Rp150.000" are 150000; "1,2jt" is 1200000. Sellers often leave out the thousands: "275/kg", "425/kg", "210/pack" mean 275000, 425000, 210000.
+- A heading applies to the lines under it until the next heading: "Durian utuh Chilled" makes the lines below whole and chilled; "Ready Durian Pack 400 Gram" makes them packs of 0.4 kg; "Mau info stock buah hari ini" is not a heading of any kind.
+- origin: where the fruit is from, as written, in short: "Malaysia" for "malay", "Malaysia", "import"; "Lokal" for "lokal"; a region when named ("Medan", "Palu", "Sulawesi", "Bangka"); else "". The same variety from two origins is two entries (Musang King malay and Musang King lokal differ a lot).
+- condition: "frozen" for frozen, "chilled" for chilled (dingin), else "fresh".
+- available: "no" when marked sold out (❌, "habis", "sold out", "kosong"), "yes" when marked in stock (✅, "ready", "ada"), else "unknown".
 - form: "kupas" for peeled flesh ("kupas", "daging", "isi", in a box, mika or tray); "utuh" for the whole fruit (the default, also "fresh", "gelondong", "butiran"). Most sellers price each variety both ways: give each its own entry.
 - unit: "kg" for a price per kilo ("/kg"); "buah" for a price per whole fruit ("/buah", "per biji", "per pcs"); "pack" for a box, mika or tray ("per box 400gr"); "other" for anything else.
 - fruit_kg: the weight in kg of the fruit (unit buah, "±2kg") or of the pack (unit pack, "400gr" is 0.4) when it is written, else 0.
@@ -61,18 +69,26 @@ async function loadVarieties() {
  * the variety matched to the farm's own code when Gemini found one on the list.
  */
 function toPrice(p, { vendor, varieties }) {
-  const price = Math.round(Number(p.price) || 0);
+  let price = Math.round(Number(p.price) || 0);
+  // "275/kg": the thousands left out (no durian sells for Rp275).
+  if (price >= 10 && price < 10000) price *= 1000;
   if (!(price >= 1000 && price <= 20000000) || (Number(p.confidence) || 0) < 0.4) return null;
   const unit = ['kg', 'buah', 'pack', 'other'].includes(p.unit) ? p.unit : 'other';
   const fruitKg = Number(p.fruit_kg) > 0 ? Number(p.fruit_kg) : undefined;
   const perKg = unit === 'kg' ? price : (unit === 'buah' || unit === 'pack') && fruitKg ? Math.round(price / fruitKg) : undefined;
   const form = p.form === 'kupas' || unit === 'pack' ? 'kupas' : 'utuh';
+  const origin = String(p.origin || '').trim().slice(0, 30);
+  const condition = ['chilled', 'frozen'].includes(p.condition) ? p.condition : undefined;
+  const available = p.available === 'no' ? false : p.available === 'yes' ? true : undefined;
   const code = varieties.find((v) => v.code === p.variety_code) ? p.variety_code : undefined;
   return strip({
     vendor: String(p.vendor || vendor || '').trim().slice(0, 60) || undefined,
     variety: String(p.variety || '').trim().slice(0, 40) || undefined,
     varietyCode: code,
     form,
+    origin: origin || undefined,
+    condition,
+    available,
     grade: String(p.grade || '').trim().slice(0, 30) || undefined,
     price,
     unit,
@@ -112,14 +128,14 @@ async function keepImage(buffer, date) {
  * Reads prices from a text or an image and saves them. `hint`: what was written with it (a caption, or the text
  * itself). Returns the saved records (empty when nothing could be read).
  */
-async function readAndSavePrices({ text, image, hint, workerPhone, vendorPhone, vendorName, today = R.todayStr() }) {
+async function readAndSavePrices({ text, image, hint, workerPhone, vendorPhone, vendorName, today = R.todayStr(), dry = false }) {
   const varieties = await loadVarieties();
   const parts = [{ text: prompt(varieties, hint) }];
   if (image) parts.push({ inlineData: { mimeType: image.mime, data: image.buffer.toString('base64') } });
   if (text) parts.push({ text: `The price list:\n${text}` });
   const answer = await callGemini(parts, { schema: SCHEMA });
   const prices = (answer?.prices || []).map((p) => toPrice(p, { vendor: answer.vendor || vendorName, varieties })).filter(Boolean);
-  if (!prices.length) return [];
+  if (!prices.length || dry) return prices;
   const photo = image ? await keepImage(image.buffer, today).catch((e) => (console.error('Price photo not kept:', e.message), null)) : null;
   const batchId = crypto.randomUUID().slice(0, 8);
   const batch = db.batch();
@@ -136,16 +152,16 @@ async function readAndSavePrices({ text, image, hint, workerPhone, vendorPhone, 
 const rupiah = (n) => `Rp${Math.round(n).toLocaleString('id-ID')}`;
 
 /** The reply: each price read, so the sender can see it was read right. */
-function pricesReply(saved) {
+function pricesReply(saved, { dry = false } = {}) {
   if (!saved.length) return 'Maaf, tidak ada harga durian yang terbaca. Kirim lagi foto yang lebih jelas, atau ketik: *HARGA* nama toko, varietas, harga per kg.';
   const lines = saved.slice(0, 15).map((p) => {
-    const what = [p.variety || 'Durian', p.form === 'kupas' ? 'kupas' : '', p.grade].filter(Boolean).join(' ');
+    const what = [p.variety || 'Durian', p.origin, p.form === 'kupas' ? 'kupas' : '', p.condition, p.grade].filter(Boolean).join(' ') + (p.available === false ? ' ❌' : '');
     const per = p.unit === 'buah' ? '/buah' : p.unit === 'pack' ? `/box${p.fruitKg ? ` ${Math.round(p.fruitKg * 1000)}g` : ''}` : '';
     const price = p.unit === 'kg' ? `${rupiah(p.price)}/kg` : `${rupiah(p.price)}${per}${p.pricePerKg ? ` (≈${rupiah(p.pricePerKg)}/kg)` : ''}`;
     return `• ${what}: ${price}${p.vendor ? ` · ${p.vendor}` : ''}`;
   });
   const more = saved.length > 15 ? `\n… dan ${saved.length - 15} lagi` : '';
-  return `💰 Harga tersimpan (${saved.length}):\n${lines.join('\n')}${more}\n\nBisa diperbaiki di webapp: Panen › Harga pasar.`;
+  return `${dry ? '🧪 TES, tidak disimpan' : '💰 Harga tersimpan'} (${saved.length}):\n${lines.join('\n')}${more}${dry ? '\n\nKirim tanpa TES untuk menyimpan.' : '\n\nBisa diperbaiki di webapp: Panen › Harga pasar.'}`;
 }
 
 // ---------- "HARGA" then the screenshots: a short window ----------

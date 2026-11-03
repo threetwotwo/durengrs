@@ -22,6 +22,20 @@ test('per variety: range, median and sellers per kg; per-fruit prices without a 
     ['Musang King', 'kupas', 350000, 350000, 350000, 1, 350000, 330000, []],
     ['Bawor', 'utuh', undefined, undefined, undefined, 0, undefined, undefined, [200000]],
   ]);
+  const mk = marketByVariety(
+    [
+      p({ varietyCode: 'MK', price: 455000, pricePerKg: 455000, origin: 'Malaysia', available: false }),
+      p({ varietyCode: 'MK', price: 275000, pricePerKg: 275000, origin: 'Lokal' }),
+      p({ varietyCode: 'MK', form: 'kupas', unit: 'pack', price: 250000, pricePerKg: 625000, origin: 'Malaysia', condition: 'frozen' }),
+    ],
+    (c) => (c === 'MK' ? 'Musang King' : c),
+    new Map([['MK', { utuh: 260000 }]])
+  );
+  assert.deepEqual(mk.map((r) => [r.name, r.form, r.median, r.store]), [
+    ['Musang King', 'utuh', 275000, 260000],
+    ['Musang King (Malaysia)', 'utuh', 455000, undefined],
+    ['Musang King (Malaysia, frozen)', 'kupas', 625000, undefined],
+  ]);
   assert.equal(suggestPrice([100000, 110000]), 105000);
   assert.deepEqual(priceDays([p({ date: '2026-11-01' }), p({}), p({})]), [{ date: '2026-11-02', n: 2 }, { date: '2026-11-01', n: 1 }]);
 });

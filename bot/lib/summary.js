@@ -254,8 +254,10 @@ function priceLines(data, date) {
   const store = new Map((data.storePrices || []).map((x) => [x.id, x]));
   const groups = new Map();
   for (const p of all.filter((x) => x.date === day)) {
-    const key = p.varietyCode || String(p.variety || 'Durian').toLowerCase();
-    const g = groups.get(key) || { name: p.varietyCode ? names.get(p.varietyCode) || p.varietyCode : p.variety || 'Durian', code: p.varietyCode, n: 0, utuh: [], kupas: [], fruit: [], vendors: new Set() };
+    const origin = String(p.origin || '').trim();
+    const key = `${p.varietyCode || String(p.variety || 'Durian').toLowerCase()}|${origin.toLowerCase()}`;
+    const base = p.varietyCode ? names.get(p.varietyCode) || p.varietyCode : p.variety || 'Durian';
+    const g = groups.get(key) || { name: origin ? `${base} (${origin})` : base, code: origin && !/^lokal$/i.test(origin) ? undefined : p.varietyCode, n: 0, utuh: [], kupas: [], fruit: [], vendors: new Set() };
     g.n++;
     if (p.pricePerKg) g[p.form === 'kupas' ? 'kupas' : 'utuh'].push(p.pricePerKg);
     else if (p.unit === 'buah') g.fruit.push(p.price);

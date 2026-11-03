@@ -198,7 +198,7 @@ within 15 minutes the price screenshots (WhatsApp status or catalog, Instagram, 
 variety matched to `variants`, grade, Rupiah, per kg or per fruit) into `marketPrices`, keeps the screenshot in Storage
 (`market-prices/{date}/`) and replies with what it read. The webapp's **Panen › Harga pasar** shows the day per variety
 (range, middle, sellers, a suggested price) beside the store's own price (`storePrices`), and corrects or deletes a
-price. Workers with **Harga pasar** switched on (Workers page) get the prices in their morning summary.
+price. `HARGA TES <text>` (or a screenshot captioned HARGA TES) only replies with what it read, nothing saved. Workers with **Harga pasar** switched on (Workers page) get the prices in their morning summary.
 
 **Prices number (optional):** a second WhatsApp number in the same Meta app, only for vendors. Its phone number ID goes
 in `PRICES_PHONE_NUMBER_ID`, or is set from a phone with `https://<service>/prices-number?token=<VERIFY_TOKEN>&id=<ID>&pin=<6 digits>` (registers the number with WhatsApp and saves it in `farmMeta/pricesNumber`; `&off=1` stops it). Every picture or text sent to it (a vendor's message or broadcast) is read for prices

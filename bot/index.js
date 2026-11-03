@@ -267,12 +267,19 @@ async function lastSeen(phone) {
 }
 
 // Prices from other vendors: read by Gemini, saved, and each one read back so the sender can check it.
+// "HARGA TES ..." (a typed text, or a picture with that caption): read only, nothing saved, to check the reading.
 async function handlePrices(to, { imageId, text, hint }) {
   if (!process.env.GEMINI_API_KEY) return sendText(to, 'Pembacaan harga belum aktif. Mohon hubungi pemilik kebun.');
+  const test = /^\s*(TES|TEST)\b/i;
+  const dry = test.test(text || '') || test.test(hint || '');
+  if (dry) {
+    text = text ? text.replace(test, '').trim() : text;
+    hint = (hint || '').replace(test, '').trim();
+  }
   try {
     const image = imageId ? await fetchWhatsAppMedia(imageId, WHATSAPP_TOKEN) : null;
-    const saved = await readAndSavePrices({ image, text, hint, workerPhone: to });
-    return sendText(to, pricesReply(saved));
+    const saved = await readAndSavePrices({ image, text: text || undefined, hint, workerPhone: to, dry });
+    return sendText(to, pricesReply(saved, { dry }));
   } catch (err) {
     console.error('Price reading failed:', err);
     return sendText(to, 'Maaf, harga belum bisa dibaca sekarang. Coba kirim lagi sebentar lagi.');

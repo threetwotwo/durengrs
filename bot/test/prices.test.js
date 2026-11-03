@@ -25,7 +25,11 @@ test('a read price: per kg kept, per fruit turned into per kg when the weight is
   assert.equal(fruit.varietyCode, undefined, 'BW is not on the list: left unmatched');
   const box = toPrice({ variety: 'Musang King', variety_code: 'MK', form: 'utuh', price: 140000, unit: 'pack', fruit_kg: 0.4, confidence: 0.9 }, { varieties });
   assert.deepEqual([box.form, box.pricePerKg], ['kupas', 350000], 'a box is peeled flesh, per kg over its weight');
-  assert.equal(toPrice({ variety: 'X', price: 150, unit: 'kg', confidence: 0.9 }, { varieties }), null, 'not a Rupiah price');
+  const short = toPrice({ variety: 'Musang King', variety_code: 'MK', price: 455, unit: 'kg', origin: 'Malaysia', available: 'no', confidence: 0.9 }, { varieties });
+  assert.deepEqual([short.price, short.pricePerKg, short.origin, short.available], [455000, 455000, 'Malaysia', false], '"455/kg": the thousands left out; sold out');
+  const frozen = toPrice({ variety: 'Musang King', price: 250, unit: 'pack', fruit_kg: 0.4, condition: 'frozen', available: 'yes', confidence: 0.9 }, { varieties });
+  assert.deepEqual([frozen.form, frozen.condition, frozen.pricePerKg, frozen.available], ['kupas', 'frozen', 625000, true]);
+  assert.equal(toPrice({ variety: 'X', price: 5, unit: 'kg', confidence: 0.9 }, { varieties }), null, 'not a Rupiah price');
   assert.equal(toPrice({ variety: 'X', price: 150000, unit: 'kg', confidence: 0.2 }, { varieties }), null, 'unsure: left out');
 });
 
