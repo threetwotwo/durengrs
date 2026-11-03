@@ -11,14 +11,16 @@ test('per variety: range, median and sellers per kg; per-fruit prices without a 
       p({ varietyCode: 'MK', price: 150000, pricePerKg: 150000, vendor: 'Toko Jaya' }),
       p({ varietyCode: 'MK', price: 120000, pricePerKg: 120000, vendor: 'pak ali' }),
       p({ varietyCode: 'MK', price: 131000, pricePerKg: 131000, vendor: 'Pak Ali' }),
+      p({ varietyCode: 'MK', form: 'kupas', price: 140000, unit: 'pack', fruitKg: 0.4, pricePerKg: 350000, vendor: 'Pak Ali' }),
       p({ variety: 'Bawor', price: 200000, unit: 'buah' }),
     ],
     (c) => (c === 'MK' ? 'Musang King' : c),
-    new Map([['MK', 125000]])
+    new Map([['MK', { utuh: 125000, kupas: 330000 }]])
   );
-  assert.deepEqual(rows.map((r) => [r.name, r.low, r.high, r.median, r.sellers, r.suggested, r.store, r.perFruit]), [
-    ['Musang King', 120000, 150000, 131000, 2, 130000, 125000, []],
-    ['Bawor', undefined, undefined, undefined, 0, undefined, undefined, [200000]],
+  assert.deepEqual(rows.map((r) => [r.name, r.form, r.low, r.high, r.median, r.sellers, r.suggested, r.store, r.perFruit]), [
+    ['Musang King', 'utuh', 120000, 150000, 131000, 2, 130000, 125000, []],
+    ['Musang King', 'kupas', 350000, 350000, 350000, 1, 350000, 330000, []],
+    ['Bawor', 'utuh', undefined, undefined, undefined, 0, undefined, undefined, [200000]],
   ]);
   assert.equal(suggestPrice([100000, 110000]), 105000);
   assert.deepEqual(priceDays([p({ date: '2026-11-01' }), p({}), p({})]), [{ date: '2026-11-02', n: 2 }, { date: '2026-11-01', n: 1 }]);

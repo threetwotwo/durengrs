@@ -12,9 +12,12 @@ export interface MarketPrice {
   variety?: string;
   /** The farm's variety code when it was matched (variants/{code}). */
   varietyCode?: string;
+  /** Whole fruit (utuh, the default) or peeled flesh (kupas: by the kg, or a box of it). */
+  form?: Form;
   grade?: string;
   price: number;
-  unit: 'kg' | 'buah' | 'other';
+  unit: 'kg' | 'buah' | 'pack' | 'other';
+  /** The weight of the fruit (unit buah) or of the box (unit pack), when written. */
   fruitKg?: number;
   /** Per kg: the price itself (unit kg), or a per-fruit price over the fruit's weight. */
   pricePerKg?: number;
@@ -29,9 +32,14 @@ export interface MarketPrice {
   createdAt?: unknown;
 }
 
+export type Form = 'utuh' | 'kupas';
+export const FORMS: Form[] = ['utuh', 'kupas'];
+export const formOf = (p: Pick<MarketPrice, 'form'>): Form => (p.form === 'kupas' ? 'kupas' : 'utuh');
+
+/** storePrices/{code}: the store's own price per kg, whole fruit and peeled flesh. */
 export interface StorePrice {
-  code: string;
-  pricePerKg: number;
+  utuh?: number;
+  kupas?: number;
 }
 
 /** The variety a price is about, as a group key: the farm's code, else the vendor's name for it. */
@@ -49,6 +57,7 @@ export const suggestPrice = (perKg: number[]) => (perKg.length ? Math.round(medi
 export interface VarietyMarket {
   key: string;
   code?: string;
+  form: Form;
   name: string;
   /** Per-kg prices (per kg, or per fruit with its weight). */
   perKg: number[];
@@ -62,21 +71,25 @@ export interface VarietyMarket {
   store?: number;
 }
 
-/** The day's prices per variety, most quoted first. */
-export function marketByVariety(prices: MarketPrice[], names: (code: string) => string, store: Map<string, number>): VarietyMarket[] {
+/** The day's prices per variety, whole fruit then peeled flesh for each, the most quoted varieties first. */
+export function marketByVariety(prices: MarketPrice[], names: (code: string) => string, store: Map<string, StorePrice>): VarietyMarket[] {
   const groups = new Map<string, { list: MarketPrice[] }>();
+  const quoted = new Map<string, number>();
   for (const p of prices) {
-    const k = varietyKey(p);
+    const k = `${varietyKey(p)}|${formOf(p)}`;
     groups.set(k, { list: [...(groups.get(k)?.list || []), p] });
+    quoted.set(varietyKey(p), (quoted.get(varietyKey(p)) || 0) + 1);
   }
   return [...groups.entries()]
     .map(([key, { list }]) => {
       const code = list[0].varietyCode;
       const perKg = list.map((p) => p.pricePerKg).filter((x): x is number => !!x);
       const perFruit = list.filter((p) => !p.pricePerKg && p.unit === 'buah').map((p) => p.price);
+      const form = formOf(list[0]);
       return {
         key,
         code,
+        form,
         name: code ? names(code) : list[0].variety || 'Durian',
         perKg,
         perFruit,
@@ -85,10 +98,14 @@ export function marketByVariety(prices: MarketPrice[], names: (code: string) => 
         median: perKg.length ? median(perKg) : undefined,
         sellers: new Set(list.map((p) => (p.vendor || '').toLowerCase()).filter(Boolean)).size,
         suggested: suggestPrice(perKg),
-        store: code ? store.get(code) : undefined,
+        store: code ? store.get(code)?.[form] : undefined,
       };
     })
-    .sort((a, b) => b.perKg.length + b.perFruit.length - (a.perKg.length + a.perFruit.length) || a.name.localeCompare(b.name));
+    .sort((a, b) => {
+      const va = a.key.split('|')[0];
+      const vb = b.key.split('|')[0];
+      return (quoted.get(vb) || 0) - (quoted.get(va) || 0) || a.name.localeCompare(b.name) || va.localeCompare(vb) || FORMS.indexOf(a.form) - FORMS.indexOf(b.form);
+    });
 }
 
 /** The days with prices, newest first, with how many prices each. */

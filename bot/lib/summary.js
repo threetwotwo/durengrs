@@ -251,12 +251,13 @@ function priceLines(data, date) {
   if (!all.length) return { day: null, lines: [] };
   const day = all.some((p) => p.date === date) ? date : all.map((p) => p.date).sort().pop();
   const names = new Map((data.variants || []).map((v) => [v.id || v.code, v.name || v.id || v.code]));
-  const store = new Map((data.storePrices || []).map((x) => [x.id, Number(x.pricePerKg) || 0]));
+  const store = new Map((data.storePrices || []).map((x) => [x.id, x]));
   const groups = new Map();
   for (const p of all.filter((x) => x.date === day)) {
     const key = p.varietyCode || String(p.variety || 'Durian').toLowerCase();
-    const g = groups.get(key) || { name: p.varietyCode ? names.get(p.varietyCode) || p.varietyCode : p.variety || 'Durian', code: p.varietyCode, kg: [], fruit: [], vendors: new Set() };
-    if (p.pricePerKg) g.kg.push(p.pricePerKg);
+    const g = groups.get(key) || { name: p.varietyCode ? names.get(p.varietyCode) || p.varietyCode : p.variety || 'Durian', code: p.varietyCode, n: 0, utuh: [], kupas: [], fruit: [], vendors: new Set() };
+    g.n++;
+    if (p.pricePerKg) g[p.form === 'kupas' ? 'kupas' : 'utuh'].push(p.pricePerKg);
     else if (p.unit === 'buah') g.fruit.push(p.price);
     if (p.vendor) g.vendors.add(p.vendor.toLowerCase());
     groups.set(key, g);
@@ -267,14 +268,19 @@ function priceLines(data, date) {
     return `${lo === hi ? rp(lo) : `${rp(lo)}–${rp(hi)}`}/${unit}`;
   };
   const lines = [...groups.values()]
-    .filter((g) => g.kg.length || g.fruit.length)
-    .sort((a, b) => b.kg.length + b.fruit.length - (a.kg.length + a.fruit.length))
+    .filter((g) => g.utuh.length || g.kupas.length || g.fruit.length)
+    .sort((a, b) => b.n - a.n)
     .slice(0, 8)
     .map((g) => {
-      const parts = [g.kg.length ? range(g.kg, 'kg') : '', g.fruit.length ? range(g.fruit, 'buah') : ''].filter(Boolean).join(', ');
+      const parts = [
+        g.utuh.length ? `utuh ${range(g.utuh, 'kg')}` : '',
+        g.kupas.length ? `kupas ${range(g.kupas, 'kg')}` : '',
+        g.fruit.length ? range(g.fruit, 'buah') : '',
+      ].filter(Boolean).join(', ');
       const sellers = g.vendors.size ? ` (${g.vendors.size} penjual)` : '';
-      const ours = g.code && store.get(g.code) ? ` · toko kita ${rp(store.get(g.code))}/kg` : '';
-      return `• ${g.name}: ${parts}${sellers}${ours}`;
+      const s = g.code && store.get(g.code);
+      const own = s ? [s.pricePerKg ? `utuh ${rp(s.pricePerKg)}` : '', s.kupasPerKg ? `kupas ${rp(s.kupasPerKg)}` : ''].filter(Boolean).join(', ') : '';
+      return `• ${g.name}: ${parts}${sellers}${own ? ` · toko kita ${own}` : ''}`;
     });
   return { day, lines };
 }

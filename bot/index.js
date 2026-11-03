@@ -34,6 +34,15 @@ const SUMMARY_TEMPLATE = process.env.SUMMARY_TEMPLATE ?? 'ringkasan_harian';
 // A second WhatsApp number only for other vendors' prices (same Meta app and webhook). Its phone number ID is not a
 // secret: set it here or in env.yaml (PRICES_PHONE_NUMBER_ID). Empty: no prices number.
 const PRICES_PHONE_NUMBER_ID = process.env.PRICES_PHONE_NUMBER_ID ?? '';
+// Or set from a phone by /prices-number (saved in farmMeta/pricesNumber); read again at most every 5 minutes.
+let pricesNumberCache = { id: '', at: 0 };
+async function pricesNumberId() {
+  if (PRICES_PHONE_NUMBER_ID) return PRICES_PHONE_NUMBER_ID;
+  if (Date.now() - pricesNumberCache.at < 5 * 60e3) return pricesNumberCache.id;
+  const snap = await fdb.collection('farmMeta').doc('pricesNumber').get().catch(() => null);
+  pricesNumberCache = { id: (snap && snap.exists && snap.data().phoneNumberId) || '', at: Date.now() };
+  return pricesNumberCache.id;
+}
 
 // Replies go out from the WhatsApp number that RECEIVED the message (taken from the webhook),
 // so the test number and the production number can both work. PHONE_NUMBER_ID is only the fallback.
@@ -359,7 +368,8 @@ async function handleIncomingMessage(body) {
   // The prices number (PRICES_PHONE_NUMBER_ID): vendors send or broadcast their price lists to it. Every picture or
   // text is read for prices and saved quietly; the vendor gets no reply, nothing else happens there.
   const atNumber = body.entry?.[0]?.changes?.[0]?.value?.metadata?.phone_number_id;
-  if (PRICES_PHONE_NUMBER_ID && atNumber === PRICES_PHONE_NUMBER_ID) {
+  const pricesId = atNumber ? await pricesNumberId() : '';
+  if (pricesId && atNumber === pricesId) {
     const vendorName = body.entry?.[0]?.changes?.[0]?.value?.contacts?.[0]?.profile?.name || '';
     return handleVendorPrices(to, vendorName, message);
   }
@@ -441,6 +451,41 @@ app.post(['/send-tree-flow', '/send-tree-lookup'], async (req, res) => {
 // &date=yesterday (Cloud Scheduler job daily-summary; the GitHub workflow at 07:25 as a backup): every worker on the Workers page whose switch is on gets theirs
 // (once per day summarised, retries are skipped). &date=YYYY-MM-DD for another day (default today); &to=628… sends to
 // one number only (a test), &dry=1 shows the messages without sending anything.
+// The prices number, set up from a phone: https://<service>/prices-number?token=<VERIFY_TOKEN>&id=<phone number ID>&pin=<6 digits>
+// registers the number with WhatsApp (the bot's own token) and makes it the prices number; &off=1 stops it.
+app.get('/prices-number', async (req, res) => {
+  if (!VERIFY_TOKEN || req.query.token !== VERIFY_TOKEN) return res.sendStatus(403);
+  const ref = fdb.collection('farmMeta').doc('pricesNumber');
+  try {
+    if (req.query.off === '1') {
+      await ref.delete();
+      pricesNumberCache = { id: '', at: Date.now() };
+      return res.json({ ok: true, prices_number: 'off' });
+    }
+    const id = String(req.query.id || '').trim();
+    const pin = String(req.query.pin || '').trim();
+    if (!/^\d{6,20}$/.test(id)) return res.status(400).json({ ok: false, error: 'id: the Phone number ID (digits) from API Setup' });
+    if (id === PHONE_NUMBER_ID) return res.status(400).json({ ok: false, error: 'that is the main bot number' });
+    let registered = 'skipped (no pin)';
+    if (pin) {
+      if (!/^\d{6}$/.test(pin)) return res.status(400).json({ ok: false, error: 'pin: 6 digits' });
+      const r = await fetch(`https://graph.facebook.com/v21.0/${id}/register`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${WHATSAPP_TOKEN}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messaging_product: 'whatsapp', pin }),
+      }).then((x) => x.json());
+      if (r.error) return res.status(400).json({ ok: false, step: 'register', error: r.error.message });
+      registered = 'ok';
+    }
+    await ref.set({ phoneNumberId: id, at: admin.firestore.FieldValue.serverTimestamp() });
+    pricesNumberCache = { id, at: Date.now() };
+    res.json({ ok: true, registered, prices_number: id, next: 'Send a price screenshot to the new number, then open Panen › Harga pasar.' });
+  } catch (err) {
+    console.error('Prices number setup failed:', err);
+    res.status(500).json({ ok: false, error: String(err.message || err).slice(0, 300) });
+  }
+});
+
 app.get('/daily-summary', async (req, res) => {
   if (!VERIFY_TOKEN || req.query.token !== VERIFY_TOKEN) return res.sendStatus(403);
   try {

@@ -1,6 +1,6 @@
 // lib/prices.js — other vendors' durian prices, for pricing the farm's own store. Sent to the bot as a screenshot
 // (WhatsApp status or catalog, Instagram, Facebook) or as text, with the word HARGA; Gemini reads out each price:
-// vendor, variety, grade, and the price per kg (or per fruit). Saved in marketPrices, one record per price, shown on
+// vendor, variety, whole fruit (utuh) or peeled flesh (kupas), grade, and the price per kg (or per fruit or box). Saved in marketPrices, one record per price, shown on
 // the webapp's market prices page and in the morning summary of whoever has prices switched on (Workers page).
 const crypto = require('crypto');
 const { admin, db, getBucket } = require('./firestore');
@@ -20,9 +20,10 @@ const SCHEMA = {
           vendor: { type: 'STRING' },
           variety: { type: 'STRING' },
           variety_code: { type: 'STRING' },
+          form: { type: 'STRING', enum: ['utuh', 'kupas'] },
           grade: { type: 'STRING' },
           price: { type: 'NUMBER' },
-          unit: { type: 'STRING', enum: ['kg', 'buah', 'other'] },
+          unit: { type: 'STRING', enum: ['kg', 'buah', 'pack', 'other'] },
           fruit_kg: { type: 'NUMBER' },
           note: { type: 'STRING' },
           confidence: { type: 'NUMBER' },
@@ -39,8 +40,9 @@ function prompt(varieties, hint) {
   return `You read durian price lists from Indonesian sellers (a WhatsApp status or catalog, an Instagram or Facebook post, a chat), for a durian farm that prices its own store from them.
 Return every durian price you can read, one entry per variety and grade (and per size when priced separately).
 - price: in Rupiah as a plain number. "150rb", "150k", "150.000", "Rp150.000" are 150000; "1,2jt" is 1200000.
-- unit: "kg" for a price per kilo ("/kg"); "buah" for a price per whole fruit ("/buah", "per biji", "per pcs"); "other" for packs, boxes, flesh in containers.
-- fruit_kg: for a per-fruit price, the fruit's weight in kg if it is written ("±2kg"), else 0.
+- form: "kupas" for peeled flesh ("kupas", "daging", "isi", in a box, mika or tray); "utuh" for the whole fruit (the default, also "fresh", "gelondong", "butiran"). Most sellers price each variety both ways: give each its own entry.
+- unit: "kg" for a price per kilo ("/kg"); "buah" for a price per whole fruit ("/buah", "per biji", "per pcs"); "pack" for a box, mika or tray ("per box 400gr"); "other" for anything else.
+- fruit_kg: the weight in kg of the fruit (unit buah, "±2kg") or of the pack (unit pack, "400gr" is 0.4) when it is written, else 0.
 - variety: as written (e.g. "Musang King", "Bawor", "Black Thorn", "Montong"). variety_code: the matching code from the farm's list, else "". The farm's varieties: ${list}. Treat "MK" and "Musangking" as Musang King, "Ochee" and "Black Thorn" as the same.
 - grade: as written ("A", "B", "Super", "Kupas", "Jumbo"), else "".
 - vendor: the seller (shop or account name shown), else "". The top-level vendor is the seller of the whole list.${hint ? `\nThe person sending it wrote: "${hint}" (it may name the vendor).` : ''}
@@ -61,14 +63,16 @@ async function loadVarieties() {
 function toPrice(p, { vendor, varieties }) {
   const price = Math.round(Number(p.price) || 0);
   if (!(price >= 1000 && price <= 20000000) || (Number(p.confidence) || 0) < 0.4) return null;
-  const unit = ['kg', 'buah', 'other'].includes(p.unit) ? p.unit : 'other';
+  const unit = ['kg', 'buah', 'pack', 'other'].includes(p.unit) ? p.unit : 'other';
   const fruitKg = Number(p.fruit_kg) > 0 ? Number(p.fruit_kg) : undefined;
-  const perKg = unit === 'kg' ? price : unit === 'buah' && fruitKg ? Math.round(price / fruitKg) : undefined;
+  const perKg = unit === 'kg' ? price : (unit === 'buah' || unit === 'pack') && fruitKg ? Math.round(price / fruitKg) : undefined;
+  const form = p.form === 'kupas' || unit === 'pack' ? 'kupas' : 'utuh';
   const code = varieties.find((v) => v.code === p.variety_code) ? p.variety_code : undefined;
   return strip({
     vendor: String(p.vendor || vendor || '').trim().slice(0, 60) || undefined,
     variety: String(p.variety || '').trim().slice(0, 40) || undefined,
     varietyCode: code,
+    form,
     grade: String(p.grade || '').trim().slice(0, 30) || undefined,
     price,
     unit,
@@ -135,8 +139,9 @@ const rupiah = (n) => `Rp${Math.round(n).toLocaleString('id-ID')}`;
 function pricesReply(saved) {
   if (!saved.length) return 'Maaf, tidak ada harga durian yang terbaca. Kirim lagi foto yang lebih jelas, atau ketik: *HARGA* nama toko, varietas, harga per kg.';
   const lines = saved.slice(0, 15).map((p) => {
-    const what = [p.variety || 'Durian', p.grade].filter(Boolean).join(' ');
-    const price = p.unit === 'kg' ? `${rupiah(p.price)}/kg` : p.unit === 'buah' ? `${rupiah(p.price)}/buah${p.pricePerKg ? ` (≈${rupiah(p.pricePerKg)}/kg)` : ''}` : rupiah(p.price);
+    const what = [p.variety || 'Durian', p.form === 'kupas' ? 'kupas' : '', p.grade].filter(Boolean).join(' ');
+    const per = p.unit === 'buah' ? '/buah' : p.unit === 'pack' ? `/box${p.fruitKg ? ` ${Math.round(p.fruitKg * 1000)}g` : ''}` : '';
+    const price = p.unit === 'kg' ? `${rupiah(p.price)}/kg` : `${rupiah(p.price)}${per}${p.pricePerKg ? ` (≈${rupiah(p.pricePerKg)}/kg)` : ''}`;
     return `• ${what}: ${price}${p.vendor ? ` · ${p.vendor}` : ''}`;
   });
   const more = saved.length > 15 ? `\n… dan ${saved.length - 15} lagi` : '';

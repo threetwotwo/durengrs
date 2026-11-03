@@ -201,7 +201,7 @@ variety matched to `variants`, grade, Rupiah, per kg or per fruit) into `marketP
 price. Workers with **Harga pasar** switched on (Workers page) get the prices in their morning summary.
 
 **Prices number (optional):** a second WhatsApp number in the same Meta app, only for vendors. Its phone number ID goes
-in `PRICES_PHONE_NUMBER_ID`. Every picture or text sent to it (a vendor's message or broadcast) is read for prices
+in `PRICES_PHONE_NUMBER_ID`, or is set from a phone with `https://<service>/prices-number?token=<VERIFY_TOKEN>&id=<ID>&pin=<6 digits>` (registers the number with WhatsApp and saves it in `farmMeta/pricesNumber`; `&off=1` stops it). Every picture or text sent to it (a vendor's message or broadcast) is read for prices
 and saved with the vendor's WhatsApp name and number, no HARGA needed and no reply sent. WhatsApp does not pass on
 statuses or catalogs: vendors have to send to the number (e.g. add it to their broadcast list).
 

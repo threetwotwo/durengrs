@@ -5,7 +5,7 @@ import { db } from '../lib/firebase';
 import { useFarm } from '../context/FarmContext';
 import { useT } from '../i18n';
 import { goBack, useQueryParams } from '../lib/router';
-import { type MarketPrice, marketByVariety, parseRupiah, priceDays } from '../lib/market';
+import { type Form, type MarketPrice, type StorePrice, formOf, marketByVariety, parseRupiah, priceDays } from '../lib/market';
 import { removeMarketPrice, setStorePrice, updateMarketPrice } from '../lib/marketData';
 import { addDays, formatShortDate, todayStr } from '../lib/treatments';
 import { PageHeader, inputCls } from './PageHeader';
@@ -22,7 +22,7 @@ const DAYS_BACK = 60;
 
 function useMarket() {
   const [prices, setPrices] = useState<MarketPrice[]>([]);
-  const [store, setStore] = useState<Map<string, number>>(new Map());
+  const [store, setStore] = useState<Map<string, StorePrice>>(new Map());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   useEffect(() => {
@@ -41,7 +41,7 @@ function useMarket() {
     );
     const b = onSnapshot(
       collection(db, 'storePrices'),
-      (s) => setStore(new Map(s.docs.map((d) => [d.id, Number(d.data().pricePerKg) || 0]))),
+      (s) => setStore(new Map(s.docs.map((d) => [d.id, { utuh: Number(d.data().pricePerKg) || undefined, kupas: Number(d.data().kupasPerKg) || undefined }]))),
       (e) => console.error('Store prices failed to load:', e)
     );
     return () => {
@@ -125,9 +125,10 @@ export const PricesPage: React.FC = () => {
               </thead>
               <tbody className="tabular">
                 {rows.map((r) => (
-                  <tr key={r.key}>
+                  <tr key={r.key} className={r.form === 'kupas' ? 'bg-amber-50/40' : ''}>
                     <th scope="row" className={`${td} text-left font-semibold text-slate-900`}>
                       {r.name}
+                      <FormTag form={r.form} />
                       {!r.code && <span className="ml-1.5 text-[11px] font-normal text-amber-700" title={t('mp.unmatched.title')}>{t('mp.unmatched')}</span>}
                     </th>
                     <td className={`${td} text-right`}>
@@ -142,7 +143,7 @@ export const PricesPage: React.FC = () => {
                     <td className={`${td} text-right`}>{r.sellers || ''}</td>
                     <td className={`${td} text-right font-semibold text-emerald-800`}>{rp(r.suggested)}</td>
                     <td className={`${td} py-1`}>
-                      {r.code ? <StorePriceInput code={r.code} value={r.store} median={r.median} onError={fail} /> : <span className="text-slate-300">—</span>}
+                      {r.code ? <StorePriceInput code={r.code} form={r.form} value={r.store} median={r.median} onError={fail} /> : <span className="text-slate-300">—</span>}
                     </td>
                   </tr>
                 ))}
@@ -160,6 +161,7 @@ export const PricesPage: React.FC = () => {
                 <tr>
                   <th scope="col" className={`${th} text-left`}>{t('mp.vendor')}</th>
                   <th scope="col" className={`${th} text-left`}>{t('fr.variant')}</th>
+                  <th scope="col" className={`${th} text-left`}>{t('mp.form')}</th>
                   <th scope="col" className={`${th} text-left`}>{t('mp.grade')}</th>
                   <th scope="col" className={`${th} text-right`}>{t('mp.price')}</th>
                   <th scope="col" className={`${th} text-left`}>{t('mp.perKg')}</th>
@@ -180,8 +182,18 @@ export const PricesPage: React.FC = () => {
   );
 };
 
+/** Whole fruit or peeled flesh, as a small tag. */
+const FormTag: React.FC<{ form: Form }> = ({ form }) => {
+  const { t } = useT();
+  return (
+    <span className={`ml-1.5 px-1.5 rounded text-[11px] font-semibold ${form === 'kupas' ? 'bg-amber-100 text-amber-900' : 'bg-emerald-50 text-emerald-800'}`}>
+      {t(`mp.form.${form}`)}
+    </span>
+  );
+};
+
 /** The store's own price per kg, typed in place ("150000", "150rb"), saved when leaving the box; how far off the market. */
-const StorePriceInput: React.FC<{ code: string; value?: number; median?: number; onError: (e: unknown) => void }> = ({ code, value, median, onError }) => {
+const StorePriceInput: React.FC<{ code: string; form: Form; value?: number; median?: number; onError: (e: unknown) => void }> = ({ code, form, value, median, onError }) => {
   const { t } = useT();
   const [text, setText] = useState(value ? String(value) : '');
   const [bad, setBad] = useState(false);
@@ -193,7 +205,7 @@ const StorePriceInput: React.FC<{ code: string; value?: number; median?: number;
     setBad(false);
     if ((n ?? undefined) === value) return;
     setBusy(true);
-    setStorePrice(code, n)
+    setStorePrice(code, form, n)
       .catch(onError)
       .finally(() => setBusy(false));
   };
@@ -268,6 +280,12 @@ const PriceRow: React.FC<{ p: MarketPrice; variants: Array<{ code: string; name:
         </select>
       </td>
       <td className={cell}>
+        <select value={formOf(p)} onChange={(e) => save({ form: e.target.value as Form })} aria-label={t('mp.form')} className={`${box} w-24`}>
+          <option value="utuh">{t('mp.form.utuh')}</option>
+          <option value="kupas">{t('mp.form.kupas')}</option>
+        </select>
+      </td>
+      <td className={cell}>
         <input
           value={grade}
           onChange={(e) => setGrade(e.target.value)}
@@ -278,7 +296,7 @@ const PriceRow: React.FC<{ p: MarketPrice; variants: Array<{ code: string; name:
         />
       </td>
       <td className={`${cell} text-right whitespace-nowrap text-slate-700`} title={p.note}>
-        {rp(p.price)}/{p.unit === 'kg' ? 'kg' : p.unit === 'buah' ? t('mp.perFruit') : '…'}
+        {rp(p.price)}/{p.unit === 'kg' ? 'kg' : p.unit === 'buah' ? t('mp.perFruit') : p.unit === 'pack' ? 'box' : '…'}
         {p.fruitKg ? <span className="block text-xs text-slate-500">±{p.fruitKg} kg</span> : null}
       </td>
       <td className={cell}>
