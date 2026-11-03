@@ -12,6 +12,7 @@ import { HEALTH_INFO } from '../shared';
 import type { TreeReport } from '../types';
 import { inputCls } from './PageHeader';
 import { CountRoundCard, RecordCard, RecordGrid } from './Record';
+import { HarvestTable } from './HarvestTable';
 
 const PERIODS = [7, 30, 90, 365] as const;
 /** Reports read at a time; "Show more" reads the next ones. Other records come from the farm data already loaded. */
@@ -272,7 +273,9 @@ export const FieldLog: React.FC = () => {
       ) : (
         <div className="space-y-6">
           {list.length === 0 && <p className="bg-white rounded-xl border border-slate-200 p-8 text-center text-sm text-slate-600">{t('log.empty')}</p>}
-          {groups.map((g) => (
+          {/* Laporan PANEN on their own: one table, a line per day (the look of the fruits table). */}
+          {kind === 'harvest' && list.length > 0 && <HarvestTable entries={groups.flatMap((g) => g.items.filter((e) => e.kind !== 'round')) as LogEntry[]} />}
+          {kind !== 'harvest' && groups.map((g) => (
             <section key={g.day} aria-label={dayTitle(g.day)} className="space-y-2.5">
               <h3 className="text-sm font-bold text-slate-900">
                 {dayTitle(g.day)} <span className="font-medium text-slate-500 tabular">{g.items.length}</span>

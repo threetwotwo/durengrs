@@ -10,7 +10,7 @@ import { PageHeader } from './PageHeader';
 import { GradeBar } from './CropWidgets';
 import { HarvestSheet } from './FieldRecords';
 import { Link } from './Link';
-import { RecordCard, RecordGrid } from './Record';
+import { HarvestTable } from './HarvestTable';
 import { useCrops } from './useCrops';
 
 const PAGE = 12;
@@ -151,11 +151,7 @@ export const HarvestPage: React.FC = () => {
           <p className="p-6 text-center bg-white rounded-xl border border-slate-200 text-sm text-slate-600">{t('hv2.none')}</p>
         ) : (
           <>
-            <RecordGrid>
-              {records.slice(0, shown).map((e, i) => (
-                <RecordCard key={e.key} entry={e} eager={i < 3} />
-              ))}
-            </RecordGrid>
+            <HarvestTable entries={records.slice(0, shown)} />
             {records.length > shown && (
               <button
                 type="button"
