@@ -5,7 +5,24 @@ import { db } from '../lib/firebase';
 import { useFarm } from '../context/FarmContext';
 import { useT } from '../i18n';
 import { goBack, useQueryParams } from '../lib/router';
-import { type Form, type MarketPrice, type StorePrice, type VarietyMarket, formOf, fruitGrid, isOlahan, marketByVariety, parseRupiah, priceDays, sortOlahan } from '../lib/market';
+import {
+  type Form,
+  type MarketPrice,
+  type StorePrice,
+  type VarietyMarket,
+  type WeeklySeries,
+  formOf,
+  fruitGrid,
+  isOlahan,
+  latestPerVendor,
+  marketByVariety,
+  parseRupiah,
+  priceWeeks,
+  sortOlahan,
+  weekLabel,
+  weekStart,
+  weeklySeries,
+} from '../lib/market';
 import { removeMarketPrice, setStorePrice, updateMarketPrice } from '../lib/marketData';
 import { addDays, formatShortDate, todayStr } from '../lib/treatments';
 import { PageHeader, inputCls } from './PageHeader';
@@ -53,7 +70,7 @@ function useMarket() {
 }
 
 export const PricesPage: React.FC = () => {
-  const { t } = useT();
+  const { t, locale } = useT();
   const { variants, workerLabel } = useFarm();
   const [params, setParams] = useQueryParams();
   const { prices, store, loading, error } = useMarket();
@@ -62,10 +79,17 @@ export const PricesPage: React.FC = () => {
     const m = new Map(variants.map((v) => [v.code, v.name]));
     return (code: string) => m.get(code) || code;
   }, [variants]);
-  const days = useMemo(() => priceDays(prices), [prices]);
-  const asked = params.get('day') || '';
-  const day = days.some((d) => d.date === asked) ? asked : days[0]?.date || '';
-  const ofDay = useMemo(() => prices.filter((p) => p.date === day).sort((a, b) => (a.vendor || '').localeCompare(b.vendor || '')), [prices, day]);
+  // Weekly: a week's prices, each vendor's latest per product (a vendor posting daily counts once).
+  const weeks = useMemo(() => priceWeeks(prices), [prices]);
+  const asked = params.get('week') || '';
+  const week = weeks.some((w) => w.week === asked) ? asked : weeks[0]?.week || '';
+  const ofDay = useMemo(
+    () => latestPerVendor(prices.filter((p) => weekStart(p.date) === week)).sort((a, b) => (a.vendor || '').localeCompare(b.vendor || '')),
+    [prices, week]
+  );
+  const [chartForm, setChartForm] = useState<Form>('utuh');
+  const order = useMemo(() => variants.map((v) => v.code), [variants]);
+  const chart = useMemo(() => weeklySeries(prices, chartForm, order, names), [prices, chartForm, order, names]);
   const fruits = useMemo(() => ofDay.filter((p) => !isOlahan(p)), [ofDay]);
   const olahan = useMemo(() => sortOlahan(ofDay.filter(isOlahan)), [ofDay]);
   const grid = useMemo(() => fruitGrid(marketByVariety(fruits, names, store)), [fruits, names, store]);
@@ -95,7 +119,7 @@ export const PricesPage: React.FC = () => {
         <div className="h-40 rounded-xl bg-white border border-slate-200 animate-pulse" />
       ) : error ? (
         <p className="p-6 text-center text-sm text-rose-800 bg-rose-50 rounded-xl border border-rose-200">{t('mp.loadError')}</p>
-      ) : !days.length ? (
+      ) : !weeks.length ? (
         <div className="p-6 bg-white rounded-xl border border-slate-200 text-sm text-slate-700 space-y-2">
           <p className="font-semibold text-slate-900">{t('mp.none')}</p>
           <p className="whitespace-pre-line">{t('mp.howto')}</p>
@@ -103,14 +127,16 @@ export const PricesPage: React.FC = () => {
       ) : (
         <>
           <div className="flex flex-wrap items-center gap-2">
-            <select value={day} onChange={(e) => setParams({ day: e.target.value }, { replace: true })} aria-label={t('mp.day')} className={`${inputCls} !w-auto`}>
-              {days.map((d) => (
-                <option key={d.date} value={d.date}>
-                  {d.date === todayStr() ? t('fr.today') : d.date === addDays(todayStr(), -1) ? t('fr.yesterday') : formatShortDate(d.date)} · {t('mp.nPrices', { n: d.n })}
+            <select value={week} onChange={(e) => setParams({ week: e.target.value }, { replace: true })} aria-label={t('mp.week')} className={`${inputCls} !w-auto`}>
+              {weeks.map((w) => (
+                <option key={w.week} value={w.week}>
+                  {weekLabel(w.week, locale)} ({formatShortDate(w.week)}–{formatShortDate(addDays(w.week, 6))}) · {t('mp.nPrices', { n: w.n })}
                 </option>
               ))}
             </select>
           </div>
+
+          <WeeklyChart chart={chart} form={chartForm} onForm={setChartForm} />
 
           {/* A · Buah: each variety with its whole fruit and kupas prices side by side. */}
           <section aria-label={t('mp.fruit')} className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-x-auto">
@@ -119,25 +145,34 @@ export const PricesPage: React.FC = () => {
               <p className="px-3 pb-3 text-sm text-slate-500">{t('mp.noFruit')}</p>
             ) : (
               <>
-              {/* On a phone: one card per variety, whole and kupas in two columns. */}
-              <ul className="sm:hidden divide-y divide-slate-100">
-                {grid.map((g) => (
-                  <li key={g.key} className="px-3 py-2.5">
-                    <p className="flex items-baseline justify-between gap-2">
-                      <span className="font-semibold text-slate-900">{g.name}</span>
-                      <span className="shrink-0 text-[11px] text-slate-500">
-                        {!g.matched && <span className="mr-1 text-amber-700">{t('mp.unmatched')}</span>}
-                        {g.sellers ? t(g.sellers === 1 ? 'mp.sellers1' : 'mp.sellersN', { n: g.sellers }) : ''}
-                      </span>
-                    </p>
-                    <div className="mt-1.5 grid grid-cols-2 gap-1.5">
+              {/* On a phone: a compact table, the variety then whole and kupas, each with the market and our price. */}
+              <table className="sm:hidden w-full text-sm">
+                <thead>
+                  <tr>
+                    <th scope="col" className={`${th} text-left`}>{t('fr.variant')}</th>
+                    <th scope="col" className={`${th} text-left text-emerald-800`}>{t('mp.form.utuh')} /kg</th>
+                    <th scope="col" className={`${th} text-left text-amber-800`}>{t('mp.form.kupas')} /kg</th>
+                  </tr>
+                </thead>
+                <tbody className="tabular">
+                  {grid.map((g) => (
+                    <tr key={g.key} className="align-top">
+                      <th scope="row" className="px-2.5 py-2 border-t border-slate-100 text-left font-semibold text-slate-900 text-[13px] leading-tight">
+                        {g.name}
+                        <span className="block mt-0.5 text-[11px] font-normal text-slate-500">
+                          {g.sellers ? t(g.sellers === 1 ? 'mp.sellers1' : 'mp.sellersN', { n: g.sellers }) : ''}
+                          {!g.matched && <span className="block text-amber-700">{t('mp.unmatched')}</span>}
+                        </span>
+                      </th>
                       {(['utuh', 'kupas'] as const).map((f) => (
-                        <FormCard key={f} r={g[f]} form={f} onError={fail} />
+                        <td key={f} className={`px-2 py-2 border-t border-slate-100 ${f === 'kupas' ? 'bg-amber-50/40' : ''}`}>
+                          <MiniCell r={g[f]} form={f} onError={fail} />
+                        </td>
                       ))}
-                    </div>
-                  </li>
-                ))}
-              </ul>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
               <table className="hidden sm:table w-full text-sm">
                 <thead>
                   <tr>
@@ -247,32 +282,155 @@ export const PricesPage: React.FC = () => {
 const rpShort = (n?: number) =>
   n === undefined ? '' : n >= 1e6 ? `${(n / 1e6).toLocaleString('id-ID', { maximumFractionDigits: 1 })}jt` : `${Math.round(n / 1000).toLocaleString('id-ID')}rb`;
 
-/** One form on a phone card: the market (range, or one price), the middle and suggestion, our price. */
-const FormCard: React.FC<{ r?: VarietyMarket; form: Form; onError: (e: unknown) => void }> = ({ r, form, onError }) => {
-  const { t } = useT();
-  const tone = form === 'kupas' ? 'bg-amber-50 border-amber-200' : 'bg-emerald-50/60 border-emerald-200';
+// Categorical colours in fixed order (checked for colour-blind readers); each line is also labelled at its end.
+const SERIES = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100'];
+
+/**
+ * The market's weekly middle price per kg of the farm's own varieties (local, fresh), one line each, whole fruit or
+ * kupas: the whiteboard's MK / BT / BW chart. A week tapped or hovered shows its prices.
+ */
+const WeeklyChart: React.FC<{ chart: { weeks: string[]; series: WeeklySeries[] }; form: Form; onForm: (f: Form) => void }> = ({ chart, form, onForm }) => {
+  const { t, locale } = useT();
+  const [hover, setHover] = useState<number | null>(null);
+  const { weeks, series } = chart;
+  const W = 640;
+  const H = 220;
+  const pad = { l: 44, r: 92, t: 12, b: 28 };
+  const all = series.flatMap((s) => s.values.filter((v): v is number => v !== undefined));
+  const lo = all.length ? Math.min(...all) : 0;
+  const hi = all.length ? Math.max(...all) : 1;
+  const step = 50000;
+  const yMin = Math.max(0, Math.floor((lo * 0.95) / step) * step);
+  const yMax = Math.ceil((hi * 1.05) / step) * step || step;
+  const x = (i: number) => (weeks.length < 2 ? pad.l + (W - pad.l - pad.r) / 2 : pad.l + (i * (W - pad.l - pad.r)) / (weeks.length - 1));
+  const y = (v: number) => pad.t + (1 - (v - yMin) / (yMax - yMin || 1)) * (H - pad.t - pad.b);
+  const ticks = [yMin, (yMin + yMax) / 2, yMax];
+  const label = (code: string) => (series.find((s) => s.code === code)?.name || code);
   return (
-    <div className={`rounded-lg border px-2 py-1.5 min-w-0 ${r ? tone : 'bg-slate-50 border-slate-200'}`}>
-      <p className={`text-[11px] font-semibold ${form === 'kupas' ? 'text-amber-800' : 'text-emerald-800'}`}>{t(`mp.form.${form}`)} /kg</p>
-      {!r ? (
-        <p className="text-sm text-slate-300">—</p>
+    <section aria-label={t('mp.chart')} className="bg-white rounded-xl border border-slate-200 shadow-xs p-3 space-y-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-sm font-bold text-slate-900">{t('mp.chart')}</h2>
+        <div role="radiogroup" aria-label={t('mp.form')} className="inline-grid grid-cols-2 gap-0.5 p-0.5 rounded-lg bg-slate-100 border border-slate-200">
+          {(['utuh', 'kupas'] as const).map((f) => (
+            <button
+              key={f}
+              type="button"
+              role="radio"
+              aria-checked={form === f}
+              onClick={() => onForm(f)}
+              className={`min-h-8 px-3 rounded-md text-xs font-semibold ${form === f ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600'}`}
+            >
+              {t(`mp.form.${f}`)}
+            </button>
+          ))}
+        </div>
+      </div>
+      {!series.length ? (
+        <p className="text-sm text-slate-500">{t('mp.chart.none')}</p>
       ) : (
         <>
-          <p className="text-base font-bold tabular text-slate-900 leading-tight">
-            {r.low !== undefined ? (r.low === r.high ? rpShort(r.low) : `${rpShort(r.low)}–${rpShort(r.high)}`) : r.perFruit.length ? `${rpShort(Math.min(...r.perFruit))}/${t('mp.perFruit')}` : '—'}
-          </p>
-          {r.suggested !== undefined && (
-            <p className="text-[11px] text-slate-600 tabular">
-              {t('mp.suggested')} <strong className="text-emerald-800">{rpShort(r.suggested)}</strong>
-            </p>
-          )}
-          {r.code && (
-            <div className="mt-1">
-              <StorePriceInput code={r.code} form={form} value={r.store} median={r.median} onError={onError} compact />
-            </div>
-          )}
+          <div className="relative">
+            <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" role="img" aria-label={`${t('mp.chart')}: ${series.map((s) => s.name).join(', ')}`}>
+              {ticks.map((v) => (
+                <g key={v}>
+                  <line x1={pad.l} x2={W - pad.r} y1={y(v)} y2={y(v)} stroke="#e2e8f0" strokeWidth={1} />
+                  <text x={pad.l - 6} y={y(v) + 4} textAnchor="end" fontSize={11} fill="#64748b">
+                    {rpShort(v)}
+                  </text>
+                </g>
+              ))}
+              {weeks.map((w, i) => (
+                <text key={w} x={x(i)} y={H - 8} textAnchor="middle" fontSize={11} fill="#64748b">
+                  {weekLabel(w, locale)}
+                </text>
+              ))}
+              {hover !== null && <line x1={x(hover)} x2={x(hover)} y1={pad.t} y2={H - pad.b} stroke="#94a3b8" strokeWidth={1} strokeDasharray="3 3" />}
+              {series.map((s, si) => {
+                const pts = s.values.map((v, i) => (v === undefined ? null : ([x(i), y(v)] as const)));
+                // Lines join the weeks that have a price; a week with none leaves a gap.
+                const segs: string[] = [];
+                let cur = '';
+                pts.forEach((p) => {
+                  if (!p) {
+                    if (cur) segs.push(cur);
+                    cur = '';
+                  } else cur += `${cur ? 'L' : 'M'}${p[0].toFixed(1)},${p[1].toFixed(1)}`;
+                });
+                if (cur) segs.push(cur);
+                const lastI = s.values.map((v, i) => (v === undefined ? -1 : i)).filter((i) => i >= 0).pop();
+                const color = SERIES[si % SERIES.length];
+                return (
+                  <g key={s.code}>
+                    {segs.map((d, k) => (
+                      <path key={k} d={d} fill="none" stroke={color} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+                    ))}
+                    {pts.map((p, i) => p && <circle key={i} cx={p[0]} cy={p[1]} r={hover === i ? 5 : 3.5} fill={color} stroke="#fff" strokeWidth={2} />)}
+                    {lastI !== undefined && (
+                      <text x={x(lastI) + 8} y={y(s.values[lastI]!) + 4} fontSize={12} fontWeight={600} fill="#0f172a">
+                        {s.code}
+                      </text>
+                    )}
+                  </g>
+                );
+              })}
+              {weeks.map((w, i) => (
+                <rect
+                  key={w}
+                  x={x(i) - (W - pad.l - pad.r) / Math.max(2, weeks.length * 2)}
+                  y={0}
+                  width={(W - pad.l - pad.r) / Math.max(1, weeks.length)}
+                  height={H}
+                  fill="transparent"
+                  onMouseEnter={() => setHover(i)}
+                  onMouseLeave={() => setHover(null)}
+                  onClick={() => setHover(hover === i ? null : i)}
+                />
+              ))}
+            </svg>
+            {hover !== null && (
+              <div className="pointer-events-none absolute top-1 left-1/2 -translate-x-1/2 rounded-lg border border-slate-200 bg-white/95 shadow-sm px-2.5 py-1.5 text-xs">
+                <p className="font-semibold text-slate-900">{weekLabel(weeks[hover], locale)}</p>
+                {series.map((s, si) =>
+                  s.values[hover] !== undefined ? (
+                    <p key={s.code} className="flex items-center gap-1.5 tabular text-slate-700">
+                      <span className="w-2 h-2 rounded-full" style={{ background: SERIES[si % SERIES.length] }} aria-hidden />
+                      {label(s.code)} <strong className="text-slate-900">{rp(s.values[hover])}</strong>
+                    </p>
+                  ) : null
+                )}
+              </div>
+            )}
+          </div>
+          <ul className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-700">
+            {series.map((s, si) => (
+              <li key={s.code} className="inline-flex items-center gap-1.5">
+                <span className="w-3 h-0.5 rounded" style={{ background: SERIES[si % SERIES.length] }} aria-hidden />
+                {s.name} ({s.code})
+              </li>
+            ))}
+          </ul>
+          <p className="text-[11px] text-slate-500">{t('mp.chart.note')}</p>
         </>
       )}
+    </section>
+  );
+};
+
+/** One form in the phone table: the market in short (165rb–180rb), the suggestion, our price typed below. */
+const MiniCell: React.FC<{ r?: VarietyMarket; form: Form; onError: (e: unknown) => void }> = ({ r, form, onError }) => {
+  const { t } = useT();
+  if (!r) return <span className="text-slate-300">—</span>;
+  return (
+    <div className="min-w-0 space-y-0.5">
+      <p className="font-bold text-slate-900 leading-tight whitespace-nowrap">
+        {r.low !== undefined ? (r.low === r.high ? rpShort(r.low) : `${rpShort(r.low)}–${rpShort(r.high)}`) : r.perFruit.length ? `${rpShort(Math.min(...r.perFruit))}/${t('mp.perFruit')}` : '—'}
+      </p>
+      {r.suggested !== undefined && (
+        <p className="text-[11px] text-slate-600 whitespace-nowrap">
+          {t('mp.suggested')} <strong className="text-emerald-800">{rpShort(r.suggested)}</strong>
+        </p>
+      )}
+      {r.code && <StorePriceInput code={r.code} form={form} value={r.store} median={r.median} onError={onError} compact />}
     </div>
   );
 };

@@ -247,14 +247,21 @@ const rp = (n) => `Rp${Math.round(n).toLocaleString('id-ID')}`;
  * the range per kg and how many sellers, the store's own price beside it. Empty when there are none.
  */
 function priceLines(data, date) {
-  const all = data.prices || [];
+  // The week up to the day: each vendor's newest price per product (a vendor posting daily counts once).
+  const newest = new Map();
+  for (const p of (data.prices || []).filter((x) => x.date <= date && x.date >= R.addDays(date, -6))) {
+    const k = [String(p.vendor || p.vendorPhone || p.id || '').toLowerCase(), p.varietyCode || String(p.variety || '').toLowerCase(), String(p.origin || '').toLowerCase(), p.condition || '', p.form || '', String(p.grade || '').toLowerCase(), p.unit, p.category || '', String(p.product || '').toLowerCase(), String(p.size || '').toLowerCase()].join('|');
+    const prev = newest.get(k);
+    if (!prev || p.date > prev.date) newest.set(k, p);
+  }
+  const all = [...newest.values()];
   if (!all.length) return { day: null, lines: [] };
-  const day = all.some((p) => p.date === date) ? date : all.map((p) => p.date).sort().pop();
+  const day = date;
   const names = new Map((data.variants || []).map((v) => [v.id || v.code, v.name || v.id || v.code]));
   const store = new Map((data.storePrices || []).map((x) => [x.id, x]));
   const groups = new Map();
-  const olahan = all.filter((x) => x.date === day && x.category === 'olahan');
-  for (const p of all.filter((x) => x.date === day && x.category !== 'olahan')) {
+  const olahan = all.filter((x) => x.category === 'olahan');
+  for (const p of all.filter((x) => x.category !== 'olahan')) {
     const origin = String(p.origin || '').trim();
     const key = `${p.varietyCode || String(p.variety || 'Durian').toLowerCase()}|${origin.toLowerCase()}|${p.condition || ''}`;
     const base = p.varietyCode ? names.get(p.varietyCode) || p.varietyCode : p.variety || 'Durian';
@@ -336,7 +343,7 @@ function buildSummary(data, date, phone, now = Date.now(), name = '', opts = {})
 
   if (opts.prices) {
     const p = priceLines(data, date);
-    lines.push('', `💰 *Harga pasar*${p.day && p.day !== date ? ` (${R.dateLabel(p.day)})` : ''}`);
+    lines.push('', '💰 *Harga pasar* (7 hari terakhir)');
     lines.push(...(p.lines.length ? p.lines : ['• Belum ada harga minggu ini. Kirim *HARGA* lalu screenshot harga penjual lain.']));
   }
 

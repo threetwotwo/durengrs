@@ -63,3 +63,25 @@ test('the Buah grid: one line per variety, whole and kupas side by side; olahan 
   const o = sortOlahan([p({ category: 'olahan', product: 'Pancake', size: '4pcs', price: 65000 }), p({ category: 'olahan', product: 'Pancake', size: '1pcs', price: 20000 }), p({ category: 'olahan', product: 'Cake', size: 'L', price: 890000 })]);
   assert.deepEqual(o.map((x) => `${x.product} ${x.size}`), ['Cake L', 'Pancake 1pcs', 'Pancake 4pcs']);
 });
+
+test('weekly: weeks start on Monday, labelled W1 Nov; a vendor counts once a week (newest); the chart series per variety', async () => {
+  const { weekStart, weekLabel, latestPerVendor, priceWeeks, weeklySeries } = await import('../src/lib/market');
+  assert.equal(weekStart('2026-11-03'), '2026-11-02');
+  assert.equal(weekStart('2026-11-08'), '2026-11-02');
+  assert.equal(weekStart('2026-11-09'), '2026-11-09');
+  assert.equal(weekLabel('2026-11-02', 'en-GB'), 'W1 Nov');
+  assert.equal(weekLabel('2026-11-09', 'en-GB'), 'W2 Nov');
+  const prices = [
+    p({ date: '2026-11-02', vendor: 'A', varietyCode: 'MK', price: 270000, pricePerKg: 270000 }),
+    p({ date: '2026-11-04', vendor: 'A', varietyCode: 'MK', price: 280000, pricePerKg: 280000 }),
+    p({ date: '2026-11-04', vendor: 'B', varietyCode: 'MK', price: 300000, pricePerKg: 300000 }),
+    p({ date: '2026-11-10', vendor: 'A', varietyCode: 'MK', price: 320000, pricePerKg: 320000 }),
+    p({ date: '2026-11-10', vendor: 'A', varietyCode: 'BW', price: 170000, pricePerKg: 170000 }),
+    p({ date: '2026-11-10', vendor: 'A', varietyCode: 'MK', origin: 'Malaysia', price: 455000, pricePerKg: 455000 }),
+  ];
+  assert.deepEqual(latestPerVendor(prices.slice(0, 3)).map((x) => x.price).sort(), [280000, 300000]);
+  assert.deepEqual(priceWeeks(prices), [{ week: '2026-11-09', n: 3 }, { week: '2026-11-02', n: 2 }]);
+  const w = weeklySeries(prices, 'utuh', ['MK', 'BW'], (c) => c);
+  assert.deepEqual(w.weeks, ['2026-11-02', '2026-11-09']);
+  assert.deepEqual(w.series.map((s) => [s.code, s.values]), [['MK', [290000, 320000]], ['BW', [undefined, 170000]]], 'Malaysian MK left out; B and A in W1: middle 290');
+});

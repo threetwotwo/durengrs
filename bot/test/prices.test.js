@@ -3,7 +3,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fake = require('./fakeFirestore');
 fake.install();
-const { priceText, parseCommand } = require('../lib/commands');
+const { priceText, parseCommand, looksLikePrices } = require('../lib/commands');
 const { toPrice } = require('../lib/prices');
 const { priceLines } = require('../lib/summary');
 
@@ -42,14 +42,15 @@ test('the summary\'s market prices: the day\'s, one line per variety with the ra
       { date: '2026-11-01', varietyCode: 'MK', variety: 'MK', price: 120000, unit: 'kg', pricePerKg: 120000, vendor: 'Pak Ali' },
       { date: '2026-11-01', varietyCode: 'MK', form: 'kupas', price: 300000, unit: 'kg', pricePerKg: 300000, vendor: 'Pak Ali' },
       { date: '2026-11-01', variety: 'Bawor', price: 200000, unit: 'buah', vendor: 'Pak Ali' },
-      { date: '2026-10-30', varietyCode: 'MK', price: 99000, unit: 'kg', pricePerKg: 99000 },
+      { date: '2026-10-30', varietyCode: 'MK', price: 99000, unit: 'kg', pricePerKg: 99000, vendor: 'Toko Jaya' },
     ],
   };
   assert.deepEqual(priceLines(data, '2026-11-01'), {
     day: '2026-11-01',
     lines: ['• Musang King: utuh Rp120.000–Rp150.000/kg, kupas Rp300.000/kg (2 penjual) · toko kita utuh Rp130.000, kupas Rp320.000', '• Bawor: Rp200.000/buah (1 penjual)'],
   });
-  assert.equal(priceLines(data, '2026-11-02').day, '2026-11-01');
+  assert.equal(priceLines(data, '2026-11-02').lines.length, 2, 'the week up to the day');
+  assert.deepEqual(priceLines(data, '2026-11-20'), { day: null, lines: [] }, 'nothing in the last 7 days');
   assert.deepEqual(priceLines({ prices: [] }, '2026-11-01'), { day: null, lines: [] });
 });
 
@@ -58,4 +59,12 @@ test('olahan (processed products) kept apart: type, size, price; the recap only 
   assert.deepEqual(o, { category: 'olahan', vendor: 'Good Durian', product: 'Pancake Durian Musang King', size: '1 box isi 4', price: 65000, unit: 'other' });
   const lines = priceLines({ prices: [{ date: '2026-11-03', ...o }, { date: '2026-11-03', variety: 'Bawor', form: 'utuh', price: 165000, unit: 'kg', pricePerKg: 165000, vendor: 'Batavia' }] }, '2026-11-03').lines;
   assert.deepEqual(lines, ['• Bawor: utuh Rp165.000/kg (1 penjual)', '• Olahan: 1 produk dari 1 penjual (lihat webapp)']);
+});
+
+test('a price list is noticed without HARGA; tree IDs, words and chatter are not', () => {
+  assert.equal(looksLikePrices('Pagi .\nBawor fresh 165rb/kg\nBawor kupas 400gram harga 175rb/pack'), true);
+  assert.equal(looksLikePrices('Musangking lokal 275/kg ✅'), true);
+  assert.equal(looksLikePrices('Pancake Durian Montong 1box *60.000* (4pcs)'), true);
+  assert.equal(looksLikePrices('MK Rp 150000'), true);
+  for (const no of ['A1', 'ringkasan', 'kebun', 'pohon A12 daunnya kuning', 'ok siap', 'jam 7 ke blok B']) assert.equal(looksLikePrices(no), false, no);
 });

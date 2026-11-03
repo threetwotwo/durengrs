@@ -20,7 +20,7 @@ const { syncRain } = require('./lib/rain');
 const { db: fdb, admin } = require('./lib/firestore');
 const { loadDay, buildSummary, sendDailySummary, dayTitle, ownSummaryDay } = require('./lib/summary');
 const { todayStr, addDays } = require('./lib/rules');
-const { parseCommand, priceText } = require('./lib/commands');
+const { parseCommand, priceText, looksLikePrices } = require('./lib/commands');
 const { readAndSavePrices, pricesReply, fetchWhatsAppMedia, startPriceMode, inPriceMode } = require('./lib/prices');
 
 const app = express();
@@ -268,7 +268,7 @@ async function lastSeen(phone) {
 
 // Prices from other vendors: read by Gemini, saved, and each one read back so the sender can check it.
 // "HARGA TES ..." (a typed text, or a picture with that caption): read only, nothing saved, to check the reading.
-async function handlePrices(to, { imageId, text, hint }) {
+async function handlePrices(to, { imageId, text, hint, auto = false }) {
   if (!process.env.GEMINI_API_KEY) return sendText(to, 'Pembacaan harga belum aktif. Mohon hubungi pemilik kebun.');
   const test = /^\s*(TES|TEST)\b/i;
   const dry = test.test(text || '') || test.test(hint || '');
@@ -279,6 +279,8 @@ async function handlePrices(to, { imageId, text, hint }) {
   try {
     const image = imageId ? await fetchWhatsAppMedia(imageId, WHATSAPP_TOKEN) : null;
     const saved = await readAndSavePrices({ image, text: text || undefined, hint, workerPhone: to, dry });
+    // Not asked for (no HARGA) and no price in it: the ordinary help, as before.
+    if (auto && !saved.length) return sendHelp(to, imageId ? 'Maaf, saya hanya bisa membaca teks dan harga. Foto pohon dikirim lewat formulir laporan pohon.' : undefined);
     return sendText(to, pricesReply(saved, { dry }));
   } catch (err) {
     console.error('Price reading failed:', err);
@@ -393,8 +395,8 @@ async function handleIncomingMessage(body) {
   // Other vendors' prices (lib/prices.js): a screenshot with HARGA in its caption, or sent within 15 minutes of HARGA.
   if (message.type === 'image' && message.image?.id) {
     const caption = message.image.caption || '';
-    if (priceText(caption) !== null || parseCommand(caption).kind === 'prices' || (await inPriceMode(to)))
-      return handlePrices(to, { imageId: message.image.id, hint: caption });
+    // Any picture in the chat (tree photos go through the report form): read for prices; nothing read, the usual help.
+    return handlePrices(to, { imageId: message.image.id, hint: caption, auto: priceText(caption) === null && parseCommand(caption).kind !== 'prices' });
   }
 
   // Photos, voice notes, stickers...: explain where photos belong instead of staying silent.
@@ -414,7 +416,7 @@ async function handleIncomingMessage(body) {
       '💰 Kirim screenshot atau teks harga durian dari penjual lain (status WA, katalog, Instagram, Facebook) dalam 15 menit ke depan. Tulis nama tokonya di keterangan foto jika tidak terlihat di gambar.'
     );
   }
-  if (command.kind === 'help' && (await inPriceMode(to))) return handlePrices(to, { text: typed, hint: typed });
+  if (command.kind === 'help' && (looksLikePrices(typed) || (await inPriceMode(to)))) return handlePrices(to, { text: typed, hint: typed, auto: true });
   if (command.kind === 'farm') return openFarmFlow(to);
   if (command.kind === 'summary') return sendOwnSummary(to);
   if (command.kind !== 'tree') return sendHelp(to);

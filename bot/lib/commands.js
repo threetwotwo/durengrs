@@ -54,4 +54,15 @@ function priceText(text) {
   return w && distance(w, 'HARGA') <= 1 ? m[2].trim() : null;
 }
 
-module.exports = { parseCommand, priceText, compactText, distance, TREE_ID_PATTERN };
+/**
+ * A message that reads like a price list (no command word needed): a price in it ("165rb", "150k", "Rp175.000",
+ * "175.000", "275/kg", "210/pack") and enough words around it. "A1" or "ringkasan" never are.
+ */
+function looksLikePrices(text) {
+  const s = String(text || '');
+  if (s.replace(/\s/g, '').length < 10) return false;
+  const price = /\d+(?:[.,]\d+)?\s*(?:rb|ribu|k|jt)\b|rp\.?\s*\d|\b\d{2,3}[.,]\d{3}\b|\b\d{2,4}\s*\/\s*(?:kg|pack|pak|box|buah|pcs|biji|mika)\b/i;
+  return price.test(s);
+}
+
+module.exports = { looksLikePrices, parseCommand, priceText, compactText, distance, TREE_ID_PATTERN };

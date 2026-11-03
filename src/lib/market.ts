@@ -185,3 +185,82 @@ export function fruitGrid(rows: VarietyMarket[]): FruitGridRow[] {
 /** Olahan by product, then size, then price. */
 export const sortOlahan = (list: MarketPrice[]) =>
   [...list].sort((a, b) => (a.product || '').localeCompare(b.product || '') || (a.size || '').localeCompare(b.size || '') || a.price - b.price);
+
+// ---------- by week ----------
+
+/** The Monday a day's week starts on (YYYY-MM-DD). */
+export function weekStart(date: string): string {
+  const [y, m, d] = date.split('-').map(Number);
+  const t = new Date(Date.UTC(y, m - 1, d));
+  t.setUTCDate(t.getUTCDate() - ((t.getUTCDay() + 6) % 7));
+  return t.toISOString().slice(0, 10);
+}
+
+/** A week as the farm says it: its Monday's place in the month and the month, "W1 Nov" (1-7: W1, 8-14: W2...). */
+export function weekLabel(monday: string, locale: string): string {
+  const [y, m, d] = monday.split('-').map(Number);
+  return `W${Math.ceil(d / 7)} ${new Date(y, m - 1, d).toLocaleDateString(locale, { month: 'short' })}`;
+}
+
+/**
+ * Each vendor's latest price per product in a set (a week): a vendor who posts every day counts once, with the
+ * newest price. A product is the variety (and origin, condition), form, grade, unit and, for olahan, type and size.
+ */
+export function latestPerVendor(prices: MarketPrice[]): MarketPrice[] {
+  const out = new Map<string, MarketPrice>();
+  for (const p of prices) {
+    const k = [(p.vendor || p.vendorPhone || p.id).toLowerCase(), varietyKey(p), formOf(p), (p.grade || '').toLowerCase(), p.unit, p.category || '', (p.product || '').toLowerCase(), (p.size || '').toLowerCase()].join('|');
+    const prev = out.get(k);
+    if (!prev || p.date > prev.date) out.set(k, p);
+  }
+  return [...out.values()];
+}
+
+/** The weeks with prices, newest first, with how many prices each (each vendor's latest per product). */
+export function priceWeeks(prices: MarketPrice[]): Array<{ week: string; n: number }> {
+  const m = new Map<string, MarketPrice[]>();
+  for (const p of prices) {
+    const w = weekStart(p.date);
+    m.set(w, [...(m.get(w) || []), p]);
+  }
+  return [...m].map(([week, list]) => ({ week, n: latestPerVendor(list).length })).sort((a, b) => b.week.localeCompare(a.week));
+}
+
+export interface WeeklySeries {
+  code: string;
+  name: string;
+  /** The middle price per kg of each week (undefined: no price that week). */
+  values: Array<number | undefined>;
+}
+
+/**
+ * The weekly chart: for the farm's own varieties grown here (local, fresh), the middle price per kg of each week, in
+ * one form (utuh or kupas); the last `weeks` weeks that have prices, oldest first; the `max` most quoted varieties.
+ * The series keep the farm's variety order (their colours follow the variety, not its rank).
+ */
+export function weeklySeries(prices: MarketPrice[], form: Form, order: string[], names: (code: string) => string, weeks = 8, max = 4): { weeks: string[]; series: WeeklySeries[] } {
+  const local = prices.filter((p) => !isOlahan(p) && p.varietyCode && isLocal(p) && !p.condition && formOf(p) === form && p.pricePerKg);
+  const byWeek = new Map<string, MarketPrice[]>();
+  for (const p of local) {
+    const w = weekStart(p.date);
+    byWeek.set(w, [...(byWeek.get(w) || []), p]);
+  }
+  const ws = [...byWeek.keys()].sort().slice(-weeks);
+  const quoted = new Map<string, number>();
+  for (const p of local) quoted.set(p.varietyCode!, (quoted.get(p.varietyCode!) || 0) + 1);
+  const codes = [...quoted.keys()]
+    .sort((a, b) => (quoted.get(b) || 0) - (quoted.get(a) || 0))
+    .slice(0, max)
+    .sort((a, b) => order.indexOf(a) - order.indexOf(b) || a.localeCompare(b));
+  const series = codes.map((code) => ({
+    code,
+    name: names(code),
+    values: ws.map((w) => {
+      const xs = latestPerVendor(byWeek.get(w) || [])
+        .filter((p) => p.varietyCode === code)
+        .map((p) => p.pricePerKg!);
+      return xs.length ? median(xs) : undefined;
+    }),
+  }));
+  return { weeks: ws, series };
+}
