@@ -285,12 +285,12 @@ function priceLines(data, date) {
     .map((g) => {
       const parts = [
         g.utuh.length ? `utuh ${range(g.utuh, 'kg')}` : '',
-        g.kupas.length ? `kupas ${range(g.kupas, 'kg')}` : '',
+        g.kupas.length ? `kupas ${range(g.kupas.map((v) => Math.round(v * 0.4)), '400g')}` : '',
         g.fruit.length ? range(g.fruit, 'buah') : '',
       ].filter(Boolean).join(', ');
       const sellers = g.vendors.size ? ` (${g.vendors.size} penjual)` : '';
       const s = g.code && store.get(g.code);
-      const own = s ? [s.pricePerKg ? `utuh ${rp(s.pricePerKg)}` : '', s.kupasPerKg ? `kupas ${rp(s.kupasPerKg)}` : ''].filter(Boolean).join(', ') : '';
+      const own = s ? [s.pricePerKg ? `utuh ${rp(s.pricePerKg)}` : '', s.kupasPerKg ? `kupas ${rp(Math.round(s.kupasPerKg * 0.4))}/400g` : ''].filter(Boolean).join(', ') : '';
       return `• ${g.name}: ${parts}${sellers}${own ? ` · toko kita ${own}` : ''}`;
     });
   if (olahan.length) {

@@ -19,7 +19,7 @@ test('per variety: range, median and sellers per kg; per-fruit prices without a 
   );
   assert.deepEqual(rows.map((r) => [r.name, r.form, r.low, r.high, r.median, r.sellers, r.suggested, r.store, r.perFruit]), [
     ['Musang King', 'utuh', 120000, 150000, 131000, 2, 130000, 125000, []],
-    ['Musang King', 'kupas', 350000, 350000, 350000, 1, 350000, 330000, []],
+    ['Musang King', 'kupas', 140000, 140000, 140000, 1, 140000, 132000, []], // kupas per 400 g box
     ['Bawor', 'utuh', undefined, undefined, undefined, 0, undefined, undefined, [200000]],
   ]);
   const mk = marketByVariety(
@@ -34,7 +34,7 @@ test('per variety: range, median and sellers per kg; per-fruit prices without a 
   assert.deepEqual(mk.map((r) => [r.name, r.form, r.median, r.store]), [
     ['Musang King', 'utuh', 275000, 260000],
     ['Musang King (Malaysia)', 'utuh', 455000, undefined],
-    ['Musang King (Malaysia, frozen)', 'kupas', 625000, undefined],
+    ['Musang King (Malaysia, frozen)', 'kupas', 250000, undefined],
   ]);
   assert.equal(suggestPrice([100000, 110000]), 105000);
   assert.deepEqual(priceDays([p({ date: '2026-11-01' }), p({}), p({})]), [{ date: '2026-11-02', n: 2 }, { date: '2026-11-01', n: 1 }]);
@@ -59,7 +59,7 @@ test('the Buah grid: one line per variety, whole and kupas side by side; olahan 
       new Map()
     )
   );
-  assert.deepEqual(grid.map((g) => [g.name, g.utuh?.median, g.kupas?.median, g.sellers]), [['Bawor', 165000, 437500, 1]]);
+  assert.deepEqual(grid.map((g) => [g.name, g.utuh?.median, g.kupas?.median, g.sellers]), [['Bawor', 165000, 175000, 1]]);
   const o = sortOlahan([p({ category: 'olahan', product: 'Pancake', size: '4pcs', price: 65000 }), p({ category: 'olahan', product: 'Pancake', size: '1pcs', price: 20000 }), p({ category: 'olahan', product: 'Cake', size: 'L', price: 890000 })]);
   assert.deepEqual(o.map((x) => `${x.product} ${x.size}`), ['Cake L', 'Pancake 1pcs', 'Pancake 4pcs']);
 });

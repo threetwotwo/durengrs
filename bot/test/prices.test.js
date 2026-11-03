@@ -47,7 +47,7 @@ test('the summary\'s market prices: the day\'s, one line per variety with the ra
   };
   assert.deepEqual(priceLines(data, '2026-11-01'), {
     day: '2026-11-01',
-    lines: ['• Musang King: utuh Rp120.000–Rp150.000/kg, kupas Rp300.000/kg (2 penjual) · toko kita utuh Rp130.000, kupas Rp320.000', '• Bawor: Rp200.000/buah (1 penjual)'],
+    lines: ['• Musang King: utuh Rp120.000–Rp150.000/kg, kupas Rp120.000/400g (2 penjual) · toko kita utuh Rp130.000, kupas Rp128.000/400g', '• Bawor: Rp200.000/buah (1 penjual)'],
   });
   assert.equal(priceLines(data, '2026-11-02').lines.length, 2, 'the week up to the day');
   assert.deepEqual(priceLines(data, '2026-11-20'), { day: null, lines: [] }, 'nothing in the last 7 days');

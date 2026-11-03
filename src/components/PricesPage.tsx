@@ -11,6 +11,7 @@ import {
   type StorePrice,
   type VarietyMarket,
   type WeeklySeries,
+  KUPAS_BOX_KG,
   formOf,
   fruitGrid,
   isOlahan,
@@ -151,7 +152,7 @@ export const PricesPage: React.FC = () => {
                   <tr>
                     <th scope="col" className={`${th} text-left`}>{t('fr.variant')}</th>
                     <th scope="col" className={`${th} text-left text-emerald-800`}>{t('mp.form.utuh')} /kg</th>
-                    <th scope="col" className={`${th} text-left text-amber-800`}>{t('mp.form.kupas')} /kg</th>
+                    <th scope="col" className={`${th} text-left text-amber-800`}>{t('mp.form.kupas')} /400g</th>
                   </tr>
                 </thead>
                 <tbody className="tabular">
@@ -178,7 +179,7 @@ export const PricesPage: React.FC = () => {
                   <tr>
                     <th scope="col" rowSpan={2} className={`${th} text-left align-bottom sticky left-0 bg-white`}>{t('fr.variant')}</th>
                     <th scope="colgroup" colSpan={3} className={`${th} text-center border-l border-slate-200 text-emerald-800`}>{t('mp.form.utuh')} /kg</th>
-                    <th scope="colgroup" colSpan={3} className={`${th} text-center border-l border-slate-200 text-amber-800`}>{t('mp.form.kupas')} /kg</th>
+                    <th scope="colgroup" colSpan={3} className={`${th} text-center border-l border-slate-200 text-amber-800`}>{t('mp.form.kupas')} /400g</th>
                   </tr>
                   <tr>
                     {(['utuh', 'kupas'] as const).map((f) => (
@@ -506,7 +507,8 @@ const StorePriceInput: React.FC<{ code: string; form: Form; value?: number; medi
     setBad(false);
     if ((n ?? undefined) === value) return;
     setBusy(true);
-    setStorePrice(code, form, n)
+    // Typed per 400 g box for kupas, kept per kg.
+    setStorePrice(code, form, n === null ? null : form === 'kupas' ? Math.round(n / KUPAS_BOX_KG) : n)
       .catch(onError)
       .finally(() => setBusy(false));
   };
@@ -520,7 +522,7 @@ const StorePriceInput: React.FC<{ code: string; form: Form; value?: number; medi
           onChange={(e) => setText(e.target.value)}
           onBlur={commit}
           onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
-          placeholder={compact ? t('mp.oursPh') : 'Rp/kg'}
+          placeholder={compact ? t('mp.oursPh') : form === 'kupas' ? 'Rp/400g' : 'Rp/kg'}
           aria-label={t('mp.ours')}
           aria-invalid={bad || undefined}
           className={`${compact ? 'w-full h-8 bg-white' : 'w-28 h-9'} px-2 rounded-lg border text-right text-sm tabular ${bad ? 'border-rose-400' : 'border-slate-300'}`}

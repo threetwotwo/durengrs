@@ -15,6 +15,7 @@ export async function removeMarketPrice(id: string): Promise<void> {
 
 /** The store's own price per kg for a variety, whole (pricePerKg) or peeled (kupasPerKg); null takes it away. */
 export async function setStorePrice(code: string, form: Form, perKg: number | null): Promise<void> {
+  // perKg: always per kg (a kupas price typed per 400 g box is turned into per kg by the page).
   const field = form === 'kupas' ? 'kupasPerKg' : 'pricePerKg';
   await setDoc(doc(db, 'storePrices', code), { [field]: perKg === null ? deleteField() : perKg, updatedAt: serverTimestamp() }, { merge: true });
 }
