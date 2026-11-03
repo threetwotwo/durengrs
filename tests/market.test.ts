@@ -49,3 +49,17 @@ test('typed Rupiah', () => {
   assert.equal(parseRupiah('abc'), null);
   assert.equal(parseRupiah(''), null);
 });
+
+test('the Buah grid: one line per variety, whole and kupas side by side; olahan sorted by product and size', async () => {
+  const { fruitGrid, sortOlahan } = await import('../src/lib/market');
+  const grid = fruitGrid(
+    marketByVariety(
+      [p({ varietyCode: 'BW', price: 165000, pricePerKg: 165000, vendor: 'Batavia' }), p({ varietyCode: 'BW', form: 'kupas', unit: 'pack', fruitKg: 0.4, price: 175000, pricePerKg: 437500, vendor: 'Batavia' })],
+      (c) => (c === 'BW' ? 'Bawor' : c),
+      new Map()
+    )
+  );
+  assert.deepEqual(grid.map((g) => [g.name, g.utuh?.median, g.kupas?.median, g.sellers]), [['Bawor', 165000, 437500, 1]]);
+  const o = sortOlahan([p({ category: 'olahan', product: 'Pancake', size: '4pcs', price: 65000 }), p({ category: 'olahan', product: 'Pancake', size: '1pcs', price: 20000 }), p({ category: 'olahan', product: 'Cake', size: 'L', price: 890000 })]);
+  assert.deepEqual(o.map((x) => `${x.product} ${x.size}`), ['Cake L', 'Pancake 1pcs', 'Pancake 4pcs']);
+});

@@ -18,6 +18,9 @@ const SCHEMA = {
         type: 'OBJECT',
         properties: {
           vendor: { type: 'STRING' },
+          category: { type: 'STRING', enum: ['buah', 'olahan'] },
+          product: { type: 'STRING' },
+          size: { type: 'STRING' },
           variety: { type: 'STRING' },
           variety_code: { type: 'STRING' },
           form: { type: 'STRING', enum: ['utuh', 'kupas'] },
@@ -42,7 +45,8 @@ function prompt(varieties, hint) {
   const list = varieties.map((v) => `${v.code} = ${v.name || v.code}`).join('; ') || 'none listed';
   return `You read durian price lists from Indonesian sellers (a WhatsApp status or catalog, an Instagram or Facebook post, a chat), for a durian farm that prices its own store from them.
 Return every durian price you can read, one entry per variety and grade (and per origin, form and size when priced separately).
-Only fresh durian sold as fruit or as flesh. Leave out processed products: cakes, pancakes, egg rolls, dessert boxes, kapit, ice cream, drinks.
+- category: "buah" for durian sold as fruit or as flesh (whole or kupas, fresh, chilled or frozen); "olahan" for processed products made from durian (cakes, pancakes, egg rolls, dessert boxes, kapit, ice cream, drinks).
+- For "olahan": product = its type as written, short ("Pancake Durian Musang King", "Durian Egg Roll", "Dreamy Musangking Cake"); size = as written ("L", "M", "S", "1 box isi 4", "1 pcs", "can", "box"); price = the price of that item; unit "other"; variety = the durian variety in it if named, else ""; form, origin, fruit_kg as for fruit only when they apply.
 - price: in Rupiah as a plain number. "150rb", "150k", "150.000", "Rp150.000" are 150000; "1,2jt" is 1200000. Sellers often leave out the thousands: "275/kg", "425/kg", "210/pack" mean 275000, 425000, 210000.
 - A heading applies to the lines under it until the next heading: "Durian utuh Chilled" makes the lines below whole and chilled; "Ready Durian Pack 400 Gram" makes them packs of 0.4 kg; "Mau info stock buah hari ini" is not a heading of any kind.
 - origin: where the fruit is from, as written, in short: "Malaysia" for "malay", "Malaysia", "import"; "Lokal" for "lokal"; a region when named ("Medan", "Palu", "Sulawesi", "Bangka"); else "". The same variety from two origins is two entries (Musang King malay and Musang King lokal differ a lot).
@@ -69,6 +73,24 @@ async function loadVarieties() {
  * the variety matched to the farm's own code when Gemini found one on the list.
  */
 function toPrice(p, { vendor, varieties }) {
+  if (p.category === 'olahan') {
+    let price = Math.round(Number(p.price) || 0);
+    if (price >= 10 && price < 10000) price *= 1000;
+    if (!(price >= 1000 && price <= 20000000) || (Number(p.confidence) || 0) < 0.4) return null;
+    const code = varieties.find((v) => v.code === p.variety_code) ? p.variety_code : undefined;
+    return strip({
+      category: 'olahan',
+      vendor: String(p.vendor || vendor || '').trim().slice(0, 60) || undefined,
+      product: String(p.product || p.variety || '').trim().slice(0, 60) || undefined,
+      size: String(p.size || '').trim().slice(0, 30) || undefined,
+      variety: String(p.variety || '').trim().slice(0, 40) || undefined,
+      varietyCode: code,
+      price,
+      unit: 'other',
+      available: p.available === 'no' ? false : p.available === 'yes' ? true : undefined,
+      note: String(p.note || '').trim().slice(0, 80) || undefined,
+    });
+  }
   let price = Math.round(Number(p.price) || 0);
   // "275/kg": the thousands left out (no durian sells for Rp275).
   if (price >= 10 && price < 10000) price *= 1000;
@@ -85,6 +107,7 @@ function toPrice(p, { vendor, varieties }) {
     vendor: String(p.vendor || vendor || '').trim().slice(0, 60) || undefined,
     variety: String(p.variety || '').trim().slice(0, 40) || undefined,
     varietyCode: code,
+    category: 'buah',
     form,
     origin: origin || undefined,
     condition,
@@ -155,6 +178,7 @@ const rupiah = (n) => `Rp${Math.round(n).toLocaleString('id-ID')}`;
 function pricesReply(saved, { dry = false } = {}) {
   if (!saved.length) return 'Maaf, tidak ada harga durian yang terbaca. Kirim lagi foto yang lebih jelas, atau ketik: *HARGA* nama toko, varietas, harga per kg.';
   const lines = saved.slice(0, 15).map((p) => {
+    if (p.category === 'olahan') return `• 🍰 ${[p.product || 'Olahan', p.size].filter(Boolean).join(', ')}: ${rupiah(p.price)}${p.available === false ? ' ❌' : ''}${p.vendor ? ` · ${p.vendor}` : ''}`;
     const what = [p.variety || 'Durian', p.origin, p.form === 'kupas' ? 'kupas' : '', p.condition, p.grade].filter(Boolean).join(' ') + (p.available === false ? ' ❌' : '');
     const per = p.unit === 'buah' ? '/buah' : p.unit === 'pack' ? `/box${p.fruitKg ? ` ${Math.round(p.fruitKg * 1000)}g` : ''}` : '';
     const price = p.unit === 'kg' ? `${rupiah(p.price)}/kg` : `${rupiah(p.price)}${per}${p.pricePerKg ? ` (≈${rupiah(p.pricePerKg)}/kg)` : ''}`;

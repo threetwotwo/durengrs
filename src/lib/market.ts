@@ -12,6 +12,11 @@ export interface MarketPrice {
   variety?: string;
   /** The farm's variety code when it was matched (variants/{code}). */
   varietyCode?: string;
+  /** Fruit (buah, the default) or a processed product made from durian (olahan: cakes, pancakes, desserts). */
+  category?: 'buah' | 'olahan';
+  /** Olahan: the product as written ("Pancake Durian Musang King") and its size ("1 box isi 4", "L"). */
+  product?: string;
+  size?: string;
   /** Whole fruit (utuh, the default) or peeled flesh (kupas: by the kg, or a box of it). */
   form?: Form;
   /** Where the fruit is from, as the vendor wrote it ("Malaysia", "Lokal", "Medan"). */
@@ -148,3 +153,32 @@ export function parseRupiah(raw: string): number | null {
   if (!/^\d{1,3}([.,]\d{3})*$|^\d+$/.test(s)) return null;
   return Number(s.replace(/[.,]/g, ''));
 }
+
+export const isOlahan = (p: Pick<MarketPrice, 'category'>) => p.category === 'olahan';
+
+/** One variety (and origin) with its whole-fruit and kupas figures side by side: the Buah grid. */
+export interface FruitGridRow {
+  key: string;
+  name: string;
+  matched: boolean;
+  sellers: number;
+  utuh?: VarietyMarket;
+  kupas?: VarietyMarket;
+}
+
+/** The per-form rows of marketByVariety, one line per variety: whole and kupas in their own columns. */
+export function fruitGrid(rows: VarietyMarket[]): FruitGridRow[] {
+  const out = new Map<string, FruitGridRow>();
+  for (const r of rows) {
+    const k = r.key.split('|')[0];
+    const g = out.get(k) || { key: k, name: r.name, matched: r.matched, sellers: 0, utuh: undefined, kupas: undefined };
+    g[r.form] = r;
+    g.sellers = Math.max(g.sellers, r.sellers);
+    out.set(k, g);
+  }
+  return [...out.values()];
+}
+
+/** Olahan by product, then size, then price. */
+export const sortOlahan = (list: MarketPrice[]) =>
+  [...list].sort((a, b) => (a.product || '').localeCompare(b.product || '') || (a.size || '').localeCompare(b.size || '') || a.price - b.price);

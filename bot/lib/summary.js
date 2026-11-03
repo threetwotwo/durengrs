@@ -253,7 +253,8 @@ function priceLines(data, date) {
   const names = new Map((data.variants || []).map((v) => [v.id || v.code, v.name || v.id || v.code]));
   const store = new Map((data.storePrices || []).map((x) => [x.id, x]));
   const groups = new Map();
-  for (const p of all.filter((x) => x.date === day)) {
+  const olahan = all.filter((x) => x.date === day && x.category === 'olahan');
+  for (const p of all.filter((x) => x.date === day && x.category !== 'olahan')) {
     const origin = String(p.origin || '').trim();
     const key = `${p.varietyCode || String(p.variety || 'Durian').toLowerCase()}|${origin.toLowerCase()}`;
     const base = p.varietyCode ? names.get(p.varietyCode) || p.varietyCode : p.variety || 'Durian';
@@ -284,6 +285,10 @@ function priceLines(data, date) {
       const own = s ? [s.pricePerKg ? `utuh ${rp(s.pricePerKg)}` : '', s.kupasPerKg ? `kupas ${rp(s.kupasPerKg)}` : ''].filter(Boolean).join(', ') : '';
       return `• ${g.name}: ${parts}${sellers}${own ? ` · toko kita ${own}` : ''}`;
     });
+  if (olahan.length) {
+    const sellers = new Set(olahan.map((p) => (p.vendor || '').toLowerCase()).filter(Boolean)).size;
+    lines.push(`• Olahan: ${olahan.length} produk${sellers ? ` dari ${sellers} penjual` : ''} (lihat webapp)`);
+  }
   return { day, lines };
 }
 

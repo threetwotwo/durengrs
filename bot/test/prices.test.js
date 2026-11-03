@@ -18,7 +18,7 @@ test('HARGA: alone opens the 15 minutes for screenshots; with words after it, th
 test('a read price: per kg kept, per fruit turned into per kg when the weight is written, the variety matched only from the list', () => {
   const varieties = [{ code: 'MK', name: 'Musang King' }];
   assert.deepEqual(toPrice({ vendor: '', variety: 'Musang King', variety_code: 'MK', grade: 'A', price: 150000, unit: 'kg', fruit_kg: 0, note: '', confidence: 0.9 }, { vendor: 'Toko Jaya', varieties }), {
-    vendor: 'Toko Jaya', variety: 'Musang King', varietyCode: 'MK', form: 'utuh', grade: 'A', price: 150000, unit: 'kg', pricePerKg: 150000,
+    vendor: 'Toko Jaya', variety: 'Musang King', varietyCode: 'MK', category: 'buah', form: 'utuh', grade: 'A', price: 150000, unit: 'kg', pricePerKg: 150000,
   });
   const fruit = toPrice({ variety: 'Bawor', variety_code: 'BW', price: 250000, unit: 'buah', fruit_kg: 2.5, confidence: 0.8 }, { vendor: 'Pak Ali', varieties });
   assert.equal(fruit.pricePerKg, 100000);
@@ -51,4 +51,11 @@ test('the summary\'s market prices: the day\'s, one line per variety with the ra
   });
   assert.equal(priceLines(data, '2026-11-02').day, '2026-11-01');
   assert.deepEqual(priceLines({ prices: [] }, '2026-11-01'), { day: null, lines: [] });
+});
+
+test('olahan (processed products) kept apart: type, size, price; the recap only counts them', () => {
+  const o = toPrice({ category: 'olahan', product: 'Pancake Durian Musang King', size: '1 box isi 4', price: 65, unit: 'other', confidence: 0.9 }, { vendor: 'Good Durian', varieties: [] });
+  assert.deepEqual(o, { category: 'olahan', vendor: 'Good Durian', product: 'Pancake Durian Musang King', size: '1 box isi 4', price: 65000, unit: 'other' });
+  const lines = priceLines({ prices: [{ date: '2026-11-03', ...o }, { date: '2026-11-03', variety: 'Bawor', form: 'utuh', price: 165000, unit: 'kg', pricePerKg: 165000, vendor: 'Batavia' }] }, '2026-11-03').lines;
+  assert.deepEqual(lines, ['• Bawor: utuh Rp165.000/kg (1 penjual)', '• Olahan: 1 produk dari 1 penjual (lihat webapp)']);
 });
