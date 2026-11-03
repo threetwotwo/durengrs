@@ -256,9 +256,10 @@ function priceLines(data, date) {
   const olahan = all.filter((x) => x.date === day && x.category === 'olahan');
   for (const p of all.filter((x) => x.date === day && x.category !== 'olahan')) {
     const origin = String(p.origin || '').trim();
-    const key = `${p.varietyCode || String(p.variety || 'Durian').toLowerCase()}|${origin.toLowerCase()}`;
+    const key = `${p.varietyCode || String(p.variety || 'Durian').toLowerCase()}|${origin.toLowerCase()}|${p.condition || ''}`;
     const base = p.varietyCode ? names.get(p.varietyCode) || p.varietyCode : p.variety || 'Durian';
-    const g = groups.get(key) || { name: origin ? `${base} (${origin})` : base, code: origin && !/^lokal$/i.test(origin) ? undefined : p.varietyCode, n: 0, utuh: [], kupas: [], fruit: [], vendors: new Set() };
+    const extra = [origin, p.condition === 'frozen' ? 'beku' : p.condition === 'chilled' ? 'dingin' : ''].filter(Boolean).join(', ');
+    const g = groups.get(key) || { name: extra ? `${base} (${extra})` : base, code: (origin && !/^lokal$/i.test(origin)) || p.condition ? undefined : p.varietyCode, n: 0, utuh: [], kupas: [], fruit: [], vendors: new Set() };
     g.n++;
     if (p.pricePerKg) g[p.form === 'kupas' ? 'kupas' : 'utuh'].push(p.pricePerKg);
     else if (p.unit === 'buah') g.fruit.push(p.price);

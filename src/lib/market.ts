@@ -61,7 +61,7 @@ export const isLocal = (p: Pick<MarketPrice, 'origin'>) => !p.origin || /^lokal$
  * it is not local (Musang King from Malaysia is another product) and frozen apart from fresh.
  */
 export const varietyKey = (p: Pick<MarketPrice, 'varietyCode' | 'variety' | 'origin' | 'condition'>) =>
-  [p.varietyCode ? `code:${p.varietyCode}` : `name:${(p.variety || 'Durian').trim().toLowerCase()}`, isLocal(p) ? '' : (p.origin || '').trim().toLowerCase(), p.condition === 'frozen' ? 'frozen' : '']
+  [p.varietyCode ? `code:${p.varietyCode}` : `name:${(p.variety || 'Durian').trim().toLowerCase()}`, isLocal(p) ? '' : (p.origin || '').trim().toLowerCase(), p.condition || '']
     .filter(Boolean)
     .join('~');
 
@@ -105,9 +105,9 @@ export function marketByVariety(prices: MarketPrice[], names: (code: string) => 
   return [...groups.entries()]
     .map(([key, { list }]) => {
       // The store's own price sits beside local, not frozen fruit only (what the farm sells).
-      const local = isLocal(list[0]) && list[0].condition !== 'frozen';
+      const local = isLocal(list[0]) && !list[0].condition;
       const code = local ? list[0].varietyCode : undefined;
-      const extra = [isLocal(list[0]) ? '' : list[0].origin, list[0].condition === 'frozen' ? 'frozen' : ''].filter(Boolean).join(', ');
+      const extra = [isLocal(list[0]) ? '' : list[0].origin, list[0].condition || ''].filter(Boolean).join(', ');
       const perKg = list.map((p) => p.pricePerKg).filter((x): x is number => !!x);
       const perFruit = list.filter((p) => !p.pricePerKg && p.unit === 'buah').map((p) => p.price);
       const form = formOf(list[0]);
@@ -123,7 +123,8 @@ export function marketByVariety(prices: MarketPrice[], names: (code: string) => 
         high: perKg.length ? Math.max(...perKg) : undefined,
         median: perKg.length ? median(perKg) : undefined,
         sellers: new Set(list.map((p) => (p.vendor || '').toLowerCase()).filter(Boolean)).size,
-        suggested: suggestPrice(perKg),
+        // A suggestion only where our own price goes: local fresh fruit of one of the farm's varieties.
+        suggested: code ? suggestPrice(perKg) : undefined,
         store: code ? store.get(code)?.[form] : undefined,
       };
     })

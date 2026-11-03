@@ -55,7 +55,7 @@ Return every durian price you can read, one entry per variety and grade (and per
 - form: "kupas" for peeled flesh ("kupas", "daging", "isi", in a box, mika or tray); "utuh" for the whole fruit (the default, also "fresh", "gelondong", "butiran"). Most sellers price each variety both ways: give each its own entry.
 - unit: "kg" for a price per kilo ("/kg"); "buah" for a price per whole fruit ("/buah", "per biji", "per pcs"); "pack" for a box, mika or tray ("per box 400gr"); "other" for anything else.
 - fruit_kg: the weight in kg of the fruit (unit buah, "±2kg") or of the pack (unit pack, "400gr" is 0.4) when it is written, else 0.
-- variety: as written (e.g. "Musang King", "Bawor", "Black Thorn", "Montong"). variety_code: the matching code from the farm's list, else "". The farm's varieties: ${list}. Treat "MK" and "Musangking" as Musang King, "Ochee" and "Black Thorn" as the same.
+- variety: as written (e.g. "Musang King", "Bawor", "Black Thorn", "Montong"). variety_code: the matching code from the farm's list, else "". The farm's varieties: ${list}. Treat "MK" and "Musangking" as Musang King, "Ochee", "Black Thorn" and "Blackthorn" as the same, "Queen", "Durian Queen" and "Musang Queen" as "Musang Queen".
 - grade: as written ("A", "B", "Super", "Kupas", "Jumbo"), else "".
 - vendor: the seller (shop or account name shown), else "". The top-level vendor is the seller of the whole list.${hint ? `\nThe person sending it wrote: "${hint}" (it may name the vendor).` : ''}
 - note: anything that changes the price (e.g. "kupas", "frozen", "promo hari ini"), short; else "".
