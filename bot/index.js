@@ -464,7 +464,11 @@ app.post(['/send-tree-flow', '/send-tree-lookup'], async (req, res) => {
 // what Gemini reads from it, as JSON; nothing is saved.
 app.get('/prices-test', async (req, res) => {
   if (!VERIFY_TOKEN || req.query.token !== VERIFY_TOKEN) return res.sendStatus(403);
-  const text = String(req.query.text || '').slice(0, 6000);
+  // &fixture=william: a sample list kept in test/fixtures/prices-<name>.txt (real vendor messages).
+  const fixture = String(req.query.fixture || '').replace(/[^a-z0-9-]/gi, '');
+  const text = fixture
+    ? require('fs').readFileSync(require('path').join(__dirname, 'test', 'fixtures', `prices-${fixture}.txt`), 'utf8')
+    : String(req.query.text || '').slice(0, 6000);
   if (!text.trim()) return res.status(400).json({ error: 'text: a vendor message' });
   try {
     const prices = await readAndSavePrices({ text, hint: String(req.query.vendor || ''), vendorName: String(req.query.vendor || ''), dry: true });
