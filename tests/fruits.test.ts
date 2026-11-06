@@ -59,7 +59,7 @@ test('CSV: the fruits shown, one row each, weight in grams, variety code and nam
   const rows = fruitRows([h('a', 'A1', '2026-10-20', 'MK', [{ ...f('A1-20261020-01', 1290, 2, 3, 4), deliverTo: 'Toko Jaya' }])]);
   assert.deepEqual(fruitsSheet(rows, ['Code'], (c) => (c === 'MK' ? 'Musang King' : '')), [
     ['Code'],
-    ['A1-20261020-01', 'A1', 'A', 'MK', 'Musang King', '2026-10-20', 1290, 2, 3, 4, '', 'ungraded', ''],
+    ['A1-20261020-01', 'A1', 'A', 'MK', 'Musang King', '2026-10-20', 1290, 2, 3, 4, '', 'ungraded', '', ''],
   ]);
 });
 

@@ -177,10 +177,11 @@ export const FruitTable: React.FC<{ harvest: Harvest; hrefOf: (i: number) => str
 };
 
 const GRADE_TONE: Record<Grade, string> = {
-  high: 'bg-emerald-100 text-emerald-900 border-emerald-200',
-  mid: 'bg-amber-100 text-amber-900 border-amber-200',
-  low: 'bg-rose-100 text-rose-900 border-rose-200',
-  ungraded: 'bg-slate-100 text-slate-600 border-slate-200',
+  // Gold, silver, bronze: a medal per grade, apart from the green/amber/red of the 1-5 scores.
+  high: 'bg-gradient-to-b from-[#fff4c2] to-[#f6dc7a] text-[#6b4e00] border-[#d9b13b]',
+  mid: 'bg-gradient-to-b from-[#f7f8fa] to-[#dde2e8] text-[#3c4655] border-[#b3bcc8]',
+  low: 'bg-gradient-to-b from-[#f9e3cf] to-[#e8b98f] text-[#6e3511] border-[#c98a56]',
+  ungraded: 'bg-white text-slate-500 border-dashed border-slate-300',
 };
 
 /** A fruit's or tree's grade as a small tag: High, Mid, Low or Ungraded, with the total when it has one. */

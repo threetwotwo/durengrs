@@ -221,7 +221,7 @@ export const FruitsPage: React.FC = () => {
 
 
   const exportCsv = () => {
-    const head = [t('fr.col.code'), t('fr.col.tree'), t('common.block'), t('fr.col.variant'), t('fr.variant'), t('fr.col.date'), t('fr.col.weight'), t('fr.col.aroma'), t('fr.col.skin'), t('fr.col.shape'), t('qc.score'), t('qc.grade'), t('qc.note')];
+    const head = [t('fr.col.code'), t('fr.col.tree'), t('common.block'), t('fr.col.variant'), t('fr.variant'), t('fr.col.date'), t('fr.col.weight'), t('fr.col.aroma'), t('fr.col.skin'), t('fr.col.shape'), t('qc.score'), t('qc.grade'), t('qc.graded'), t('qc.note')];
     const blob = new Blob(['\ufeff' + toCsv(fruitsSheet(rows, head, name))], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -357,10 +357,12 @@ export const FruitsPage: React.FC = () => {
             <thead>
               <tr>
                 {head('code', t('fr.col.code'), false, 'sticky left-0 z-10')}
+                {head('date', t('fr.col.date'), false, wide)}
                 {head('tree', t('fr.col.tree'), false, wide)}
                 {head('variant', t('fr.col.variant'), false, wide)}
                 {head('score', t('qc.grade'), false)}
-                {head('date', t('fr.col.date'), false, wide)}
+                {head('score', t('qc.score'), true, wide)}
+                {head('graded', t('qc.graded'), false, wide)}
                 {head('weight', t('fr.col.weight'), true)}
                 {head('aroma', t('fr.col.aroma'), 'center')}
                 {head('skin', t('fr.col.skin'), 'center')}
@@ -372,7 +374,7 @@ export const FruitsPage: React.FC = () => {
                 <React.Fragment key={r.key}>
                 {byDay && r.date !== rows[i - 1]?.date && (
                   <tr>
-                    <td colSpan={9} className="p-0 bg-slate-100 border-b border-slate-200">
+                    <td colSpan={11} className="p-0 bg-slate-100 border-b border-slate-200">
                       <span className="sticky left-0 inline-flex items-baseline gap-2 px-2.5 py-1.5 text-xs">
                         <strong className="text-slate-900">{dayLabel(r.date)}</strong>
                         <span className="text-slate-600 tabular">
@@ -397,6 +399,7 @@ export const FruitsPage: React.FC = () => {
                       </span>
                     )}
                   </td>
+                  <td className={`${td} ${wide} text-slate-700`}>{formatShortDate(r.date)}</td>
                   <td className={`${td} ${wide}`}>
                     {r.treeId ? (
                       <Link to={treeUrl(r.treeId)} className="font-mono font-bold text-slate-900 hover:underline">
@@ -414,12 +417,24 @@ export const FruitsPage: React.FC = () => {
                       const q = fruitGrade(r);
                       return (
                         <Link to={fruitUrl(r.key)} title={r.tg ? t('qc.treeFrom', { tree: r.treeId || '', date: formatShortDate(r.tg.sample.date) }) : undefined}>
-                          <GradeTag grade={q.grade} pct={q.complete ? q.pct : undefined} />
+                          <GradeTag grade={q.grade} />
                         </Link>
                       );
                     })()}
                   </td>
-                  <td className={`${td} ${wide} text-slate-700`}>{formatShortDate(r.date)}</td>
+                  <td className={`${td} ${wide} text-right font-semibold text-slate-800`}>
+                    {r.tg?.total.complete ? fmt(r.tg.total.pct, 1) : <span className="text-slate-300">—</span>}
+                  </td>
+                  <td className={`${td} ${wide} text-slate-700`}>
+                    {r.tg ? (
+                      <span title={r.tg.sample.fruitCode || undefined}>
+                        {formatShortDate(r.tg.sample.date)}
+                        <span className="ml-1.5 text-xs text-slate-400">{t('qc.ago', { n: fmt(Math.max(0, diffDays(todayStr(), r.tg.sample.date))) })}</span>
+                      </span>
+                    ) : (
+                      <span className="text-slate-300">—</span>
+                    )}
+                  </td>
                   <td className={`${td} text-right font-semibold`}>{kg(r.weightG)}</td>
                   <td className={`${td} text-center`}><ScoreChip v={r.aroma} /></td>
                   <td className={`${td} text-center`}><ScoreChip v={r.skin} /></td>
@@ -434,13 +449,13 @@ export const FruitsPage: React.FC = () => {
                   <th scope="row" className="sticky left-0 bg-slate-50 px-2.5 py-2 text-left text-xs font-semibold sm:hidden">
                     {t('fr.sum', { n: fmt(sum.n), kg: fmt(sum.kg, 2) })}
                   </th>
-                  <th scope="row" colSpan={3} className="px-2.5 py-2 text-left text-xs font-semibold hidden sm:table-cell">
+                  <th scope="row" colSpan={4} className="px-2.5 py-2 text-left text-xs font-semibold hidden sm:table-cell">
                     {t('fr.sum', { n: fmt(sum.n), kg: fmt(sum.kg, 2) })}
                   </th>
                   <td className="px-2.5 py-2 text-left text-xs font-semibold text-slate-600 whitespace-nowrap">
                     {GRADES_ORDER.filter((g) => g !== 'ungraded' && gradeCount.get(g)).map((g) => `${gradeCount.get(g)} ${t(`qc.grade.${g}`)}`).join(' · ')}
                   </td>
-                  <td className="hidden sm:table-cell" />
+                  <td className="hidden sm:table-cell" colSpan={2} />
                   <td className="px-2.5 py-2 text-right whitespace-nowrap">{kg(sum.avgG)}</td>
                   <td className="px-2.5 py-2 text-center"><ScoreChip v={sum.aroma} avg /></td>
                   <td className="px-2.5 py-2 text-center"><ScoreChip v={sum.skin} avg /></td>

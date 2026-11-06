@@ -54,8 +54,8 @@ export function fruitRows(harvests: Harvest[], variantOfTree: (id: string) => st
   return out;
 }
 
-export type FruitSort = 'code' | 'tree' | 'variant' | 'date' | 'weight' | 'aroma' | 'skin' | 'shape' | 'deliver' | 'score';
-export const FRUIT_SORTS: FruitSort[] = ['code', 'tree', 'variant', 'date', 'weight', 'aroma', 'skin', 'shape', 'deliver', 'score'];
+export type FruitSort = 'code' | 'tree' | 'variant' | 'date' | 'weight' | 'aroma' | 'skin' | 'shape' | 'deliver' | 'score' | 'graded';
+export const FRUIT_SORTS: FruitSort[] = ['code', 'tree', 'variant', 'date', 'weight', 'aroma', 'skin', 'shape', 'deliver', 'score', 'graded'];
 
 const treeOrder = (a?: string, b?: string) => (a || '').localeCompare(b || '', undefined, { numeric: true });
 
@@ -72,6 +72,15 @@ export function sortFruits(rows: FruitRow[], sort: FruitSort | null, desc: boole
       const y = fruitGrade(b);
       if ((x.grade === 'ungraded') !== (y.grade === 'ungraded')) return x.grade === 'ungraded' ? 1 : -1;
       const c = rank[x.grade] - rank[y.grade] || x.pct - y.pct;
+      return (desc ? -c : c) || base(a, b);
+    });
+  if (sort === 'graded')
+    // When the tree was last graded (its sample's day); trees never graded last either way.
+    return [...rows].sort((a, b) => {
+      const x = a.tg?.sample.date || '';
+      const y = b.tg?.sample.date || '';
+      if (!x || !y) return x === y ? base(a, b) : x ? -1 : 1;
+      const c = x.localeCompare(y);
       return (desc ? -c : c) || base(a, b);
     });
   if (sort === 'deliver')
@@ -170,7 +179,7 @@ export function fruitsSheet(rows: FruitRow[], head: string[], varietyName: (code
       r.shape,
       ...(() => {
         const q = fruitGrade(r);
-        return [q.complete ? q.pct : '', q.grade, r.tg?.sample.note || ''];
+        return [q.complete ? q.pct : '', q.grade, r.tg?.sample.date || '', r.tg?.sample.note || ''];
       })(),
     ]),
   ];
