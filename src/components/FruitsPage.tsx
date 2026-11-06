@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowDown, ArrowLeft, ArrowUp, CalendarDays, ChevronLeft, ChevronRight, Download, Loader2, Pencil, Search, Trash2 } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { ArrowDown, ArrowLeft, ArrowUp, CalendarDays, Check, ChevronLeft, ChevronRight, Download, Loader2, Pencil, Search, Trash2 } from 'lucide-react';
 import { useFarm } from '../context/FarmContext';
 import { useT } from '../i18n';
 import { fruitUrl, fruitsUrl, goBack, reportUrl, treeUrl, useQueryParams } from '../lib/router';
@@ -9,7 +9,6 @@ import {
   type FruitSort,
   byVariety,
   checkFruit,
-  cleanDeliverTo,
   fruitDays,
   fruitRows,
   fruitsSheet,
@@ -17,11 +16,10 @@ import {
   shortCode,
   sortFruits,
   summarizeFruits,
-  withDeliveries,
 } from '../lib/fruits';
 import { removeHarvestFruit, updateHarvestItems } from '../lib/fieldData';
 import { toCsv } from '../lib/kebun';
-import { pastedColumn } from '../lib/recount';
+import { CRITERIA, GRADE_FROM, GROUPS, type Grade, type QcKey, qcTotal, scoreOf } from '../lib/grading';
 import { diffDays, formatShortDate, todayStr } from '../lib/treatments';
 import { PageHeader, btnPrimary, btnSecondary, inputCls } from './PageHeader';
 import { Link } from './Link';
@@ -44,37 +42,24 @@ const useVarietyName = () => {
   }, [variants]);
 };
 
-/**
- * Saves "deliver to" for some fruits: one write per harvest, from its fruits as they are now (a pasted column with
- * several fruits of one harvest writes it once, none lost).
- */
-function useSaveDeliveries() {
-  const { harvests } = useFarm();
-  const live = useRef(harvests);
-  live.current = harvests;
-  return async (changes: Array<{ row: FruitRow; value: string }>) => {
-    const byHarvest = new Map<string, Array<{ index: number; value: string }>>();
-    for (const c of changes) byHarvest.set(c.row.harvest.id, [...(byHarvest.get(c.row.harvest.id) || []), { index: c.row.index, value: c.value }]);
-    await Promise.all(
-      [...byHarvest].map(async ([id, list]) => {
-        const h = live.current.find((x) => x.id === id);
-        if (h) await updateHarvestItems(id, withDeliveries(h.items || [], list));
-      })
-    );
-  };
-}
 
-const omitKeys = <T,>(o: Record<string, T>, keys: string[]) => Object.fromEntries(Object.entries(o).filter(([k]) => !keys.includes(k)));
 
-/** The names typed so far, offered while typing so one buyer is always spelled the same. */
-const DeliverOptions: React.FC<{ rows: FruitRow[] }> = ({ rows }) => {
-  const names = useMemo(() => Array.from(new Set(rows.map((r) => r.deliverTo).filter(Boolean) as string[])).sort((a, b) => a.localeCompare(b)), [rows]);
+const GRADE_TONE: Record<Grade, string> = {
+  high: 'bg-emerald-100 text-emerald-900 border-emerald-200',
+  mid: 'bg-amber-100 text-amber-900 border-amber-200',
+  low: 'bg-rose-100 text-rose-900 border-rose-200',
+  ungraded: 'bg-slate-100 text-slate-600 border-slate-200',
+};
+const GRADES_ORDER: Grade[] = ['high', 'mid', 'low', 'ungraded'];
+
+/** A fruit's grade as a small tag, its total beside it once graded ("High 74%"). */
+export const GradeTag: React.FC<{ grade: Grade; pct?: number; size?: 'sm' | 'lg' }> = ({ grade, pct, size = 'sm' }) => {
+  const { t, locale } = useT();
   return (
-    <datalist id="deliver-options">
-      {names.map((n) => (
-        <option key={n} value={n} />
-      ))}
-    </datalist>
+    <span className={`inline-flex items-center gap-1 rounded-md border font-semibold whitespace-nowrap tabular ${size === 'lg' ? 'px-2.5 py-1 text-sm' : 'px-1.5 py-0.5 text-[11px]'} ${GRADE_TONE[grade]}`}>
+      {t(`qc.grade.${grade}`)}
+      {pct !== undefined && grade !== 'ungraded' && <span className="font-bold">{pct.toLocaleString(locale, { maximumFractionDigits: 1 })}%</span>}
+    </span>
   );
 };
 
@@ -199,6 +184,7 @@ export const FruitsPage: React.FC = () => {
   const q = (params.get('q') || '').trim().toUpperCase();
   const variant = params.get('variant') || '';
   const block = params.get('block') || '';
+  const gradeF = (GRADES_ORDER as string[]).includes(params.get('grade') || '') ? (params.get('grade') as Grade) : '';
   const sort = (FRUIT_SORTS as string[]).includes(params.get('sort') || '') ? (params.get('sort') as FruitSort) : null;
   const desc = params.get('dir') === 'desc';
   const fmt = (n: number, d = 0) => n.toLocaleString(locale, { maximumFractionDigits: d });
@@ -208,7 +194,7 @@ export const FruitsPage: React.FC = () => {
   const inScope = useMemo(
     () =>
       all.filter(
-        (r) => (!block || r.block === block) && (!q || r.key.toUpperCase().includes(q) || (r.treeId || '').toUpperCase() === q || (r.deliverTo || '').toUpperCase().includes(q))
+        (r) => (!block || r.block === block) && (!q || r.key.toUpperCase().includes(q) || (r.treeId || '').toUpperCase() === q)
       ),
     [all, block, q]
   );
@@ -223,8 +209,8 @@ export const FruitsPage: React.FC = () => {
   };
   const days = useMemo(() => fruitDays(inScope.filter((r) => !variant || r.variant === variant)), [inScope, variant]);
   const rows = useMemo(
-    () => sortFruits(inScope.filter((r) => (!variant || r.variant === variant) && (!picked.size || picked.has(r.date))), sort, desc),
-    [inScope, variant, picked, sort, desc]
+    () => sortFruits(inScope.filter((r) => (!variant || r.variant === variant) && (!picked.size || picked.has(r.date)) && (!gradeF || qcTotal(r).grade === gradeF)), sort, desc),
+    [inScope, variant, picked, gradeF, sort, desc]
   );
   const dupes = useMemo(() => likelyDuplicates(all), [all]);
   const dayLabel = useDayLabel();
@@ -237,43 +223,16 @@ export const FruitsPage: React.FC = () => {
     variants.forEach((v) => seen.add(v.code));
     return [...seen].sort((a, b) => name(a).localeCompare(name(b)));
   }, [all, variants, name]);
-  const filtered = !!(q || variant || block || day);
+  const filtered = !!(q || variant || block || day || gradeF);
+  const gradeCount = useMemo(() => {
+    const m = new Map<Grade, number>();
+    for (const r of rows) m.set(qcTotal(r).grade, (m.get(qcTotal(r).grade) || 0) + 1);
+    return m;
+  }, [rows]);
 
-  // ---------- deliver to: typed into the table, saved by itself ----------
-  const saveDeliveries = useSaveDeliveries();
-  const [drafts, setDrafts] = useState<Record<string, string>>({});
-  const [busy, setBusy] = useState<Record<string, true>>({});
-  const [msg, setMsg] = useState<{ text: string; bad?: boolean } | null>(null);
-  const cancelled = useRef<string | null>(null);
-  const commit = (changes: Array<{ row: FruitRow; value: string }>) => {
-    const real = changes.filter((c) => cleanDeliverTo(c.value) !== (c.row.deliverTo || ''));
-    const keys = changes.map((c) => c.row.key);
-    if (!real.length) return setDrafts((d) => omitKeys(d, keys));
-    setBusy((b) => ({ ...b, ...Object.fromEntries(real.map((c) => [c.row.key, true as const])) }));
-    saveDeliveries(real)
-      .then(() => setDrafts((d) => omitKeys(d, keys)))
-      .catch((e: any) => {
-        console.error('Deliver-to save failed:', e);
-        setMsg({ text: e?.code === 'permission-denied' ? t('err.rulesRecords') : t('fr.saveError'), bad: true });
-      })
-      .finally(() => setBusy((b) => omitKeys(b, real.map((c) => c.row.key))));
-  };
-  const focusDeliver = (key?: string) => (key ? document.querySelector<HTMLInputElement>(`input[data-deliver="${CSS.escape(key)}"]`) : null);
-  /** A column copied from Google Sheets, from this fruit down the table (blank cells skipped). */
-  const pasteDeliveries = (from: FruitRow, text: string): boolean => {
-    const col = pastedColumn(text);
-    if (!col) return false;
-    const start = rows.indexOf(from);
-    const changes = col.map((value, i) => ({ row: rows[start + i], value })).filter((c) => c.row && c.value.trim() !== '');
-    setDrafts((d) => ({ ...d, ...Object.fromEntries(changes.map((c) => [c.row.key, c.value])) }));
-    commit(changes);
-    if (changes.length) setMsg({ text: t('fr.pasted', { n: changes.length, from: changes[0].row.code || changes[0].row.key, to: changes[changes.length - 1].row.code || changes[changes.length - 1].row.key }) });
-    return true;
-  };
-  const delivered = rows.filter((r) => r.deliverTo).length;
 
   const exportCsv = () => {
-    const head = [t('fr.col.code'), t('fr.col.tree'), t('common.block'), t('fr.col.variant'), t('fr.variant'), t('fr.col.date'), t('fr.col.weight'), t('fr.col.aroma'), t('fr.col.skin'), t('fr.col.shape'), t('fr.col.deliver')];
+    const head = [t('fr.col.code'), t('fr.col.tree'), t('common.block'), t('fr.col.variant'), t('fr.variant'), t('fr.col.date'), t('fr.col.weight'), t('fr.col.aroma'), t('fr.col.skin'), t('fr.col.shape'), t('qc.score'), t('qc.grade'), t('qc.note')];
     const blob = new Blob(['\ufeff' + toCsv(fruitsSheet(rows, head, name))], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -317,7 +276,7 @@ export const FruitsPage: React.FC = () => {
         }
       />
 
-      <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-xs grid grid-cols-2 lg:grid-cols-[1fr_12rem_10rem] gap-2">
+      <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-xs grid grid-cols-2 lg:grid-cols-[1fr_12rem_10rem_10rem] gap-2">
         <div className="relative col-span-2 lg:col-span-1">
           <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" aria-hidden />
           <input
@@ -343,6 +302,14 @@ export const FruitsPage: React.FC = () => {
           {blocks.map((b) => (
             <option key={b} value={b}>
               {t('common.blockN', { n: b })}
+            </option>
+          ))}
+        </select>
+        <select value={gradeF} onChange={(e) => setParams({ grade: e.target.value || null })} aria-label={t('qc.grade')} className={`${inputCls} col-span-2 lg:col-span-1`}>
+          <option value="">{t('qc.allGrades')}</option>
+          {GRADES_ORDER.map((g) => (
+            <option key={g} value={g}>
+              {t(`qc.grade.${g}`)}
             </option>
           ))}
         </select>
@@ -385,18 +352,12 @@ export const FruitsPage: React.FC = () => {
         </section>
       )}
 
-      {msg && (
-        <p role={msg.bad ? 'alert' : 'status'} className={`text-sm ${msg.bad ? 'p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-800' : 'text-slate-700'}`}>
-          {msg.text}
-        </p>
-      )}
-      <DeliverOptions rows={all} />
 
       {rows.length === 0 ? (
         <div className="p-8 text-center text-sm text-slate-600 bg-white rounded-xl border border-slate-200 space-y-3">
           <p>{all.length ? t('fr.noMatch') : t('fr.none')}</p>
           {filtered && (
-            <button type="button" onClick={() => setParams({ q: null, variant: null, block: null, day: null })} className={btnSecondary}>
+            <button type="button" onClick={() => setParams({ q: null, variant: null, block: null, day: null, grade: null })} className={btnSecondary}>
               {t('fr.clear')}
             </button>
           )}
@@ -414,7 +375,7 @@ export const FruitsPage: React.FC = () => {
                 {head('aroma', t('fr.col.aroma'), 'center')}
                 {head('skin', t('fr.col.skin'), 'center')}
                 {head('shape', t('fr.col.shape'), 'center')}
-                {head('deliver', t('fr.col.deliver'), false, 'min-w-[10rem]')}
+                {head('score', t('qc.grade'), false)}
               </tr>
             </thead>
             <tbody className="tabular">
@@ -436,7 +397,7 @@ export const FruitsPage: React.FC = () => {
                   </tr>
                 )}
                 <tr className="group hover:bg-slate-50">
-                  {/* The code stays in view while the table scrolls sideways (typing "deliver to" on a phone). */}
+                  {/* The code stays in view while the table scrolls sideways on a phone. */}
                   <td className={`${td} sticky left-0 z-[1] bg-white group-hover:bg-slate-50`}>
                     <Link to={fruitUrl(r.key)} title={r.code} className="font-mono text-xs font-semibold text-emerald-800 hover:underline">
                       {r.code ? shortCode(r.code) : `${r.treeId || '—'} #${r.index + 1}`}
@@ -464,44 +425,15 @@ export const FruitsPage: React.FC = () => {
                   <td className={`${td} text-center`}><ScoreChip v={r.aroma} /></td>
                   <td className={`${td} text-center`}><ScoreChip v={r.skin} /></td>
                   <td className={`${td} text-center`}><ScoreChip v={r.shape} /></td>
-                  <td className="p-0 border-b border-l border-slate-100">
-                    <span className="relative block">
-                      <input
-                        data-deliver={r.key}
-                        list="deliver-options"
-                        value={drafts[r.key] ?? r.deliverTo ?? ''}
-                        maxLength={80}
-                        enterKeyHint="next"
-                        autoComplete="off"
-                        placeholder="—"
-                        aria-label={`${r.code || r.key} · ${t('fr.col.deliver')}`}
-                        onChange={(e) => setDrafts((d) => ({ ...d, [r.key]: e.target.value }))}
-                        onBlur={(e) => {
-                          if (cancelled.current === r.key) {
-                            cancelled.current = null;
-                            return;
-                          }
-                          commit([{ row: r, value: e.currentTarget.value }]);
-                        }}
-                        onPaste={(e) => {
-                          if (pasteDeliveries(r, e.clipboardData.getData('text'))) e.preventDefault();
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            e.preventDefault();
-                            const next = focusDeliver(rows[rows.indexOf(r) + (e.shiftKey ? -1 : 1)]?.key);
-                            if (next) next.focus();
-                            else e.currentTarget.blur();
-                          } else if (e.key === 'Escape') {
-                            cancelled.current = r.key;
-                            setDrafts((d) => omitKeys(d, [r.key]));
-                            e.currentTarget.blur();
-                          }
-                        }}
-                        className="w-full min-w-[10rem] h-10 pl-2.5 pr-6 bg-transparent text-sm text-slate-900 placeholder:text-slate-300 outline-none hover:bg-emerald-50/60 focus:bg-white focus:outline-2 focus:-outline-offset-2 focus:outline-emerald-600"
-                      />
-                      {busy[r.key] && <Loader2 className="absolute right-1.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 animate-spin" aria-hidden />}
-                    </span>
+                  <td className={td}>
+                    {(() => {
+                      const q = qcTotal(r);
+                      return (
+                        <Link to={fruitUrl(r.key)} title={q.complete ? undefined : t('qc.progress', { n: q.scored, total: CRITERIA.length })}>
+                          <GradeTag grade={q.grade} pct={q.pct} />
+                        </Link>
+                      );
+                    })()}
                   </td>
                 </tr>
                 </React.Fragment>
@@ -520,7 +452,9 @@ export const FruitsPage: React.FC = () => {
                   <td className="px-2.5 py-2 text-center"><ScoreChip v={sum.aroma} avg /></td>
                   <td className="px-2.5 py-2 text-center"><ScoreChip v={sum.skin} avg /></td>
                   <td className="px-2.5 py-2 text-center"><ScoreChip v={sum.shape} avg /></td>
-                  <td className="px-2.5 py-2 text-left text-xs font-semibold text-slate-600 whitespace-nowrap">{delivered > 0 ? t('fr.deliveredN', { n: fmt(delivered) }) : ''}</td>
+                  <td className="px-2.5 py-2 text-left text-xs font-semibold text-slate-600 whitespace-nowrap">
+                    {GRADES_ORDER.filter((g) => g !== 'ungraded' && gradeCount.get(g)).map((g) => `${gradeCount.get(g)} ${t(`qc.grade.${g}`)}`).join(' · ')}
+                  </td>
                 </tr>
               </tfoot>
             )}
@@ -589,7 +523,7 @@ export const FruitPage: React.FC<{ fruitKey: string }> = ({ fruitKey }) => {
     setSaving(true);
     try {
       const items = [...(h.items || [])];
-      // Corrected weight and scores; the rest of the fruit (where it went) stays.
+      // Corrected weight and scores; the rest of the fruit (management's grading) stays.
       items[f.index] = { ...items[f.index], ...check.value };
       await updateHarvestItems(h.id, items);
       setEditing(false);
@@ -607,7 +541,6 @@ export const FruitPage: React.FC<{ fruitKey: string }> = ({ fruitKey }) => {
   ];
   if (h.floweredOn) facts.push([t('fr.fromBloom'), `${h.daysFromBloom ?? diffDays(h.date, h.floweredOn)} (${formatShortDate(h.floweredOn)})`]);
   if (h.workerPhone) facts.push([t('fr.by'), workerLabel(h.workerPhone)]);
-  facts.push([t('fr.col.deliver'), <DeliverField key={f.key} row={f} />]);
   const field = (k: 'weightG' | 'aroma' | 'skin' | 'shape', label: string, hint?: string) => (
     <label className="block space-y-1">
       <span className="text-sm font-semibold text-slate-800">{label}</span>
@@ -625,8 +558,8 @@ export const FruitPage: React.FC<{ fruitKey: string }> = ({ fruitKey }) => {
   return (
     <div className="space-y-4 max-w-2xl">
       {back}
-      <DeliverOptions rows={all} />
-      <article className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+      {/* overflow-clip, not hidden: the grading bar sticks to the bottom of the screen. */}
+      <article className="bg-white rounded-xl border border-slate-200 overflow-clip">
         {twinOf && (
           <p role="note" className="px-4 sm:px-5 py-2.5 bg-amber-50 border-b border-amber-200 text-sm text-amber-900">
             {t('fr.dup.long', { code: twinOf })}
@@ -695,6 +628,8 @@ export const FruitPage: React.FC<{ fruitKey: string }> = ({ fruitKey }) => {
           )}
         </section>
 
+        <QcSection f={f} all={all} />
+
         {siblings.length > 1 && (
           <section className="p-4 sm:p-5 border-t border-slate-100 space-y-2">
             <h2 className="text-sm font-bold text-slate-900">{t('fr.siblings')}</h2>
@@ -727,40 +662,132 @@ export const FruitPage: React.FC<{ fruitKey: string }> = ({ fruitKey }) => {
   );
 };
 
-/** "Deliver to" on a fruit's page: typed in place, saved when leaving the box or with Enter. */
-const DeliverField: React.FC<{ row: FruitRow }> = ({ row }) => {
-  const { t } = useT();
-  const save = useSaveDeliveries();
-  const [text, setText] = useState(row.deliverTo || '');
-  const [state, setState] = useState<'idle' | 'saving' | 'error'>('idle');
-  useEffect(() => setText(row.deliverTo || ''), [row.deliverTo]);
-  const commit = () => {
-    if (cleanDeliverTo(text) === (row.deliverTo || '')) return;
+
+/**
+ * Management's grading of one fruit, made for a phone: the five groups of the harvest report, each criterion a row of
+ * five big buttons (1 = the second word, 5 = the first: "Bersih / Cacat"), the worker's aroma, kulit and bentuk shown
+ * as scored; a note; the total and grade live at the bottom, saved together. Then on to the next ungraded fruit.
+ */
+const QcSection: React.FC<{ f: FruitRow; all: FruitRow[] }> = ({ f, all }) => {
+  const { t, locale } = useT();
+  const { harvests } = useFarm();
+  const [qc, setQc] = useState<Partial<Record<QcKey, number>>>(f.qc || {});
+  const [note, setNote] = useState(f.qcNote || '');
+  const [state, setState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  useEffect(() => {
+    setQc(f.qc || {});
+    setNote(f.qcNote || '');
+    setState('idle');
+  }, [f.key]);
+  const draft = { ...f, qc };
+  const total = qcTotal(draft);
+  const changed = JSON.stringify(qc) !== JSON.stringify(f.qc || {}) || note.trim() !== (f.qcNote || '');
+  const next = all
+    .filter((r) => r.key !== f.key && !qcTotal(r).complete)
+    .sort((a, b) => b.date.localeCompare(a.date) || a.key.localeCompare(b.key))[0];
+  const save = async () => {
     setState('saving');
-    save([{ row, value: text }])
-      .then(() => setState('idle'))
-      .catch((e) => {
-        console.error('Deliver-to save failed:', e);
-        setState('error');
-      });
+    try {
+      const h = harvests.find((x) => x.id === f.harvest.id) || f.harvest;
+      const items = [...(h.items || [])];
+      const clean = Object.fromEntries(Object.entries(qc).filter(([, v]) => typeof v === 'number'));
+      const { qcNote: _n, ...rest } = items[f.index];
+      items[f.index] = { ...rest, qc: clean, qcAt: new Date().toISOString(), ...(note.trim() ? { qcNote: note.trim().slice(0, 300) } : {}) };
+      await updateHarvestItems(h.id, items);
+      setState('saved');
+    } catch (e) {
+      console.error('Grading save failed:', e);
+      setState('error');
+    }
   };
+  const tone = (on: boolean, v: number) =>
+    on ? (v >= 4 ? 'bg-emerald-600 text-white border-emerald-600' : v === 3 ? 'bg-amber-500 text-white border-amber-500' : 'bg-rose-600 text-white border-rose-600') : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50';
   return (
-    <span className="block">
-      <span className="relative block max-w-xs">
-        <input
-          list="deliver-options"
-          value={text}
-          maxLength={80}
-          placeholder={t('fr.deliver.placeholder')}
-          aria-label={t('fr.col.deliver')}
-          onChange={(e) => setText(e.target.value)}
-          onBlur={commit}
-          onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
-          className={`${inputCls} !min-h-9 pr-8`}
-        />
-        {state === 'saving' && <Loader2 className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 animate-spin" aria-hidden />}
-      </span>
-      {state === 'error' && <span role="alert" className="block mt-1 text-xs text-rose-700">{t('fr.saveError')}</span>}
-    </span>
+    <section aria-labelledby="qc-h" className="border-t border-slate-100">
+      <div className="px-4 sm:px-5 pt-4 pb-2 flex items-center justify-between gap-2">
+        <h2 id="qc-h" className="text-sm font-bold text-slate-900">{t('qc.title')}</h2>
+        <GradeTag grade={total.grade} pct={total.pct} size="lg" />
+      </div>
+      <p className="px-4 sm:px-5 pb-2 text-xs text-slate-500">{t('qc.desc', { high: GRADE_FROM.high, mid: GRADE_FROM.mid })}</p>
+      {GROUPS.map((g) => {
+        const list = CRITERIA.filter((c) => c.group === g);
+        return (
+          <fieldset key={g} className="px-4 sm:px-5 py-2 border-t border-slate-100">
+            <legend className="sr-only">{t(`qc.g.${g}`)}</legend>
+            <p className="text-xs font-bold uppercase tracking-wide text-slate-500 pt-2 pb-1">
+              {t(`qc.g.${g}`)} <span className="font-normal normal-case">· {list.reduce((n, c) => n + c.weight, 0)}%</span>
+            </p>
+            {list.map((c) => {
+              const v = scoreOf(draft, c);
+              return (
+                <div key={c.key} className="py-1.5">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="text-sm font-semibold text-slate-900">
+                      {t(`qc.c.${c.key}`)} <span className="text-xs font-normal text-slate-500">{c.weight}%</span>
+                    </span>
+                    <span className="text-[11px] text-slate-500 text-right">{t(`qc.c.${c.key}.scale`)}</span>
+                  </div>
+                  {c.from ? (
+                    <p className="mt-1 text-xs text-slate-500">{v !== undefined ? t('qc.fromWorker', { v }) : t('qc.fromWorker.none')}</p>
+                  ) : (
+                    <div role="radiogroup" aria-label={t(`qc.c.${c.key}`)} className="mt-1 grid grid-cols-5 gap-1.5">
+                      {[1, 2, 3, 4, 5].map((n) => (
+                        <button
+                          key={n}
+                          type="button"
+                          role="radio"
+                          aria-checked={v === n}
+                          onClick={() => {
+                            setQc((x) => (x[c.key] === n ? Object.fromEntries(Object.entries(x).filter(([k]) => k !== c.key)) : { ...x, [c.key]: n }));
+                            setState('idle');
+                          }}
+                          className={`h-11 rounded-lg border text-base font-bold tabular ${tone(v === n, n)}`}
+                        >
+                          {n}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </fieldset>
+        );
+      })}
+      <div className="px-4 sm:px-5 py-3 border-t border-slate-100">
+        <label className="block space-y-1">
+          <span className="text-sm font-semibold text-slate-800">{t('qc.note')}</span>
+          <textarea
+            value={note}
+            onChange={(e) => {
+              setNote(e.target.value);
+              setState('idle');
+            }}
+            rows={2}
+            maxLength={300}
+            placeholder={t('qc.note.ph')}
+            className={`${inputCls} !h-auto py-2`}
+          />
+        </label>
+      </div>
+      {/* Stays at the bottom of the screen while scoring: the total so far and saving. */}
+      <div className="sticky bottom-[calc(3.5rem+env(safe-area-inset-bottom))] md:bottom-0 z-10 px-4 sm:px-5 py-2.5 border-t border-slate-200 bg-white/95 backdrop-blur flex items-center gap-2 flex-wrap">
+        <span className="text-sm text-slate-700 tabular mr-auto">
+          {t('qc.total')} <strong className="text-slate-900">{total.pct.toLocaleString(locale, { maximumFractionDigits: 1 })}%</strong>
+          <span className="text-xs text-slate-500"> · {t('qc.progress', { n: total.scored, total: CRITERIA.length })}</span>
+        </span>
+        {state === 'saved' && !changed && next ? (
+          <Link to={fruitUrl(next.key)} replace className={btnPrimary}>
+            {t('qc.next', { code: next.code ? shortCode(next.code) : next.key })}
+          </Link>
+        ) : (
+          <button type="button" onClick={save} disabled={!changed || state === 'saving'} className={btnPrimary}>
+            {state === 'saving' ? <Loader2 className="w-4 h-4 animate-spin" /> : state === 'saved' && !changed ? <Check className="w-4 h-4" /> : null}
+            {state === 'saved' && !changed ? t('qc.saved') : t('fr.save')}
+          </button>
+        )}
+        {state === 'error' && <span role="alert" className="w-full text-xs text-rose-700">{t('fr.saveError')}</span>}
+      </div>
+    </section>
   );
 };

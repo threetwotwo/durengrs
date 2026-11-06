@@ -1,3 +1,4 @@
+import { qcTotal } from './grading';
 import type { Harvest, HarvestFruit } from './fieldData';
 
 /**
@@ -39,8 +40,8 @@ export function fruitRows(harvests: Harvest[], variantOfTree: (id: string) => st
   return out;
 }
 
-export type FruitSort = 'code' | 'tree' | 'variant' | 'date' | 'weight' | 'aroma' | 'skin' | 'shape' | 'deliver';
-export const FRUIT_SORTS: FruitSort[] = ['code', 'tree', 'variant', 'date', 'weight', 'aroma', 'skin', 'shape', 'deliver'];
+export type FruitSort = 'code' | 'tree' | 'variant' | 'date' | 'weight' | 'aroma' | 'skin' | 'shape' | 'deliver' | 'score';
+export const FRUIT_SORTS: FruitSort[] = ['code', 'tree', 'variant', 'date', 'weight', 'aroma', 'skin', 'shape', 'deliver', 'score'];
 
 const treeOrder = (a?: string, b?: string) => (a || '').localeCompare(b || '', undefined, { numeric: true });
 
@@ -48,6 +49,15 @@ const treeOrder = (a?: string, b?: string) => (a || '').localeCompare(b || '', u
 export function sortFruits(rows: FruitRow[], sort: FruitSort | null, desc: boolean): FruitRow[] {
   const base = (a: FruitRow, b: FruitRow) => b.date.localeCompare(a.date) || treeOrder(a.key, b.key);
   if (!sort) return [...rows].sort(base);
+  if (sort === 'score')
+    // The total so far (graded fruit before ungraded ones, which go last either way).
+    return [...rows].sort((a, b) => {
+      const x = qcTotal(a);
+      const y = qcTotal(b);
+      if (x.complete !== y.complete) return x.complete ? -1 : 1;
+      const c = x.pct - y.pct;
+      return (desc ? -c : c) || base(a, b);
+    });
   if (sort === 'deliver')
     return [...rows].sort((a, b) => {
       const x = (a.deliverTo || '').toLowerCase();
@@ -127,7 +137,7 @@ export function withDeliveries(items: HarvestFruit[], changes: Array<{ index: nu
   return out;
 }
 
-/** The fruits shown, as a sheet for a CSV file: one row each, weight in grams, the variety's name beside its code. */
+/** The fruits shown, as a sheet for a CSV file: one row each, weight in grams, the variety's name beside its code, the total score, grade and note. */
 export function fruitsSheet(rows: FruitRow[], head: string[], varietyName: (code?: string) => string): Array<Array<string | number>> {
   return [
     head,
@@ -142,7 +152,10 @@ export function fruitsSheet(rows: FruitRow[], head: string[], varietyName: (code
       r.aroma,
       r.skin,
       r.shape,
-      r.deliverTo || '',
+      ...(() => {
+        const q = qcTotal(r);
+        return [q.complete ? q.pct : '', q.grade, r.qcNote || ''];
+      })(),
     ]),
   ];
 }
