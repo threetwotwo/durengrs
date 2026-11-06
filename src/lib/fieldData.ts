@@ -355,3 +355,14 @@ export async function restoreTree(treeId: string): Promise<'restored' | 'already
     return 'restored' as const;
   });
 }
+
+// ---------- tree grades ----------
+
+/**
+ * Saves management's grading of a tree from one sampled fruit (treeGrades/{harvestId}-{index}: one sampling per
+ * fruit, saved again when edited). The newest sampling grades the tree (lib/grading.ts currentGrades).
+ */
+export async function saveTreeGrade(id: string, g: Omit<import('./grading').TreeGrade, 'id'>): Promise<void> {
+  const clean = Object.fromEntries(Object.entries(g).filter(([, v]) => v !== undefined && v !== ''));
+  await setDoc(doc(db, 'treeGrades', id), { ...clean, at: new Date().toISOString(), updatedAt: serverTimestamp() });
+}

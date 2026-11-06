@@ -89,6 +89,11 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
+    // Management's fruit samplings that grade each tree (src/lib/grading.ts, bot/scripts/import-grades.js)
+    match /treeGrades/{id} {
+      allow read, write: if true;
+    }
+
     // Connection test document
     match /test/{docId} {
       allow read, write: if true;

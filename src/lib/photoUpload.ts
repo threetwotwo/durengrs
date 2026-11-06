@@ -70,7 +70,7 @@ async function put(path: string, blob: Blob): Promise<string> {
 }
 
 /** Shrinks and uploads one photo of a tree. `name` is unique per photo (no extension). */
-export async function uploadTreePhoto(file: File, treeId: string, name: string): Promise<UploadedPhoto> {
+export async function uploadTreePhoto(file: File, treeId: string, name: string, folder = 'count-photos'): Promise<UploadedPhoto> {
   const src = await decode(file);
   let blobs: Blob[];
   try {
@@ -79,7 +79,7 @@ export async function uploadTreePhoto(file: File, treeId: string, name: string):
   } finally {
     src.done();
   }
-  const dir = `count-photos/${treeId}`;
+  const dir = `${folder}/${treeId}`;
   const path = `${dir}/${name}.jpg`;
   const [url, medium, thumb] = await Promise.all([put(path, blobs[0]), put(`${dir}/medium/${name}.jpg`, blobs[1]), put(`${dir}/thumbs/${name}.jpg`, blobs[2])]);
   return { path, url, medium, thumb };

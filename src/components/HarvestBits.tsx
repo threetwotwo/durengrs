@@ -2,6 +2,7 @@ import React from 'react';
 import { useT } from '../i18n';
 import { GRADES, type Harvest, harvestScores } from '../lib/fieldData';
 import { shortCode } from '../lib/fruits';
+import type { Grade } from '../lib/grading';
 
 /** How a 1-5 score reads: 4-5 good (green), 3 middling (amber), 1-2 poor (red); averages split at 3.5 and 2.5. */
 export const scoreTone = (v: number) => (v >= 3.5 ? 'good' : v >= 2.5 ? 'mid' : 'poor');
@@ -172,5 +173,23 @@ export const FruitTable: React.FC<{ harvest: Harvest; hrefOf: (i: number) => str
         </table>
       </div>
     </section>
+  );
+};
+
+const GRADE_TONE: Record<Grade, string> = {
+  high: 'bg-emerald-100 text-emerald-900 border-emerald-200',
+  mid: 'bg-amber-100 text-amber-900 border-amber-200',
+  low: 'bg-rose-100 text-rose-900 border-rose-200',
+  ungraded: 'bg-slate-100 text-slate-600 border-slate-200',
+};
+
+/** A fruit's or tree's grade as a small tag: High, Mid, Low or Ungraded, with the total when it has one. */
+export const GradeTag: React.FC<{ grade: Grade; pct?: number; size?: 'sm' | 'lg' }> = ({ grade, pct, size = 'sm' }) => {
+  const { t, locale } = useT();
+  return (
+    <span className={`inline-flex items-center gap-1 rounded-md border font-semibold whitespace-nowrap tabular ${size === 'lg' ? 'px-2.5 py-1 text-sm' : 'px-1.5 py-0.5 text-[11px]'} ${GRADE_TONE[grade]}`}>
+      {t(`qc.grade.${grade}`)}
+      {pct !== undefined && pct > 0 && grade !== 'ungraded' && <span className="font-bold">{pct.toLocaleString(locale, { maximumFractionDigits: 1 })}%</span>}
+    </span>
   );
 };

@@ -12,7 +12,10 @@ import { buildFieldLog, type TreeEdit } from '../lib/fieldLog';
 import { foldFiledRecords } from '../lib/feed';
 import type { TreeReport } from '../types';
 import { ConditionBadge } from './ConditionBadge';
+import { GradeTag } from './HarvestBits';
+import { currentGrades } from '../lib/grading';
 import { Link } from './Link';
+import { fruitsUrl } from '../lib/router';
 import { HistoryItem } from './Record';
 import { TreeGuideSection } from './GuideWidgets';
 import { TreeCropCard } from './CropWidgets';
@@ -35,7 +38,8 @@ const BY_REPORT = new Set(['report', 'review', 'review-dismissed', 'ai-urgent', 
  */
 export const TreeDetailView: React.FC<{ treeId: string; onBack: () => void }> = ({ treeId, onBack }) => {
   const { t } = useT();
-  const { trees, allTrees, variants, treatments, cropCounts, harvests, treeBlooms } = useFarm();
+  const { trees, allTrees, variants, treatments, cropCounts, harvests, treeBlooms, treeGrades } = useFarm();
+  const grade = useMemo(() => currentGrades(treeGrades).get(String(treeId || '').toUpperCase()), [treeGrades, treeId]);
   const { crops } = useCrops();
   const tree = allTrees.find((x) => x.id === treeId);
   const archived = tree?.active === false;
@@ -128,6 +132,11 @@ export const TreeDetailView: React.FC<{ treeId: string; onBack: () => void }> = 
             <div className="flex flex-wrap items-center gap-2.5">
               <h1 className="text-xl font-bold font-mono tracking-tight text-slate-900">{t('tree.label', { id: tree.id })}</h1>
               <ConditionBadge condition={tree.condition} improving={improvingNow(tree)} size="md" />
+              {grade && (
+                <Link to={fruitsUrl({ q: tree.id })} title={t('qc.treeFrom', { tree: tree.id, date: formatShortDate(grade.date) })}>
+                  <GradeTag grade={grade.total.grade} pct={grade.total.complete ? grade.total.pct : undefined} size="lg" />
+                </Link>
+              )}
             </div>
             <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-600 mt-0.5">
               <span>{[variantName || tree.variant, tree.block ? t('common.blockN', { n: tree.block }) : null].filter(Boolean).join(', ')}</span>

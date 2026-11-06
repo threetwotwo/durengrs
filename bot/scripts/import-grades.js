@@ -1,9 +1,10 @@
-// scripts/import-grades.js — management's first grading, kept in a sheet (data/qc-sheet.tsv, the Kb. AVINA harvest
-// report), onto the fruits in Firestore: each sheet row is matched to a fruit of the same tree, picked the same day
-// (else within 3 days) and of about the same weight; its scores go into the fruit's `qc` (1-5, as the webapp's
-// grading, src/lib/grading.ts), its MGMT QC and note into `qcNote`.
-//   node scripts/import-grades.js dry     show the matches, write nothing
-//   node scripts/import-grades.js apply   write them (a fruit already graded in the webapp is left alone)
+// scripts/import-grades.js — management's grading, kept in a sheet (data/qc-sheet.tsv, the Kb. AVINA harvest report),
+// into Firestore. Grading lives on the tree (one sampled fruit grades its tree): each sheet row becomes one sampling,
+// treeGrades/sheet-{#}, with its 14 scores (0-5, as src/lib/grading.ts), MGMT QC grade and note, linked to the fruit
+// in the app when one matches (same tree, the same day, else within 3 days, about the same weight). Fruits that got
+// the sheet's scores on themselves before (qcFrom 'sheet') have them taken off again.
+//   node scripts/import-grades.js dry     show what would be written
+//   node scripts/import-grades.js apply   write it (runs again safely: the same documents are replaced)
 // Needs env.yaml and service-account.json beside it, as the deploy writes them.
 const fs = require('fs');
 const path = require('path');
@@ -91,7 +92,6 @@ async function run(apply) {
     (h.items || []).forEach((f, i) => f && fruits.push({ harvestId: d.id, index: i, tree: String(h.treeId || '').toUpperCase(), date: h.date, f }));
   }
   const used = new Set();
-  const changes = new Map(); // harvestId -> [{index, qc, note}]
   let matched = 0;
   for (const r of rows) {
     const near = (maxDays, maxG) =>
@@ -105,45 +105,67 @@ async function run(apply) {
       continue;
     }
     if (!hit) {
-      const close = fruits
-        .filter((x) => x.tree === r.tree && days(x.date, r.date) <= 10)
-        .map((x) => `${x.f.code || x.index + 1} ${x.date} ${x.f.weightG}g${used.has(`${x.harvestId}/${x.index}`) ? ' (taken)' : ''}`);
-      console.log(`not found  ${what}; ${r.tree} in the app ±10 days: ${close.join(', ') || 'none'}`);
+      console.log(`tree only  ${what} (no fruit in the app: grades the tree without one)`);
       continue;
     }
     used.add(`${hit.harvestId}/${hit.index}`);
     const code = hit.f.code || `${hit.tree} #${hit.index + 1}`;
-    if (hit.f.qc && Object.keys(hit.f.qc).length && hit.f.qcFrom !== 'sheet') {
-      console.log(`kept       ${what} -> ${code} (already graded in the webapp)`);
-      continue;
-    }
     matched++;
     const pts = COLUMNS.reduce((n, [k, w]) => n + (r.qc[k] !== undefined ? (w * r.qc[k]) / 5 : 0), 0);
     console.log(`match      ${what} -> ${code} ${hit.date} ${hit.f.weightG}g, ${Math.round(pts)}% in the app`);
-    changes.set(hit.harvestId, [...(changes.get(hit.harvestId) || []), { index: hit.index, qc: r.qc, grade: r.grade, note: r.note }]);
+    r.fruit = { fruitKey: `${hit.harvestId}/${hit.index}`, ...(hit.f.code ? { fruitCode: hit.f.code } : {}) };
   }
-  console.log(`${matched} of ${rows.length} sheet rows matched${apply ? ', writing' : ' (dry run, nothing written)'}`);
+  const samples = rows.filter((r) => r.grade || Object.keys(r.qc).length);
+  // Fruits carrying the sheet's scores themselves (the first import): taken off, the tree's sampling replaces them.
+  const strip = new Map();
+  for (const x of fruits) if (x.f.qcFrom === 'sheet') strip.set(x.harvestId, [...(strip.get(x.harvestId) || []), x.index]);
+  const own = fruits.filter((x) => x.f.qc && Object.keys(x.f.qc).length && x.f.qcFrom !== 'sheet');
+  for (const x of own) console.log(`fruit-graded ${x.f.code || x.harvestId} in the webapp: becomes a sampling of ${x.tree}`);
+  console.log(`${samples.length} samplings (${matched} linked to a fruit); ${[...strip.values()].flat().length} fruits to clear${apply ? ', writing' : ' (dry run, nothing written)'}`);
   if (!apply) return;
-  for (const [id, list] of changes) {
+  const now = new Date().toISOString();
+  const batch = db.batch();
+  for (const r of samples) {
+    batch.set(db.collection('treeGrades').doc(`sheet-${r.n}`), {
+      treeId: r.tree,
+      date: r.date,
+      qc: r.qc,
+      ...(r.grade ? { grade: r.grade } : {}),
+      ...(r.note ? { note: r.note.slice(0, 300) } : {}),
+      ...(r.weightG ? { weightG: r.weightG } : {}),
+      ...(r.fruit || {}),
+      from: 'sheet',
+      at: now,
+    });
+  }
+  for (const x of own) {
+    batch.set(db.collection('treeGrades').doc(`${x.harvestId}-${x.index}`), {
+      treeId: x.tree,
+      date: x.date,
+      qc: { ...(x.f.aroma ? { wangi: x.f.aroma } : {}), ...(x.f.skin ? { kulitBersih: x.f.skin } : {}), ...(x.f.shape ? { bentuk: x.f.shape } : {}), ...x.f.qc },
+      ...(x.f.qcNote ? { note: x.f.qcNote } : {}),
+      fruitKey: `${x.harvestId}/${x.index}`,
+      ...(x.f.code ? { fruitCode: x.f.code } : {}),
+      weightG: x.f.weightG,
+      from: 'webapp',
+      at: x.f.qcAt || now,
+    });
+  }
+  await batch.commit();
+  for (const [id, list] of strip) {
     const ref = db.collection('harvests').doc(id);
     await db.runTransaction(async (tx) => {
       const doc = await tx.get(ref);
       const items = [...(doc.data().items || [])];
-      for (const c of list) {
-        const { qcGrade: _g, ...was } = items[c.index];
-        items[c.index] = {
-          ...was,
-          qc: c.qc,
-          qcFrom: 'sheet',
-          qcAt: new Date().toISOString(),
-          ...(c.grade ? { qcGrade: c.grade } : {}),
-          ...(c.note ? { qcNote: c.note.slice(0, 300) } : {}),
-        };
+      for (const i of list) {
+        if (!items[i]) continue;
+        const { qc, qcGrade, qcFrom, qcAt, qcNote, ...rest } = items[i];
+        items[i] = rest;
       }
       tx.update(ref, { items });
     });
   }
-  console.log(`${changes.size} harvests updated`);
+  console.log(`${samples.length + own.length} samplings written, ${strip.size} harvests cleared`);
 }
 
 const action = process.argv[2];

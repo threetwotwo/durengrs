@@ -39,3 +39,22 @@ test('the QC sheet: exact scores (0 and halves), all 14 by management, and its o
   assert.equal(qcTotal({ aroma: 4, skin: 4, shape: 4, qcGrade: 'low' }).grade, 'low', 'B29: LOW with no scores');
   assert.equal(qcTotal({ aroma: 4, skin: 4, shape: 4, qc, qcGrade: 'mid' }).grade, 'mid', "management's call over the total");
 });
+
+test('grading lives on the tree: its newest graded sample grades every fruit of it', async () => {
+  const { currentGrades } = await import('../src/lib/grading');
+  const { fruitGrade, fruitRows, withTreeGrades } = await import('../src/lib/fruits');
+  const full = (v: number) => Object.fromEntries(CRITERIA.map((c) => [c.key, v]));
+  const g = currentGrades([
+    { id: 's1', treeId: 'A6', date: '2026-10-17', qc: full(3) },
+    { id: 's2', treeId: 'A6', date: '2026-10-27', grade: 'mid' },
+    { id: 's3', treeId: 'A3', date: '2026-10-26', qc: full(4) },
+    { id: 's4', treeId: 'A3', date: '2026-11-06', qc: { manis: 5 } }, // newer but not finished: the older one stands
+  ]);
+  assert.equal(g.get('A6')?.id, 's2');
+  assert.equal(g.get('A3')?.id, 's3');
+  assert.equal(g.get('A3')?.total.grade, 'high');
+  const h = { id: 'h', date: '2026-11-06', treeId: 'A3', block: 'A', items: [{ code: 'A3-20261106-01', weightG: 1195, aroma: 3, skin: 3, shape: 3 }] } as any;
+  const rows = withTreeGrades(fruitRows([h, { ...h, id: 'h2', treeId: 'B1' }]), [...g.values()]);
+  assert.equal(fruitGrade(rows[0]).grade, 'high', 'a fruit picked after the sampling takes the tree grade');
+  assert.equal(fruitGrade(rows[1]).grade, 'ungraded');
+});

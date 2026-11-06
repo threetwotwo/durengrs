@@ -1,4 +1,4 @@
-import { qcTotal } from './grading';
+import { UNGRADED, type TreeGrade, currentGrades, sampleTotal } from './grading';
 import type { Harvest, HarvestFruit } from './fieldData';
 
 /**
@@ -16,7 +16,21 @@ export interface FruitRow extends HarvestFruit {
   block: string;
   variant?: string;
   date: string;
+  /** Its tree's grading (management grades trees, from a sampled fruit): set by withTreeGrades. */
+  tg?: { total: ReturnType<typeof sampleTotal>; sample: TreeGrade };
 }
+
+/** The fruits with their tree's current grade (the tree's newest graded sampling). */
+export function withTreeGrades(rows: FruitRow[], samples: TreeGrade[]): FruitRow[] {
+  const now = currentGrades(samples);
+  return rows.map((r) => {
+    const g = now.get(String(r.treeId || '').toUpperCase());
+    return g ? { ...r, tg: { total: g.total, sample: g } } : r;
+  });
+}
+
+/** A fruit's grade: its tree's, else Ungraded. */
+export const fruitGrade = (r: Pick<FruitRow, 'tg'>) => r.tg?.total || UNGRADED;
 
 export const fruitKey = (h: Harvest, f: HarvestFruit, i: number) => f.code || `${h.id}~${i + 1}`;
 
@@ -52,10 +66,12 @@ export function sortFruits(rows: FruitRow[], sort: FruitSort | null, desc: boole
   if (sort === 'score')
     // The total so far (graded fruit before ungraded ones, which go last either way).
     return [...rows].sort((a, b) => {
-      const x = qcTotal(a);
-      const y = qcTotal(b);
-      if (x.complete !== y.complete) return x.complete ? -1 : 1;
-      const c = x.pct - y.pct;
+      // By the tree's grade (High, Mid, Low), then its total; ungraded last.
+      const rank = { high: 3, mid: 2, low: 1, ungraded: 0 };
+      const x = fruitGrade(a);
+      const y = fruitGrade(b);
+      if ((x.grade === 'ungraded') !== (y.grade === 'ungraded')) return x.grade === 'ungraded' ? 1 : -1;
+      const c = rank[x.grade] - rank[y.grade] || x.pct - y.pct;
       return (desc ? -c : c) || base(a, b);
     });
   if (sort === 'deliver')
@@ -153,8 +169,8 @@ export function fruitsSheet(rows: FruitRow[], head: string[], varietyName: (code
       r.skin,
       r.shape,
       ...(() => {
-        const q = qcTotal(r);
-        return [q.complete ? q.pct : '', q.grade, r.qcNote || ''];
+        const q = fruitGrade(r);
+        return [q.complete ? q.pct : '', q.grade, r.tg?.sample.note || ''];
       })(),
     ]),
   ];

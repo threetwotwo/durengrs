@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowDown, ArrowLeft, ArrowUp, CalendarDays, Check, ChevronLeft, ChevronRight, Download, Loader2, Pencil, Search, Trash2 } from 'lucide-react';
+import { ArrowDown, ArrowLeft, ArrowUp, CalendarDays, Camera, Check, ChevronLeft, ChevronRight, Download, Loader2, Pencil, Search, Trash2 } from 'lucide-react';
 import { useFarm } from '../context/FarmContext';
 import { useT } from '../i18n';
 import { fruitUrl, fruitsUrl, goBack, reportUrl, treeUrl, useQueryParams } from '../lib/router';
@@ -10,28 +10,32 @@ import {
   byVariety,
   checkFruit,
   fruitDays,
+  fruitGrade,
   fruitRows,
   fruitsSheet,
   likelyDuplicates,
   shortCode,
   sortFruits,
   summarizeFruits,
+  withTreeGrades,
 } from '../lib/fruits';
-import { removeHarvestFruit, updateHarvestItems } from '../lib/fieldData';
+import { removeHarvestFruit, saveTreeGrade, updateHarvestItems } from '../lib/fieldData';
 import { toCsv } from '../lib/kebun';
-import { CRITERIA, GRADE_FROM, GROUPS, type Grade, type QcKey, qcTotal, scoreOf } from '../lib/grading';
+import { CRITERIA, GRADE_FROM, GROUPS, type Grade, type QcKey, sampleTotal } from '../lib/grading';
 import { diffDays, formatShortDate, todayStr } from '../lib/treatments';
 import { PageHeader, btnPrimary, btnSecondary, inputCls } from './PageHeader';
 import { Link } from './Link';
-import { ScoreChip, ScoreLine } from './HarvestBits';
+import { PhotoStrip } from './PhotoStrip';
+import { GradeTag, ScoreChip, ScoreLine } from './HarvestBits';
+export { GradeTag };
 
 /** Every fruit the farm loaded (this season's harvests), with the tree's variety when the harvest has none. */
 function useFruits(): FruitRow[] {
-  const { harvests, allTrees } = useFarm();
+  const { harvests, allTrees, treeGrades } = useFarm();
   return useMemo(() => {
     const variety = new Map(allTrees.map((x) => [x.id, x.variant]));
-    return fruitRows(harvests, (id) => variety.get(id));
-  }, [harvests, allTrees]);
+    return withTreeGrades(fruitRows(harvests, (id) => variety.get(id)), treeGrades);
+  }, [harvests, allTrees, treeGrades]);
 }
 
 const useVarietyName = () => {
@@ -44,24 +48,9 @@ const useVarietyName = () => {
 
 
 
-const GRADE_TONE: Record<Grade, string> = {
-  high: 'bg-emerald-100 text-emerald-900 border-emerald-200',
-  mid: 'bg-amber-100 text-amber-900 border-amber-200',
-  low: 'bg-rose-100 text-rose-900 border-rose-200',
-  ungraded: 'bg-slate-100 text-slate-600 border-slate-200',
-};
 const GRADES_ORDER: Grade[] = ['high', 'mid', 'low', 'ungraded'];
 
 /** A fruit's grade as a small tag, its total beside it once graded ("High 74%"). */
-export const GradeTag: React.FC<{ grade: Grade; pct?: number; size?: 'sm' | 'lg' }> = ({ grade, pct, size = 'sm' }) => {
-  const { t, locale } = useT();
-  return (
-    <span className={`inline-flex items-center gap-1 rounded-md border font-semibold whitespace-nowrap tabular ${size === 'lg' ? 'px-2.5 py-1 text-sm' : 'px-1.5 py-0.5 text-[11px]'} ${GRADE_TONE[grade]}`}>
-      {t(`qc.grade.${grade}`)}
-      {pct !== undefined && pct > 0 && grade !== 'ungraded' && <span className="font-bold">{pct.toLocaleString(locale, { maximumFractionDigits: 1 })}%</span>}
-    </span>
-  );
-};
 
 /** A day as a heading: "Hari ini", "Kemarin", else "Sen, 2 Nov". */
 function useDayLabel() {
@@ -209,7 +198,7 @@ export const FruitsPage: React.FC = () => {
   };
   const days = useMemo(() => fruitDays(inScope.filter((r) => !variant || r.variant === variant)), [inScope, variant]);
   const rows = useMemo(
-    () => sortFruits(inScope.filter((r) => (!variant || r.variant === variant) && (!picked.size || picked.has(r.date)) && (!gradeF || qcTotal(r).grade === gradeF)), sort, desc),
+    () => sortFruits(inScope.filter((r) => (!variant || r.variant === variant) && (!picked.size || picked.has(r.date)) && (!gradeF || fruitGrade(r).grade === gradeF)), sort, desc),
     [inScope, variant, picked, gradeF, sort, desc]
   );
   const dupes = useMemo(() => likelyDuplicates(all), [all]);
@@ -226,7 +215,7 @@ export const FruitsPage: React.FC = () => {
   const filtered = !!(q || variant || block || day || gradeF);
   const gradeCount = useMemo(() => {
     const m = new Map<Grade, number>();
-    for (const r of rows) m.set(qcTotal(r).grade, (m.get(qcTotal(r).grade) || 0) + 1);
+    for (const r of rows) m.set(fruitGrade(r).grade, (m.get(fruitGrade(r).grade) || 0) + 1);
     return m;
   }, [rows]);
 
@@ -422,9 +411,9 @@ export const FruitsPage: React.FC = () => {
                   </td>
                   <td className={td}>
                     {(() => {
-                      const q = qcTotal(r);
+                      const q = fruitGrade(r);
                       return (
-                        <Link to={fruitUrl(r.key)} title={q.complete ? undefined : t('qc.progress', { n: q.scored, total: CRITERIA.length })}>
+                        <Link to={fruitUrl(r.key)} title={r.tg ? t('qc.treeFrom', { tree: r.treeId || '', date: formatShortDate(r.tg.sample.date) }) : undefined}>
                           <GradeTag grade={q.grade} pct={q.complete ? q.pct : undefined} />
                         </Link>
                       );
@@ -664,42 +653,90 @@ export const FruitPage: React.FC<{ fruitKey: string }> = ({ fruitKey }) => {
 };
 
 
-/**
- * Management's grading of one fruit, made for a phone: the five groups of the harvest report, each criterion a row of
- * five big buttons (1 = the second word, 5 = the first: "Bersih / Cacat"), the worker's aroma, kulit and bentuk shown
- * as scored; a note; the total and grade live at the bottom, saved together. Then on to the next ungraded fruit.
- */
 /** A score as typed (4) or from the sheet (4.5, 0). */
 const fmtScore = (v: number | undefined) => (v === undefined ? '' : String(Math.round(v * 100) / 100));
+/** One sampling per fruit: treeGrades/{harvest id}-{place}. */
+const sampleId = (f: FruitRow) => `${f.harvest.id}-${f.index}`;
 
+/**
+ * Management's grading of the fruit's tree, made for a phone. Grading lives on the tree: this fruit is graded as the
+ * tree's sample, and the tree's newest graded sample sets the grade every fruit of the tree shows. The form starts
+ * from the scores the tree already has (else this fruit's own aroma, kulit and bentuk from Laporan PANEN), so only
+ * what changed needs a tap; the five groups of the harvest report, each criterion a row of five big buttons
+ * (1 = the second word, 5 = the first: "Bersih / Cacat"); photos from the camera; a note; the total and grade at the
+ * bottom, saved together. Then on to the next tree without a grade.
+ */
 const QcSection: React.FC<{ f: FruitRow; all: FruitRow[] }> = ({ f, all }) => {
   const { t, locale } = useT();
-  const { harvests } = useFarm();
-  const [qc, setQc] = useState<Partial<Record<QcKey, number>>>(f.qc || {});
-  const [note, setNote] = useState(f.qcNote || '');
+  const { treeGrades } = useFarm();
+  const tree = String(f.treeId || '').toUpperCase();
+  const samples = useMemo(
+    () => treeGrades.filter((g) => String(g.treeId || '').toUpperCase() === tree).sort((a, b) => b.date.localeCompare(a.date) || String(b.at || '').localeCompare(String(a.at || ''))),
+    [treeGrades, tree]
+  );
+  const mine = samples.find((g) => g.id === sampleId(f));
+  const current = f.tg?.sample;
+  const start = useMemo(() => {
+    const base: Partial<Record<QcKey, number>> = { ...((mine || current)?.qc || {}) };
+    // The worker's own scores of this fruit, where the tree has none yet.
+    for (const c of CRITERIA) if (c.from && base[c.key] === undefined && f[c.from] >= 1 && f[c.from] <= 5) base[c.key] = f[c.from];
+    return base;
+  }, [mine, current, f]);
+  const startNote = mine?.note || '';
+  const startPhotos = mine?.photos || [];
+  const [qc, setQc] = useState(start);
+  const [note, setNote] = useState(startNote);
+  const [photos, setPhotos] = useState(startPhotos);
+  const [uploading, setUploading] = useState(0);
   const [state, setState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   useEffect(() => {
-    setQc(f.qc || {});
-    setNote(f.qcNote || '');
+    setQc(start);
+    setNote(startNote);
+    setPhotos(startPhotos);
     setState('idle');
-  }, [f.key]);
-  const draft = { ...f, qc };
-  const total = qcTotal(draft);
-  const changed = JSON.stringify(qc) !== JSON.stringify(f.qc || {}) || note.trim() !== (f.qcNote || '');
+    // Only when moving to another fruit (or its sampling first arrives): not on every snapshot.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [f.key, mine?.id, current?.id]);
+  const total = sampleTotal({ qc });
+  const changed =
+    JSON.stringify(qc) !== JSON.stringify(mine?.qc || (mine ? {} : null)) || note.trim() !== startNote || photos.length !== startPhotos.length;
   const next = all
-    .filter((r) => r.key !== f.key && !qcTotal(r).complete)
+    .filter((r) => r.key !== f.key && !r.tg && r.treeId)
     .sort((a, b) => b.date.localeCompare(a.date) || a.key.localeCompare(b.key))[0];
+  const addPhoto = async (files: FileList | null) => {
+    if (!files?.length) return;
+    const { uploadTreePhoto } = await import('../lib/photoUpload');
+    for (const file of Array.from(files)) {
+      setUploading((n) => n + 1);
+      try {
+        const up = await uploadTreePhoto(file, tree || 'tree', `${sampleId(f)}-${Date.now()}`, 'qc-photos');
+        setPhotos((p) => [...p, { url: up.url, medium: up.medium, thumb: up.thumb }]);
+        setState('idle');
+      } catch (e) {
+        console.error('Grading photo upload failed:', e);
+        setState('error');
+      } finally {
+        setUploading((n) => n - 1);
+      }
+    }
+  };
   const save = async () => {
     setState('saving');
     try {
-      const h = harvests.find((x) => x.id === f.harvest.id) || f.harvest;
-      const items = [...(h.items || [])];
       const clean = Object.fromEntries(Object.entries(qc).filter(([, v]) => typeof v === 'number'));
-      const { qcNote: _n, qcGrade, ...rest } = items[f.index];
-      // Management's grade from the sheet stays until every criterion has a score; then the total decides.
-      const keep = qcGrade && !qcTotal({ ...rest, qc: clean }).complete ? { qcGrade } : {};
-      items[f.index] = { ...rest, ...keep, qc: clean, qcAt: new Date().toISOString(), ...(note.trim() ? { qcNote: note.trim().slice(0, 300) } : {}) };
-      await updateHarvestItems(h.id, items);
+      await saveTreeGrade(sampleId(f), {
+        treeId: tree,
+        date: f.date,
+        qc: clean,
+        // Management's own grade (from the sheet) stays only while this sampling is not fully scored.
+        grade: mine?.grade && !sampleTotal({ qc: clean }).complete ? mine.grade : undefined,
+        note: note.trim().slice(0, 300) || undefined,
+        photos: photos.length ? photos : undefined,
+        fruitKey: `${f.harvest.id}/${f.index}`,
+        fruitCode: f.code,
+        weightG: Math.round(f.weightG),
+        from: 'webapp',
+      });
       setState('saved');
     } catch (e) {
       console.error('Grading save failed:', e);
@@ -708,13 +745,27 @@ const QcSection: React.FC<{ f: FruitRow; all: FruitRow[] }> = ({ f, all }) => {
   };
   const tone = (on: boolean, v: number) =>
     on ? (v >= 4 ? 'bg-emerald-600 text-white border-emerald-600' : v === 3 ? 'bg-amber-500 text-white border-amber-500' : 'bg-rose-600 text-white border-rose-600') : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50';
+  const treeTotal = f.tg?.total;
   return (
     <section aria-labelledby="qc-h" className="border-t border-slate-100">
-      <div className="px-4 sm:px-5 pt-4 pb-2 flex items-center justify-between gap-2">
-        <h2 id="qc-h" className="text-sm font-bold text-slate-900">{t('qc.title')}</h2>
-        <GradeTag grade={total.grade} pct={total.complete ? total.pct : undefined} size="lg" />
+      <div className="px-4 sm:px-5 pt-4 pb-1 flex items-center justify-between gap-2">
+        <h2 id="qc-h" className="text-sm font-bold text-slate-900">{t('qc.title', { tree: tree || '—' })}</h2>
+        <GradeTag grade={treeTotal?.grade || 'ungraded'} pct={treeTotal?.complete ? treeTotal.pct : undefined} size="lg" />
       </div>
-      <p className="px-4 sm:px-5 pb-2 text-xs text-slate-500">{t('qc.desc', { high: GRADE_FROM.high, mid: GRADE_FROM.mid })}</p>
+      <p className="px-4 sm:px-5 pb-1 text-xs text-slate-600">
+        {current
+          ? t(current.fruitCode ? 'qc.sample' : 'qc.sampleNoFruit', { code: current.fruitCode ? shortCode(current.fruitCode) : '', date: formatShortDate(current.date) }) +
+            (current.from === 'sheet' ? ` · ${t('qc.sheet')}` : '') +
+            (current.id === mine?.id ? ` · ${t('qc.thisFruit')}` : '')
+          : t('qc.noGrade')}
+        {current?.note && <span className="block italic text-slate-500">“{current.note}”</span>}
+      </p>
+      {current?.photos?.length ? (
+        <div className="px-4 sm:px-5">
+          <PhotoStrip photos={current.photos} caption={t('qc.title', { tree })} />
+        </div>
+      ) : null}
+      <p className="px-4 sm:px-5 pt-1 pb-2 text-xs text-slate-500">{t('qc.desc', { high: GRADE_FROM.high, mid: GRADE_FROM.mid })}</p>
       {GROUPS.map((g) => {
         const list = CRITERIA.filter((c) => c.group === g);
         return (
@@ -724,7 +775,8 @@ const QcSection: React.FC<{ f: FruitRow; all: FruitRow[] }> = ({ f, all }) => {
               {t(`qc.g.${g}`)} <span className="font-normal normal-case">· {list.reduce((n, c) => n + c.weight, 0)}%</span>
             </p>
             {list.map((c) => {
-              const v = scoreOf(draft, c);
+              const v = qc[c.key];
+              const on = (n: number) => v !== undefined && Math.max(1, Math.round(v)) === n;
               return (
                 <div key={c.key} className="py-1.5">
                   <div className="flex items-baseline justify-between gap-2">
@@ -733,36 +785,66 @@ const QcSection: React.FC<{ f: FruitRow; all: FruitRow[] }> = ({ f, all }) => {
                     </span>
                     <span className="text-[11px] text-slate-500 text-right">{t(`qc.c.${c.key}.scale`)}</span>
                   </div>
-                  {c.from ? (
-                    <p className="mt-1 text-xs text-slate-500">
-                      {typeof f.qc?.[c.key] === 'number' ? t('qc.fromSheet', { v: fmtScore(v) }) : v !== undefined ? t('qc.fromWorker', { v }) : t('qc.fromWorker.none')}
-                    </p>
-                  ) : (
-                    <div role="radiogroup" aria-label={t(`qc.c.${c.key}`)} className="mt-1 grid grid-cols-5 gap-1.5">
-                      {[1, 2, 3, 4, 5].map((n) => (
-                        <button
-                          key={n}
-                          type="button"
-                          role="radio"
-                          aria-checked={v !== undefined && Math.round(v) === n}
-                          onClick={() => {
-                            setQc((x) => (x[c.key] === n ? Object.fromEntries(Object.entries(x).filter(([k]) => k !== c.key)) : { ...x, [c.key]: n }));
-                            setState('idle');
-                          }}
-                          className={`h-11 rounded-lg border text-base font-bold tabular ${tone(v !== undefined && Math.round(v) === n, n)}`}
-                        >
-                          {v !== undefined && Math.round(v) === n && v !== n ? fmtScore(v) : n}
-                        </button>
-                      ))}
-                    </div>
-                  )}
+                  <div role="radiogroup" aria-label={t(`qc.c.${c.key}`)} className="mt-1 grid grid-cols-5 gap-1.5">
+                    {[1, 2, 3, 4, 5].map((n) => (
+                      <button
+                        key={n}
+                        type="button"
+                        role="radio"
+                        aria-checked={on(n)}
+                        onClick={() => {
+                          setQc((x) => (on(n) ? Object.fromEntries(Object.entries(x).filter(([k]) => k !== c.key)) : { ...x, [c.key]: n }));
+                          setState('idle');
+                        }}
+                        className={`h-11 rounded-lg border text-base font-bold tabular ${tone(on(n), n)}`}
+                      >
+                        {on(n) && v !== n ? fmtScore(v) : n}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               );
             })}
           </fieldset>
         );
       })}
-      <div className="px-4 sm:px-5 py-3 border-t border-slate-100">
+      <div className="px-4 sm:px-5 py-3 border-t border-slate-100 space-y-3">
+        <div>
+          <span className="text-sm font-semibold text-slate-800">{t('qc.photos')}</span>
+          <div className="mt-1 flex items-center gap-2 flex-wrap">
+            <label className={`${btnSecondary} cursor-pointer`}>
+              {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
+              {uploading ? t('qc.photoUploading') : t('qc.photoAdd')}
+              <input
+                type="file"
+                accept="image/*"
+                capture="environment"
+                multiple
+                className="sr-only"
+                onChange={(e) => {
+                  addPhoto(e.target.files);
+                  e.target.value = '';
+                }}
+              />
+            </label>
+            {photos.map((ph, i) => (
+              <span key={ph.url} className="relative">
+                <img src={ph.thumb || ph.medium || ph.url} alt="" className="w-14 h-14 rounded-md object-cover border border-slate-200" />
+                <button
+                  type="button"
+                  aria-label={t('qc.photoRemove', { i: i + 1 })}
+                  onClick={() => {
+                    setPhotos((p) => p.filter((x) => x.url !== ph.url));
+                    setState('idle');
+                  }}
+                  className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-slate-900 text-white text-xs leading-5"
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+          </div>
+        </div>
         <label className="block space-y-1">
           <span className="text-sm font-semibold text-slate-800">{t('qc.note')}</span>
           <textarea
@@ -778,20 +860,42 @@ const QcSection: React.FC<{ f: FruitRow; all: FruitRow[] }> = ({ f, all }) => {
           />
         </label>
       </div>
+      {samples.length > 0 && (
+        <div className="px-4 sm:px-5 py-3 border-t border-slate-100">
+          <h3 className="text-xs font-bold uppercase tracking-wide text-slate-500 pb-1.5">{t('qc.history', { tree })}</h3>
+          <ul className="space-y-1">
+            {samples.map((g) => {
+              const st = sampleTotal(g);
+              return (
+                <li key={g.id} className="flex items-center gap-2 text-xs text-slate-700">
+                  <span className="tabular w-14 shrink-0">{formatShortDate(g.date)}</span>
+                  <span className="font-mono w-20 shrink-0 truncate">{g.fruitCode ? shortCode(g.fruitCode) : g.weightG ? `${g.weightG.toLocaleString(locale)} g` : '—'}</span>
+                  <GradeTag grade={st.grade} pct={st.complete ? st.pct : undefined} />
+                  {g.from === 'sheet' && <span className="text-slate-400">{t('qc.sheet')}</span>}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
       {/* Stays at the bottom of the screen while scoring: the total so far and saving. */}
       <div className="sticky bottom-[calc(3.5rem+env(safe-area-inset-bottom))] md:bottom-0 z-10 px-4 sm:px-5 py-2.5 border-t border-slate-200 bg-white/95 backdrop-blur flex items-center gap-2 flex-wrap">
         <span className="text-sm text-slate-700 tabular mr-auto">
           {t('qc.total')} <strong className="text-slate-900">{total.pct.toLocaleString(locale, { maximumFractionDigits: 1 })}%</strong>
-          <span className="text-xs text-slate-500"> · {t('qc.progress', { n: total.scored, total: CRITERIA.length })}</span>
+          {total.complete ? (
+            <span className="ml-1.5 align-middle"><GradeTag grade={total.grade} /></span>
+          ) : (
+            <span className="text-xs text-slate-500"> · {t('qc.progress', { n: total.scored, total: CRITERIA.length })}</span>
+          )}
         </span>
         {state === 'saved' && !changed && next ? (
           <Link to={fruitUrl(next.key)} replace className={btnPrimary}>
-            {t('qc.next', { code: next.code ? shortCode(next.code) : next.key })}
+            {t('qc.next', { code: next.treeId || next.key })}
           </Link>
         ) : (
-          <button type="button" onClick={save} disabled={!changed || state === 'saving'} className={btnPrimary}>
+          <button type="button" onClick={save} disabled={(!changed && !!mine) || state === 'saving' || uploading > 0 || !tree} className={btnPrimary}>
             {state === 'saving' ? <Loader2 className="w-4 h-4 animate-spin" /> : state === 'saved' && !changed ? <Check className="w-4 h-4" /> : null}
-            {state === 'saved' && !changed ? t('qc.saved') : t('fr.save')}
+            {state === 'saved' && !changed ? t('qc.saved') : t('qc.saveTree')}
           </button>
         )}
         {state === 'error' && <span role="alert" className="w-full text-xs text-rose-700">{t('fr.saveError')}</span>}

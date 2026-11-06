@@ -17,6 +17,7 @@ import { HarvestCycle } from '../lib/insights';
 import { TreatmentPlan, Treatment, ScheduleTask, computeTasks, rebuildLastDone, addDays, todayStr } from '../lib/treatments';
 import type { CropCount, Harvest, LabResult, RainDay, SeasonTaskDone, TreeBloom } from '../lib/fieldData';
 import { type Worker, workerLabel } from '../lib/workers';
+import type { TreeGrade } from '../lib/grading';
 
 import { AppTab, useRoute } from '../lib/router';
 export type { AppTab };
@@ -51,6 +52,8 @@ interface FarmContextType {
   /** Farm records for the Guide (see lib/fieldData.ts). */
   /** Harvest log (an archived test tree's harvests left out). */
   harvests: Harvest[];
+  /** Management's samplings that grade the trees (lib/grading.ts). */
+  treeGrades: TreeGrade[];
   /** Archived trees (not test trees) whose harvests still count in the season totals. */
   archivedHarvestTrees: Set<string>;
   seasonTasksDone: SeasonTaskDone[];
@@ -178,6 +181,7 @@ export const FarmProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [cropCounts, setCropCounts] = useState<CropCount[]>([]);
   const [openCases, setOpenCases] = useState<ProblemCase[]>([]);
   const [closedCases, setClosedCases] = useState<ProblemCase[]>([]);
+  const [treeGrades, setTreeGrades] = useState<TreeGrade[]>([]);
   const [recordsError, setRecordsError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -234,6 +238,11 @@ export const FarmProvider: React.FC<{ children: React.ReactNode }> = ({ children
         query(collection(db, 'cases'), where('closedOn', '>=', addDays(todayStr(), -90))),
         (s) => setClosedCases(s.docs.map((d) => parseCase(d.id, d.data()))),
         onErr('Cases')
+      ),
+      onSnapshot(
+        collection(db, 'treeGrades'),
+        (s) => setTreeGrades(s.docs.map((d) => ({ id: d.id, ...(d.data() as any) }) as TreeGrade)),
+        onErr('Tree grades')
       ),
       onSnapshot(
         collection(db, 'workers'),
@@ -486,6 +495,7 @@ export const FarmProvider: React.FC<{ children: React.ReactNode }> = ({ children
         saveVariant,
         deleteVariant,
         harvests,
+        treeGrades,
         archivedHarvestTrees,
         workers,
         cases,

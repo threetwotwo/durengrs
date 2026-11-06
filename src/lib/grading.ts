@@ -99,3 +99,48 @@ export const gradeOf = (pct: number): Grade => (pct >= GRADE_FROM.high ? 'high' 
 
 /** A typed 1-5 score, or undefined to clear it. */
 export const checkQc = (v: unknown): number | undefined => (typeof v === 'number' && Number.isInteger(v) && v >= 1 && v <= 5 ? v : undefined);
+
+/**
+ * Grading lives on the tree: management samples one fruit (in the sheet's words, "1pc mewakili 1 pohon") and that
+ * fruit's 14 scores grade the tree; every fruit of the tree carries its grade. Each sampling is one document in
+ * `treeGrades`; the tree's grade is its newest sampling that has a grade, so an older one stays as history.
+ */
+export interface TreeGrade {
+  id: string;
+  treeId: string;
+  /** The sampled fruit's day (YYYY-MM-DD). */
+  date: string;
+  /** All 14 criteria, 0-5 (the sheet's points as scores: 9 of 10 is 4.5). */
+  qc?: Partial<Record<QcKey, number>>;
+  /** Management's own call, over the total (the sheet's MGMT QC). */
+  grade?: Grade;
+  note?: string;
+  photos?: import('../types').ReportPhoto[];
+  /** The sampled fruit, when it is in the app: harvest id/index and its code. */
+  fruitKey?: string;
+  fruitCode?: string;
+  weightG?: number;
+  from?: 'sheet' | 'webapp';
+  at?: string;
+}
+
+/** A sampling's total and grade: its own 14 scores (no worker fallback), management's grade over the total. */
+export function sampleTotal(s: Pick<TreeGrade, 'qc' | 'grade'>) {
+  return qcTotal({ aroma: NaN, skin: NaN, shape: NaN, qc: s.qc, qcGrade: s.grade });
+}
+
+/** Each tree's current grading: its newest sampling with a grade (by day, then when it was saved). */
+export function currentGrades(list: TreeGrade[]): Map<string, TreeGrade & { total: ReturnType<typeof sampleTotal> }> {
+  const out = new Map<string, TreeGrade & { total: ReturnType<typeof sampleTotal> }>();
+  const sorted = [...list].sort((a, b) => b.date.localeCompare(a.date) || String(b.at || '').localeCompare(String(a.at || '')));
+  for (const s of sorted) {
+    const tree = String(s.treeId || '').toUpperCase();
+    if (!tree || out.has(tree)) continue;
+    const total = sampleTotal(s);
+    if (total.grade !== 'ungraded') out.set(tree, { ...s, total });
+  }
+  return out;
+}
+
+/** What a fruit shows: its tree's grade, else Ungraded. */
+export const UNGRADED = { pct: 0, scored: 0, complete: false, grade: 'ungraded' as Grade };
