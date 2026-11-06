@@ -1,0 +1,41 @@
+# Management's first grading (bot/data/qc-sheet.tsv) onto the fruits: ACTION dry shows the matches, apply writes them.
+name: Import fruit grades
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/import-grades.yml']
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'dry or apply'
+        default: 'dry'
+
+env:
+  ACTION: dry
+
+jobs:
+  run:
+    if: github.repository == 'threetwotwo/durengrs'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: bot
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --no-audit --no-fund --silent
+      - name: Save or wipe
+        env:
+          BOT_ENV_YAML: ${{ secrets.BOT_ENV_YAML }}
+          BOT_SERVICE_ACCOUNT: ${{ secrets.BOT_SERVICE_ACCOUNT }}
+          WHAT: ${{ inputs.action || env.ACTION }}
+        run: |
+          printf '%s\n' "$BOT_ENV_YAML" > env.yaml
+          printf '%s\n' "$BOT_SERVICE_ACCOUNT" > service-account.json
+          node scripts/import-grades.js $WHAT; code=$?
+          rm -f env.yaml service-account.json
+          exit $code

@@ -370,12 +370,12 @@ export const FruitsPage: React.FC = () => {
                 {head('code', t('fr.col.code'), false, 'sticky left-0 z-10')}
                 {head('tree', t('fr.col.tree'), false, wide)}
                 {head('variant', t('fr.col.variant'), false, wide)}
+                {head('score', t('qc.grade'), false)}
                 {head('date', t('fr.col.date'), false, wide)}
                 {head('weight', t('fr.col.weight'), true)}
                 {head('aroma', t('fr.col.aroma'), 'center')}
                 {head('skin', t('fr.col.skin'), 'center')}
                 {head('shape', t('fr.col.shape'), 'center')}
-                {head('score', t('qc.grade'), false)}
               </tr>
             </thead>
             <tbody className="tabular">
@@ -420,11 +420,6 @@ export const FruitsPage: React.FC = () => {
                   <td className={`${td} ${wide} text-slate-700`} title={name(r.variant)}>
                     {r.variant || '—'}
                   </td>
-                  <td className={`${td} ${wide} text-slate-700`}>{formatShortDate(r.date)}</td>
-                  <td className={`${td} text-right font-semibold`}>{kg(r.weightG)}</td>
-                  <td className={`${td} text-center`}><ScoreChip v={r.aroma} /></td>
-                  <td className={`${td} text-center`}><ScoreChip v={r.skin} /></td>
-                  <td className={`${td} text-center`}><ScoreChip v={r.shape} /></td>
                   <td className={td}>
                     {(() => {
                       const q = qcTotal(r);
@@ -435,6 +430,11 @@ export const FruitsPage: React.FC = () => {
                       );
                     })()}
                   </td>
+                  <td className={`${td} ${wide} text-slate-700`}>{formatShortDate(r.date)}</td>
+                  <td className={`${td} text-right font-semibold`}>{kg(r.weightG)}</td>
+                  <td className={`${td} text-center`}><ScoreChip v={r.aroma} /></td>
+                  <td className={`${td} text-center`}><ScoreChip v={r.skin} /></td>
+                  <td className={`${td} text-center`}><ScoreChip v={r.shape} /></td>
                 </tr>
                 </React.Fragment>
               ))}
@@ -445,16 +445,17 @@ export const FruitsPage: React.FC = () => {
                   <th scope="row" className="sticky left-0 bg-slate-50 px-2.5 py-2 text-left text-xs font-semibold sm:hidden">
                     {t('fr.sum', { n: fmt(sum.n), kg: fmt(sum.kg, 2) })}
                   </th>
-                  <th scope="row" colSpan={4} className="px-2.5 py-2 text-left text-xs font-semibold hidden sm:table-cell">
+                  <th scope="row" colSpan={3} className="px-2.5 py-2 text-left text-xs font-semibold hidden sm:table-cell">
                     {t('fr.sum', { n: fmt(sum.n), kg: fmt(sum.kg, 2) })}
                   </th>
+                  <td className="px-2.5 py-2 text-left text-xs font-semibold text-slate-600 whitespace-nowrap">
+                    {GRADES_ORDER.filter((g) => g !== 'ungraded' && gradeCount.get(g)).map((g) => `${gradeCount.get(g)} ${t(`qc.grade.${g}`)}`).join(' · ')}
+                  </td>
+                  <td className="hidden sm:table-cell" />
                   <td className="px-2.5 py-2 text-right whitespace-nowrap">{kg(sum.avgG)}</td>
                   <td className="px-2.5 py-2 text-center"><ScoreChip v={sum.aroma} avg /></td>
                   <td className="px-2.5 py-2 text-center"><ScoreChip v={sum.skin} avg /></td>
                   <td className="px-2.5 py-2 text-center"><ScoreChip v={sum.shape} avg /></td>
-                  <td className="px-2.5 py-2 text-left text-xs font-semibold text-slate-600 whitespace-nowrap">
-                    {GRADES_ORDER.filter((g) => g !== 'ungraded' && gradeCount.get(g)).map((g) => `${gradeCount.get(g)} ${t(`qc.grade.${g}`)}`).join(' · ')}
-                  </td>
                 </tr>
               </tfoot>
             )}
