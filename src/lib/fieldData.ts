@@ -61,12 +61,16 @@ export interface HarvestFruit {
   shape: number;
   /** Where the fruit went (a buyer, a shop, an order): typed on the fruits table, free text. */
   deliverTo?: string;
-  /** Management's grading, 1-5 per criterion (lib/grading.ts; aroma, skin and shape are the worker's own). */
+  /** Management's grading, 0-5 per criterion (lib/grading.ts; aroma, skin and shape fall back to the worker's own). */
   qc?: Partial<Record<import('./grading').QcKey, number>>;
   /** Management's note on the fruit ("A3 - best MK w bitter aftertaste"). */
   qcNote?: string;
   /** When management last graded it (ISO time). */
   qcAt?: string;
+  /** Management's own grade, over the total (from the QC sheet's MGMT QC); cleared when re-scored in the webapp. */
+  qcGrade?: import('./grading').Grade;
+  /** 'sheet': imported from the Kb. AVINA QC sheet. */
+  qcFrom?: string;
 }
 
 /** Average aroma, skin and shape scores of a harvest's fruits (1-5), or null without scored fruits. */

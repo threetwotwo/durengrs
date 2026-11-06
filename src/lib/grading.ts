@@ -61,17 +61,25 @@ export type Grade = 'high' | 'mid' | 'low' | 'ungraded';
  */
 export const GRADE_FROM = { high: 70, mid: 50 } as const;
 
-/** One criterion's 1-5 score on a fruit: the worker's for aroma, skin, shape; management's for the rest. */
+/**
+ * One criterion's score on a fruit, 0-5: management's when it has one (the QC sheet scores all 14, in steps finer
+ * than whole numbers: 9 points of 10 is 4.5), else, for aroma, skin and shape, the worker's own.
+ */
 export function scoreOf(f: Pick<HarvestFruit, 'aroma' | 'skin' | 'shape' | 'qc'>, c: Criterion): number | undefined {
-  const v = c.from ? f[c.from] : f.qc?.[c.key];
-  return typeof v === 'number' && v >= 1 && v <= 5 ? v : undefined;
+  const ok = (v: unknown): v is number => typeof v === 'number' && v >= 0 && v <= 5;
+  const m = f.qc?.[c.key];
+  if (ok(m)) return m;
+  const w = c.from ? f[c.from] : undefined;
+  return ok(w) && w >= 1 ? w : undefined;
 }
+
+const GRADES: Grade[] = ['high', 'mid', 'low'];
 
 /**
  * A fruit's total: points (weight × score / 5, out of 100) of the criteria scored, how many of the 14 have a score,
- * and the grade (Ungraded until all 14 do).
+ * and the grade (management's own when set, else from the total; Ungraded until all 14 have a score).
  */
-export function qcTotal(f: Pick<HarvestFruit, 'aroma' | 'skin' | 'shape' | 'qc'>) {
+export function qcTotal(f: Pick<HarvestFruit, 'aroma' | 'skin' | 'shape' | 'qc' | 'qcGrade'>) {
   let points = 0;
   let scored = 0;
   for (const c of CRITERIA) {
@@ -82,7 +90,9 @@ export function qcTotal(f: Pick<HarvestFruit, 'aroma' | 'skin' | 'shape' | 'qc'>
   }
   const complete = scored === CRITERIA.length;
   const pct = Math.round(points * 10) / 10;
-  return { pct, scored, complete, grade: complete ? gradeOf(pct) : ('ungraded' as Grade) };
+  // Management's own call (the sheet's MGMT QC: "LOW" for B29 with no scores) stands over the total.
+  const set = f.qcGrade && GRADES.includes(f.qcGrade) ? f.qcGrade : undefined;
+  return { pct, scored, complete, grade: set || (complete ? gradeOf(pct) : ('ungraded' as Grade)) };
 }
 
 export const gradeOf = (pct: number): Grade => (pct >= GRADE_FROM.high ? 'high' : pct >= GRADE_FROM.mid ? 'mid' : 'low');

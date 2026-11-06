@@ -12,7 +12,7 @@ on:
         default: 'dry'
 
 env:
-  ACTION: dry
+  ACTION: dry  # full sheet
 
 jobs:
   run:

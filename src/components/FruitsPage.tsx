@@ -58,7 +58,7 @@ export const GradeTag: React.FC<{ grade: Grade; pct?: number; size?: 'sm' | 'lg'
   return (
     <span className={`inline-flex items-center gap-1 rounded-md border font-semibold whitespace-nowrap tabular ${size === 'lg' ? 'px-2.5 py-1 text-sm' : 'px-1.5 py-0.5 text-[11px]'} ${GRADE_TONE[grade]}`}>
       {t(`qc.grade.${grade}`)}
-      {pct !== undefined && grade !== 'ungraded' && <span className="font-bold">{pct.toLocaleString(locale, { maximumFractionDigits: 1 })}%</span>}
+      {pct !== undefined && pct > 0 && grade !== 'ungraded' && <span className="font-bold">{pct.toLocaleString(locale, { maximumFractionDigits: 1 })}%</span>}
     </span>
   );
 };
@@ -425,7 +425,7 @@ export const FruitsPage: React.FC = () => {
                       const q = qcTotal(r);
                       return (
                         <Link to={fruitUrl(r.key)} title={q.complete ? undefined : t('qc.progress', { n: q.scored, total: CRITERIA.length })}>
-                          <GradeTag grade={q.grade} pct={q.pct} />
+                          <GradeTag grade={q.grade} pct={q.complete ? q.pct : undefined} />
                         </Link>
                       );
                     })()}
@@ -669,6 +669,9 @@ export const FruitPage: React.FC<{ fruitKey: string }> = ({ fruitKey }) => {
  * five big buttons (1 = the second word, 5 = the first: "Bersih / Cacat"), the worker's aroma, kulit and bentuk shown
  * as scored; a note; the total and grade live at the bottom, saved together. Then on to the next ungraded fruit.
  */
+/** A score as typed (4) or from the sheet (4.5, 0). */
+const fmtScore = (v: number | undefined) => (v === undefined ? '' : String(Math.round(v * 100) / 100));
+
 const QcSection: React.FC<{ f: FruitRow; all: FruitRow[] }> = ({ f, all }) => {
   const { t, locale } = useT();
   const { harvests } = useFarm();
@@ -692,8 +695,10 @@ const QcSection: React.FC<{ f: FruitRow; all: FruitRow[] }> = ({ f, all }) => {
       const h = harvests.find((x) => x.id === f.harvest.id) || f.harvest;
       const items = [...(h.items || [])];
       const clean = Object.fromEntries(Object.entries(qc).filter(([, v]) => typeof v === 'number'));
-      const { qcNote: _n, ...rest } = items[f.index];
-      items[f.index] = { ...rest, qc: clean, qcAt: new Date().toISOString(), ...(note.trim() ? { qcNote: note.trim().slice(0, 300) } : {}) };
+      const { qcNote: _n, qcGrade, ...rest } = items[f.index];
+      // Management's grade from the sheet stays until every criterion has a score; then the total decides.
+      const keep = qcGrade && !qcTotal({ ...rest, qc: clean }).complete ? { qcGrade } : {};
+      items[f.index] = { ...rest, ...keep, qc: clean, qcAt: new Date().toISOString(), ...(note.trim() ? { qcNote: note.trim().slice(0, 300) } : {}) };
       await updateHarvestItems(h.id, items);
       setState('saved');
     } catch (e) {
@@ -707,7 +712,7 @@ const QcSection: React.FC<{ f: FruitRow; all: FruitRow[] }> = ({ f, all }) => {
     <section aria-labelledby="qc-h" className="border-t border-slate-100">
       <div className="px-4 sm:px-5 pt-4 pb-2 flex items-center justify-between gap-2">
         <h2 id="qc-h" className="text-sm font-bold text-slate-900">{t('qc.title')}</h2>
-        <GradeTag grade={total.grade} pct={total.pct} size="lg" />
+        <GradeTag grade={total.grade} pct={total.complete ? total.pct : undefined} size="lg" />
       </div>
       <p className="px-4 sm:px-5 pb-2 text-xs text-slate-500">{t('qc.desc', { high: GRADE_FROM.high, mid: GRADE_FROM.mid })}</p>
       {GROUPS.map((g) => {
@@ -729,7 +734,9 @@ const QcSection: React.FC<{ f: FruitRow; all: FruitRow[] }> = ({ f, all }) => {
                     <span className="text-[11px] text-slate-500 text-right">{t(`qc.c.${c.key}.scale`)}</span>
                   </div>
                   {c.from ? (
-                    <p className="mt-1 text-xs text-slate-500">{v !== undefined ? t('qc.fromWorker', { v }) : t('qc.fromWorker.none')}</p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      {typeof f.qc?.[c.key] === 'number' ? t('qc.fromSheet', { v: fmtScore(v) }) : v !== undefined ? t('qc.fromWorker', { v }) : t('qc.fromWorker.none')}
+                    </p>
                   ) : (
                     <div role="radiogroup" aria-label={t(`qc.c.${c.key}`)} className="mt-1 grid grid-cols-5 gap-1.5">
                       {[1, 2, 3, 4, 5].map((n) => (
@@ -737,14 +744,14 @@ const QcSection: React.FC<{ f: FruitRow; all: FruitRow[] }> = ({ f, all }) => {
                           key={n}
                           type="button"
                           role="radio"
-                          aria-checked={v === n}
+                          aria-checked={v !== undefined && Math.round(v) === n}
                           onClick={() => {
                             setQc((x) => (x[c.key] === n ? Object.fromEntries(Object.entries(x).filter(([k]) => k !== c.key)) : { ...x, [c.key]: n }));
                             setState('idle');
                           }}
-                          className={`h-11 rounded-lg border text-base font-bold tabular ${tone(v === n, n)}`}
+                          className={`h-11 rounded-lg border text-base font-bold tabular ${tone(v !== undefined && Math.round(v) === n, n)}`}
                         >
-                          {n}
+                          {v !== undefined && Math.round(v) === n && v !== n ? fmtScore(v) : n}
                         </button>
                       ))}
                     </div>

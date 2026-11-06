@@ -16,13 +16,13 @@ for (const line of fs.readFileSync(path.join(root, 'env.yaml'), 'utf8').split('\
 process.env.GOOGLE_SERVICE_ACCOUNT_KEY_FILE = path.join(root, 'service-account.json');
 const { db } = require('../lib/firestore');
 
-// The sheet's 14 criteria, in its column order (from column 6), with their weights; null: the worker's own
-// (aroma, kulit bersih, bentuk come from Laporan PANEN and are not taken from the sheet).
+// The sheet's 14 criteria, in its column order (from column 6), with their weights. All 14 are management's own
+// scores here, aroma, kulit bersih and bentuk too (they stand over the worker's in the webapp).
 const COLUMNS = [
-  [null, 5], // Wangi
-  [null, 5], // Bersih/Cacat
+  ['wangi', 5],
+  ['kulitBersih', 5],
   ['kulitTipis', 5],
-  [null, 5], // Bentuk
+  ['bentuk', 5],
   ['juring', 5],
   ['biji', 10],
   ['dagingTebal', 10],
@@ -43,8 +43,17 @@ function sheetDate(s) {
   return `${y}-${String(MONTHS[m[2].toLowerCase()]).padStart(2, '0')}-${m[1].padStart(2, '0')}`;
 }
 
-/** The sheet's points for a criterion (out of its weight) as a 1-5 score: 8 of 10 is 4; 0 is 1. */
-const toScore = (points, weight) => Math.min(5, Math.max(1, Math.round((points / weight) * 5)));
+/** The sheet's points for a criterion (out of its weight) as the webapp's 0-5 score, exactly: 9 of 10 is 4.5. */
+const toScore = (points, weight) => Math.min(5, Math.max(0, Math.round((points / weight) * 5 * 100) / 100));
+
+/** MGMT QC as a grade: "HIGH", "MID otw HIGH", "Mid-low" -> the first word; else a note starting "Low - …". */
+function gradeOf(mgmt, note) {
+  for (const s of [mgmt, note]) {
+    const m = String(s || '').trim().match(/^(high|mid|low)\b/i);
+    if (m) return m[1].toLowerCase();
+  }
+  return undefined;
+}
 
 function readSheet() {
   const rows = [];
@@ -55,7 +64,7 @@ function readSheet() {
     const qc = {};
     COLUMNS.forEach(([key, w], i) => {
       const v = String(c[5 + i] || '').replace('%', '').trim();
-      if (key && v !== '' && !Number.isNaN(Number(v))) qc[key] = toScore(Number(v), w);
+      if (v !== '' && !Number.isNaN(Number(v))) qc[key] = toScore(Number(v), w);
     });
     rows.push({
       n: c[0].trim(),
@@ -64,6 +73,7 @@ function readSheet() {
       weightG: Number(c[4]) || 0,
       sheetPct: (c[19] || '').trim(),
       qc,
+      grade: gradeOf(c[20], c[21]),
       note: [(c[20] || '').trim(), (c[21] || '').trim()].filter(Boolean).join(' · '),
     });
   }
@@ -89,20 +99,28 @@ async function run(apply) {
         .filter((x) => x.tree === r.tree && !used.has(`${x.harvestId}/${x.index}`) && days(x.date, r.date) <= maxDays && Math.abs(x.f.weightG - r.weightG) <= maxG)
         .sort((a, b) => days(a.date, r.date) - days(b.date, r.date) || Math.abs(a.f.weightG - r.weightG) - Math.abs(b.f.weightG - r.weightG))[0];
     const hit = near(0, 150) || near(3, 60);
-    const what = `#${r.n} ${r.tree} ${r.date} ${r.weightG}g (${Object.keys(r.qc).length}/11 scores, sheet ${r.sheetPct})`;
+    const what = `#${r.n} ${r.tree} ${r.date} ${r.weightG}g (${Object.keys(r.qc).length}/14 scores, sheet ${r.sheetPct}${r.grade ? ` ${r.grade.toUpperCase()}` : ''})`;
+    if (!r.grade && !Object.keys(r.qc).length) {
+      console.log(`empty      ${what} (no scores, no grade in the sheet)`);
+      continue;
+    }
     if (!hit) {
-      console.log(`not found  ${what}`);
+      const close = fruits
+        .filter((x) => x.tree === r.tree && days(x.date, r.date) <= 10)
+        .map((x) => `${x.f.code || x.index + 1} ${x.date} ${x.f.weightG}g${used.has(`${x.harvestId}/${x.index}`) ? ' (taken)' : ''}`);
+      console.log(`not found  ${what}; ${r.tree} in the app ±10 days: ${close.join(', ') || 'none'}`);
       continue;
     }
     used.add(`${hit.harvestId}/${hit.index}`);
     const code = hit.f.code || `${hit.tree} #${hit.index + 1}`;
-    if (hit.f.qc && Object.keys(hit.f.qc).length) {
+    if (hit.f.qc && Object.keys(hit.f.qc).length && hit.f.qcFrom !== 'sheet') {
       console.log(`kept       ${what} -> ${code} (already graded in the webapp)`);
       continue;
     }
     matched++;
-    console.log(`match      ${what} -> ${code} ${hit.date} ${hit.f.weightG}g`);
-    changes.set(hit.harvestId, [...(changes.get(hit.harvestId) || []), { index: hit.index, qc: r.qc, note: r.note }]);
+    const pts = COLUMNS.reduce((n, [k, w]) => n + (r.qc[k] !== undefined ? (w * r.qc[k]) / 5 : 0), 0);
+    console.log(`match      ${what} -> ${code} ${hit.date} ${hit.f.weightG}g, ${Math.round(pts)}% in the app`);
+    changes.set(hit.harvestId, [...(changes.get(hit.harvestId) || []), { index: hit.index, qc: r.qc, grade: r.grade, note: r.note }]);
   }
   console.log(`${matched} of ${rows.length} sheet rows matched${apply ? ', writing' : ' (dry run, nothing written)'}`);
   if (!apply) return;
@@ -112,7 +130,15 @@ async function run(apply) {
       const doc = await tx.get(ref);
       const items = [...(doc.data().items || [])];
       for (const c of list) {
-        items[c.index] = { ...items[c.index], qc: c.qc, qcFrom: 'sheet', qcAt: new Date().toISOString(), ...(c.note ? { qcNote: c.note.slice(0, 300) } : {}) };
+        const { qcGrade: _g, ...was } = items[c.index];
+        items[c.index] = {
+          ...was,
+          qc: c.qc,
+          qcFrom: 'sheet',
+          qcAt: new Date().toISOString(),
+          ...(c.grade ? { qcGrade: c.grade } : {}),
+          ...(c.note ? { qcNote: c.note.slice(0, 300) } : {}),
+        };
       }
       tx.update(ref, { items });
     });
