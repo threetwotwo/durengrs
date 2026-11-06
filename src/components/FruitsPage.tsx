@@ -234,6 +234,9 @@ export const FruitsPage: React.FC = () => {
   };
 
   const sortBy = (k: FruitSort) => setParams({ sort: sort === k && desc ? null : k, dir: sort === k && !desc ? 'desc' : null });
+  // On a phone the tree, variety and date columns are left out: tree and date are in the fruit's code
+  // (A3-20261028-01), the variety has its filter and the comparison above.
+  const wide = 'hidden sm:table-cell';
   const head = (k: FruitSort, label: string, align: boolean | 'center' = false, extra = '') => (
     <th scope="col" aria-sort={sort === k ? (desc ? 'descending' : 'ascending') : undefined} className={`${th} ${extra} ${align === 'center' ? 'text-center' : align ? 'text-right' : 'text-left'}`}>
       <button type="button" onClick={() => sortBy(k)} className={`inline-flex items-center gap-1 ${align === true ? 'flex-row-reverse' : ''} ${sort === k ? 'text-white' : ''}`}>
@@ -354,24 +357,16 @@ export const FruitsPage: React.FC = () => {
             <thead>
               <tr>
                 {head('code', t('fr.col.code'), false, 'sticky left-0 z-10')}
-                {head('date', t('fr.col.date'))}
-                {head('tree', t('fr.col.tree'))}
-                {head('variant', t('fr.col.variant'))}
+                {head('date', t('fr.col.date'), false, wide)}
+                {head('tree', t('fr.col.tree'), false, wide)}
+                {head('variant', t('fr.col.variant'), false, wide)}
                 {head('score', t('qc.grade'), false)}
-                {head('score', t('qc.score'), true)}
-                {head('graded', t('qc.graded'))}
+                {head('score', t('qc.score'), true, wide)}
+                {head('graded', t('qc.graded'), false, wide)}
                 {head('weight', t('fr.col.weight'), true)}
-                {/* Aroma, skin, shape in one column: a label over each chip, each sorts on its own. */}
-                <th scope="col" className={`${th} text-center`} aria-sort={sort === 'aroma' || sort === 'skin' || sort === 'shape' ? (desc ? 'descending' : 'ascending') : undefined}>
-                  <span className="grid grid-cols-3 gap-1">
-                    {(['aroma', 'skin', 'shape'] as const).map((k) => (
-                      <button key={k} type="button" onClick={() => sortBy(k)} title={t(`fr.col.${k}`)} className={`inline-flex items-center justify-center gap-0.5 ${sort === k ? 'text-white' : ''}`}>
-                        {t(`fr.col.${k}`)}
-                        {sort === k && (desc ? <ArrowDown className="w-3 h-3" /> : <ArrowUp className="w-3 h-3" />)}
-                      </button>
-                    ))}
-                  </span>
-                </th>
+                {head('aroma', t('fr.col.aroma'), 'center')}
+                {head('skin', t('fr.col.skin'), 'center')}
+                {head('shape', t('fr.col.shape'), 'center')}
               </tr>
             </thead>
             <tbody className="tabular">
@@ -379,7 +374,7 @@ export const FruitsPage: React.FC = () => {
                 <React.Fragment key={r.key}>
                 {byDay && r.date !== rows[i - 1]?.date && (
                   <tr>
-                    <td colSpan={9} className="p-0 bg-slate-100 border-b border-slate-200">
+                    <td colSpan={11} className="p-0 bg-slate-100 border-b border-slate-200">
                       <span className="sticky left-0 inline-flex items-baseline gap-2 px-2.5 py-1.5 text-xs">
                         <strong className="text-slate-900">{dayLabel(r.date)}</strong>
                         <span className="text-slate-600 tabular">
@@ -404,8 +399,8 @@ export const FruitsPage: React.FC = () => {
                       </span>
                     )}
                   </td>
-                  <td className={`${td} text-slate-700`}>{formatShortDate(r.date)}</td>
-                  <td className={`${td}`}>
+                  <td className={`${td} ${wide} text-slate-700`}>{formatShortDate(r.date)}</td>
+                  <td className={`${td} ${wide}`}>
                     {r.treeId ? (
                       <Link to={treeUrl(r.treeId)} className="font-mono font-bold text-slate-900 hover:underline">
                         {r.treeId}
@@ -414,7 +409,7 @@ export const FruitsPage: React.FC = () => {
                       r.block
                     )}
                   </td>
-                  <td className={`${td} text-slate-700`} title={name(r.variant)}>
+                  <td className={`${td} ${wide} text-slate-700`} title={name(r.variant)}>
                     {r.variant || '—'}
                   </td>
                   <td className={td}>
@@ -427,10 +422,10 @@ export const FruitsPage: React.FC = () => {
                       );
                     })()}
                   </td>
-                  <td className={`${td} text-right font-semibold text-slate-800`}>
+                  <td className={`${td} ${wide} text-right font-semibold text-slate-800`}>
                     {r.tg?.total.complete ? fmt(r.tg.total.pct, 1) : <span className="text-slate-300">—</span>}
                   </td>
-                  <td className={`${td} text-slate-700`}>
+                  <td className={`${td} ${wide} text-slate-700`}>
                     {r.tg ? (
                       <span title={r.tg.sample.fruitCode || undefined}>
                         {formatShortDate(r.tg.sample.date)}
@@ -441,13 +436,9 @@ export const FruitsPage: React.FC = () => {
                     )}
                   </td>
                   <td className={`${td} text-right font-semibold`}>{kg(r.weightG)}</td>
-                  <td className={td}>
-                    <span className="grid grid-cols-3 gap-1 justify-items-center">
-                      <ScoreChip v={r.aroma} />
-                      <ScoreChip v={r.skin} />
-                      <ScoreChip v={r.shape} />
-                    </span>
-                  </td>
+                  <td className={`${td} text-center`}><ScoreChip v={r.aroma} /></td>
+                  <td className={`${td} text-center`}><ScoreChip v={r.skin} /></td>
+                  <td className={`${td} text-center`}><ScoreChip v={r.shape} /></td>
                 </tr>
                 </React.Fragment>
               ))}
@@ -455,21 +446,20 @@ export const FruitsPage: React.FC = () => {
             {sum && (
               <tfoot className="tabular font-semibold text-slate-800 bg-slate-50">
                 <tr>
-                  <th scope="row" colSpan={4} className="px-2.5 py-2 text-left text-xs font-semibold">
-                    <span className="sticky left-2.5">{t('fr.sum', { n: fmt(sum.n), kg: fmt(sum.kg, 2) })}</span>
+                  <th scope="row" className="sticky left-0 bg-slate-50 px-2.5 py-2 text-left text-xs font-semibold sm:hidden">
+                    {t('fr.sum', { n: fmt(sum.n), kg: fmt(sum.kg, 2) })}
+                  </th>
+                  <th scope="row" colSpan={4} className="px-2.5 py-2 text-left text-xs font-semibold hidden sm:table-cell">
+                    {t('fr.sum', { n: fmt(sum.n), kg: fmt(sum.kg, 2) })}
                   </th>
                   <td className="px-2.5 py-2 text-left text-xs font-semibold text-slate-600 whitespace-nowrap">
                     {GRADES_ORDER.filter((g) => g !== 'ungraded' && gradeCount.get(g)).map((g) => `${gradeCount.get(g)} ${t(`qc.grade.${g}`)}`).join(' · ')}
                   </td>
-                  <td colSpan={2} />
+                  <td className="hidden sm:table-cell" colSpan={2} />
                   <td className="px-2.5 py-2 text-right whitespace-nowrap">{kg(sum.avgG)}</td>
-                  <td className="px-2.5 py-2">
-                    <span className="grid grid-cols-3 gap-1 justify-items-center">
-                      <ScoreChip v={sum.aroma} avg />
-                      <ScoreChip v={sum.skin} avg />
-                      <ScoreChip v={sum.shape} avg />
-                    </span>
-                  </td>
+                  <td className="px-2.5 py-2 text-center"><ScoreChip v={sum.aroma} avg /></td>
+                  <td className="px-2.5 py-2 text-center"><ScoreChip v={sum.skin} avg /></td>
+                  <td className="px-2.5 py-2 text-center"><ScoreChip v={sum.shape} avg /></td>
                 </tr>
               </tfoot>
             )}
