@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowDown, ArrowLeft, ArrowUp, CalendarDays, Camera, Check, ChevronLeft, ChevronRight, Download, Loader2, Pencil, Search, Trash2 } from 'lucide-react';
+import { ArrowDown, ArrowLeft, ArrowUp, CalendarDays, Camera, Image as ImageIcon, Check, ChevronLeft, ChevronRight, Download, Loader2, Pencil, Search, Trash2 } from 'lucide-react';
 import { useFarm } from '../context/FarmContext';
 import { useT } from '../i18n';
 import { fruitUrl, fruitsUrl, goBack, reportUrl, treeUrl, useQueryParams } from '../lib/router';
@@ -677,17 +677,19 @@ const QcSection: React.FC<{ f: FruitRow; all: FruitRow[] }> = ({ f, all }) => {
   const mine = samples.find((g) => g.id === sampleId(f));
   const current = f.tg?.sample;
   const start = useMemo(() => {
-    const base: Partial<Record<QcKey, number>> = { ...((mine || current)?.qc || {}) };
+    const scored = samples.find((g) => g.qc && Object.keys(g.qc).length);
+    const base: Partial<Record<QcKey, number>> = { ...((mine || (current?.qc && Object.keys(current.qc).length ? current : scored))?.qc || {}) };
     // The worker's own scores of this fruit, where the tree has none yet.
     for (const c of CRITERIA) if (c.from && base[c.key] === undefined && f[c.from] >= 1 && f[c.from] <= 5) base[c.key] = f[c.from];
     return base;
-  }, [mine, current, f]);
+  }, [mine, current, samples, f]);
   const startNote = mine?.note || '';
   const startPhotos = mine?.photos || [];
   const [qc, setQc] = useState(start);
   const [note, setNote] = useState(startNote);
   const [photos, setPhotos] = useState(startPhotos);
   const [uploading, setUploading] = useState(0);
+  const [photoError, setPhotoError] = useState(false);
   const [state, setState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   useEffect(() => {
     setQc(start);
@@ -703,18 +705,19 @@ const QcSection: React.FC<{ f: FruitRow; all: FruitRow[] }> = ({ f, all }) => {
   const next = all
     .filter((r) => r.key !== f.key && !r.tg && r.treeId)
     .sort((a, b) => b.date.localeCompare(a.date) || a.key.localeCompare(b.key))[0];
-  const addPhoto = async (files: FileList | null) => {
-    if (!files?.length) return;
+  const addPhoto = async (list: File[]) => {
+    if (!list.length) return;
     const { uploadTreePhoto } = await import('../lib/photoUpload');
-    for (const file of Array.from(files)) {
+    for (const file of list) {
       setUploading((n) => n + 1);
+      setPhotoError(false);
       try {
         const up = await uploadTreePhoto(file, tree || 'tree', `${sampleId(f)}-${Date.now()}`, 'qc-photos');
         setPhotos((p) => [...p, { url: up.url, medium: up.medium, thumb: up.thumb }]);
         setState('idle');
       } catch (e) {
         console.error('Grading photo upload failed:', e);
-        setState('error');
+        setPhotoError(true);
       } finally {
         setUploading((n) => n - 1);
       }
@@ -812,21 +815,30 @@ const QcSection: React.FC<{ f: FruitRow; all: FruitRow[] }> = ({ f, all }) => {
         <div>
           <span className="text-sm font-semibold text-slate-800">{t('qc.photos')}</span>
           <div className="mt-1 flex items-center gap-2 flex-wrap">
-            <label className={`${btnSecondary} cursor-pointer`}>
-              {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
-              {uploading ? t('qc.photoUploading') : t('qc.photoAdd')}
-              <input
-                type="file"
-                accept="image/*"
-                capture="environment"
-                multiple
-                className="sr-only"
-                onChange={(e) => {
-                  addPhoto(e.target.files);
-                  e.target.value = '';
-                }}
-              />
-            </label>
+            {(['camera', 'gallery'] as const).map((src) => (
+              <label key={src} className={`${btnSecondary} cursor-pointer`}>
+                {src === 'camera' ? <Camera className="w-4 h-4" /> : <ImageIcon className="w-4 h-4" />}
+                {t(src === 'camera' ? 'qc.photoAdd' : 'qc.photoGallery')}
+                <input
+                  type="file"
+                  accept="image/*"
+                  {...(src === 'camera' ? { capture: 'environment' as const } : { multiple: true })}
+                  className="sr-only"
+                  onChange={(e) => {
+                    // Copied before the input is reset: resetting it empties its FileList.
+                    const list = Array.from(e.target.files || []);
+                    e.target.value = '';
+                    addPhoto(list);
+                  }}
+                />
+              </label>
+            ))}
+            {uploading > 0 && (
+              <span className="inline-flex items-center gap-1.5 text-xs text-slate-600">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                {t('qc.photoUploading')}
+              </span>
+            )}
             {photos.map((ph, i) => (
               <span key={ph.url} className="relative">
                 <img src={ph.thumb || ph.medium || ph.url} alt="" className="w-14 h-14 rounded-md object-cover border border-slate-200" />
@@ -844,6 +856,7 @@ const QcSection: React.FC<{ f: FruitRow; all: FruitRow[] }> = ({ f, all }) => {
               </span>
             ))}
           </div>
+          {photoError && <p role="alert" className="mt-1 text-xs text-rose-700">{t('qc.photoError')}</p>}
         </div>
         <label className="block space-y-1">
           <span className="text-sm font-semibold text-slate-800">{t('qc.note')}</span>
@@ -863,15 +876,30 @@ const QcSection: React.FC<{ f: FruitRow; all: FruitRow[] }> = ({ f, all }) => {
       {samples.length > 0 && (
         <div className="px-4 sm:px-5 py-3 border-t border-slate-100">
           <h3 className="text-xs font-bold uppercase tracking-wide text-slate-500 pb-1.5">{t('qc.history', { tree })}</h3>
-          <ul className="space-y-1">
+          <ul>
             {samples.map((g) => {
               const st = sampleTotal(g);
               return (
-                <li key={g.id} className="flex items-center gap-2 text-xs text-slate-700">
-                  <span className="tabular w-14 shrink-0">{formatShortDate(g.date)}</span>
-                  <span className="font-mono w-20 shrink-0 truncate">{g.fruitCode ? shortCode(g.fruitCode) : g.weightG ? `${g.weightG.toLocaleString(locale)} g` : '—'}</span>
-                  <GradeTag grade={st.grade} pct={st.complete ? st.pct : undefined} />
-                  {g.from === 'sheet' && <span className="text-slate-400">{t('qc.sheet')}</span>}
+                <li key={g.id}>
+                  {(() => {
+                    const body = (
+                      <>
+                        <span className="tabular w-14 shrink-0">{formatShortDate(g.date)}</span>
+                        <span className={`font-mono w-24 shrink-0 truncate ${g.fruitCode ? 'text-emerald-800 underline underline-offset-2' : ''}`}>
+                          {g.fruitCode ? shortCode(g.fruitCode) : g.weightG ? `${g.weightG.toLocaleString(locale)} g` : '—'}
+                        </span>
+                        <GradeTag grade={st.grade} pct={st.complete ? st.pct : undefined} />
+                        {g.photos?.length ? <ImageIcon className="w-3.5 h-3.5 text-slate-400" aria-label={t('qc.photos')} /> : null}
+                        <span className="text-slate-400 truncate">{g.from === 'sheet' ? t('qc.sheet') : ''}{g.id === mine?.id ? ` · ${t('qc.thisFruit')}` : ''}</span>
+                      </>
+                    );
+                    const cls = 'flex items-center gap-2 text-xs text-slate-700 py-1.5 -mx-2 px-2 rounded-md';
+                    return g.fruitCode && g.id !== mine?.id ? (
+                      <Link to={fruitUrl(g.fruitCode)} className={`${cls} hover:bg-slate-50`}>{body}</Link>
+                    ) : (
+                      <div className={cls}>{body}</div>
+                    );
+                  })()}
                 </li>
               );
             })}
