@@ -18,10 +18,12 @@ test('total: weight × score / 5; ungraded until all 14 are scored', () => {
   assert.equal(qcTotal({ aroma: 4, skin: 4, shape: 4, qc: { ...all(4), manis: 9 } }).scored, 13, 'out of range: not a score');
 });
 
-test('grades: A3 at 74% high (sellable), D29 at 71% not up to standard, D8 at 40% low', () => {
-  assert.equal(GRADE_FROM.high, 72);
+test('grades as management graded the first fruits: A3 74%, D29 71% high; A7 53%, D36 50% mid; D8 40% low', () => {
+  assert.equal(GRADE_FROM.high, 70);
   assert.equal(gradeOf(74), 'high');
-  assert.equal(gradeOf(71), 'mid');
+  assert.equal(gradeOf(71), 'high');
+  assert.equal(gradeOf(69.9), 'mid');
+  assert.equal(gradeOf(53), 'mid');
   assert.equal(gradeOf(50), 'mid');
   assert.equal(gradeOf(40), 'low');
 });

@@ -55,10 +55,11 @@ export const MGMT = CRITERIA.filter((c) => !c.from);
 
 export type Grade = 'high' | 'mid' | 'low' | 'ungraded';
 /**
- * The grade from the total: High from 72% (A3 at 74% is the farm's best, sellable; D29 at 71% is not up to
- * standard), Mid from 50%, Low below; Ungraded until every criterion has a score.
+ * The grade from the total, as management graded the first fruits: High from 70% (A3 74%, the farm's best and
+ * sellable; A2 73%, D29 71%), Mid from 50% (A7 53%, A8 51%, D36 50%), Low below (D8 40%; B29 watery, not up to
+ * standard); Ungraded until every criterion has a score.
  */
-export const GRADE_FROM = { high: 72, mid: 50 } as const;
+export const GRADE_FROM = { high: 70, mid: 50 } as const;
 
 /** One criterion's 1-5 score on a fruit: the worker's for aroma, skin, shape; management's for the rest. */
 export function scoreOf(f: Pick<HarvestFruit, 'aroma' | 'skin' | 'shape' | 'qc'>, c: Criterion): number | undefined {
