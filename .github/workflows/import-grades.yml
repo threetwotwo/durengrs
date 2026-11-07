@@ -12,7 +12,7 @@ on:
         default: 'dry'
 
 env:
-  ACTION: apply  # move A4-20261104-02
+  ACTION: dry
 
 jobs:
   run:
@@ -36,7 +36,6 @@ jobs:
         run: |
           printf '%s\n' "$BOT_ENV_YAML" > env.yaml
           printf '%s\n' "$BOT_SERVICE_ACCOUNT" > service-account.json
-          # A fruit a worker put on the wrong tree, then link the sheet's grading again (A7 4 Nov 1905 g).
-          node scripts/move-fruit.js A4-20261104-02 A7 apply && node scripts/import-grades.js $WHAT; code=$?
+          node scripts/import-grades.js $WHAT; code=$?
           rm -f env.yaml service-account.json
           exit $code
