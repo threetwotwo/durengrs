@@ -82,3 +82,9 @@ test('short code for tables: the year left out', async () => {
   assert.equal(shortCode('B29-20261031-12'), 'B29-1031-12');
   assert.equal(shortCode('odd'), 'odd');
 });
+
+test('a fruit on another tree gets that tree\'s next number for the day', async () => {
+  const { codeOnTree } = await import('../src/lib/fieldData');
+  assert.equal(codeOnTree('A7', '2026-11-04', ['A4-20261104-02']), 'A7-20261104-01');
+  assert.equal(codeOnTree('A7', '2026-11-04', ['A7-20261104-01']), 'A7-20261104-02');
+});

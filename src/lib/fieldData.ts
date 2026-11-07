@@ -55,6 +55,8 @@ export interface Harvest {
 export interface HarvestFruit {
   /** The fruit's own code, from the WhatsApp harvest report: tree, day, the tree's fruit number that day ("A0-20261021-03"). */
   code?: string;
+  /** Its code before it was put on the right tree (moveHarvestFruit). */
+  movedFrom?: string;
   weightG: number;
   aroma: number;
   skin: number;
@@ -131,8 +133,75 @@ export async function updateHarvestItems(id: string, items: HarvestFruit[]): Pro
 /** Takes one fruit out of a harvest (sent twice, or typed by mistake); the last fruit takes the harvest with it. */
 export async function removeHarvestFruit(h: { id: string; items?: HarvestFruit[] }, index: number): Promise<void> {
   const items = (h.items || []).filter((_, i) => i !== index);
-  if (!items.length) return removeHarvest(h.id);
-  await updateHarvestItems(h.id, items);
+  if (!items.length) await removeHarvest(h.id);
+  else await updateHarvestItems(h.id, items);
+  await shiftSamples(h.id, index);
+}
+
+/**
+ * A tree's samplings point at their fruit by harvest id and place ("h1/2"): when a fruit leaves a harvest, the
+ * fruits after it move up one place, so their samplings follow; the one that pointed at the fruit itself goes to
+ * `to` (its new place, when it was moved) or loses its fruit (when it was deleted; the grading stays on the tree).
+ */
+async function shiftSamples(harvestId: string, index: number, to?: { fruitKey: string; fruitCode?: string; treeId: string }) {
+  const { getDocs, query, where } = await import('firebase/firestore');
+  const snap = await getDocs(query(collection(db, 'treeGrades'), where('fruitKey', '>=', `${harvestId}/`), where('fruitKey', '<', `${harvestId}0`)));
+  const batch = writeBatch(db);
+  for (const d of snap.docs) {
+    const at = Number(String(d.data().fruitKey).split('/')[1]);
+    if (at === index) batch.update(d.ref, to ? { ...to } : { fruitKey: deleteField(), fruitCode: deleteField() });
+    else if (at > index) batch.update(d.ref, { fruitKey: `${harvestId}/${at - 1}` });
+  }
+  if (snap.size) await batch.commit();
+}
+
+/** A fruit's code on another tree: the tree, the day, the next number of that tree's fruits that day ("A7-20261104-01"). */
+export function codeOnTree(treeId: string, date: string, taken: string[]): string {
+  const stem = `${treeId}-${date.replace(/-/g, '')}-`;
+  let n = 1;
+  while (taken.includes(`${stem}${String(n).padStart(2, '0')}`)) n++;
+  return `${stem}${String(n).padStart(2, '0')}`;
+}
+
+/**
+ * Puts a fruit on the tree it really came from (a worker picked the wrong tree in Laporan PANEN): it leaves its
+ * harvest (the last fruit takes the harvest with it) for a harvest of its own on the right tree, the same day and
+ * reporter, with a new code; its old code is kept as `movedFrom`. A sampling that graded it follows it.
+ */
+export async function moveHarvestFruit(
+  h: Harvest,
+  index: number,
+  tree: { id: string; block: string; variant: string },
+  code: string
+): Promise<string> {
+  const item = (h.items || [])[index];
+  if (!item) throw new Error('No such fruit');
+  const ref = doc(collection(db, 'harvests'));
+  const moved: HarvestFruit = { ...item, code, ...(item.code ? { movedFrom: item.code } : {}) };
+  const rest = (h.items || []).filter((_, i) => i !== index);
+  const totalG = rest.reduce((n, f) => n + (Number(f.weightG) || 0), 0);
+  await runTransaction(db, async (tx) => {
+    const src = doc(db, 'harvests', h.id);
+    tx.set(ref, {
+      block: tree.block,
+      treeId: tree.id,
+      variant: tree.variant,
+      date: h.date,
+      fruits: 1,
+      weightKg: Math.round((Number(item.weightG) || 0) / 10) / 100,
+      problems: [],
+      items: [moved],
+      ...(h.source ? { source: h.source } : {}),
+      ...(h.workerPhone ? { workerPhone: h.workerPhone } : {}),
+      notes: `Moved from ${h.treeId || h.block} (${item.code || `fruit ${index + 1}`})`,
+      movedFromHarvest: h.id,
+      createdAt: serverTimestamp(),
+    });
+    if (rest.length) tx.update(src, { items: rest, fruits: rest.length, weightKg: Math.round(totalG / 10) / 100, updatedAt: serverTimestamp() });
+    else tx.delete(src);
+  });
+  await shiftSamples(h.id, index, { fruitKey: `${ref.id}/0`, fruitCode: code, treeId: tree.id });
+  return code;
 }
 
 export async function removeHarvest(id: string): Promise<void> {

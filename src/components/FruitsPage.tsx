@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { ArrowDown, ArrowLeft, ArrowUp, CalendarDays, Camera, Image as ImageIcon, Check, ChevronLeft, ChevronRight, Download, Loader2, Pencil, Search, Trash2 } from 'lucide-react';
 import { useFarm } from '../context/FarmContext';
 import { useT } from '../i18n';
-import { fruitUrl, fruitsUrl, goBack, reportUrl, treeUrl, useQueryParams } from '../lib/router';
+import { fruitUrl, fruitsUrl, goBack, navigate, reportUrl, treeUrl, useQueryParams } from '../lib/router';
 import {
   FRUIT_SORTS,
   type FruitRow,
@@ -19,7 +19,7 @@ import {
   summarizeFruits,
   withTreeGrades,
 } from '../lib/fruits';
-import { removeHarvestFruit, saveTreeGrade, updateHarvestItems } from '../lib/fieldData';
+import { codeOnTree, moveHarvestFruit, removeHarvestFruit, saveTreeGrade, updateHarvestItems } from '../lib/fieldData';
 import { toCsv } from '../lib/kebun';
 import { CRITERIA, GRADE_FROM, GROUPS, type Grade, type QcKey, sampleTotal } from '../lib/grading';
 import { diffDays, formatShortDate, todayStr } from '../lib/treatments';
@@ -522,11 +522,14 @@ const SCORES = [
 /** One fruit (#/harvest/fruits/<code>): where and when it was picked, its weight and scores (editable), the report. */
 export const FruitPage: React.FC<{ fruitKey: string }> = ({ fruitKey }) => {
   const { t, locale } = useT();
-  const { workerLabel } = useFarm();
+  const { workerLabel, allTrees } = useFarm();
   const all = useFruits();
   const name = useVarietyName();
   const f = all.find((r) => r.key === fruitKey);
   const [editing, setEditing] = useState(false);
+  // Putting the fruit on the right tree (the worker picked the wrong one).
+  const [moveTo, setMoveTo] = useState<string | null>(null);
+  const [moving, setMoving] = useState(false);
   const [form, setForm] = useState({ weightG: '', aroma: '', skin: '', shape: '' });
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -582,8 +585,61 @@ export const FruitPage: React.FC<{ fruitKey: string }> = ({ fruitKey }) => {
       setSaving(false);
     }
   };
+  const move = async () => {
+    const id = String(moveTo || '').trim().toUpperCase();
+    const tree = allTrees.find((x) => x.id.toUpperCase() === id);
+    if (!tree) return setError(t('fr.move.noTree', { tree: id || '—' }));
+    if (tree.id === f.treeId) return setMoveTo(null);
+    const code = codeOnTree(tree.id, f.date, all.map((r) => r.code || ''));
+    if (!window.confirm(t('fr.move.confirm', { code: f.code || f.key, tree: tree.id, newCode: code }))) return;
+    setError(null);
+    setMoving(true);
+    try {
+      await moveHarvestFruit(h, f.index, { id: tree.id, block: tree.block, variant: tree.variant }, code);
+      setMoveTo(null);
+      navigate(fruitUrl(code), { replace: true });
+    } catch (e: any) {
+      console.error('Fruit move failed:', e);
+      setError(e?.code === 'permission-denied' ? t('err.rulesRecords') : t('fr.saveError'));
+    } finally {
+      setMoving(false);
+    }
+  };
+  const treeFact =
+    moveTo === null ? (
+      <span className="inline-flex items-center gap-3 flex-wrap">
+        {f.treeId ? <Link to={treeUrl(f.treeId)} className="font-mono font-bold text-emerald-800 hover:underline">{f.treeId}</Link> : '—'}
+        <button type="button" onClick={() => setMoveTo('')} className="text-xs font-semibold text-slate-500 hover:text-slate-900 underline underline-offset-2">
+          {t('fr.move')}
+        </button>
+        {f.movedFrom && <span className="text-xs text-slate-500">{t('fr.move.from', { code: f.movedFrom })}</span>}
+      </span>
+    ) : (
+      <span className="flex items-center gap-2 flex-wrap">
+        <input
+          autoFocus
+          list="fruit-move-trees"
+          value={moveTo}
+          onChange={(e) => setMoveTo(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && move()}
+          placeholder={t('fr.move.ph')}
+          aria-label={t('fr.move')}
+          className={`${inputCls} !w-28 font-mono uppercase`}
+        />
+        <datalist id="fruit-move-trees">
+          {allTrees.filter((x) => x.active !== false).map((x) => <option key={x.id} value={x.id} />)}
+        </datalist>
+        <button type="button" onClick={move} disabled={moving || !moveTo?.trim()} className={btnPrimary}>
+          {moving && <Loader2 className="w-4 h-4 animate-spin" />}
+          {t('fr.move.go')}
+        </button>
+        <button type="button" onClick={() => setMoveTo(null)} className="text-sm font-semibold text-slate-600 hover:text-slate-900 px-2 min-h-9">
+          {t('common.cancel')}
+        </button>
+      </span>
+    );
   const facts: Array<[string, React.ReactNode]> = [
-    [t('fr.tree'), f.treeId ? <Link to={treeUrl(f.treeId)} className="font-mono font-bold text-emerald-800 hover:underline">{f.treeId}</Link> : '—'],
+    [t('fr.tree'), treeFact],
     [t('fr.variant'), [name(f.variant), f.block ? t('common.blockN', { n: f.block }) : null].filter(Boolean).join(' · ') || '—'],
     [t('fr.picked'), formatShortDate(f.date)],
   ];
