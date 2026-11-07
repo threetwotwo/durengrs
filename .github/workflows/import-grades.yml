@@ -12,7 +12,7 @@ on:
         default: 'dry'
 
 env:
-  ACTION: apply
+  ACTION: apply  # move A4-20261104-02
 
 jobs:
   run:

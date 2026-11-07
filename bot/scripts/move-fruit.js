@@ -4,6 +4,15 @@
 // of the day; the old code is kept as movedFrom; samplings pointing at it, or at fruits after it, follow.
 //   node scripts/move-fruit.js A4-20261104-02 A7 [apply]     without apply: show what would change
 'use strict';
+const fs = require('fs');
+const path = require('path');
+
+const root = path.join(__dirname, '..');
+for (const line of fs.readFileSync(path.join(root, 'env.yaml'), 'utf8').split('\n')) {
+  const m = line.match(/^([A-Z_]+):\s*(.*)$/);
+  if (m && !(m[1] in process.env)) process.env[m[1]] = m[2].trim().replace(/^["']|["']$/g, '');
+}
+process.env.GOOGLE_SERVICE_ACCOUNT_KEY_FILE = path.join(root, 'service-account.json');
 const admin = require('firebase-admin');
 const { db } = require('../lib/firestore');
 
