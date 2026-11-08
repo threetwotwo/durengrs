@@ -10,6 +10,8 @@
 require('dotenv').config();
 const express = require('express');
 const { decryptRequest, encryptResponse } = require('./lib/encryption');
+const { treeGradeLines } = require('./lib/grading');
+const { byTree: cropByTree } = require('./lib/cropData');
 const { getTreeById, getTreeRecord, isArchived, getLastReport } = require('./lib/trees');
 const { getCollageUrl } = require('./lib/reports');
 const { CONDITION_LABELS } = require('./lib/rules');
@@ -173,12 +175,14 @@ function sendTreeFlow(to, tree, intro) {
 }
 
 // Laporan PANEN: today's fruits from this tree, each weighed and scored. `intro`: the summary of the harvest just sent.
-function sendHarvestFlow(to, tree, intro) {
+// Opening it shows the tree's grade and where its fruit goes (lib/grading.js); after a save it is in `intro`.
+async function sendHarvestFlow(to, tree, intro) {
+  const grade = intro ? [] : await treeGradeLines(cropByTree, tree.id);
   return flowMessage(to, {
     header: treeHeader(tree),
     text: intro
       ? `${intro}\n\nAda buah lagi dari pohon ini? Ketuk tombol di bawah. Untuk pohon lain, kirim ID-nya.`
-      : '🧺 *Laporan PANEN*\nIsi berat, aroma, kulit, dan bentuk setiap buah yang dipungut hari ini dari pohon ini.',
+      : ['🧺 *Laporan PANEN*\nIsi berat, aroma, kulit, dan bentuk setiap buah yang dipungut hari ini dari pohon ini.', grade.join('\n')].filter(Boolean).join('\n\n'),
     token: makeHarvestToken(tree.id, to),
     flowId: FLOW_ID,
     cta: 'Laporan PANEN',
