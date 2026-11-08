@@ -16,6 +16,7 @@ import { useCallback, useSyncExternalStore } from 'react';
  *   #/harvest/fruits        every fruit from Laporan PANEN, one row each (?variant=MK&block=A&sort=weight)
  *   #/harvest/fruits/A3-20261021-01   one fruit
  *   #/harvest/prices        other vendors' prices (?day=2026-11-02)
+ *   #/harvest/kupas         the kupas station's boxes (Laporan KUPAS)
  *   #/schedule              routines (sprays, fertiliser rounds)
  *   #/variants
  *   #/guide                 research guide
@@ -41,6 +42,8 @@ export interface Route {
   fruitCode: string | null;
   /** #/harvest/prices: other vendors' prices. */
   prices: boolean;
+  /** #/harvest/kupas: the kupas boxes. */
+  kupas: boolean;
   params: URLSearchParams;
   /** Path without query, e.g. "/trees/A12". */
   path: string;
@@ -68,6 +71,7 @@ export function parseHash(hash: string): Route {
   let fruits = false;
   let fruitCode: string | null = null;
   let prices = false;
+  let kupas = false;
   let known = true;
 
   if (segs.length === 0) {
@@ -88,12 +92,13 @@ export function parseHash(hash: string): Route {
       fruits = true;
       fruitCode = segs[2] ? decodeURIComponent(segs[2]) : null;
     } else if (tab === 'harvest' && segs[1] === 'prices' && segs.length === 2) prices = true;
+    else if (tab === 'harvest' && segs[1] === 'kupas' && segs.length === 2) kupas = true;
     else if (segs.length > 1) known = false;
   } else {
     known = false;
   }
-  const pageKey = segs[0] === 'count' ? 'count' : prices ? 'prices' : fruits ? `fruits:${fruitCode ?? ''}` : `${tab}:${treeId ?? topicId ?? reportId ?? caseId ?? ''}`;
-  return { tab, treeId, topicId, reportId, caseId, fruits, fruitCode, prices, params, path, pageKey, known };
+  const pageKey = segs[0] === 'count' ? 'count' : prices ? 'prices' : kupas ? 'kupas' : fruits ? `fruits:${fruitCode ?? ''}` : `${tab}:${treeId ?? topicId ?? reportId ?? caseId ?? ''}`;
+  return { tab, treeId, topicId, reportId, caseId, fruits, fruitCode, prices, kupas, params, path, pageKey, known };
 }
 
 // ---- store ----
@@ -226,6 +231,7 @@ export const fruitsUrl = (filters: Record<string, string | null | undefined> = {
 };
 export const fruitUrl = (key: string) => `/harvest/fruits/${encodeURIComponent(key)}`;
 export const pricesUrl = () => '/harvest/prices';
+export const kupasUrl = () => '/harvest/kupas';
 /** The Count page, optionally on one block. */
 export const countUrl = (block?: string) => (block ? `/count?block=${encodeURIComponent(block)}` : '/count');
 

@@ -11,6 +11,7 @@ require('dotenv').config();
 const express = require('express');
 const { decryptRequest, encryptResponse } = require('./lib/encryption');
 const { treeGradeLines } = require('./lib/grading');
+const { parseKupas, parseWeights, kupasStore } = require('./lib/kupas');
 const { byTree: cropByTree } = require('./lib/cropData');
 const { getTreeById, getTreeRecord, isArchived, getLastReport } = require('./lib/trees');
 const { getCollageUrl } = require('./lib/reports');
@@ -87,6 +88,9 @@ const HELP_BODY = [
   'Kirim ID pohon, contoh: *A1*. Lalu pilih:',
   '• *KESEHATAN*: foto + keterangan (bunga, buah, hama, penyakit)',
   '• *PANEN*: buah yang dipungut hari ini, ditimbang dan dinilai',
+  '',
+  '🥡 *Laporan kupas*',
+  'Kirim *KUPAS* dan ID pohon, contoh: *KUPAS A6*. Lalu berat tiap kotak: *400 410 395*.',
   '',
   '📋 *Ringkasan hari ini*',
   'Kirim kata *RINGKASAN*: semua yang Anda catat hari ini.',
@@ -239,6 +243,18 @@ async function reopenAfterCompletion(to, message) {
   }
   if (kind === 'farm' && FARM_FLOW_ID) return sendFarmFlow(to, thanks);
   return sendHelp(to, thanks);
+}
+
+const kupas = kupasStore(fdb, cropByTree);
+async function handleKupas(to, cmd) {
+  const tree = await getTreeRecord(cmd.tree);
+  if (!tree || isArchived(tree)) return sendText(to, `Pohon ${cmd.tree} tidak ditemukan atau sudah tidak aktif. Contoh: *KUPAS A6*.`);
+  try {
+    return sendText(to, await kupas.start(to, tree, cmd));
+  } catch (err) {
+    console.error('Kupas start failed:', err);
+    return sendText(to, 'Laporan KUPAS belum bisa dibuka. Coba lagi sebentar lagi.');
+  }
 }
 
 async function openFarmFlow(to) {
@@ -410,6 +426,17 @@ async function handleIncomingMessage(body) {
 
   // Case, spaces and small typos don't matter (lib/commands.js): "a1", "ringkasan", "Ringakasan", "kebon".
   const typed = message.text?.body || '';
+  // Laporan KUPAS (lib/kupas.js): "KUPAS A6", then the boxes' weights ("400 410 395").
+  const kupasCmd = parseKupas(typed);
+  if (kupasCmd) return handleKupas(to, kupasCmd);
+  const boxWeights = parseWeights(typed);
+  if (boxWeights) {
+    const open = await kupas.open(to);
+    if (open) {
+      const tree = await getTreeRecord(open.treeId);
+      if (tree) return sendText(to, await kupas.saveWeights(to, open, boxWeights, tree));
+    }
+  }
   const typedPrices = priceText(typed);
   if (typedPrices) return handlePrices(to, { text: typedPrices, hint: typedPrices });
   const command = parseCommand(typed);

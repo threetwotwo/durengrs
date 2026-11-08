@@ -41,20 +41,20 @@ function treeGrade(samples = []) {
 }
 
 /** The lines for the worker: the tree's grade and what to do with its fruit. */
-function gradeLines(treeId, g) {
+function gradeLines(treeId, g, { kupasHint = false } = {}) {
   if (g.grade === 'ungraded')
     return [`🔍 Pohon ${treeId} *belum punya grade*.`, '👉 Kemas buahnya untuk *QC manajemen*: sisihkan dan serahkan ke manajemen untuk dinilai.'];
   const what = `${g.pct !== undefined ? `${String(g.pct).replace('.', ',')}%, ` : ''}${g.date ? `dinilai ${R.dateLabel(g.date)}` : ''}`.replace(/, $/, '');
   const head = `${g.grade === 'high' ? '⭐' : '🔸'} Grade pohon ${treeId}: *${g.grade.toUpperCase()}*${what ? ` (${what})` : ''}.`;
   return g.grade === 'high'
     ? [head, '👉 Proses seperti biasa: *bungkus daun pisang*.']
-    : [head, '👉 *KUPAS*: bawa buahnya ke *stasiun kupas*.'];
+    : [head, '👉 *KUPAS*: bawa buahnya ke *stasiun kupas*.', ...(kupasHint ? [`Setelah dikupas, kirim *KUPAS ${treeId}* untuk mencatat kotaknya.`] : [])];
 }
 
 /** Loads the tree's samplings (treeGrades) and gives its lines; a failed read says nothing rather than a wrong instruction. */
 async function treeGradeLines(byTree, treeId) {
   try {
-    return gradeLines(treeId, treeGrade(await byTree('treeGrades', treeId)));
+    return gradeLines(treeId, treeGrade(await byTree('treeGrades', treeId)), { kupasHint: true });
   } catch (err) {
     console.error('Tree grade read failed:', err.message);
     return [];

@@ -1,0 +1,43 @@
+import type { Bundle } from './index';
+
+/** The kupas station's boxes (#/harvest/kupas), recorded on WhatsApp with KUPAS A6. */
+export const kupas: Bundle = {
+  id: {
+    'ku.title': 'Kotak kupas',
+    'ku.desc': 'Dicatat stasiun kupas lewat WhatsApp: kirim *KUPAS A6*, lalu berat tiap kotak. Satu kotak = buah dari satu pohon dan satu hari panen.',
+    'ku.none': 'Belum ada kotak kupas. Di WhatsApp: kirim KUPAS dan ID pohon (contoh: KUPAS A6), lalu berat tiap kotak (400 410 395).',
+    'ku.col.code': 'Kode',
+    'ku.col.tree': 'Pohon',
+    'ku.col.grade': 'Grade',
+    'ku.col.picked': 'Dipanen',
+    'ku.col.weight': 'Berat (g)',
+    'ku.col.yield': 'Rendemen',
+    'ku.col.by': 'Oleh',
+    'ku.yield.title': 'Berat kupas pohon ini dari panen hari itu ÷ berat buahnya: {kupas} g dari {fruit} g',
+    'ku.day': '{n} kotak · {kg} kg',
+    'ku.sum': '{n} kotak · {kg} kg',
+    'ku.remove': 'Hapus kotak {code}',
+    'ku.remove.confirm': 'Hapus kotak {code}? Kodenya tidak dipakai lagi.',
+    'ku.onFruit': 'Kotak kupas dari buah {tree} hari ini',
+    'ku.csv': 'Unduh CSV',
+  },
+  en: {
+    'ku.title': 'Kupas boxes',
+    'ku.desc': 'Recorded by the kupas station on WhatsApp: send *KUPAS A6*, then each box\'s weight. One box = fruit from one tree and one picking day.',
+    'ku.none': 'No kupas boxes yet. On WhatsApp: send KUPAS and the tree ID (e.g. KUPAS A6), then each box\'s weight (400 410 395).',
+    'ku.col.code': 'Code',
+    'ku.col.tree': 'Tree',
+    'ku.col.grade': 'Grade',
+    'ku.col.picked': 'Picked',
+    'ku.col.weight': 'Weight (g)',
+    'ku.col.yield': 'Yield',
+    'ku.col.by': 'By',
+    'ku.yield.title': "This tree's kupas from that day's picking ÷ its fruit weight: {kupas} g of {fruit} g",
+    'ku.day': '{n} boxes · {kg} kg',
+    'ku.sum': '{n} boxes · {kg} kg',
+    'ku.remove': 'Delete box {code}',
+    'ku.remove.confirm': 'Delete box {code}? Its code is not used again.',
+    'ku.onFruit': "Kupas boxes from {tree}'s fruit of this day",
+    'ku.csv': 'Download CSV',
+  },
+};

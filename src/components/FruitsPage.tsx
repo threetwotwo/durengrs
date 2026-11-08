@@ -1,8 +1,11 @@
+import { collection, onSnapshot, query, where } from 'firebase/firestore';
+import { db } from '../lib/firebase';
+import { type KupasBox, shortBox } from '../lib/kupas';
 import React, { useEffect, useMemo, useState } from 'react';
 import { ArrowDown, ArrowLeft, ArrowUp, CalendarDays, Camera, Image as ImageIcon, Check, ChevronLeft, ChevronRight, Download, Loader2, Pencil, Search, Trash2 } from 'lucide-react';
 import { useFarm } from '../context/FarmContext';
 import { useT } from '../i18n';
-import { fruitUrl, fruitsUrl, goBack, navigate, reportUrl, treeUrl, useQueryParams } from '../lib/router';
+import { fruitUrl, fruitsUrl, goBack, kupasUrl, navigate, reportUrl, treeUrl, useQueryParams } from '../lib/router';
 import {
   FRUIT_SORTS,
   type FruitRow,
@@ -734,6 +737,8 @@ export const FruitPage: React.FC<{ fruitKey: string }> = ({ fruitKey }) => {
 
         <QcSection f={f} all={all} />
 
+        {f.treeId && <KupasOfFruit treeId={f.treeId} date={f.date} />}
+
         {siblings.length > 1 && (
           <section className="p-4 sm:p-5 border-t border-slate-100 space-y-2">
             <h2 className="text-sm font-bold text-slate-900">{t('fr.siblings')}</h2>
@@ -766,6 +771,37 @@ export const FruitPage: React.FC<{ fruitKey: string }> = ({ fruitKey }) => {
   );
 };
 
+
+/** The kupas boxes made from this tree's fruit of this day (Laporan KUPAS), when there are any. */
+const KupasOfFruit: React.FC<{ treeId: string; date: string }> = ({ treeId, date }) => {
+  const { t, locale } = useT();
+  const [boxes, setBoxes] = useState<KupasBox[]>([]);
+  useEffect(
+    () =>
+      onSnapshot(
+        query(collection(db, 'kupasBoxes'), where('treeId', '==', treeId), where('fruitDate', '==', date)),
+        (s) => setBoxes(s.docs.map((d) => ({ id: d.id, ...(d.data() as any) }) as KupasBox).sort((a, b) => a.code.localeCompare(b.code))),
+        (e) => console.error('Kupas boxes:', e)
+      ),
+    [treeId, date]
+  );
+  if (!boxes.length) return null;
+  return (
+    <section className="p-4 sm:p-5 border-t border-slate-100 space-y-2">
+      <h2 className="text-sm font-bold text-slate-900">
+        <Link to={kupasUrl()} className="hover:underline">{t('ku.onFruit', { tree: treeId })}</Link>
+      </h2>
+      <ul className="flex flex-wrap gap-1.5">
+        {boxes.map((b) => (
+          <li key={b.id} className="px-2.5 py-1.5 rounded-lg border border-slate-200 text-sm tabular">
+            <span className="font-mono font-semibold text-slate-900">{shortBox(b.code)}</span>{' '}
+            <span className="text-slate-600">{b.weightG.toLocaleString(locale)} g</span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+};
 
 /** A score as typed (4) or from the sheet (4.5, 0). */
 const fmtScore = (v: number | undefined) => (v === undefined ? '' : String(Math.round(v * 100) / 100));
