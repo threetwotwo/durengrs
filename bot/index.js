@@ -12,6 +12,7 @@ const express = require('express');
 const { decryptRequest, encryptResponse } = require('./lib/encryption');
 const { treeGradeLines } = require('./lib/grading');
 const { parseKupas, parseWeights, kupasStore } = require('./lib/kupas');
+const { parseStock, reportStock, stockList } = require('./lib/stock');
 const { byTree: cropByTree } = require('./lib/cropData');
 const { getTreeById, getTreeRecord, isArchived, getLastReport } = require('./lib/trees');
 const { getCollageUrl } = require('./lib/reports');
@@ -88,6 +89,9 @@ const HELP_BODY = [
   'Kirim ID pohon, contoh: *A1*. Lalu pilih:',
   '• *KESEHATAN*: foto + keterangan (bunga, buah, hama, penyakit)',
   '• *PANEN*: buah yang dipungut hari ini, ditimbang dan dinilai',
+  '',
+  '📦 *Stok gudang (pupuk & obat)*',
+  'Kirim *PAKAI TSP 1 sak blok A*, *MASUK Gandasil B 10 bungkus*, atau *OPNAME KCL 30 sak*. Ketik *STOK* untuk melihat sisa.',
   '',
   '🥡 *Laporan kupas*',
   'Kirim *KUPAS* dan ID pohon yang dikupas (satu varietas), contoh: *KUPAS A6 A7*. Lalu berat tiap kotak: *400 410 395*.',
@@ -249,6 +253,16 @@ const kupas = kupasStore(fdb, cropByTree, async (id) => {
   const tree = await getTreeRecord(id);
   return tree && !isArchived(tree) ? tree : null;
 });
+async function handleStock(to, typed, stock) {
+  try {
+    if (!/\d/.test(stock.rest)) return sendText(to, await stockList(fdb, stock.rest));
+    return sendText(to, await reportStock(fdb, { text: typed, type: stock.type, workerPhone: to }));
+  } catch (err) {
+    console.error('Stock report failed:', err);
+    return sendText(to, 'Laporan stok belum bisa dibaca. Coba lagi sebentar lagi.');
+  }
+}
+
 async function handleKupas(to, cmd) {
   try {
     return sendText(to, await kupas.start(to, cmd));
@@ -435,6 +449,9 @@ async function handleIncomingMessage(body) {
     const open = await kupas.open(to);
     if (open) return sendText(to, await kupas.saveWeights(to, open, boxWeights));
   }
+  // The warehouse's pupuk and obat (lib/stock.js): "PAKAI TSP 1 sak blok A", "MASUK …", "OPNAME …", "STOK".
+  const stock = parseStock(typed);
+  if (stock && (/\d/.test(stock.rest) || /^(STOK|STOCK|GUDANG)$/.test(stock.word))) return handleStock(to, typed, stock);
   const typedPrices = priceText(typed);
   if (typedPrices) return handlePrices(to, { text: typedPrices, hint: typedPrices });
   const command = parseCommand(typed);

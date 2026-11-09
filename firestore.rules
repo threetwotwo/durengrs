@@ -95,6 +95,14 @@ service cloud.firestore {
     }
 
     // Management's fruit samplings that grade each tree (src/lib/grading.ts, bot/scripts/import-grades.js)
+    match /stockItems/{id} {
+      allow read, write: if true;
+    }
+    // The warehouse's stock movements: in, out, count (src/shared/stock.ts, bot/lib/stock.js)
+    match /stockMoves/{id} {
+      allow read, write: if true;
+    }
+
     match /treeGrades/{id} {
       allow read, write: if true;
     }

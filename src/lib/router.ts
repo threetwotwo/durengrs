@@ -27,7 +27,7 @@ import { useCallback, useSyncExternalStore } from 'react';
  * gives working Back/Forward, shareable deep links, and survives reloads.
  */
 
-export type AppTab = 'dashboard' | 'trees' | 'reports' | 'problems' | 'harvest' | 'schedule' | 'variants' | 'workers' | 'guide';
+export type AppTab = 'dashboard' | 'trees' | 'reports' | 'problems' | 'harvest' | 'schedule' | 'stock' | 'variants' | 'workers' | 'guide';
 
 export interface Route {
   tab: AppTab;
@@ -56,7 +56,7 @@ export interface Route {
   known: boolean;
 }
 
-const TABS: AppTab[] = ['dashboard', 'trees', 'reports', 'problems', 'harvest', 'schedule', 'variants', 'workers', 'guide'];
+const TABS: AppTab[] = ['dashboard', 'trees', 'reports', 'problems', 'harvest', 'schedule', 'stock', 'variants', 'workers', 'guide'];
 
 /** The page a hash address points to. Old addresses (#/kebun) still land on the right page. */
 export function parseHash(hash: string): Route {
@@ -249,6 +249,7 @@ export const TAB_TITLES: Record<AppTab, string> = {
   problems: 'nav.problems',
   harvest: 'nav.harvest',
   schedule: 'nav.schedule',
+  stock: 'nav.stock',
   variants: 'nav.variants',
   workers: 'nav.workers',
   guide: 'nav.guide',

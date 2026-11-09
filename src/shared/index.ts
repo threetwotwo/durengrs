@@ -12,3 +12,4 @@ export * from './labels';
 export * from './crop';
 export * from './actions';
 export * from './photos';
+export * from './stock';

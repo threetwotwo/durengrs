@@ -41,10 +41,12 @@ __export(index_exports, {
   PHOTO_SIZES: () => PHOTO_SIZES,
   RECHECK_DAYS: () => RECHECK_DAYS,
   SEASON_TASK_OF: () => SEASON_TASK_OF,
+  STOCK_UNITS: () => STOCK_UNITS,
   TREATMENT_PRODUCTS: () => TREATMENT_PRODUCTS,
   TREATMENT_WORDS: () => TREATMENT_WORDS,
   TREATS: () => TREATS,
   TRIAGE_RULES_VERSION: () => TRIAGE_RULES_VERSION,
+  byTime: () => byTime,
   checkLabelRules: () => checkLabelRules,
   dayTotal: () => dayTotal,
   doseSuggestion: () => doseSuggestion,
@@ -60,7 +62,13 @@ __export(index_exports, {
   lastFruitCount: () => lastFruitCount,
   mergeLabelRules: () => mergeLabelRules,
   normalize: () => normalize,
+  normalizeUnit: () => normalizeUnit,
+  packFromName: () => packFromName,
   stageMismatch: () => stageMismatch,
+  stockBalances: () => stockBalances,
+  stockLevel: () => stockLevel,
+  stockQty: () => stockQty,
+  toItemUnit: () => toItemUnit,
   treatmentsInText: () => treatmentsInText,
   triageText: () => triageText,
   wordHits: () => wordHits,
@@ -641,6 +649,68 @@ var PHOTO_SIZES = {
   thumb: { square: 320, quality: 70 }
 };
 var PHOTO_CACHE_CONTROL = "public, max-age=31536000, immutable";
+
+// src/shared/stock.ts
+var STOCK_UNITS = ["kg", "gr", "ltr", "ml"];
+var KIND = {
+  kg: { base: "gr", factor: 1e3 },
+  gr: { base: "gr", factor: 1 },
+  ltr: { base: "ml", factor: 1e3 },
+  ml: { base: "ml", factor: 1 }
+};
+function normalizeUnit(u) {
+  const s = String(u || "").trim().toLowerCase().replace(/\.$/, "");
+  if (!s) return void 0;
+  if (["kg", "kilo", "kilogram", "kgs"].includes(s)) return "kg";
+  if (["g", "gr", "gram", "grm", "grams"].includes(s)) return "gr";
+  if (["l", "lt", "ltr", "liter", "litre", "liters"].includes(s)) return "ltr";
+  if (["ml", "cc", "mili", "mililiter"].includes(s)) return "ml";
+  if (["sak", "karung", "zak", "bag", "botol", "bungkus", "bks", "pack", "pak", "kemasan", "pcs", "pc", "buah", "kaleng", "dus", "box", "jerigen", "sachet", "saset"].includes(s)) return "pack";
+  return void 0;
+}
+function toItemUnit(qty, unit, item) {
+  if (!(qty >= 0)) return void 0;
+  const u = normalizeUnit(unit) || item.unit;
+  if (u === "pack") return item.pack ? round(qty * item.pack) : void 0;
+  const from = KIND[u];
+  const to = KIND[item.unit];
+  if (!from || !to || from.base !== to.base) return void 0;
+  return round(qty * from.factor / to.factor);
+}
+function packFromName(name, unit) {
+  const m = String(name).match(/\((\d+(?:[.,]\d+)?)\s*(kg|gr|g|ltr|l|ml)\)/i);
+  if (!m) return void 0;
+  return toItemUnit(Number(m[1].replace(",", ".")), m[2], { unit });
+}
+var round = (n) => Math.round(n * 1e3) / 1e3;
+var byTime = (a, b) => a.date.localeCompare(b.date) || String(a.at || "").localeCompare(String(b.at || ""));
+function stockBalances(moves) {
+  const out = /* @__PURE__ */ new Map();
+  for (const m of [...moves].sort(byTime)) {
+    const b = out.get(m.itemId) || { balance: 0 };
+    const q = Number(m.qty) || 0;
+    if (m.type === "count") {
+      b.balance = q;
+      b.since = m.date;
+      b.counted = q;
+    } else b.balance += m.type === "in" ? q : -q;
+    b.balance = round(b.balance);
+    b.last = m;
+    out.set(m.itemId, b);
+  }
+  return out;
+}
+function stockLevel(item, balance) {
+  if (balance <= 0) return "out";
+  const min = item.min ?? item.pack ?? 0;
+  return balance < min ? "low" : "ok";
+}
+function stockQty(qty, item, locale = "id") {
+  const f = (n) => n.toLocaleString(locale === "id" ? "id-ID" : "en-US", { maximumFractionDigits: 2 });
+  const packs = item.pack && item.pack > 1 && qty > 0 ? qty / item.pack : 0;
+  const packWord = locale === "id" ? "kemasan" : "packs";
+  return `${f(qty)} ${item.unit}${packs && Math.abs(packs - Math.round(packs * 10) / 10) < 1e-9 ? ` (${f(packs)} ${packWord})` : packs ? ` (${f(Math.round(packs * 10) / 10)} ${packWord})` : ""}`;
+}
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
   ACTIONS,
@@ -664,10 +734,12 @@ var PHOTO_CACHE_CONTROL = "public, max-age=31536000, immutable";
   PHOTO_SIZES,
   RECHECK_DAYS,
   SEASON_TASK_OF,
+  STOCK_UNITS,
   TREATMENT_PRODUCTS,
   TREATMENT_WORDS,
   TREATS,
   TRIAGE_RULES_VERSION,
+  byTime,
   checkLabelRules,
   dayTotal,
   doseSuggestion,
@@ -683,7 +755,13 @@ var PHOTO_CACHE_CONTROL = "public, max-age=31536000, immutable";
   lastFruitCount,
   mergeLabelRules,
   normalize,
+  normalizeUnit,
+  packFromName,
   stageMismatch,
+  stockBalances,
+  stockLevel,
+  stockQty,
+  toItemUnit,
   treatmentsInText,
   triageText,
   wordHits,

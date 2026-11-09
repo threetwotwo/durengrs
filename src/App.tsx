@@ -19,6 +19,7 @@ const HarvestPage = lazy(() => import('./components/HarvestPage').then((m) => ({
 const FruitsPage = lazy(() => import('./components/FruitsPage').then((m) => ({ default: m.FruitsPage })));
 const PricesPage = lazy(() => import('./components/PricesPage').then((m) => ({ default: m.PricesPage })));
 const GradeBoardPage = lazy(() => import('./components/GradeBoardPage').then((m) => ({ default: m.GradeBoardPage })));
+const StockPage = lazy(() => import('./components/StockPage').then((m) => ({ default: m.StockPage })));
 const KupasPage = lazy(() => import('./components/KupasPage').then((m) => ({ default: m.KupasPage })));
 const FruitPage = lazy(() => import('./components/FruitsPage').then((m) => ({ default: m.FruitPage })));
 const GuidePage = lazy(() => import('./components/GuidePage').then((m) => ({ default: m.GuidePage })));
@@ -107,6 +108,7 @@ const AppContent: React.FC = () => {
                 ))}
               {route.tab === 'problems' && (route.caseId ? <ProblemPage key={route.caseId} caseId={route.caseId} /> : <ProblemsPage />)}
               {route.tab === 'workers' && <WorkersPage />}
+              {route.tab === 'stock' && <StockPage />}
               {route.tab === 'guide' && <GuidePage />}
             </Suspense>
           </ErrorBoundary>

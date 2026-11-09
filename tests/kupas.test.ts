@@ -21,3 +21,8 @@ test('#/harvest/kupas is a page', () => {
   assert.equal(r.kupas, true);
   assert.equal(r.known, true);
 });
+
+test('#/stock is a page', () => {
+  assert.equal(parseHash('#/stock').tab, 'stock');
+  assert.equal(parseHash('#/stock').known, true);
+});

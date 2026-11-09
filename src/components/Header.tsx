@@ -2,7 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { useFarm, AppTab } from '../context/FarmContext';
 import { Link } from './Link';
 import { useT, type Lang } from '../i18n';
-import { LayoutDashboard, Sprout, ClipboardList, CalendarCheck, BookOpen, Wheat, Sheet as SheetIcon, Users, Stethoscope } from 'lucide-react';
+import { LayoutDashboard, Sprout, ClipboardList, CalendarCheck, BookOpen, Wheat, Sheet as SheetIcon, Users, Stethoscope, Package } from 'lucide-react';
 import { setGuideOn, useGuideOn } from '../lib/guideMode';
 import { useRoute } from '../lib/router';
 import { isDue, isOpen } from '../lib/cases';
@@ -54,6 +54,7 @@ function useNavItems(): NavItem[] {
     },
     { id: 'harvest', label: t('nav.harvest'), icon: Wheat },
     { id: 'schedule', label: t('nav.schedule'), icon: CalendarCheck, badge: scheduleBadge },
+    { id: 'stock', label: t('nav.stock'), icon: Package },
     { id: 'variants', label: t('nav.variants'), icon: Sprout },
     { id: 'workers', label: t('nav.workers'), icon: Users },
     ...(guideOn ? [{ id: 'guide' as AppTab, label: t('nav.guide'), icon: BookOpen }] : []),
