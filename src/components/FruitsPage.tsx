@@ -14,13 +14,11 @@ import {
   checkFruit,
   fruitDays,
   fruitGrade,
-  fruitRows,
   fruitsSheet,
   likelyDuplicates,
   shortCode,
   sortFruits,
   summarizeFruits,
-  withTreeGrades,
 } from '../lib/fruits';
 import { codeOnTree, moveHarvestFruit, removeHarvestFruit, saveTreeGrade, updateHarvestItems } from '../lib/fieldData';
 import { toCsv } from '../lib/kebun';
@@ -32,22 +30,8 @@ import { PhotoStrip } from './PhotoStrip';
 import { GradeTag, ScoreChip, ScoreLine } from './HarvestBits';
 export { GradeTag };
 
-/** Every fruit the farm loaded (this season's harvests), with the tree's variety when the harvest has none. */
-export function useFruits(): FruitRow[] {
-  const { harvests, allTrees, treeGrades } = useFarm();
-  return useMemo(() => {
-    const variety = new Map(allTrees.map((x) => [x.id, x.variant]));
-    return withTreeGrades(fruitRows(harvests, (id) => variety.get(id)), treeGrades);
-  }, [harvests, allTrees, treeGrades]);
-}
-
-export const useVarietyName = () => {
-  const { variants } = useFarm();
-  return useMemo(() => {
-    const names = new Map(variants.map((v) => [v.code, v.name]));
-    return (code?: string) => (code ? names.get(code) || code : '');
-  }, [variants]);
-};
+import { useFruits, useVarietyName } from './useFruits';
+export { useFruits, useVarietyName };
 
 
 

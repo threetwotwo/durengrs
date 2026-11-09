@@ -12,7 +12,9 @@ import { useCrops } from './useCrops';
 import { cropFunnel, fruitOnTree } from '../lib/crop';
 import { ScoreChip, harvestTotals } from './HarvestBits';
 import { harvestScores } from '../lib/fieldData';
-import { fruitsUrl, navigate, reportUrl } from '../lib/router';
+import { boardUrl, fruitsUrl, navigate, reportUrl } from '../lib/router';
+// The grading board loads on its own, after the rest of the dashboard.
+const GradeBoard = React.lazy(() => import('./GradeBoard').then((m) => ({ default: m.GradeBoard })));
 import { useGuideData, StagePill } from './GuideWidgets';
 import { ProblemsByTree } from './Problems';
 import { RecordCard, RecordGrid, reportEntry } from './Record';
@@ -278,6 +280,15 @@ export const Dashboard: React.FC = () => {
                 </table>
               </div>
             )}
+          </section>
+
+          <section className={card} aria-labelledby="board-h">
+            <SectionHead id="board-h" title={t('gb.title')} to={boardUrl()} more={t('gb.open')} />
+            <div className="p-3">
+              <React.Suspense fallback={<p className="p-4 text-sm text-slate-500">…</p>}>
+                <GradeBoard />
+              </React.Suspense>
+            </div>
           </section>
 
           <section className={card} aria-labelledby="need-h">
