@@ -18,6 +18,7 @@ const SchedulePage = lazy(() => import('./components/SchedulePage').then((m) => 
 const HarvestPage = lazy(() => import('./components/HarvestPage').then((m) => ({ default: m.HarvestPage })));
 const FruitsPage = lazy(() => import('./components/FruitsPage').then((m) => ({ default: m.FruitsPage })));
 const PricesPage = lazy(() => import('./components/PricesPage').then((m) => ({ default: m.PricesPage })));
+const GradeBoardPage = lazy(() => import('./components/GradeBoardPage').then((m) => ({ default: m.GradeBoardPage })));
 const KupasPage = lazy(() => import('./components/KupasPage').then((m) => ({ default: m.KupasPage })));
 const FruitPage = lazy(() => import('./components/FruitsPage').then((m) => ({ default: m.FruitPage })));
 const GuidePage = lazy(() => import('./components/GuidePage').then((m) => ({ default: m.GuidePage })));
@@ -83,7 +84,7 @@ const AppContent: React.FC = () => {
           <ErrorBoundary key={lang} resetKey={route.pageKey}>
             <Suspense fallback={<div className="h-64 rounded-xl bg-white border border-slate-200 animate-pulse" />}>
               {route.tab === 'dashboard' && <Dashboard />}
-              {route.tab === 'harvest' && (route.prices ? <PricesPage /> : route.kupas ? <KupasPage /> : route.fruitCode ? <FruitPage key={route.fruitCode} fruitKey={route.fruitCode} /> : route.fruits ? <FruitsPage /> : <HarvestPage />)}
+              {route.tab === 'harvest' && (route.prices ? <PricesPage /> : route.kupas ? <KupasPage /> : route.board ? <GradeBoardPage /> : route.fruitCode ? <FruitPage key={route.fruitCode} fruitKey={route.fruitCode} /> : route.fruits ? <FruitsPage /> : <HarvestPage />)}
               {route.tab === 'schedule' && <SchedulePage />}
               {route.tab === 'trees' &&
                 (route.pageKey === 'count' ? (

@@ -224,3 +224,54 @@ export function withoutFruit(items: HarvestFruit[], index: number): HarvestFruit
 
 /** A fruit code as shown in tables, without the year (the same all season): A3-20261102-02 -> A3-1102-02. */
 export const shortCode = (code: string) => code.replace(/^(.+)-\d{4}(\d{4})-(\d+)$/, '$1-$2-$3');
+
+/** One tree on the grading board: its fruits this season and its grade (with its total when fully scored). */
+export interface BoardTree {
+  treeId: string;
+  fruits: number;
+  grams: number;
+  grade: import('./grading').Grade;
+  pct?: number;
+  gradedOn?: string;
+}
+
+export const BOARD_GRADES = ['high', 'mid', 'low', 'ungraded'] as const;
+
+/**
+ * The grading board: every variety with its fruiting trees (trees with fruit this season) set out by grade, as the
+ * management's sheet has it. Varieties with the most fruit first; in each grade the best total, then the tree code.
+ */
+export function gradeBoard(rows: FruitRow[]) {
+  const trees = new Map<string, BoardTree & { variety: string }>();
+  for (const r of rows) {
+    if (!r.treeId) continue;
+    const t = trees.get(r.treeId) || {
+      treeId: r.treeId,
+      variety: r.variant || '',
+      fruits: 0,
+      grams: 0,
+      grade: fruitGrade(r).grade,
+      ...(r.tg?.total.complete ? { pct: r.tg.total.pct } : {}),
+      ...(r.tg ? { gradedOn: r.tg.sample.date } : {}),
+    };
+    t.fruits++;
+    t.grams += Number(r.weightG) || 0;
+    trees.set(r.treeId, t);
+  }
+  const byVariety = new Map<string, Array<BoardTree & { variety: string }>>();
+  for (const t of trees.values()) byVariety.set(t.variety, [...(byVariety.get(t.variety) || []), t]);
+  const code = (id: string) => id.match(/^([A-Z]+)(\d+)/i)?.slice(1) || [id, '0'];
+  const order = (a: BoardTree, b: BoardTree) =>
+    (b.pct ?? -1) - (a.pct ?? -1) || code(a.treeId)[0].localeCompare(code(b.treeId)[0]) || Number(code(a.treeId)[1]) - Number(code(b.treeId)[1]);
+  return [...byVariety.entries()]
+    .map(([variety, list]) => ({
+      variety,
+      fruits: list.reduce((n, t) => n + t.fruits, 0),
+      trees: list.length,
+      byGrade: Object.fromEntries(BOARD_GRADES.map((g) => [g, list.filter((t) => t.grade === g).sort(order)])) as unknown as Record<
+        (typeof BOARD_GRADES)[number],
+        BoardTree[]
+      >,
+    }))
+    .sort((a, b) => b.fruits - a.fruits || a.variety.localeCompare(b.variety));
+}

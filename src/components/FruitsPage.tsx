@@ -33,7 +33,7 @@ import { GradeTag, ScoreChip, ScoreLine } from './HarvestBits';
 export { GradeTag };
 
 /** Every fruit the farm loaded (this season's harvests), with the tree's variety when the harvest has none. */
-function useFruits(): FruitRow[] {
+export function useFruits(): FruitRow[] {
   const { harvests, allTrees, treeGrades } = useFarm();
   return useMemo(() => {
     const variety = new Map(allTrees.map((x) => [x.id, x.variant]));
@@ -41,7 +41,7 @@ function useFruits(): FruitRow[] {
   }, [harvests, allTrees, treeGrades]);
 }
 
-const useVarietyName = () => {
+export const useVarietyName = () => {
   const { variants } = useFarm();
   return useMemo(() => {
     const names = new Map(variants.map((v) => [v.code, v.name]));

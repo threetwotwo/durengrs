@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { CheckCircle2, MessageCircle, Plus, Tally5 } from 'lucide-react';
 import { useFarm } from '../context/FarmContext';
 import { useT } from '../i18n';
-import { countUrl, fruitsUrl, kupasUrl, pricesUrl, useQueryParams } from '../lib/router';
+import { countUrl, fruitsUrl, boardUrl, kupasUrl, pricesUrl, useQueryParams } from '../lib/router';
 import { cropFunnel, fruitOnTree } from '../lib/crop';
 import { buildFieldLog } from '../lib/fieldLog';
 import { diffDays, todayStr } from '../lib/treatments';
@@ -67,6 +67,12 @@ export const HarvestPage: React.FC = () => {
               {t('fr.open')}
             </Link>
           )}
+          <Link
+            to={boardUrl()}
+            className="min-h-10 px-3.5 rounded-lg border border-slate-300 bg-white text-sm font-semibold text-slate-800 hover:bg-slate-50 inline-flex items-center gap-1.5"
+          >
+            {t('gb.title')}
+          </Link>
           <Link
             to={kupasUrl()}
             className="min-h-10 px-3.5 rounded-lg border border-slate-300 bg-white text-sm font-semibold text-slate-800 hover:bg-slate-50 inline-flex items-center gap-1.5"

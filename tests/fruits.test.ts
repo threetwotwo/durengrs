@@ -88,3 +88,21 @@ test('a fruit on another tree gets that tree\'s next number for the day', async 
   assert.equal(codeOnTree('A7', '2026-11-04', ['A4-20261104-02']), 'A7-20261104-01');
   assert.equal(codeOnTree('A7', '2026-11-04', ['A7-20261104-01']), 'A7-20261104-02');
 });
+
+test('the grading board: each variety\'s fruiting trees by grade, best total first', async () => {
+  const { gradeBoard, withTreeGrades } = await import('../src/lib/fruits');
+  const { CRITERIA } = await import('../src/lib/grading');
+  const full = (v: number) => Object.fromEntries(CRITERIA.map((c) => [c.key, v]));
+  const h = (id: string, tree: string, variant: string, n: number) =>
+    ({ id, date: '2026-11-06', treeId: tree, block: tree[0], variant, items: Array.from({ length: n }, (_, i) => ({ code: `${tree}-20261106-0${i + 1}`, weightG: 1500, aroma: 3, skin: 3, shape: 3 })) }) as any;
+  const rows = withTreeGrades(fruitRows([h('1', 'A3', 'MK', 2), h('2', 'A2', 'MK', 1), h('3', 'A4', 'MK', 3), h('4', 'D29', 'OC', 1)]), [
+    { id: 's1', treeId: 'A3', date: '2026-10-26', qc: full(4) },
+    { id: 's2', treeId: 'A2', date: '2026-10-28', qc: full(4.5) },
+    { id: 's3', treeId: 'D29', date: '2026-10-30', grade: 'low' },
+  ]);
+  const b = gradeBoard(rows);
+  assert.deepEqual(b.map((v) => v.variety), ['MK', 'OC'], 'the variety with most fruit first');
+  assert.deepEqual(b[0].byGrade.high.map((t) => t.treeId), ['A2', 'A3'], 'best total first');
+  assert.deepEqual(b[0].byGrade.ungraded.map((t) => [t.treeId, t.fruits]), [['A4', 3]]);
+  assert.equal(b[1].byGrade.low[0].treeId, 'D29');
+});
