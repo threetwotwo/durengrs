@@ -12,7 +12,7 @@ test('the weights make 100%; the worker scores 3 criteria, management 11', () =>
 
 test('total: weight × score / 5; ungraded until all 14 are scored', () => {
   assert.deepEqual(qcTotal({ aroma: 5, skin: 5, shape: 5, qc: all(5) }), { pct: 100, scored: 14, complete: true, grade: 'high' });
-  assert.deepEqual(qcTotal({ aroma: 3, skin: 3, shape: 3, qc: all(3) }), { pct: 60, scored: 14, complete: true, grade: 'mid' });
+  assert.deepEqual(qcTotal({ aroma: 3, skin: 3, shape: 3, qc: all(3) }), { pct: 60, scored: 14, complete: true, grade: 'midhigh' });
   const part = qcTotal({ aroma: 4, skin: 4, shape: 4 });
   assert.deepEqual([part.scored, part.complete, part.grade, part.pct], [3, false, 'ungraded', 12]);
   assert.equal(qcTotal({ aroma: 4, skin: 4, shape: 4, qc: { ...all(4), manis: 9 } }).scored, 13, 'out of range: not a score');
@@ -22,7 +22,9 @@ test('grades as management graded the first fruits: A3 74%, D29 71% high; A7 53%
   assert.equal(GRADE_FROM.high, 70);
   assert.equal(gradeOf(74), 'high');
   assert.equal(gradeOf(71), 'high');
-  assert.equal(gradeOf(69.9), 'mid');
+  assert.equal(gradeOf(69.9), 'midhigh', 'almost High');
+  assert.equal(gradeOf(60), 'midhigh');
+  assert.equal(gradeOf(59.9), 'mid');
   assert.equal(gradeOf(53), 'mid');
   assert.equal(gradeOf(50), 'mid');
   assert.equal(gradeOf(40), 'low');

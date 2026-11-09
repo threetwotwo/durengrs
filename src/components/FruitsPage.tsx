@@ -51,7 +51,7 @@ export const useVarietyName = () => {
 
 
 
-const GRADES_ORDER: Grade[] = ['high', 'mid', 'low', 'ungraded'];
+const GRADES_ORDER: Grade[] = ['high', 'midhigh', 'mid', 'low', 'ungraded'];
 
 /** A fruit's grade as a small tag, its total beside it once graded ("High 74%"). */
 
@@ -918,7 +918,7 @@ const QcSection: React.FC<{ f: FruitRow; all: FruitRow[] }> = ({ f, all }) => {
           <PhotoStrip photos={current.photos} caption={t('qc.title', { tree })} />
         </div>
       ) : null}
-      <p className="px-4 sm:px-5 pt-1 pb-2 text-xs text-slate-500">{t('qc.desc', { high: GRADE_FROM.high, mid: GRADE_FROM.mid })}</p>
+      <p className="px-4 sm:px-5 pt-1 pb-2 text-xs text-slate-500">{t('qc.desc', { high: GRADE_FROM.high, midhigh: GRADE_FROM.midhigh, mid: GRADE_FROM.mid })}</p>
       {GROUPS.map((g) => {
         const list = CRITERIA.filter((c) => c.group === g);
         return (

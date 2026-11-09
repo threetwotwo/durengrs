@@ -53,13 +53,13 @@ export const GROUPS: QcGroup[] = ['aroma', 'kulit', 'buah', 'daging', 'rasa'];
 /** The criteria management fills in. */
 export const MGMT = CRITERIA.filter((c) => !c.from);
 
-export type Grade = 'high' | 'mid' | 'low' | 'ungraded';
+export type Grade = 'high' | 'midhigh' | 'mid' | 'low' | 'ungraded';
 /**
  * The grade from the total, as management graded the first fruits: High from 70% (A3 74%, the farm's best and
- * sellable; A2 73%, D29 71%), Mid from 50% (A7 53%, A8 51%, D36 50%), Low below (D8 40%; B29 watery, not up to
- * standard); Ungraded until every criterion has a score.
+ * sellable; A2 73%, D29 71%), Mid-High from 60% (almost High: A6 "MID otw HIGH"), Mid from 50% (A8 51%, D36 50%),
+ * Low below (D8 40%; B29 watery, not up to standard); Ungraded until every criterion has a score.
  */
-export const GRADE_FROM = { high: 70, mid: 50 } as const;
+export const GRADE_FROM = { high: 70, midhigh: 60, mid: 50 } as const;
 
 /**
  * One criterion's score on a fruit, 0-5: management's when it has one (the QC sheet scores all 14, in steps finer
@@ -73,7 +73,7 @@ export function scoreOf(f: Pick<HarvestFruit, 'aroma' | 'skin' | 'shape' | 'qc'>
   return ok(w) && w >= 1 ? w : undefined;
 }
 
-const GRADES: Grade[] = ['high', 'mid', 'low'];
+const GRADES: Grade[] = ['high', 'midhigh', 'mid', 'low'];
 
 /**
  * A fruit's total: points (weight × score / 5, out of 100) of the criteria scored, how many of the 14 have a score,
@@ -95,7 +95,8 @@ export function qcTotal(f: Pick<HarvestFruit, 'aroma' | 'skin' | 'shape' | 'qc' 
   return { pct, scored, complete, grade: set || (complete ? gradeOf(pct) : ('ungraded' as Grade)) };
 }
 
-export const gradeOf = (pct: number): Grade => (pct >= GRADE_FROM.high ? 'high' : pct >= GRADE_FROM.mid ? 'mid' : 'low');
+export const gradeOf = (pct: number): Grade =>
+  pct >= GRADE_FROM.high ? 'high' : pct >= GRADE_FROM.midhigh ? 'midhigh' : pct >= GRADE_FROM.mid ? 'mid' : 'low';
 
 /** A typed 1-5 score, or undefined to clear it. */
 export const checkQc = (v: unknown): number | undefined => (typeof v === 'number' && Number.isInteger(v) && v >= 1 && v <= 5 ? v : undefined);

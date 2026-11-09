@@ -50,8 +50,11 @@ const toScore = (points, weight) => Math.min(5, Math.max(0, Math.round((points /
 /** MGMT QC as a grade: "HIGH", "MID otw HIGH", "Mid-low" -> the first word; else a note starting "Low - …". */
 function gradeOf(mgmt, note) {
   for (const s of [mgmt, note]) {
-    const m = String(s || '').trim().match(/^(high|mid|low)\b/i);
-    if (m) return m[1].toLowerCase();
+    const t = String(s || '').trim().toLowerCase();
+    // "MID otw HIGH", "Mid-High": almost High.
+    if (/^mid\b.*\bhigh\b/.test(t)) return 'midhigh';
+    const m = t.match(/^(high|mid|low)\b/);
+    if (m) return m[1];
   }
   return undefined;
 }

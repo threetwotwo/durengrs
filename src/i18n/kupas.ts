@@ -5,7 +5,8 @@ export const kupas: Bundle = {
   id: {
     'ku.title': 'Kotak kupas',
     'gb.title': 'Papan grading',
-    'gb.desc': 'Pohon yang berbuah musim ini, per varietas dan grade. Grade dari sampel buah yang dinilai manajemen; ketuk pohon untuk melihat buahnya.',
+    'gb.desc': 'Semua pohon, per varietas dan grade. Grade dari sampel buah yang dinilai manajemen. Tebal: berbuah musim ini (ketuk untuk melihat buahnya); abu-abu: belum ada buah.',
+    'gb.tree.noFruit': '{tree}: belum ada buah musim ini{graded}',
     'gb.trees': '{n} pohon · {f} buah',
     'gb.treeCount': '{n} pohon',
     'gb.fruits': '{n} buah',
@@ -34,7 +35,8 @@ export const kupas: Bundle = {
   en: {
     'ku.title': 'Kupas boxes',
     'gb.title': 'Grading board',
-    'gb.desc': "This season's fruiting trees by variety and grade. The grade is from management's graded sample fruit; tap a tree to see its fruits.",
+    'gb.desc': "Every tree by variety and grade. The grade is from management's graded sample fruit. Bold: fruiting this season (tap to see its fruits); grey: no fruit yet.",
+    'gb.tree.noFruit': '{tree}: no fruit this season yet{graded}',
     'gb.trees': '{n} trees · {f} fruits',
     'gb.treeCount': '{n} trees',
     'gb.fruits': '{n} fruits',

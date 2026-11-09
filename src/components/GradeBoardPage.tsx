@@ -1,7 +1,9 @@
 import React, { useMemo } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { useT } from '../i18n';
-import { fruitsUrl, goBack } from '../lib/router';
+import { useFarm } from '../context/FarmContext';
+import { currentGrades } from '../lib/grading';
+import { fruitsUrl, goBack, treeUrl } from '../lib/router';
 import { BOARD_GRADES, type BoardTree, gradeBoard } from '../lib/fruits';
 import { formatShortDate } from '../lib/treatments';
 import { GradeTag } from './HarvestBits';
@@ -12,6 +14,7 @@ import { useFruits, useVarietyName } from './FruitsPage';
 /** Each grade's column, tinted as its medal: gold, silver, bronze; ungraded grey. */
 const COLUMN: Record<(typeof BOARD_GRADES)[number], string> = {
   high: 'bg-[#fdf6dc]',
+  midhigh: 'bg-[#f8f4e8]',
   mid: 'bg-[#f1f3f6]',
   low: 'bg-[#f8ece1]',
   ungraded: 'bg-slate-50',
@@ -26,7 +29,8 @@ export const GradeBoardPage: React.FC = () => {
   const { t, locale } = useT();
   const rows = useFruits();
   const name = useVarietyName();
-  const board = useMemo(() => gradeBoard(rows), [rows]);
+  const { trees, treeGrades } = useFarm();
+  const board = useMemo(() => gradeBoard(rows, trees, currentGrades(treeGrades)), [rows, trees, treeGrades]);
   const fmt = (n: number, d = 0) => n.toLocaleString(locale, { maximumFractionDigits: d });
   const counts = Object.fromEntries(BOARD_GRADES.map((g) => [g, board.reduce((n, v) => n + v.byGrade[g].length, 0)]));
 
@@ -35,14 +39,14 @@ export const GradeBoardPage: React.FC = () => {
     <React.Fragment key={tr.treeId}>
       {i > 0 && <span className="text-slate-400">, </span>}
       <Link
-        to={fruitsUrl({ q: tr.treeId })}
-        title={t('gb.tree.title', {
+        to={tr.fruits ? fruitsUrl({ q: tr.treeId }) : treeUrl(tr.treeId)}
+        title={t(tr.fruits ? 'gb.tree.title' : 'gb.tree.noFruit', {
           tree: tr.treeId,
           n: tr.fruits,
           kg: fmt(tr.grams / 1000, 1),
           graded: tr.gradedOn ? t('gb.graded', { date: formatShortDate(tr.gradedOn) }) : '',
         })}
-        className="whitespace-nowrap font-mono font-bold text-slate-900 underline decoration-slate-300 underline-offset-4 hover:decoration-slate-900"
+        className={`whitespace-nowrap font-mono underline underline-offset-4 ${tr.fruits ? 'font-bold text-slate-900 decoration-slate-300 hover:decoration-slate-900' : 'text-slate-500 decoration-slate-200 hover:text-slate-900'}`}
       >
         {tr.treeId}
       </Link>
@@ -62,7 +66,7 @@ export const GradeBoardPage: React.FC = () => {
       ) : (
         // One row per variety; each grade's cell lists its trees.
         <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-          <table className="w-full text-sm table-fixed">
+          <table className="w-full text-sm sm:table-fixed">
             <colgroup>
               <col className="w-14 sm:w-40" />
               {BOARD_GRADES.map((g) => <col key={g} />)}

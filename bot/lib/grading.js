@@ -3,7 +3,7 @@
 // from 70%, Mid from 50%, Low below; management's own call (the QC sheet's MGMT QC) stands over the total; the tree's
 // grade is its newest sampling that has one. What the grade means at the packing house:
 //   High      -> as now: wrapped in banana leaves
-//   Mid, Low  -> kupas station
+//   Mid-High, Mid, Low -> kupas station (only High is wrapped whole)
 //   ungraded  -> packed for management's QC
 'use strict';
 const R = require('./rules');
@@ -12,7 +12,7 @@ const WEIGHTS = {
   wangi: 5, kulitBersih: 5, kulitTipis: 5, bentuk: 5, juring: 5, biji: 10, dagingTebal: 10,
   warna: 10, benyek: 5, tekstur: 5, manis: 15, lemak: 10, pahit: 5, unik: 5,
 };
-const GRADE_FROM = { high: 70, mid: 50 };
+const GRADE_FROM = { high: 70, midhigh: 60, mid: 50 };
 
 /** A sampling's total (out of 100) and grade: 'high' | 'mid' | 'low' | 'ungraded'. */
 function sampleTotal(s = {}) {
@@ -26,8 +26,9 @@ function sampleTotal(s = {}) {
   }
   const pct = Math.round(points * 10) / 10;
   const complete = scored === Object.keys(WEIGHTS).length;
-  const set = ['high', 'mid', 'low'].includes(s.grade) ? s.grade : null;
-  return { pct, complete, grade: set || (complete ? (pct >= GRADE_FROM.high ? 'high' : pct >= GRADE_FROM.mid ? 'mid' : 'low') : 'ungraded') };
+  const set = ['high', 'midhigh', 'mid', 'low'].includes(s.grade) ? s.grade : null;
+  const from = (p) => (p >= GRADE_FROM.high ? 'high' : p >= GRADE_FROM.midhigh ? 'midhigh' : p >= GRADE_FROM.mid ? 'mid' : 'low');
+  return { pct, complete, grade: set || (complete ? from(pct) : 'ungraded') };
 }
 
 /** The tree's current grade from its samplings: { grade, pct?, date? } (grade 'ungraded' when none has one). */
@@ -45,7 +46,8 @@ function gradeLines(treeId, g, { kupasHint = false } = {}) {
   if (g.grade === 'ungraded')
     return [`🔍 Pohon ${treeId} *belum punya grade*.`, '👉 Kemas buahnya untuk *QC manajemen*: sisihkan dan serahkan ke manajemen untuk dinilai.'];
   const what = `${g.pct !== undefined ? `${String(g.pct).replace('.', ',')}%, ` : ''}${g.date ? `dinilai ${R.dateLabel(g.date)}` : ''}`.replace(/, $/, '');
-  const head = `${g.grade === 'high' ? '⭐' : '🔸'} Grade pohon ${treeId}: *${g.grade.toUpperCase()}*${what ? ` (${what})` : ''}.`;
+  const label = { high: 'HIGH', midhigh: 'MID-HIGH', mid: 'MID', low: 'LOW' }[g.grade];
+  const head = `${g.grade === 'high' ? '⭐' : '🔸'} Grade pohon ${treeId}: *${label}*${what ? ` (${what})` : ''}.`;
   return g.grade === 'high'
     ? [head, '👉 Proses seperti biasa: *bungkus daun pisang*.']
     : [head, '👉 *KUPAS*: bawa buahnya ke *stasiun kupas*.', ...(kupasHint ? [`Setelah dikupas, kirim *KUPAS ${treeId}* untuk mencatat kotaknya.`] : [])];

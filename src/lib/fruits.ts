@@ -67,7 +67,7 @@ export function sortFruits(rows: FruitRow[], sort: FruitSort | null, desc: boole
     // The total so far (graded fruit before ungraded ones, which go last either way).
     return [...rows].sort((a, b) => {
       // By the tree's grade (High, Mid, Low), then its total; ungraded last.
-      const rank = { high: 3, mid: 2, low: 1, ungraded: 0 };
+      const rank = { high: 4, midhigh: 3, mid: 2, low: 1, ungraded: 0 };
       const x = fruitGrade(a);
       const y = fruitGrade(b);
       if ((x.grade === 'ungraded') !== (y.grade === 'ungraded')) return x.grade === 'ungraded' ? 1 : -1;
@@ -235,13 +235,18 @@ export interface BoardTree {
   gradedOn?: string;
 }
 
-export const BOARD_GRADES = ['high', 'mid', 'low', 'ungraded'] as const;
+export const BOARD_GRADES = ['high', 'midhigh', 'mid', 'low', 'ungraded'] as const;
 
 /**
  * The grading board: every variety with its fruiting trees (trees with fruit this season) set out by grade, as the
  * management's sheet has it. Varieties with the most fruit first; in each grade the best total, then the tree code.
  */
-export function gradeBoard(rows: FruitRow[]) {
+export function gradeBoard(
+  rows: FruitRow[],
+  /** Every tree on the farm, so trees without fruit this season are on the board too (most of them Ungraded). */
+  others: Array<{ id: string; variant?: string }> = [],
+  current: Map<string, { date: string; total: { pct: number; complete: boolean; grade: import('./grading').Grade } }> = new Map()
+) {
   const trees = new Map<string, BoardTree & { variety: string }>();
   for (const r of rows) {
     if (!r.treeId) continue;
@@ -258,11 +263,26 @@ export function gradeBoard(rows: FruitRow[]) {
     t.grams += Number(r.weightG) || 0;
     trees.set(r.treeId, t);
   }
+  for (const o of others) {
+    if (trees.has(o.id)) continue;
+    const g = current.get(o.id.toUpperCase());
+    trees.set(o.id, {
+      treeId: o.id,
+      variety: o.variant || '',
+      fruits: 0,
+      grams: 0,
+      grade: g?.total.grade || 'ungraded',
+      ...(g?.total.complete ? { pct: g.total.pct } : {}),
+      ...(g ? { gradedOn: g.date } : {}),
+    });
+  }
   const byVariety = new Map<string, Array<BoardTree & { variety: string }>>();
   for (const t of trees.values()) byVariety.set(t.variety, [...(byVariety.get(t.variety) || []), t]);
   const code = (id: string) => id.match(/^([A-Z]+)(\d+)/i)?.slice(1) || [id, '0'];
+  // Best total first; then trees with fruit this season (the ones waiting for QC); then by code.
   const order = (a: BoardTree, b: BoardTree) =>
-    (b.pct ?? -1) - (a.pct ?? -1) || code(a.treeId)[0].localeCompare(code(b.treeId)[0]) || Number(code(a.treeId)[1]) - Number(code(b.treeId)[1]);
+    (b.pct ?? -1) - (a.pct ?? -1) ||
+    Number(b.fruits > 0) - Number(a.fruits > 0) || code(a.treeId)[0].localeCompare(code(b.treeId)[0]) || Number(code(a.treeId)[1]) - Number(code(b.treeId)[1]);
   return [...byVariety.entries()]
     .map(([variety, list]) => ({
       variety,

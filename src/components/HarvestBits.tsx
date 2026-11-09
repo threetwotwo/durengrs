@@ -179,6 +179,8 @@ export const FruitTable: React.FC<{ harvest: Harvest; hrefOf: (i: number) => str
 const GRADE_TONE: Record<Grade, string> = {
   // Gold, silver, bronze: a medal per grade, apart from the green/amber/red of the 1-5 scores.
   high: 'bg-gradient-to-b from-[#fff4c2] to-[#f6dc7a] text-[#6b4e00] border-[#d9b13b]',
+  // Mid-High: almost gold, a pale champagne between gold and silver.
+  midhigh: 'bg-gradient-to-b from-[#fbf6e6] to-[#e9dcb4] text-[#5b4a1c] border-[#c9b67a]',
   mid: 'bg-gradient-to-b from-[#f7f8fa] to-[#dde2e8] text-[#3c4655] border-[#b3bcc8]',
   low: 'bg-gradient-to-b from-[#f9e3cf] to-[#e8b98f] text-[#6e3511] border-[#c98a56]',
   ungraded: 'bg-white text-slate-500 border-dashed border-slate-300',
