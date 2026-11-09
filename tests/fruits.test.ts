@@ -106,3 +106,11 @@ test('the grading board: each variety\'s fruiting trees by grade, best total fir
   assert.deepEqual(b[0].byGrade.ungraded.map((t) => [t.treeId, t.fruits]), [['A4', 3]]);
   assert.equal(b[1].byGrade.low[0].treeId, 'D29');
 });
+
+test('the grading board shows trees with fruit to harvest: counted on the tree or picked', async () => {
+  const { gradeBoard, hasPotential } = await import('../src/lib/fruits');
+  const b = gradeBoard([], [{ id: 'A21', variant: 'MK' }, { id: 'A30', variant: 'MK' }, { id: 'A12', variant: 'MK' }], new Map(), (id) => ({ A21: 4, A12: 20 })[id] || 0);
+  const ungraded = b[0].byGrade.ungraded;
+  assert.deepEqual(ungraded.map((t) => t.treeId), ['A12', 'A21', 'A30'], 'the most fruit on the tree first; none last');
+  assert.deepEqual(ungraded.map(hasPotential), [true, true, false]);
+});
