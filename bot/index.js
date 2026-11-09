@@ -90,7 +90,7 @@ const HELP_BODY = [
   '• *PANEN*: buah yang dipungut hari ini, ditimbang dan dinilai',
   '',
   '🥡 *Laporan kupas*',
-  'Kirim *KUPAS* dan ID pohon, contoh: *KUPAS A6*. Lalu berat tiap kotak: *400 410 395*.',
+  'Kirim *KUPAS* dan ID pohon yang dikupas (satu varietas), contoh: *KUPAS A6 A7*. Lalu berat tiap kotak: *400 410 395*.',
   '',
   '📋 *Ringkasan hari ini*',
   'Kirim kata *RINGKASAN*: semua yang Anda catat hari ini.',
@@ -245,12 +245,13 @@ async function reopenAfterCompletion(to, message) {
   return sendHelp(to, thanks);
 }
 
-const kupas = kupasStore(fdb, cropByTree);
+const kupas = kupasStore(fdb, cropByTree, async (id) => {
+  const tree = await getTreeRecord(id);
+  return tree && !isArchived(tree) ? tree : null;
+});
 async function handleKupas(to, cmd) {
-  const tree = await getTreeRecord(cmd.tree);
-  if (!tree || isArchived(tree)) return sendText(to, `Pohon ${cmd.tree} tidak ditemukan atau sudah tidak aktif. Contoh: *KUPAS A6*.`);
   try {
-    return sendText(to, await kupas.start(to, tree, cmd));
+    return sendText(to, await kupas.start(to, cmd));
   } catch (err) {
     console.error('Kupas start failed:', err);
     return sendText(to, 'Laporan KUPAS belum bisa dibuka. Coba lagi sebentar lagi.');
@@ -432,10 +433,7 @@ async function handleIncomingMessage(body) {
   const boxWeights = parseWeights(typed);
   if (boxWeights) {
     const open = await kupas.open(to);
-    if (open) {
-      const tree = await getTreeRecord(open.treeId);
-      if (tree) return sendText(to, await kupas.saveWeights(to, open, boxWeights, tree));
-    }
+    if (open) return sendText(to, await kupas.saveWeights(to, open, boxWeights));
   }
   const typedPrices = priceText(typed);
   if (typedPrices) return handlePrices(to, { text: typedPrices, hint: typedPrices });

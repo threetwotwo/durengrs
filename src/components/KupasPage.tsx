@@ -5,7 +5,7 @@ import { db } from '../lib/firebase';
 import { useFarm } from '../context/FarmContext';
 import { useT } from '../i18n';
 import { fruitUrl, goBack, treeUrl } from '../lib/router';
-import { type KupasBox, shortBox, yields } from '../lib/kupas';
+import { type KupasBox, boxGrade, boxTrees, peelingKey, shortBox, yields } from '../lib/kupas';
 import { toCsv } from '../lib/kebun';
 import { formatShortDate, todayStr, addDays } from '../lib/treatments';
 import { GradeTag } from './HarvestBits';
@@ -15,7 +15,7 @@ import { PageHeader, btnSecondary } from './PageHeader';
 /**
  * The kupas station's boxes (#/harvest/kupas), recorded on WhatsApp (KUPAS A6, then each box's weight;
  * bot/lib/kupas.js): newest peeling day first, each box with its code, tree, the tree's grade then, the day its
- * fruit was picked, its weight, and the yield of that tree's picking (kupas grams ÷ fruit grams).
+ * fruit was picked, its weight, and the yield of each peeling (kupas grams ÷ the fruits' grams).
  */
 export const KupasPage: React.FC = () => {
   const { t, locale } = useT();
@@ -36,26 +36,32 @@ export const KupasPage: React.FC = () => {
     []
   );
   const fmt = (n: number, d = 0) => n.toLocaleString(locale, { maximumFractionDigits: d });
-  const fruitG = useMemo(() => {
+  // Each fruit's weight by its code, for boxes saved without their fruits' weight.
+  const fruitWeight = useMemo(() => {
     const m = new Map<string, number>();
-    for (const h of harvests) {
-      if (!h.treeId) continue;
-      const k = `${h.treeId}|${h.date}`;
-      m.set(k, (m.get(k) || 0) + (h.items || []).reduce((s, f) => s + (Number(f.weightG) || 0), 0));
-    }
+    for (const h of harvests) for (const f of h.items || []) if (f.code) m.set(f.code, Number(f.weightG) || 0);
     return m;
   }, [harvests]);
   const rows = useMemo(
     () => [...(boxes || [])].sort((a, b) => b.date.localeCompare(a.date) || a.code.localeCompare(b.code)),
     [boxes]
   );
-  const yieldOf = useMemo(() => yields(rows, (tree, date) => fruitG.get(`${tree}|${date}`) || 0), [rows, fruitG]);
+  const yieldOf = useMemo(() => yields(rows, (codes) => codes.reduce((s, c) => s + (fruitWeight.get(c) || 0), 0)), [rows, fruitWeight]);
   const total = rows.reduce((s, b) => s + (Number(b.weightG) || 0), 0);
   const dayLabel = (d: string) => (d === todayStr() ? t('fr.today') : d === addDays(todayStr(), -1) ? t('fr.yesterday') : formatShortDate(d));
 
   const csv = () => {
-    const head = [t('ku.col.code'), t('ku.col.tree'), 'Variety', t('ku.col.grade'), t('ku.col.picked'), 'Peeled', t('ku.col.weight'), 'Fruit codes', t('ku.col.by')];
-    const body = rows.map((b) => [b.code, b.treeId, b.variant || '', b.grade || '', b.fruitDate, b.date, b.weightG, (b.fruitCodes || []).join(' '), b.workerPhone ? workerLabel(b.workerPhone) : '']);
+    const head = [t('ku.col.code'), 'Variety', t('ku.col.trees'), 'Grades', 'Peeled', t('ku.col.weight'), 'Fruit codes', t('ku.col.by')];
+    const body = rows.map((b) => [
+      b.code,
+      b.variety || '',
+      boxTrees(b).join(' '),
+      boxTrees(b).map((x) => `${x}:${boxGrade(b, x) || ''}`).join(' '),
+      b.date,
+      b.weightG,
+      (b.fruitCodes || []).join(' '),
+      b.workerPhone ? workerLabel(b.workerPhone) : '',
+    ]);
     const blob = new Blob(['﻿' + toCsv([head, ...body])], { type: 'text/csv;charset=utf-8' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
@@ -101,9 +107,8 @@ export const KupasPage: React.FC = () => {
             <thead className="bg-slate-900">
               <tr>
                 <th scope="col" className={`${th} sticky left-0 bg-slate-900`}>{t('ku.col.code')}</th>
-                <th scope="col" className={th}>{t('ku.col.tree')}</th>
-                <th scope="col" className={th}>{t('ku.col.grade')}</th>
-                <th scope="col" className={`${th} hidden sm:table-cell`}>{t('ku.col.picked')}</th>
+                <th scope="col" className={th}>{t('ku.col.variety')}</th>
+                <th scope="col" className={th}>{t('ku.col.trees')}</th>
                 <th scope="col" className={`${th} text-right`}>{t('ku.col.weight')}</th>
                 <th scope="col" className={`${th} text-right`}>{t('ku.col.yield')}</th>
                 <th scope="col" className={`${th} hidden sm:table-cell`}>{t('ku.col.by')}</th>
@@ -112,14 +117,14 @@ export const KupasPage: React.FC = () => {
             </thead>
             <tbody className="tabular">
               {rows.map((b, i) => {
-                const y = yieldOf.get(`${b.treeId}|${b.fruitDate}`);
-                const firstOfGroup = rows.findIndex((x) => x.treeId === b.treeId && x.fruitDate === b.fruitDate) === i;
+                const y = yieldOf.get(peelingKey(b));
+                const firstOfGroup = rows.findIndex((x) => peelingKey(x) === peelingKey(b)) === i;
                 const day = rows.filter((x) => x.date === b.date);
                 return (
                   <React.Fragment key={b.id}>
                     {b.date !== rows[i - 1]?.date && (
                       <tr>
-                        <td colSpan={8} className="p-0 bg-slate-100 border-b border-slate-200">
+                        <td colSpan={7} className="p-0 bg-slate-100 border-b border-slate-200">
                           <span className="sticky left-0 inline-flex items-baseline gap-2 px-2.5 py-1.5 text-xs">
                             <strong className="text-slate-900">{dayLabel(b.date)}</strong>
                             <span className="text-slate-600">{t('ku.day', { n: day.length, kg: fmt(day.reduce((s, x) => s + x.weightG, 0) / 1000, 2) })}</span>
@@ -131,19 +136,24 @@ export const KupasPage: React.FC = () => {
                       <td className={`${td} sticky left-0 bg-white group-hover:bg-slate-50 font-mono text-xs font-semibold text-slate-900`} title={b.code}>
                         {shortBox(b.code)}
                       </td>
-                      <td className={td}>
-                        <Link to={treeUrl(b.treeId)} className="font-mono font-bold text-slate-900 hover:underline">{b.treeId}</Link>
-                        {b.variant && <span className="ml-1.5 text-xs text-slate-500">{b.variant}</span>}
-                      </td>
-                      <td className={td}>{b.grade ? <GradeTag grade={b.grade} /> : '—'}</td>
-                      <td className={`${td} hidden sm:table-cell text-slate-700`}>
-                        {b.fruitCodes?.[0] ? (
-                          <Link to={fruitUrl(b.fruitCodes[0])} className="hover:underline" title={(b.fruitCodes || []).join(', ')}>
-                            {formatShortDate(b.fruitDate)} · {b.fruitCodes.length}×
-                          </Link>
-                        ) : (
-                          formatShortDate(b.fruitDate)
-                        )}
+                      <td className={`${td} font-semibold text-slate-800`}>{b.variety || '—'}</td>
+                      <td className={`${td} whitespace-normal min-w-[9rem]`}>
+                        <span className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+                          {boxTrees(b).map((x) => {
+                            const g = boxGrade(b, x);
+                            return (
+                              <span key={x} className="inline-flex items-center gap-1">
+                                <Link to={treeUrl(x)} className="font-mono font-bold text-slate-900 hover:underline">{x}</Link>
+                                {g && g !== 'ungraded' && <GradeTag grade={g} />}
+                              </span>
+                            );
+                          })}
+                          {b.fruitCodes?.[0] && (
+                            <Link to={fruitUrl(b.fruitCodes[0])} title={b.fruitCodes.join(', ')} className="text-xs text-slate-500 hover:underline">
+                              {t('ku.fruits', { n: b.fruitCodes.length })}
+                            </Link>
+                          )}
+                        </span>
                       </td>
                       <td className={`${td} text-right font-semibold`}>{fmt(b.weightG)}</td>
                       <td className={`${td} text-right text-slate-700`} title={y ? t('ku.yield.title', { kupas: fmt(y.kupasG), fruit: fmt(y.fruitG) }) : undefined}>
@@ -162,7 +172,7 @@ export const KupasPage: React.FC = () => {
             </tbody>
             <tfoot className="bg-slate-50 font-semibold text-slate-800 tabular">
               <tr>
-                <th scope="row" colSpan={4} className="px-2.5 py-2 text-left text-xs">{t('ku.sum', { n: rows.length, kg: fmt(total / 1000, 2) })}</th>
+                <th scope="row" colSpan={3} className="px-2.5 py-2 text-left text-xs">{t('ku.sum', { n: rows.length, kg: fmt(total / 1000, 2) })}</th>
                 <td className="px-2.5 py-2 text-right">{fmt(total)}</td>
                 <td colSpan={3} />
               </tr>

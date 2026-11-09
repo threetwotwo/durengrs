@@ -1,10 +1,11 @@
-// lib/kupas.js — Laporan KUPAS: the kupas station records its boxes, each with its own code (SKU). A box holds the
-// flesh of fruits from ONE tree picked on ONE day, so its code follows the fruits': K-A6-20261105-01 is the first box
-// of A6's fruits picked 5 Nov (shown short as K-A6-1105-01). In the chat:
-//   KUPAS A6          the tree's fruits of its latest picking day (or KUPAS A6 5/11 for another day), its grade
+// lib/kupas.js — Laporan KUPAS: the farm's kupas station records its boxes, each with its own farm code (a lot
+// code for traceability, not the store's product SKU: the store has its own in its POS). A box holds flesh of ONE
+// variety, from one or more trees, so its code follows the variety and the peeling day: K-MK-20261109-01 is the
+// first Musang King box peeled 9 Nov (shown short as K-MK-1109-01). In the chat:
+//   KUPAS A6 A7       the trees going in (one variety): their fruits not yet in a box, from the last two weeks
 //   400 410 395       within 30 minutes: each box's weight in grams; the bot answers with the box codes
-// Saved as kupasBoxes/{code}: treeId, block, variant, fruitDate (picked), date (peeled), weightG, fruitCodes (that
-// tree's fruits of that day), grade (the tree's then), workerPhone.
+// Saved as kupasBoxes/{code}: variety, treeIds, fruitCodes (the fruits that went in), date (peeled), weightG,
+// grades (each tree's then), workerPhone.
 'use strict';
 const R = require('./rules');
 const G = require('./grading');
@@ -12,12 +13,16 @@ const G = require('./grading');
 const WINDOW_MS = 30 * 60 * 1000;
 const LOOK_BACK_DAYS = 14;
 const BOX_G = { min: 50, max: 5000 };
+const MAX_TREES = 10;
 
-/** "KUPAS A6", "kupas a 6 5/11" -> { tree: 'A6', day: 5, month: 11 }; null when not a kupas command. */
+/** "KUPAS A6 A7", "kupas a6, a 7" -> { trees: ['A6', 'A7'] }; null when not a kupas command. */
 function parseKupas(text) {
-  const m = String(text || '').trim().match(/^kupa?s\s+([a-z]{1,3})\s*(\d{1,3})(?:\s+(\d{1,2})\s*[/.-]\s*(\d{1,2}))?\s*$/i);
+  const m = String(text || '').trim().match(/^kupa?s\s+(.+)$/i);
   if (!m) return null;
-  return { tree: `${m[1].toUpperCase()}${Number(m[2])}`, ...(m[3] ? { day: Number(m[3]), month: Number(m[4]) } : {}) };
+  const rest = m[1].trim();
+  if (!/^([a-z]{1,3}\s*\d{1,3}[\s,;&+]*)+$/i.test(rest)) return null;
+  const trees = [...new Set([...rest.matchAll(/([a-z]{1,3})\s*(\d{1,3})/gi)].map((x) => `${x[1].toUpperCase()}${Number(x[2])}`))];
+  return trees.length ? { trees } : null;
 }
 
 /** "400 410 395", "400, 410; 395 g" -> [400, 410, 395]; null when the message isn't only box weights. */
@@ -27,44 +32,54 @@ function parseWeights(text) {
   return s.split(/[\s,;+]+/).map(Number);
 }
 
-/** A day typed as 5/11 as a date: this year, or last year when that is still to come. */
-function dayToDate(day, month, today) {
-  let y = Number(today.slice(0, 4));
-  const pad = (n) => String(n).padStart(2, '0');
-  if (`${y}-${pad(month)}-${pad(day)}` > today) y--;
-  return `${y}-${pad(month)}-${pad(day)}`;
-}
-
-const boxCode = (treeId, fruitDate, n) => `K-${R.fruitCode(treeId, fruitDate, n)}`;
-const shortBox = (code) => String(code).replace(/-\d{4}(\d{4})-/, '-$1-');
+const boxCode = (variety, date, n) => `K-${variety}-${String(date).replace(/-/g, '')}-${String(n).padStart(2, '0')}`;
+/** K-MK-20261109-01 -> K-MK-1109-01; a fruit code A6-20261105-01 -> A6-1105-01. */
+const shortCode = (code) => String(code).replace(/-\d{4}(\d{4})-/, '-$1-');
 const grams = (n) => `${Math.round(n).toLocaleString('id-ID')} g`;
 
 /**
- * The fruits a box can come from: the tree's fruits of the day asked, or of its latest picking day within two weeks.
- * { fruitDate, fruits: [{ code, weightG }] } or { fruitDate: null }.
+ * The fruits that can go in: these trees' fruits picked in the last two weeks and not in a box yet.
+ * [{ code, treeId, date, weightG }]
  */
-function pickDay(harvests, today, asked) {
-  const withFruit = harvests.filter((h) => (h.items || []).length && h.date <= today && h.date >= R.addDays(today, -LOOK_BACK_DAYS));
-  const fruitDate = asked || withFruit.map((h) => h.date).sort().pop() || null;
-  if (!fruitDate) return { fruitDate: null, fruits: [] };
-  const fruits = harvests.filter((h) => h.date === fruitDate).flatMap((h) => (h.items || []).map((f) => ({ code: f.code, weightG: f.weightG })));
-  return { fruitDate, fruits };
+function pool(harvests, boxes, today) {
+  const used = new Set(boxes.flatMap((b) => b.fruitCodes || []));
+  const from = R.addDays(today, -LOOK_BACK_DAYS);
+  return harvests
+    .filter((h) => h.date >= from && h.date <= today)
+    .flatMap((h) => (h.items || []).map((f) => ({ code: f.code, treeId: h.treeId, date: h.date, weightG: Number(f.weightG) || 0 })))
+    .filter((f) => f.code && !used.has(f.code))
+    .sort((a, b) => a.code.localeCompare(b.code));
 }
 
-/** The message after KUPAS A6: the fruits, the grade, how to send the boxes. */
-function startReply(tree, { fruitDate, fruits }, gradeLines, boxesSoFar) {
-  const head = `🥡 *Laporan KUPAS ${tree.id}*`;
-  if (!fruitDate || !fruits.length)
-    return `${head}\nTidak ada buah ${tree.id} yang tercatat${fruitDate ? ` pada ${R.dateLabel(fruitDate)}` : ` dalam ${LOOK_BACK_DAYS} hari terakhir`}. Kirim Laporan PANEN dulu, atau tulis harinya, contoh: *KUPAS ${tree.id} 5/11*.`;
-  const total = fruits.reduce((s, f) => s + (Number(f.weightG) || 0), 0);
-  const list = fruits.map((f) => `• ${f.code ? shortBox(f.code) : '?'} ${grams(f.weightG || 0)}`).join('\n');
+/** The trees must be one variety: { variety } or { error }. */
+function oneVariety(trees) {
+  const kinds = [...new Set(trees.map((t) => t.variant || '?'))];
+  if (kinds.length === 1) return { variety: kinds[0] };
+  const list = kinds.map((k) => `${k}: ${trees.filter((t) => (t.variant || '?') === k).map((t) => t.id).join(', ')}`).join('; ');
+  return { error: `Satu kotak hanya untuk *satu varietas*. Pohon ini berbeda varietas (${list}). Kirim KUPAS terpisah untuk tiap varietas.` };
+}
+
+/** The message after KUPAS A6 A7: the fruits going in by tree, each tree's grade, how to send the boxes. */
+function startReply(variety, trees, fruits, grades) {
+  const head = `🥡 *Laporan KUPAS ${variety}*: ${trees.map((t) => t.id).join(', ')}`;
+  if (!fruits.length)
+    return `${head}\nTidak ada buah dari pohon ini dalam ${LOOK_BACK_DAYS} hari terakhir yang belum masuk kotak. Kirim Laporan PANEN dulu, atau cek ID pohonnya.`;
+  const total = fruits.reduce((s, f) => s + f.weightG, 0);
+  const byTree = trees
+    .map((t) => {
+      const list = fruits.filter((f) => f.treeId === t.id);
+      const g = grades[t.id];
+      const tag = g && g !== 'ungraded' ? ` (${g === 'midhigh' ? 'MID-HIGH' : g.toUpperCase()})` : ' (belum dinilai)';
+      return list.length ? `*${t.id}*${tag}: ${list.map((f) => `${shortCode(f.code)} ${grams(f.weightG)}`).join(', ')}` : `*${t.id}*: tidak ada buah yang belum dikupas`;
+    })
+    .join('\n');
+  const high = trees.filter((t) => grades[t.id] === 'high').map((t) => t.id);
   return [
     head,
-    `Buah dipungut ${R.dateLabel(fruitDate)}: ${fruits.length} buah, ${grams(total)}`,
-    list,
-    gradeLines.join('\n'),
-    boxesSoFar ? `Sudah tercatat ${boxesSoFar} kotak dari buah ini.` : '',
-    `Kirim *berat tiap kotak* dalam gram, satu pesan, contoh: *400 410 395*. Untuk buah hari lain: *KUPAS ${tree.id} 5/11*.`,
+    `Buah masuk: ${fruits.length} buah, ${grams(total)}`,
+    byTree,
+    high.length ? `⚠️ ${high.join(', ')} grade HIGH: biasanya *tidak dikupas*. Lanjutkan hanya jika memang sudah dikupas.` : '',
+    'Kirim *berat tiap kotak* dalam gram, satu pesan, contoh: *400 410 395*.',
   ]
     .filter(Boolean)
     .join('\n\n');
@@ -79,53 +94,58 @@ function checkWeights(list) {
   return { ok: list };
 }
 
-/** The boxes to save, numbered on from that tree and day's boxes already saved. */
-function makeBoxes({ tree, fruitDate, fruits, weights, grade, today, workerPhone, existing = [] }) {
+/** The boxes to save, numbered on from that variety's boxes already peeled today. */
+function makeBoxes({ variety, treeIds, fruitCodes, weights, grades, today, workerPhone, existing = [] }) {
   const used = Math.max(0, ...existing.map((b) => R.fruitCodeNumber(b.code)));
   return weights.map((weightG, i) => ({
-    code: boxCode(tree.id, fruitDate, used + i + 1),
-    treeId: tree.id,
-    block: tree.block,
-    variant: tree.variant,
-    fruitDate,
+    code: boxCode(variety, today, used + i + 1),
+    variety,
+    treeIds,
+    fruitCodes,
     date: today,
     weightG,
-    fruitCodes: fruits.map((f) => f.code).filter(Boolean),
-    grade,
+    grades,
     ...(workerPhone ? { workerPhone } : {}),
     source: 'whatsapp',
   }));
 }
 
-function savedReply(boxes, fruits) {
+function savedReply(boxes, fruitG) {
   const total = boxes.reduce((s, b) => s + b.weightG, 0);
-  const fruitG = fruits.reduce((s, f) => s + (Number(f.weightG) || 0), 0);
   return [
-    `✅ ${boxes.length} kotak kupas ${boxes[0].treeId} tersimpan (${grams(total)}):`,
-    boxes.map((b) => `• *${shortBox(b.code)}* ${grams(b.weightG)}`).join('\n'),
+    `✅ ${boxes.length} kotak kupas ${boxes[0].variety} tersimpan (${grams(total)}${fruitG ? `, rendemen ${String(Math.round((total / fruitG) * 1000) / 10).replace('.', ',')}%` : ''}):`,
+    boxes.map((b) => `• *${shortCode(b.code)}* ${grams(b.weightG)}`).join('\n'),
     'Tulis kode di setiap kotak.',
   ].join('\n');
 }
 
 // ---------- Firestore ----------
 
-function kupasStore(db, byTree) {
+function kupasStore(db, byTree, getTree) {
   const modeRef = (phone) => db.collection('kupasMode').doc(String(phone));
+  const boxesOf = async (variety) => (await db.collection('kupasBoxes').where('variety', '==', variety).get()).docs.map((d) => d.data());
   return {
-    async start(phone, tree, cmd) {
-      const today = R.todayStr();
-      const [harvests, gradeSamples] = await Promise.all([byTree('harvests', tree.id), byTree('treeGrades', tree.id).catch(() => [])]);
-      const asked = cmd.day ? dayToDate(cmd.day, cmd.month, today) : null;
-      const day = pickDay(harvests, today, asked);
-      const g = G.treeGrade(gradeSamples);
-      const lines = G.gradeLines(tree.id, g);
-      if (g.grade === 'high') lines.push('⚠️ Grade HIGH biasanya *tidak dikupas*. Catat kotaknya hanya jika memang sudah dikupas.');
-      let soFar = 0;
-      if (day.fruitDate && day.fruits.length) {
-        soFar = (await byTree('kupasBoxes', tree.id).catch(() => [])).filter((b) => b.fruitDate === day.fruitDate).length;
-        await modeRef(phone).set({ treeId: tree.id, fruitDate: day.fruitDate, until: Date.now() + WINDOW_MS });
+    async start(phone, cmd) {
+      if (cmd.trees.length > MAX_TREES) return `Paling banyak ${MAX_TREES} pohon dalam satu KUPAS.`;
+      const trees = [];
+      for (const id of cmd.trees) {
+        const t = await getTree(id);
+        if (!t) return `Pohon ${id} tidak ditemukan atau sudah tidak aktif. Contoh: *KUPAS A6 A7*.`;
+        trees.push(t);
       }
-      return startReply(tree, day, lines, soFar);
+      const v = oneVariety(trees);
+      if (v.error) return v.error;
+      const today = R.todayStr();
+      const [harvests, samples, boxes] = await Promise.all([
+        Promise.all(trees.map((t) => byTree('harvests', t.id))).then((x) => x.flat()),
+        Promise.all(trees.map((t) => byTree('treeGrades', t.id).catch(() => []))),
+        boxesOf(v.variety).catch(() => []),
+      ]);
+      const grades = Object.fromEntries(trees.map((t, i) => [t.id, G.treeGrade(samples[i]).grade]));
+      const fruits = pool(harvests, boxes, today);
+      if (fruits.length)
+        await modeRef(phone).set({ variety: v.variety, treeIds: trees.map((t) => t.id), fruitCodes: fruits.map((f) => f.code), grades, until: Date.now() + WINDOW_MS });
+      return startReply(v.variety, trees, fruits, grades);
     },
     /** The open KUPAS of this number, or null. */
     async open(phone) {
@@ -133,35 +153,35 @@ function kupasStore(db, byTree) {
       const m = snap && snap.exists ? snap.data() : null;
       return m && Number(m.until) > Date.now() ? m : null;
     },
-    async saveWeights(phone, mode, weights, tree) {
+    async saveWeights(phone, mode, weights) {
       const check = checkWeights(weights);
       if (check.error) return check.error;
       const today = R.todayStr();
-      const [harvests, gradeSamples, existing] = await Promise.all([
-        byTree('harvests', tree.id),
-        byTree('treeGrades', tree.id).catch(() => []),
-        byTree('kupasBoxes', tree.id).catch(() => []),
+      const [existing, harvests] = await Promise.all([
+        boxesOf(mode.variety).catch(() => []),
+        Promise.all(mode.treeIds.map((id) => byTree('harvests', id))).then((x) => x.flat()),
       ]);
-      const day = pickDay(harvests, today, mode.fruitDate);
+      const codes = new Set(mode.fruitCodes);
+      const fruitG = harvests.flatMap((h) => h.items || []).filter((f) => codes.has(f.code)).reduce((s, f) => s + (Number(f.weightG) || 0), 0);
       const boxes = makeBoxes({
-        tree,
-        fruitDate: mode.fruitDate,
-        fruits: day.fruits,
+        variety: mode.variety,
+        treeIds: mode.treeIds,
+        fruitCodes: mode.fruitCodes,
         weights: check.ok,
-        grade: G.treeGrade(gradeSamples).grade,
+        grades: mode.grades || {},
         today,
         workerPhone: phone,
-        existing: existing.filter((b) => b.fruitDate === mode.fruitDate),
+        existing: existing.filter((b) => b.date === today),
       });
-      const batch = db.batch();
       const admin = require('firebase-admin');
-      for (const b of boxes) batch.set(db.collection('kupasBoxes').doc(b.code), { ...b, createdAt: admin.firestore.FieldValue.serverTimestamp() });
+      const batch = db.batch();
+      for (const b of boxes) batch.set(db.collection('kupasBoxes').doc(b.code), { ...b, fruitG, createdAt: admin.firestore.FieldValue.serverTimestamp() });
       batch.delete(modeRef(phone));
       await batch.commit();
-      console.log(`Kupas ${tree.id} ${mode.fruitDate}: ${boxes.length} boxes`);
-      return savedReply(boxes, day.fruits);
+      console.log(`Kupas ${mode.variety} (${mode.treeIds.join(',')}): ${boxes.length} boxes`);
+      return savedReply(boxes, fruitG);
     },
   };
 }
 
-module.exports = { parseKupas, parseWeights, dayToDate, pickDay, startReply, checkWeights, makeBoxes, savedReply, shortBox, boxCode, kupasStore, WINDOW_MS };
+module.exports = { parseKupas, parseWeights, pool, oneVariety, startReply, checkWeights, makeBoxes, savedReply, shortCode, boxCode, kupasStore, WINDOW_MS };

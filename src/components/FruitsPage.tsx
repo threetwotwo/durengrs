@@ -721,7 +721,7 @@ export const FruitPage: React.FC<{ fruitKey: string }> = ({ fruitKey }) => {
 
         <QcSection f={f} all={all} />
 
-        {f.treeId && <KupasOfFruit treeId={f.treeId} date={f.date} />}
+        {f.code && <KupasOfFruit code={f.code} />}
 
         {siblings.length > 1 && (
           <section className="p-4 sm:p-5 border-t border-slate-100 space-y-2">
@@ -756,24 +756,24 @@ export const FruitPage: React.FC<{ fruitKey: string }> = ({ fruitKey }) => {
 };
 
 
-/** The kupas boxes made from this tree's fruit of this day (Laporan KUPAS), when there are any. */
-const KupasOfFruit: React.FC<{ treeId: string; date: string }> = ({ treeId, date }) => {
+/** The kupas boxes this fruit went into (Laporan KUPAS), when there are any. */
+const KupasOfFruit: React.FC<{ code: string }> = ({ code }) => {
   const { t, locale } = useT();
   const [boxes, setBoxes] = useState<KupasBox[]>([]);
   useEffect(
     () =>
       onSnapshot(
-        query(collection(db, 'kupasBoxes'), where('treeId', '==', treeId), where('fruitDate', '==', date)),
+        query(collection(db, 'kupasBoxes'), where('fruitCodes', 'array-contains', code)),
         (s) => setBoxes(s.docs.map((d) => ({ id: d.id, ...(d.data() as any) }) as KupasBox).sort((a, b) => a.code.localeCompare(b.code))),
         (e) => console.error('Kupas boxes:', e)
       ),
-    [treeId, date]
+    [code]
   );
   if (!boxes.length) return null;
   return (
     <section className="p-4 sm:p-5 border-t border-slate-100 space-y-2">
       <h2 className="text-sm font-bold text-slate-900">
-        <Link to={kupasUrl()} className="hover:underline">{t('ku.onFruit', { tree: treeId })}</Link>
+        <Link to={kupasUrl()} className="hover:underline">{t('ku.onFruit')}</Link>
       </h2>
       <ul className="flex flex-wrap gap-1.5">
         {boxes.map((b) => (

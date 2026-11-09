@@ -50,7 +50,7 @@ function gradeLines(treeId, g, { kupasHint = false } = {}) {
   const head = `${g.grade === 'high' ? '⭐' : '🔸'} Grade pohon ${treeId}: *${label}*${what ? ` (${what})` : ''}.`;
   return g.grade === 'high'
     ? [head, '👉 Proses seperti biasa: *bungkus daun pisang*.']
-    : [head, '👉 *KUPAS*: bawa buahnya ke *stasiun kupas*.', ...(kupasHint ? [`Setelah dikupas, kirim *KUPAS ${treeId}* untuk mencatat kotaknya.`] : [])];
+    : [head, '👉 *KUPAS*: bawa buahnya ke *stasiun kupas*.', ...(kupasHint ? [`Jika dikupas di kebun, kirim *KUPAS ${treeId}* (boleh beberapa pohon satu varietas) untuk mencatat kotaknya.`] : [])];
 }
 
 /** Loads the tree's samplings (treeGrades) and gives its lines; a failed read says nothing rather than a wrong instruction. */
