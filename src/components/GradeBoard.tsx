@@ -62,6 +62,19 @@ export const GradeBoard: React.FC = () => {
     </React.Fragment>
   );
 
+  // Trees grouped by block (the letters of their code), each block's by number.
+  const byBlock = (list: BoardTree[]): Array<[string, BoardTree[]]> => {
+    const part = (id: string) => {
+      const m = id.match(/^([A-Z]+)(\d+)/i);
+      return m ? [m[1].toUpperCase(), Number(m[2])] as const : [id, 0] as const;
+    };
+    const groups = new Map<string, BoardTree[]>();
+    for (const tr of list) groups.set(part(tr.treeId)[0], [...(groups.get(part(tr.treeId)[0]) || []), tr]);
+    return [...groups.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([b, ts]) => [b, ts.sort((x, y) => part(x.treeId)[1] - part(y.treeId)[1])]);
+  };
+
   // A grade's trees: those with fruit to harvest; the rest fold behind "+N trees without fruit".
   const cell = (variety: string, g: (typeof BOARD_GRADES)[number], list: BoardTree[]) => {
     const key = `${variety}|${g}`;
@@ -69,7 +82,19 @@ export const GradeBoard: React.FC = () => {
     const hidden = list.length - shown.length;
     return (
       <>
-        {shown.length ? shown.map(treeLink) : !hidden ? <span className="text-slate-300">{t('gb.empty')}</span> : null}
+        {!shown.length ? (
+          !hidden ? <span className="text-slate-300">{t('gb.empty')}</span> : null
+        ) : g === 'ungraded' ? (
+          // Ungraded: one line per block, its trees by number (A2, A10, A21), to find a tree in the field.
+          byBlock(shown).map(([block, ts]) => (
+            <span key={block} className="flex gap-2">
+              <span className="w-5 shrink-0 text-xs font-bold text-slate-400 pt-1">{block}</span>
+              <span className="min-w-0">{ts.map(treeLink)}</span>
+            </span>
+          ))
+        ) : (
+          shown.map(treeLink)
+        )}
         {hidden > 0 && (
           <button type="button" onClick={() => setOpen((o) => new Set(o).add(key))} className={`${shown.length ? 'ml-2' : ''} text-xs font-semibold text-slate-600 underline underline-offset-2`}>
             {t('gb.more', { n: hidden })}
