@@ -84,16 +84,14 @@ export const GradeBoard: React.FC = () => {
       <>
         {!shown.length ? (
           !hidden ? <span className="text-slate-300">{t('gb.empty')}</span> : null
-        ) : g === 'ungraded' ? (
-          // Ungraded: one line per block, its trees by number (A2, A10, A21), to find a tree in the field.
+        ) : (
+          // Every grade: one line per block, its trees by number (A2, A10, A21), as on the farm's board.
           byBlock(shown).map(([block, ts]) => (
             <span key={block} className="flex gap-2">
               <span className="w-5 shrink-0 text-xs font-bold text-slate-400 pt-1">{block}</span>
               <span className="min-w-0">{ts.map(treeLink)}</span>
             </span>
           ))
-        ) : (
-          shown.map(treeLink)
         )}
         {hidden > 0 && (
           <button type="button" onClick={() => setOpen((o) => new Set(o).add(key))} className={`${shown.length ? 'ml-2' : ''} text-xs font-semibold text-slate-600 underline underline-offset-2`}>
