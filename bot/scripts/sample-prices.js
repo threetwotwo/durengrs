@@ -70,8 +70,26 @@ async function find(word) {
   console.log(`${hits.length} prices with "${word}"`);
 }
 
+/** Prices saved without the farm's variety code get it when their variety is one of the farm's by name. */
+async function rematch() {
+  const variants = (await db.collection('variants').get()).docs.map((d) => ({ code: d.id, ...d.data() }));
+  const norm = (x) => String(x || '').toLowerCase().replace(/^durian\s+/, '').replace(/[^a-z0-9]/g, '');
+  const snap = await db.collection('marketPrices').get();
+  let n = 0;
+  for (const d of snap.docs) {
+    const p = d.data();
+    if (p.varietyCode || !p.variety) continue;
+    const hit = variants.find((v) => norm(v.name) === norm(p.variety) || norm(v.code) === norm(p.variety));
+    if (!hit) continue;
+    await d.ref.update({ varietyCode: hit.code });
+    console.log(`${p.date} ${p.vendor || ''}: ${p.variety} -> ${hit.code}`);
+    n++;
+  }
+  console.log(`${n} prices matched to the farm's varieties`);
+}
+
 const action = process.argv[2];
-(action === 'find' ? find(process.argv[3]) : action === 'save' ? save() : action === 'wipe' ? wipe() : action === 'wipe-date' ? wipeDate(process.argv[3]) : Promise.reject(new Error('save, wipe or wipe-date')))
+(action === 'rematch' ? rematch() : action === 'find' ? find(process.argv[3]) : action === 'save' ? save() : action === 'wipe' ? wipe() : action === 'wipe-date' ? wipeDate(process.argv[3]) : Promise.reject(new Error('save, wipe or wipe-date')))
   .then(() => process.exit(0))
   .catch((e) => {
     console.error(e.message);

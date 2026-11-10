@@ -266,10 +266,11 @@ function priceLines(data, date) {
     const key = `${p.varietyCode || String(p.variety || 'Durian').toLowerCase()}|${origin.toLowerCase()}|${p.condition || ''}`;
     const base = p.varietyCode ? names.get(p.varietyCode) || p.varietyCode : p.variety || 'Durian';
     const extra = [origin, p.condition === 'frozen' ? 'beku' : p.condition === 'chilled' ? 'dingin' : ''].filter(Boolean).join(', ');
-    const g = groups.get(key) || { name: extra ? `${base} (${extra})` : base, code: (origin && !/^lokal$/i.test(origin)) || p.condition ? undefined : p.varietyCode, n: 0, utuh: [], kupas: [], fruit: [], vendors: new Set() };
+    const g = groups.get(key) || { name: extra ? `${base} (${extra})` : base, code: (origin && !/^lokal$/i.test(origin)) || p.condition ? undefined : p.varietyCode, n: 0, utuh: [], kupas: [], fruit: [], pack: [], vendors: new Set() };
     g.n++;
     if (p.pricePerKg) g[p.form === 'kupas' ? 'kupas' : 'utuh'].push(p.pricePerKg);
     else if (p.unit === 'buah') g.fruit.push(p.price);
+    else if (p.unit === 'pack') g.pack.push(p.price);
     if (p.vendor) g.vendors.add(p.vendor.toLowerCase());
     groups.set(key, g);
   }
@@ -279,7 +280,7 @@ function priceLines(data, date) {
     return `${lo === hi ? rp(lo) : `${rp(lo)}–${rp(hi)}`}/${unit}`;
   };
   const lines = [...groups.values()]
-    .filter((g) => g.utuh.length || g.kupas.length || g.fruit.length)
+    .filter((g) => g.utuh.length || g.kupas.length || g.fruit.length || g.pack.length)
     .sort((a, b) => b.n - a.n)
     .slice(0, 8)
     .map((g) => {
@@ -287,6 +288,7 @@ function priceLines(data, date) {
         g.utuh.length ? `utuh ${range(g.utuh, 'kg')}` : '',
         g.kupas.length ? `kupas ${range(g.kupas.map((v) => Math.round(v * 0.4)), '400g')}` : '',
         g.fruit.length ? range(g.fruit, 'buah') : '',
+        g.pack.length ? range(g.pack, 'pack') : '',
       ].filter(Boolean).join(', ');
       const sellers = g.vendors.size ? ` (${g.vendors.size} penjual)` : '';
       const s = g.code && store.get(g.code);

@@ -100,13 +100,26 @@ function resolveDate(raw, today = R.todayStr()) {
   return best || '';
 }
 
+/**
+ * The farm's code for the variety: Gemini's, else the farm's variety of the same name ("Matahari" -> MH), so a name
+ * the farm uses itself is never left unmatched.
+ */
+function varietyCodeOf(p, varieties) {
+  if (varieties.find((v) => v.code === p.variety_code)) return p.variety_code;
+  const norm = (x) => String(x || '').toLowerCase().replace(/^durian\s+/, '').replace(/[^a-z0-9]/g, '');
+  const want = norm(p.variety);
+  if (!want) return undefined;
+  const hit = varieties.find((v) => norm(v.name) === want || norm(v.code) === want);
+  return hit ? hit.code : undefined;
+}
+
 function toPrice(p, { vendor, varieties, today = R.todayStr() }) {
   const date = resolveDate(p.sent_date, today) || undefined;
   if (p.category === 'olahan') {
     let price = Math.round(Number(p.price) || 0);
     if (price >= 10 && price < 10000) price *= 1000;
     if (!(price >= 1000 && price <= 20000000) || (Number(p.confidence) || 0) < 0.4) return null;
-    const code = varieties.find((v) => v.code === p.variety_code) ? p.variety_code : undefined;
+    const code = varietyCodeOf(p, varieties);
     return strip({
       date,
       category: 'olahan',
@@ -132,7 +145,7 @@ function toPrice(p, { vendor, varieties, today = R.todayStr() }) {
   const origin = String(p.origin || '').trim().slice(0, 30);
   const condition = ['chilled', 'frozen'].includes(p.condition) ? p.condition : undefined;
   const available = p.available === 'no' ? false : p.available === 'yes' ? true : undefined;
-  const code = varieties.find((v) => v.code === p.variety_code) ? p.variety_code : undefined;
+  const code = varietyCodeOf(p, varieties);
   return strip({
     date,
     vendor: String(p.vendor || vendor || '').trim().slice(0, 60) || undefined,

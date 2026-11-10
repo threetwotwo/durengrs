@@ -89,6 +89,8 @@ export interface VarietyMarket {
   perKg: number[];
   /** Per-fruit prices with no weight. */
   perFruit: number[];
+  /** Packs whose weight wasn't written: their price as quoted (can't be put per kg or per 400 g). */
+  perPack: number[];
   low?: number;
   high?: number;
   median?: number;
@@ -116,6 +118,7 @@ export function marketByVariety(prices: MarketPrice[], names: (code: string) => 
       const form0 = formOf(list[0]);
       const perKg = list.map((p) => p.pricePerKg).filter((x): x is number => !!x).map((v) => shownPrice(form0, v));
       const perFruit = list.filter((p) => !p.pricePerKg && p.unit === 'buah').map((p) => p.price);
+      const perPack = list.filter((p) => !p.pricePerKg && p.unit === 'pack').map((p) => p.price);
       const form = formOf(list[0]);
       return {
         key,
@@ -125,6 +128,7 @@ export function marketByVariety(prices: MarketPrice[], names: (code: string) => 
         matched: !!list[0].varietyCode,
         perKg,
         perFruit,
+        perPack,
         low: perKg.length ? Math.min(...perKg) : undefined,
         high: perKg.length ? Math.max(...perKg) : undefined,
         median: perKg.length ? median(perKg) : undefined,

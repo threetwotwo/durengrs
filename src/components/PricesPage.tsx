@@ -424,7 +424,15 @@ const MiniCell: React.FC<{ r?: VarietyMarket; form: Form; onError: (e: unknown) 
   return (
     <div className="min-w-0 space-y-0.5">
       <p className="font-bold text-slate-900 leading-tight whitespace-nowrap">
-        {r.low !== undefined ? (r.low === r.high ? rpShort(r.low) : `${rpShort(r.low)}–${rpShort(r.high)}`) : r.perFruit.length ? `${rpShort(Math.min(...r.perFruit))}/${t('mp.perFruit')}` : '—'}
+        {r.low !== undefined
+          ? r.low === r.high
+            ? rpShort(r.low)
+            : `${rpShort(r.low)}–${rpShort(r.high)}`
+          : r.perFruit.length
+            ? `${rpShort(Math.min(...r.perFruit))}/${t('mp.perFruit')}`
+            : r.perPack.length
+              ? `${rpShort(Math.min(...r.perPack))}/${t('mp.perPack')}`
+              : '—'}
       </p>
       {r.suggested !== undefined && (
         <p className="text-[11px] text-slate-600 whitespace-nowrap">
@@ -455,6 +463,11 @@ const FormCells: React.FC<{ r?: VarietyMarket; form: Form; onError: (e: unknown)
         {r.perFruit.length > 0 && (
           <span className="block text-[11px] text-slate-500">
             {Math.min(...r.perFruit) === Math.max(...r.perFruit) ? rp(r.perFruit[0]) : `${rp(Math.min(...r.perFruit))}–${rp(Math.max(...r.perFruit))}`}/{t('mp.perFruit')}
+          </span>
+        )}
+        {r.perPack.length > 0 && (
+          <span className="block text-[11px] text-slate-500" title={t('mp.perPack.title')}>
+            {Math.min(...r.perPack) === Math.max(...r.perPack) ? rp(r.perPack[0]) : `${rp(Math.min(...r.perPack))}–${rp(Math.max(...r.perPack))}`}/{t('mp.perPack')}
           </span>
         )}
       </td>
