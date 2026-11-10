@@ -42,15 +42,35 @@ function treeGrade(samples = []) {
 }
 
 /** The lines for the worker: the tree's grade and what to do with its fruit. */
+/**
+ * The rubber band each grade gets at the packing house, as on the farm's board (Panduan Sortir & Label):
+ * High red, Mid-High yellow, Mid and Low none, not yet graded green.
+ */
+const BAND = {
+  high: { emoji: '🔴', name: 'KARET MERAH' },
+  midhigh: { emoji: '🟡', name: 'KARET KUNING' },
+  mid: { emoji: '⚪', name: 'TANPA KARET' },
+  low: { emoji: '⚪', name: 'TANPA KARET' },
+  ungraded: { emoji: '🟢', name: 'KARET HIJAU' },
+};
+
 function gradeLines(treeId, g, { kupasHint = false } = {}) {
+  const band = BAND[g.grade] || BAND.ungraded;
   if (g.grade === 'ungraded')
-    return [`🔍 Pohon ${treeId} *belum punya grade*.`, '👉 Kemas buahnya untuk *QC manajemen*: sisihkan dan serahkan ke manajemen untuk dinilai.'];
+    return [
+      `${band.emoji} Pohon ${treeId}: *${band.name}* (belum punya grade).`,
+      '👉 Pasang karet hijau dan kemas buahnya untuk *QC manajemen*: serahkan ke manajemen untuk dinilai.',
+    ];
   const what = `${g.pct !== undefined ? `${String(g.pct).replace('.', ',')}%, ` : ''}${g.date ? `dinilai ${R.dateLabel(g.date)}` : ''}`.replace(/, $/, '');
   const label = { high: 'HIGH', midhigh: 'MID-HIGH', mid: 'MID', low: 'LOW' }[g.grade];
-  const head = `${g.grade === 'high' ? '⭐' : '🔸'} Grade pohon ${treeId}: *${label}*${what ? ` (${what})` : ''}.`;
-  return g.grade === 'high'
-    ? [head, '👉 Proses seperti biasa: *bungkus daun pisang*.']
-    : [head, '👉 *KUPAS*: bawa buahnya ke *stasiun kupas*.', ...(kupasHint ? [`Jika dikupas di kebun, kirim *KUPAS ${treeId}* (boleh beberapa pohon satu varietas) untuk mencatat kotaknya.`] : [])];
+  const head = `${band.emoji} Pohon ${treeId}: *${band.name}* (grade ${label}${what ? `, ${what}` : ''}).`;
+  if (g.grade === 'high') return [head, '👉 Pasang karet merah. Proses seperti biasa: *bungkus daun pisang*.'];
+  const put = g.grade === 'midhigh' ? '👉 Pasang karet kuning. ' : '👉 Tanpa karet. ';
+  return [
+    head,
+    `${put}*KUPAS*: bawa buahnya ke *stasiun kupas*.`,
+    ...(kupasHint ? [`Jika dikupas di kebun, kirim *KUPAS ${treeId}* (boleh beberapa pohon satu varietas) untuk mencatat kotaknya.`] : []),
+  ];
 }
 
 /** Loads the tree's samplings (treeGrades) and gives its lines; a failed read says nothing rather than a wrong instruction. */
@@ -63,4 +83,4 @@ async function treeGradeLines(byTree, treeId) {
   }
 }
 
-module.exports = { sampleTotal, treeGrade, gradeLines, treeGradeLines, GRADE_FROM };
+module.exports = { sampleTotal, treeGrade, gradeLines, treeGradeLines, GRADE_FROM, BAND };

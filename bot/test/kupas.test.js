@@ -40,6 +40,6 @@ test('the fruits going in: the trees\' recent fruits not yet in a box', () => {
   assert.deepEqual(boxes[0].treeIds, ['A6', 'A7']);
   assert.equal(K.shortCode(boxes[0].code), 'K-MK-1109-02');
   assert.match(K.savedReply(boxes, 3190), /rendemen 25,4%[\s\S]*K-MK-1109-02\* 400 g/);
-  assert.match(K.startReply('MK', [{ id: 'A6' }, { id: 'A7' }], fruits, { A6: 'midhigh', A7: 'high' }), /A6\* \(MID-HIGH\)[\s\S]*A7 grade HIGH/);
+  assert.match(K.startReply('MK', [{ id: 'A6' }, { id: 'A7' }], fruits, { A6: 'midhigh', A7: 'high' }), /A6\* \(karet kuning\)[\s\S]*A7 grade HIGH/);
   assert.match(K.checkWeights([400, 9]).error, /tidak masuk akal/);
 });

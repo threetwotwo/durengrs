@@ -69,7 +69,7 @@ function startReply(variety, trees, fruits, grades) {
     .map((t) => {
       const list = fruits.filter((f) => f.treeId === t.id);
       const g = grades[t.id];
-      const tag = g && g !== 'ungraded' ? ` (${g === 'midhigh' ? 'MID-HIGH' : g.toUpperCase()})` : ' (belum dinilai)';
+      const tag = ` (${(G.BAND[g] || G.BAND.ungraded).name.toLowerCase()})`;
       return list.length ? `*${t.id}*${tag}: ${list.map((f) => `${shortCode(f.code)} ${grams(f.weightG)}`).join(', ')}` : `*${t.id}*: tidak ada buah yang belum dikupas`;
     })
     .join('\n');

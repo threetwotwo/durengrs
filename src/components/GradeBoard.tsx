@@ -125,6 +125,7 @@ export const GradeBoard: React.FC = () => {
                     <div key={g} className={`${COLUMN[g]} px-3 py-2 flex gap-3 border-t border-white first:border-t-0`}>
                       <dt className="w-[5.5rem] shrink-0 pt-1">
                         <GradeTag grade={g} />
+                        <span className="block mt-1 text-[10px] leading-tight text-slate-500">{t(`gb.band.${g}`)}</span>
                       </dt>
                       <dd className="min-w-0 flex-1 leading-7 break-words">{cell(v.variety, g, list)}</dd>
                     </div>
@@ -148,7 +149,9 @@ export const GradeBoard: React.FC = () => {
                   <th key={g} scope="col" className="px-1.5 sm:px-3 py-2 text-left font-normal">
                     <span className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
                       <GradeTag grade={g} />
-                      <span className="text-[11px] text-slate-300 tabular">{t('gb.treeCount', { n: counts[g] })}</span>
+                      <span className="text-[11px] text-slate-300 tabular">
+                        {t(`gb.band.${g}`)} · {t('gb.treeCount', { n: counts[g] })}
+                      </span>
                     </span>
                   </th>
                 ))}

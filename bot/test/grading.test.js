@@ -19,15 +19,16 @@ test('the tree grade is the same as the webapp: totals, management\'s call, newe
   assert.equal(G.treeGrade([]).grade, 'ungraded');
 });
 
-test('what the worker is told to do with the fruit', () => {
+test('what the worker is told: the board\'s rubber band and what to do with the fruit', () => {
   const t = (g) => G.gradeLines('A3', g).join('\n');
-  assert.match(t({ grade: 'high', pct: 74, date: '2026-10-26' }), /HIGH\* \(74%, dinilai 26 Okt 2026\)[\s\S]*daun pisang/);
-  assert.match(t({ grade: 'mid' }), /MID[\s\S]*stasiun kupas/);
-  assert.match(t({ grade: 'low' }), /LOW[\s\S]*stasiun kupas/);
-  assert.match(t({ grade: 'ungraded' }), /belum punya grade[\s\S]*QC manajemen/);
+  assert.match(t({ grade: 'high', pct: 74, date: '2026-10-26' }), /KARET MERAH\* \(grade HIGH, 74%, dinilai 26 Okt 2026\)[\s\S]*karet merah[\s\S]*daun pisang/);
+  assert.match(t({ grade: 'midhigh' }), /KARET KUNING\* \(grade MID-HIGH\)[\s\S]*karet kuning[\s\S]*stasiun kupas/);
+  assert.match(t({ grade: 'mid' }), /TANPA KARET\* \(grade MID\)[\s\S]*stasiun kupas/);
+  assert.match(t({ grade: 'low' }), /TANPA KARET\* \(grade LOW\)[\s\S]*stasiun kupas/);
+  assert.match(t({ grade: 'ungraded' }), /KARET HIJAU\* \(belum punya grade\)[\s\S]*QC manajemen/);
 });
 
 test('a failed read says nothing', async () => {
   assert.deepEqual(await G.treeGradeLines(async () => { throw new Error('down'); }, 'A3'), []);
-  assert.match((await G.treeGradeLines(async () => [{ date: '2026-10-27', grade: 'mid' }], 'A6')).join(' '), /MID/);
+  assert.match((await G.treeGradeLines(async () => [{ date: '2026-10-27', grade: 'midhigh' }], 'A6')).join(' '), /KARET KUNING/);
 });
