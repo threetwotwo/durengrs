@@ -60,9 +60,11 @@ async function wipeDate(date) {
 async function find(word) {
   const w = String(word || '').toLowerCase();
   const snap = await db.collection('marketPrices').get();
-  const hits = snap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((p) => `${p.variety} ${p.product} ${p.note}`.toLowerCase().includes(w));
+  const hits = snap.docs
+    .map((d) => ({ id: d.id, ...d.data() }))
+    .filter((p) => `${p.variety} ${p.product} ${p.note} code:${p.varietyCode} ${p.price} ${p.pricePerKg}`.toLowerCase().includes(w));
   for (const p of hits) {
-    const { photo, createdAt, vendorPhone, workerPhone, ...rest } = p;
+    const { photo, createdAt, vendorPhone, workerPhone, raw, ...rest } = p;
     console.log(JSON.stringify(rest));
   }
   console.log(`${hits.length} prices with "${word}"`);
