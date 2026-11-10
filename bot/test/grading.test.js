@@ -19,13 +19,27 @@ test('the tree grade is the same as the webapp: totals, management\'s call, newe
   assert.equal(G.treeGrade([]).grade, 'ungraded');
 });
 
-test('what the worker is told: the board\'s rubber band and what to do with the fruit', () => {
-  const t = (g) => G.gradeLines('A3', g).join('\n');
-  assert.match(t({ grade: 'high', pct: 74, date: '2026-10-26' }), /KARET MERAH\* \(grade HIGH, 74%, dinilai 26 Okt 2026\)[\s\S]*karet merah[\s\S]*daun pisang/);
-  assert.match(t({ grade: 'midhigh' }), /KARET KUNING\* \(grade MID-HIGH\)[\s\S]*karet kuning[\s\S]*stasiun kupas/);
-  assert.match(t({ grade: 'mid' }), /TANPA KARET\* \(grade MID\)[\s\S]*stasiun kupas/);
-  assert.match(t({ grade: 'low' }), /TANPA KARET\* \(grade LOW\)[\s\S]*stasiun kupas/);
+test('what the worker is told: the band, where the fruit goes', () => {
+  const t = (g, o) => G.gradeLines('A3', g, o).join('\n');
+  assert.match(t({ grade: 'high', pct: 74, date: '2026-10-26' }), /grade HIGH \(74%, dinilai 26 Okt 2026\)[\s\S]*Karet merah\* hanya untuk buah > 1,5 kg[\s\S]*fresh di toko[\s\S]*Produksi durian kupas/);
+  assert.match(t({ grade: 'midhigh' }), /KARET KUNING\* \(grade MID-HIGH\)[\s\S]*karet kuning[\s\S]*kotak 400 g/);
+  assert.match(t({ grade: 'mid' }), /TANPA KARET\* \(grade MID\)[\s\S]*Produksi pasta\*: ziplock 250 g/);
+  assert.match(t({ grade: 'low' }), /TANPA KARET[\s\S]*pasta/);
   assert.match(t({ grade: 'ungraded' }), /KARET HIJAU\* \(belum punya grade\)[\s\S]*QC manajemen/);
+});
+
+test('a High tree\'s fruit: red only when over 1.5 kg, round and with perfect skin; else yellow', () => {
+  assert.deepEqual(G.fruitBand('high', { weightG: 1720, shape: 4, skin: 5 }), { band: 'high', why: [] });
+  assert.deepEqual(G.fruitBand('high', { weightG: 1320, shape: 4, skin: 4 }), { band: 'midhigh', why: ['≤ 1,5 kg'] });
+  assert.deepEqual(G.fruitBand('high', { weightG: 1600, shape: 3, skin: 2 }).why, ['bentuk peyang', 'kulit kurang']);
+  assert.equal(G.fruitBand('mid', { weightG: 2000, shape: 5, skin: 5 }).band, 'mid', 'only High trees get red');
+  const msg = G.gradeLines('A3', { grade: 'high' }, { items: [
+    { code: 'A3-20261110-01', weightG: 1720, shape: 4, skin: 5 },
+    { code: 'A3-20261110-02', weightG: 1320, shape: 4, skin: 4 },
+  ] }).join('\n');
+  assert.match(msg, /🔴 A3-1110-01 1\.720 g → \*KARET MERAH\*/);
+  assert.match(msg, /🟡 A3-1110-02 1\.320 g → \*KARET KUNING\* \(≤ 1,5 kg\)/);
+  assert.match(msg, /juring/);
 });
 
 test('a failed read says nothing', async () => {

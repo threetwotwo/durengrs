@@ -244,7 +244,14 @@ async function reopenAfterCompletion(to, message) {
   if (kind === 'harvest' && treeId) {
     const tree = await getTreeById(treeId);
     const summary = typeof r.message === 'string' ? r.message : '';
-    if (tree) return sendHarvestFlow(to, tree, saved ? `✅ Panen tersimpan.\n\n${summary}`.trim().slice(0, 850) : '⚠️ Panen belum tersimpan. Coba lagi lewat tombol di bawah.');
+    if (tree) {
+      if (!saved) return sendHarvestFlow(to, tree, '⚠️ Panen belum tersimpan. Coba lagi lewat tombol di bawah.');
+      const text = `✅ Panen tersimpan.\n\n${summary}`.trim();
+      // A long one (each fruit's band) goes whole as its own message; the button then follows with a short line.
+      if (text.length <= 850) return sendHarvestFlow(to, tree, text);
+      await sendText(to, text);
+      return sendHarvestFlow(to, tree, '✅ Panen tersimpan (rincian di atas).');
+    }
   }
   if (kind === 'farm' && FARM_FLOW_ID) return sendFarmFlow(to, thanks);
   return sendHelp(to, thanks);

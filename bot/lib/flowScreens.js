@@ -184,7 +184,7 @@ async function saveHarvestFromFlow({ tree, items: typed, flowToken, workerPhone 
     const season = await C.loadTreeSeason(tree, today).catch(() => null);
     const out = await C.saveHarvest({ id, tree, date: today, fruits: items.length, weightKg, items, floweredOn: floweredOnFor(season, today), workerPhone });
     // The tree's grade says where its fruit goes: banana leaves (High), the kupas station (Mid, Low), or QC.
-    const grade = (await G.treeGradeLines(C.byTree, tree.id)).join('\n');
+    const grade = (await G.treeGradeLines(C.byTree, tree.id, items)).join('\n');
     if (out.duplicate) return done([`Panen ${tree.id} ini sudah tersimpan sebelumnya.`, grade].filter(Boolean).join('\n\n'), '✅ Sudah tercatat', id);
     console.log(`Harvest ${id} for ${tree.id}: ${items.length} fruits, ${weightKg} kg`);
     return done([summary, grade].filter(Boolean).join('\n\n'), '✅ Panen tersimpan', id);

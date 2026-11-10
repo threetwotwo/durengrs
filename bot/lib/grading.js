@@ -2,8 +2,9 @@
 // grades a tree from one sampled fruit (treeGrades), 14 criteria with weights (points = weight × score / 5), High
 // from 70%, Mid from 50%, Low below; management's own call (the QC sheet's MGMT QC) stands over the total; the tree's
 // grade is its newest sampling that has one. What the grade means at the packing house:
-//   High      -> as now: wrapped in banana leaves
-//   Mid-High, Mid, Low -> kupas station (only High is wrapped whole)
+//   High      -> red band when the fruit is over 1.5 kg, round, perfect skin (else yellow): sold fresh, whole
+//   Mid-High  -> yellow band: durian kupas, 400 g boxes (frozen)
+//   Mid, Low  -> no band: paste, 250 g ziplock
 //   ungraded  -> packed for management's QC
 'use strict';
 const R = require('./rules');
@@ -54,7 +55,31 @@ const BAND = {
   ungraded: { emoji: '🟢', name: 'KARET HIJAU' },
 };
 
-function gradeLines(treeId, g, { kupasHint = false } = {}) {
+/**
+ * A High tree's fruit gets the red band only when the fruit itself is up to it (Panduan Sortir & Label): over
+ * 1.5 kg, round (shape 4-5), perfect skin (skin 4-5); otherwise yellow. Segments (juring 4-5) aren't in Laporan
+ * PANEN, so the packer checks those.
+ */
+const RED = { minG: 1500, minShape: 4, minSkin: 4 };
+
+/** What a band means after sorting: where the fruit goes and how it is packed. */
+const GOES = {
+  high: 'Jual *fresh di toko*, butiran utuh: proses seperti biasa (*bungkus daun pisang*).',
+  midhigh: '*Produksi durian kupas*: kotak 400 g (frozen), bawa ke *stasiun kupas*.',
+  none: '*Produksi pasta*: ziplock 250 g.',
+};
+
+/** One fruit's band from its tree's grade and, for a High tree, the fruit's weight, shape and skin. */
+function fruitBand(grade, f = {}) {
+  if (grade !== 'high') return { band: grade === 'mid' || grade === 'low' ? 'mid' : grade || 'ungraded', why: [] };
+  const why = [];
+  if (!(Number(f.weightG) > RED.minG)) why.push('≤ 1,5 kg');
+  if (!(Number(f.shape) >= RED.minShape)) why.push('bentuk peyang');
+  if (!(Number(f.skin) >= RED.minSkin)) why.push('kulit kurang');
+  return { band: why.length ? 'midhigh' : 'high', why };
+}
+
+function gradeLines(treeId, g, { kupasHint = false, items } = {}) {
   const band = BAND[g.grade] || BAND.ungraded;
   if (g.grade === 'ungraded')
     return [
@@ -63,24 +88,37 @@ function gradeLines(treeId, g, { kupasHint = false } = {}) {
     ];
   const what = `${g.pct !== undefined ? `${String(g.pct).replace('.', ',')}%, ` : ''}${g.date ? `dinilai ${R.dateLabel(g.date)}` : ''}`.replace(/, $/, '');
   const label = { high: 'HIGH', midhigh: 'MID-HIGH', mid: 'MID', low: 'LOW' }[g.grade];
+  const hint = kupasHint ? [`Setelah dikupas di kebun, kirim *KUPAS ${treeId}* (boleh beberapa pohon satu varietas) untuk mencatat kotaknya.`] : [];
+  if (g.grade === 'high') {
+    const head = `${band.emoji} Pohon ${treeId}: grade HIGH${what ? ` (${what})` : ''}.`;
+    const rule = `*Karet merah* hanya untuk buah > 1,5 kg, bentuk bulat, kulit sempurna, juring penuh (4-5). Selain itu *karet kuning*.`;
+    if (!items || !items.length)
+      return [head, rule, `🔴 Karet merah → ${GOES.high}`, `🟡 Karet kuning → ${GOES.midhigh}`];
+    // After the fruits are weighed and scored: each fruit's band.
+    const per = items.map((f) => ({ f, ...fruitBand('high', f) }));
+    const lines = per.map(({ f, band: b, why }) => `${BAND[b].emoji} ${f.code ? f.code.replace(/-\d{4}(\d{4})-/, '-$1-') : 'buah'} ${Math.round(f.weightG).toLocaleString('id-ID')} g → *${BAND[b].name}*${why.length ? ` (${why.join(', ')})` : ''}`);
+    const anyYellow = per.some((x) => x.band === 'midhigh');
+    return [
+      head,
+      ...lines,
+      'Cek juga juringnya: kalau tidak penuh (2-3), pakai karet kuning.',
+      `🔴 Karet merah → ${GOES.high}`,
+      ...(anyYellow ? [`🟡 Karet kuning → ${GOES.midhigh}`, ...hint] : []),
+    ];
+  }
   const head = `${band.emoji} Pohon ${treeId}: *${band.name}* (grade ${label}${what ? `, ${what}` : ''}).`;
-  if (g.grade === 'high') return [head, '👉 Pasang karet merah. Proses seperti biasa: *bungkus daun pisang*.'];
-  const put = g.grade === 'midhigh' ? '👉 Pasang karet kuning. ' : '👉 Tanpa karet. ';
-  return [
-    head,
-    `${put}*KUPAS*: bawa buahnya ke *stasiun kupas*.`,
-    ...(kupasHint ? [`Jika dikupas di kebun, kirim *KUPAS ${treeId}* (boleh beberapa pohon satu varietas) untuk mencatat kotaknya.`] : []),
-  ];
+  if (g.grade === 'midhigh') return [head, `👉 Pasang karet kuning. ${GOES.midhigh}`, ...hint];
+  return [head, `👉 Tanpa karet. ${GOES.none}`];
 }
 
 /** Loads the tree's samplings (treeGrades) and gives its lines; a failed read says nothing rather than a wrong instruction. */
-async function treeGradeLines(byTree, treeId) {
+async function treeGradeLines(byTree, treeId, items) {
   try {
-    return gradeLines(treeId, treeGrade(await byTree('treeGrades', treeId)), { kupasHint: true });
+    return gradeLines(treeId, treeGrade(await byTree('treeGrades', treeId)), { kupasHint: true, items });
   } catch (err) {
     console.error('Tree grade read failed:', err.message);
     return [];
   }
 }
 
-module.exports = { sampleTotal, treeGrade, gradeLines, treeGradeLines, GRADE_FROM, BAND };
+module.exports = { sampleTotal, treeGrade, gradeLines, treeGradeLines, fruitBand, GRADE_FROM, BAND, RED };
