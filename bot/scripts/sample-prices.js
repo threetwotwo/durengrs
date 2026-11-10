@@ -70,19 +70,21 @@ async function find(word) {
   console.log(`${hits.length} prices with "${word}"`);
 }
 
-/** Prices saved without the farm's variety code get it when their variety is one of the farm's by name. */
+/**
+ * Prices whose written variety is one of the farm's by name get that variety's code (lib/prices.js codeByName):
+ * a missing code is filled, a wrong one corrected ("Monthong" saved on MTH, Matahari, goes to MTG, Montong).
+ */
 async function rematch() {
+  const { codeByName } = require('../lib/prices');
   const variants = (await db.collection('variants').get()).docs.map((d) => ({ code: d.id, ...d.data() }));
-  const norm = (x) => String(x || '').toLowerCase().replace(/^durian\s+/, '').replace(/[^a-z0-9]/g, '');
   const snap = await db.collection('marketPrices').get();
   let n = 0;
   for (const d of snap.docs) {
     const p = d.data();
-    if (p.varietyCode || !p.variety) continue;
-    const hit = variants.find((v) => norm(v.name) === norm(p.variety) || norm(v.code) === norm(p.variety));
-    if (!hit) continue;
-    await d.ref.update({ varietyCode: hit.code });
-    console.log(`${p.date} ${p.vendor || ''}: ${p.variety} -> ${hit.code}`);
+    const code = codeByName(p.variety, variants);
+    if (!code || code === p.varietyCode) continue;
+    await d.ref.update({ varietyCode: code });
+    console.log(`${p.date} ${p.vendor || ''}: ${p.variety} ${p.varietyCode || '(none)'} -> ${code}`);
     n++;
   }
   console.log(`${n} prices matched to the farm's varieties`);

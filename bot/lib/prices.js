@@ -43,7 +43,8 @@ const SCHEMA = {
 };
 
 function prompt(varieties, hint) {
-  const list = varieties.map((v) => `${v.code} = ${v.name || v.code}`).join('; ') || 'none listed';
+  // Most of the farm's varieties keep their name in the description (MTH: Matahari): give Gemini the name, not the bare code.
+  const list = varieties.map((v) => `${v.code} = ${varietyName(v)}`).join('; ') || 'none listed';
   return `You read durian price lists from Indonesian sellers (a WhatsApp status or catalog, an Instagram or Facebook post, a chat), for a durian farm that prices its own store from them.
 Return every durian price you can read, one entry per variety and grade (and per origin, form and size when priced separately).
 - category: "buah" for durian sold as fruit or as flesh (whole or kupas, fresh, chilled or frozen); "olahan" for processed products made from durian (cakes, pancakes, egg rolls, dessert boxes, kapit, ice cream, drinks).
@@ -58,7 +59,7 @@ Return every durian price you can read, one entry per variety and grade (and per
 - fruit_kg: the weight in kg of the fruit (unit buah, "±2kg") or of the pack (unit pack, "400gr" is 0.4) when it is written, else 0. A range is its middle: "400-450 Gram" is 0.425, "900 - 1 KG" is 0.95, "500-550 Gram" is 0.525.
 - A price written with a weight or a weight range and no "/kg" ("Premium 405.000 (400-450 Gram)", "Premium 320.000" under "(900 - 1 KG)") is the price of that amount of flesh: unit "pack", fruit_kg from the weight, form "kupas" (sellers who sell whole fruit say so: "utuh", "bulatan", "gelondong", or a price "/kg" under a heading like "BUAH BULATAN UTUH").
 - Leave out what is not a durian price: packaging (styrofoam, box, ice), delivery, "harga fluktuatif" and other remarks.
-- variety: as written (e.g. "Musang King", "Bawor", "Black Thorn", "Montong"). variety_code: the matching code from the farm's list, else "". The farm's varieties: ${list}. Treat "MK" and "Musangking" as Musang King, "Ochee", "Black Thorn" and "Blackthorn" as the same, "Queen", "Durian Queen" and "Musang Queen" as "Musang Queen".
+- variety: as written (e.g. "Musang King", "Bawor", "Black Thorn", "Montong"). variety_code: the matching code from the farm's list, else "". The farm's varieties: ${list}. Treat "MK" and "Musangking" as Musang King, "Monthong" and "Montong" as the same, "Ochee", "Black Thorn" and "Blackthorn" as the same, "Queen", "Durian Queen" and "Musang Queen" as "Musang Queen".
 - grade: as written, short ("A", "AA", "A+", "Premium", "Premium AA", "Super", "Jumbo"), else "". Not the form: "kupas" is form, not grade.
 - note: the seller's description of the flesh or the cross ("Kuning, daging tebal, biji kecil"; "persilangan bawor + monthong"), short.
 - Pasted or forwarded WhatsApp chats start each message with "[11/3, 10:19] Durian Buis JKT:" (or "11/3/26 10.19 - Durian Buis JKT:"): the name after the time is who sent that message (until the next such line), and the date is when it was sent: give it as sent_date exactly as written ("11/3", "11/3/26"), else "". A message with no prices (a question like "hr ini ada pa") gives nothing.
@@ -105,11 +106,21 @@ function resolveDate(raw, today = R.todayStr()) {
  * the farm uses itself is never left unmatched.
  */
 function varietyCodeOf(p, varieties) {
-  if (varieties.find((v) => v.code === p.variety_code)) return p.variety_code;
-  const norm = (x) => String(x || '').toLowerCase().replace(/^durian\s+/, '').replace(/[^a-z0-9]/g, '');
-  const want = norm(p.variety);
+  // The farm's variety of the same name wins over Gemini's pick (it once put "Monthong" on MTH, Matahari).
+  const byName = codeByName(p.variety, varieties);
+  if (byName) return byName;
+  return varieties.find((v) => v.code === p.variety_code) ? p.variety_code : undefined;
+}
+
+/** A variety's name: its name, else its description (where most of the farm's are kept), else its code. */
+const varietyName = (v) => v.name || v.description || v.code;
+/** "Durian Monthong" -> "montong": lower case, no "durian", letters and digits only, Monthong as Montong. */
+const normVariety = (x) => String(x || '').toLowerCase().replace(/^durian\s+/, '').replace(/[^a-z0-9]/g, '').replace(/^monthong$/, 'montong');
+/** The farm's code for a variety written by name ("Matahari" -> MTH), when one has that name. */
+function codeByName(written, varieties) {
+  const want = normVariety(written);
   if (!want) return undefined;
-  const hit = varieties.find((v) => norm(v.name) === want || norm(v.code) === want);
+  const hit = varieties.find((v) => normVariety(varietyName(v)) === want || normVariety(v.code) === want);
   return hit ? hit.code : undefined;
 }
 
@@ -250,4 +261,6 @@ async function inPriceMode(phone) {
   return false;
 }
 
-module.exports = { resolveDate, readAndSavePrices, pricesReply, toPrice, fetchWhatsAppMedia, startPriceMode, inPriceMode, prompt, SCHEMA };
+module.exports = {
+  codeByName,
+  varietyName, resolveDate, readAndSavePrices, pricesReply, toPrice, fetchWhatsAppMedia, startPriceMode, inPriceMode, prompt, SCHEMA };

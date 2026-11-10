@@ -14,7 +14,7 @@ on:
         default: 'save'
 
 env:
-  ACTION: codes MTG
+  ACTION: rematch
 
 jobs:
   run:

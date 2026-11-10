@@ -95,3 +95,23 @@ test('a kupas pack whose weight was not written counts as a 400 g box (Matahari 
   assert.equal(r.low, 175000, 'shown per 400 g box: the pack price');
   assert.deepEqual(r.perPack, []);
 });
+
+test("a variety's frozen and other-origin rows sit right under it; unmatched varieties last", async () => {
+  const { fruitGrid } = await import('../src/lib/market');
+  const names = (c: string) => ({ MTH: 'Matahari', MK: 'Musang King' })[c] || c;
+  const grid = fruitGrid(
+    marketByVariety(
+      [
+        p({ varietyCode: 'MK', price: 300000, pricePerKg: 300000 }),
+        p({ variety: 'Tawan', price: 300000, pricePerKg: 300000 }),
+        p({ varietyCode: 'MTH', form: 'kupas', unit: 'pack', price: 175000, condition: 'frozen' }),
+        p({ varietyCode: 'MK', form: 'kupas', unit: 'pack', price: 250000, pricePerKg: 625000, origin: 'Malaysia', condition: 'frozen' }),
+        p({ varietyCode: 'MTH', price: 90000, pricePerKg: 90000 }),
+      ],
+      names,
+      new Map()
+    )
+  );
+  assert.deepEqual(grid.map((g) => g.name), ['Matahari', 'Matahari (frozen)', 'Musang King', 'Musang King (Malaysia, frozen)', 'Tawan']);
+  assert.equal(grid[1].kupas?.low, 175000);
+});
