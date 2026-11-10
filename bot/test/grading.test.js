@@ -46,3 +46,12 @@ test('a failed read says nothing', async () => {
   assert.deepEqual(await G.treeGradeLines(async () => { throw new Error('down'); }, 'A3'), []);
   assert.match((await G.treeGradeLines(async () => [{ date: '2026-10-27', grade: 'midhigh' }], 'A6')).join(' '), /KARET KUNING/);
 });
+
+test('the bot takes the latest graded fruit too (A7: fruit 02 after the sheet\'s fruit 01)', () => {
+  const full = (v) => ({ wangi: v, kulitBersih: v, kulitTipis: v, bentuk: v, juring: v, biji: v, dagingTebal: v, warna: v, benyek: v, tekstur: v, manis: v, lemak: v, pahit: v, unik: v });
+  const g = G.treeGrade([
+    { date: '2026-11-04', fruitCode: 'A7-20261104-01', qc: full(2.65), grade: 'midhigh', at: '2026-11-09T11:09' },
+    { date: '2026-11-04', fruitCode: 'A7-20261104-02', qc: full(3.6), at: '2026-11-07T04:26' },
+  ]);
+  assert.equal(g.grade, 'high');
+});

@@ -60,3 +60,19 @@ test('grading lives on the tree: its newest graded sample grades every fruit of 
   assert.equal(fruitGrade(rows[0]).grade, 'high', 'a fruit picked after the sampling takes the tree grade');
   assert.equal(fruitGrade(rows[1]).grade, 'ungraded');
 });
+
+test("the tree's grade is its latest graded fruit's: the fruit's own day and number, not when it was saved", async () => {
+  const { currentGrades } = await import('../src/lib/grading');
+  const full = (v: number) => Object.fromEntries(CRITERIA.map((c) => [c.key, v]));
+  const g = currentGrades([
+    // A7: the sheet's fruit 01 (re-imported later) and the webapp's fruit 02 of the same day: 02 was picked later.
+    { id: 'sheet-14', treeId: 'A7', date: '2026-11-04', fruitCode: 'A7-20261104-01', qc: full(2.65), grade: 'midhigh', at: '2026-11-09T11:09' },
+    { id: 'w', treeId: 'A7', date: '2026-11-04', fruitCode: 'A7-20261104-02', qc: full(3.6), at: '2026-11-07T04:26' },
+    // A3: the sheet's own date (26 Oct) is older than its fruit's (28 Oct).
+    { id: 'sheet-3', treeId: 'A3', date: '2026-10-26', fruitCode: 'A3-20261028-03', qc: full(3.7) },
+    { id: 'x', treeId: 'A3', date: '2026-10-27', qc: full(2) },
+  ]);
+  assert.equal(g.get('A7')?.id, 'w');
+  assert.equal(g.get('A7')?.total.grade, 'high');
+  assert.equal(g.get('A3')?.id, 'sheet-3');
+});

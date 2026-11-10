@@ -130,10 +130,27 @@ export function sampleTotal(s: Pick<TreeGrade, 'qc' | 'grade'>) {
   return qcTotal({ aroma: NaN, skin: NaN, shape: NaN, qc: s.qc, qcGrade: s.grade });
 }
 
-/** Each tree's current grading: its newest sampling with a grade (by day, then when it was saved). */
+/**
+ * Which fruit was picked last: the fruit's own day and number from its code (A7-20261104-02 after A7-20261104-01),
+ * else the sampling's day; when saved only breaks a tie (a re-import re-saves old samplings).
+ */
+export function sampleOrder(s: Pick<TreeGrade, 'date' | 'fruitCode' | 'at'>): [string, number, string] {
+  const m = String(s.fruitCode || '').match(/-(\d{4})(\d{2})(\d{2})-(\d+)$/);
+  return m ? [`${m[1]}-${m[2]}-${m[3]}`, Number(m[4]), String(s.at || '')] : [s.date, 0, String(s.at || '')];
+}
+/** Newest fruit first. */
+export const newestFirst = (a: TreeGrade, b: TreeGrade) => {
+  const [x, y] = [sampleOrder(a), sampleOrder(b)];
+  return y[0].localeCompare(x[0]) || y[1] - x[1] || y[2].localeCompare(x[2]);
+};
+
+/**
+ * Each tree's current grading: the grading of its latest graded fruit, the most like the tree's fruit now (a
+ * sampling still being scored doesn't count until it has a grade).
+ */
 export function currentGrades(list: TreeGrade[]): Map<string, TreeGrade & { total: ReturnType<typeof sampleTotal> }> {
   const out = new Map<string, TreeGrade & { total: ReturnType<typeof sampleTotal> }>();
-  const sorted = [...list].sort((a, b) => b.date.localeCompare(a.date) || String(b.at || '').localeCompare(String(a.at || '')));
+  const sorted = [...list].sort(newestFirst);
   for (const s of sorted) {
     const tree = String(s.treeId || '').toUpperCase();
     if (!tree || out.has(tree)) continue;

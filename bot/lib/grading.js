@@ -32,9 +32,18 @@ function sampleTotal(s = {}) {
   return { pct, complete, grade: set || (complete ? from(pct) : 'ungraded') };
 }
 
-/** The tree's current grade from its samplings: { grade, pct?, date? } (grade 'ungraded' when none has one). */
+/** Which fruit was picked last: its day and number from the fruit code, else the sampling's day (as the webapp). */
+function sampleOrder(s) {
+  const m = String(s.fruitCode || '').match(/-(\d{4})(\d{2})(\d{2})-(\d+)$/);
+  return m ? [`${m[1]}-${m[2]}-${m[3]}`, Number(m[4]), String(s.at || '')] : [String(s.date || ''), 0, String(s.at || '')];
+}
+
+/** The tree's grade: its latest graded fruit's (the most like its fruit now): { grade, pct?, date? }, 'ungraded' when none. */
 function treeGrade(samples = []) {
-  const sorted = [...samples].sort((a, b) => String(b.date).localeCompare(String(a.date)) || String(b.at || '').localeCompare(String(a.at || '')));
+  const sorted = [...samples].sort((a, b) => {
+    const [x, y] = [sampleOrder(a), sampleOrder(b)];
+    return y[0].localeCompare(x[0]) || y[1] - x[1] || y[2].localeCompare(x[2]);
+  });
   for (const s of sorted) {
     const t = sampleTotal(s);
     if (t.grade !== 'ungraded') return { grade: t.grade, pct: t.complete ? t.pct : undefined, date: s.date };

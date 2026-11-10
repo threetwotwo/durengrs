@@ -22,7 +22,7 @@ import {
 } from '../lib/fruits';
 import { codeOnTree, moveHarvestFruit, removeHarvestFruit, saveTreeGrade, updateHarvestItems } from '../lib/fieldData';
 import { toCsv } from '../lib/kebun';
-import { CRITERIA, GRADE_FROM, GROUPS, type Grade, type QcKey, sampleTotal } from '../lib/grading';
+import { CRITERIA, GRADE_FROM, GROUPS, type Grade, type QcKey, newestFirst, sampleTotal } from '../lib/grading';
 import { diffDays, formatShortDate, todayStr } from '../lib/treatments';
 import { PageHeader, btnPrimary, btnSecondary, inputCls } from './PageHeader';
 import { Link } from './Link';
@@ -805,7 +805,7 @@ const QcSection: React.FC<{ f: FruitRow; all: FruitRow[] }> = ({ f, all }) => {
   const { treeGrades } = useFarm();
   const tree = String(f.treeId || '').toUpperCase();
   const samples = useMemo(
-    () => treeGrades.filter((g) => String(g.treeId || '').toUpperCase() === tree).sort((a, b) => b.date.localeCompare(a.date) || String(b.at || '').localeCompare(String(a.at || ''))),
+    () => treeGrades.filter((g) => String(g.treeId || '').toUpperCase() === tree).sort(newestFirst),
     [treeGrades, tree]
   );
   const mine = samples.find((g) => g.id === sampleId(f));
