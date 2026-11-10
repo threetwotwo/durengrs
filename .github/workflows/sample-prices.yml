@@ -14,7 +14,7 @@ on:
         default: 'save'
 
 env:
-  ACTION: codes MT,MH
+  ACTION: codes MTH
 
 jobs:
   run:
