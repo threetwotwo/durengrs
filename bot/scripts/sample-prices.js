@@ -91,7 +91,7 @@ async function rematch() {
 /** The farm's varieties, and every saved price whose variety code is one of the given codes (read only). */
 async function codes(list) {
   const variants = (await db.collection('variants').get()).docs.map((d) => ({ id: d.id, ...d.data() }));
-  for (const v of variants) console.log(`variant ${v.id}: ${JSON.stringify({ name: v.name, code: v.code })}`);
+  for (const v of variants) console.log(`variant ${v.id} | name=${v.name || ""} | description=${String(v.description || "").slice(0, 60)}`);
   const want = String(list || '').split(',').filter(Boolean);
   const snap = await db.collection('marketPrices').get();
   for (const d of snap.docs) {
