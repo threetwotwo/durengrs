@@ -88,8 +88,20 @@ async function rematch() {
   console.log(`${n} prices matched to the farm's varieties`);
 }
 
+/** The farm's varieties, and every saved price whose variety code is one of the given codes (read only). */
+async function codes(list) {
+  const variants = (await db.collection('variants').get()).docs.map((d) => ({ id: d.id, ...d.data() }));
+  for (const v of variants) console.log(`variant ${v.id}: ${JSON.stringify({ name: v.name, code: v.code })}`);
+  const want = String(list || '').split(',').filter(Boolean);
+  const snap = await db.collection('marketPrices').get();
+  for (const d of snap.docs) {
+    const { photo, createdAt, vendorPhone, workerPhone, raw, ...rest } = d.data();
+    if (want.includes(rest.varietyCode) || /matahari|mthr|mata hari/i.test(`${rest.variety} ${rest.product} ${rest.note}`)) console.log(JSON.stringify({ id: d.id, ...rest }));
+  }
+}
+
 const action = process.argv[2];
-(action === 'rematch' ? rematch() : action === 'find' ? find(process.argv[3]) : action === 'save' ? save() : action === 'wipe' ? wipe() : action === 'wipe-date' ? wipeDate(process.argv[3]) : Promise.reject(new Error('save, wipe or wipe-date')))
+(action === 'codes' ? codes(process.argv[3]) : action === 'rematch' ? rematch() : action === 'find' ? find(process.argv[3]) : action === 'save' ? save() : action === 'wipe' ? wipe() : action === 'wipe-date' ? wipeDate(process.argv[3]) : Promise.reject(new Error('save, wipe or wipe-date')))
   .then(() => process.exit(0))
   .catch((e) => {
     console.error(e.message);
