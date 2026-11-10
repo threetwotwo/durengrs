@@ -34,6 +34,12 @@ const compactText = (text) => String(text || '').toUpperCase().replace(/[^A-Z0-9
 function parseCommand(text) {
   const c = compactText(text);
   if (TREE_ID_PATTERN.test(c)) return { kind: 'tree', id: c };
+  // "PANEN A0" (a typo allowed in PANEN): only the harvest report for that tree.
+  const panen = String(text || '').trim().match(/^(\S+)\s+([a-z]{1,3}\s*\d{1,3})$/i);
+  if (panen && distance(compactText(panen[1]), 'PANEN') <= 1) {
+    const id = compactText(panen[2]);
+    if (TREE_ID_PATTERN.test(id)) return { kind: 'harvest', id };
+  }
   let best = null;
   for (const [kind, words] of Object.entries(COMMANDS))
     for (const w of words) {

@@ -17,3 +17,11 @@ test('command words in any case, with small typos', () => {
 test('anything else gets the help message', () => {
   for (const t of ['', 'halo', 'terima kasih', 'ringan', 'A1 sehat', 'kebunnya bagus sekali']) assert.equal(parseCommand(t).kind, 'help', t);
 });
+
+test('PANEN A0 opens only the harvest report for that tree', () => {
+  assert.deepEqual(parseCommand('panen a0'), { kind: 'harvest', id: 'A0' });
+  assert.deepEqual(parseCommand('PANEN B 12'), { kind: 'harvest', id: 'B12' });
+  assert.deepEqual(parseCommand('Panan A3'), { kind: 'harvest', id: 'A3' }, 'a typo in PANEN');
+  assert.deepEqual(parseCommand('A0'), { kind: 'tree', id: 'A0' }, 'the tree alone still opens both reports');
+  assert.notEqual(parseCommand('kebun A0').kind, 'harvest');
+});

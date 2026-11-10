@@ -89,6 +89,7 @@ const HELP_BODY = [
   'Kirim ID pohon, contoh: *A1*. Lalu pilih:',
   '• *KESEHATAN*: foto + keterangan (bunga, buah, hama, penyakit)',
   '• *PANEN*: buah yang dipungut hari ini, ditimbang dan dinilai',
+  'Langsung ke laporan panen: kirim *PANEN A1*.',
   '',
   '📦 *Stok gudang (pupuk & obat)*',
   'Kirim *PAKAI TSP 1 sak blok A*, *MASUK Gandasil B 10 bungkus*, atau *OPNAME KCL 30 sak*. Ketik *STOK* untuk melihat sisa.',
@@ -465,7 +466,7 @@ async function handleIncomingMessage(body) {
   if (command.kind === 'help' && (looksLikePrices(typed) || (await inPriceMode(to)))) return handlePrices(to, { text: typed, hint: typed, auto: true });
   if (command.kind === 'farm') return openFarmFlow(to);
   if (command.kind === 'summary') return sendOwnSummary(to);
-  if (command.kind !== 'tree') return sendHelp(to);
+  if (command.kind !== 'tree' && command.kind !== 'harvest') return sendHelp(to);
   const compact = command.id;
 
   // Check first, so a typo gets a plain reply instead of a Flow with no
@@ -480,6 +481,13 @@ async function handleIncomingMessage(body) {
       to,
       `Pohon ${compact} tidak ditemukan. 🤔\nPeriksa huruf blok dan nomornya, lalu kirim lagi. Contoh: *A1* atau *B12*.`
     );
+    return;
+  }
+
+  // PANEN A0: only Laporan PANEN (with the tree's band and what to do with its fruit).
+  if (command.kind === 'harvest') {
+    const harvest = await sendHarvestFlow(to, tree);
+    if (harvest?.error) await sendText(to, `Pohon ${tree.id}: formulir panen belum bisa dibuka saat ini. Coba lagi sebentar lagi.`);
     return;
   }
 
