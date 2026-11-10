@@ -268,7 +268,9 @@ function priceLines(data, date) {
     const extra = [origin, p.condition === 'frozen' ? 'beku' : p.condition === 'chilled' ? 'dingin' : ''].filter(Boolean).join(', ');
     const g = groups.get(key) || { name: extra ? `${base} (${extra})` : base, code: (origin && !/^lokal$/i.test(origin)) || p.condition ? undefined : p.varietyCode, n: 0, utuh: [], kupas: [], fruit: [], pack: [], vendors: new Set() };
     g.n++;
-    if (p.pricePerKg) g[p.form === 'kupas' ? 'kupas' : 'utuh'].push(p.pricePerKg);
+    // A kupas pack with no weight written counts as the usual 400 g box (as the webapp, src/lib/market.ts perKgOf).
+    const perKg = p.pricePerKg || (p.unit === 'pack' && p.form === 'kupas' && p.price > 0 ? Math.round(p.price / 0.4) : 0);
+    if (perKg) g[p.form === 'kupas' ? 'kupas' : 'utuh'].push(perKg);
     else if (p.unit === 'buah') g.fruit.push(p.price);
     else if (p.unit === 'pack') g.pack.push(p.price);
     if (p.vendor) g.vendors.add(p.vendor.toLowerCase());

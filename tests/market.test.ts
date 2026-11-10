@@ -86,12 +86,12 @@ test('weekly: weeks start on Monday, labelled W1 Nov; a vendor counts once a wee
   assert.deepEqual(w.series.map((s) => [s.code, s.values]), [['MK', [290000, 320000]], ['BW', [undefined, 170000]]], 'Malaysian MK left out; B and A in W1: middle 290');
 });
 
-test('a pack whose weight was not written keeps its quoted price (Matahari frozen 175.000/pack)', () => {
+test('a kupas pack whose weight was not written counts as a 400 g box (Matahari frozen 175.000/pack)', () => {
   const [r] = marketByVariety(
     [{ id: 'x', date: '2026-11-05', vendor: 'Good Durian Pluit', variety: 'Matahari', category: 'buah', form: 'kupas', condition: 'frozen', price: 175000, unit: 'pack' } as any],
     (c) => c,
     new Map()
   );
-  assert.equal(r.low, undefined, 'not put per 400 g without a weight');
-  assert.deepEqual(r.perPack, [175000]);
+  assert.equal(r.low, 175000, 'shown per 400 g box: the pack price');
+  assert.deepEqual(r.perPack, []);
 });

@@ -48,6 +48,13 @@ export type Form = 'utuh' | 'kupas';
 export const KUPAS_BOX_KG = 0.4;
 /** A per-kg price in the unit a form is shown in: whole fruit per kg, kupas per 400 g box. */
 export const shownPrice = (form: Form, perKg: number) => (form === 'kupas' ? Math.round(perKg * KUPAS_BOX_KG) : perKg);
+
+/**
+ * A price per kg: as saved, else for a kupas pack whose weight wasn't written, the pack taken as the usual 400 g box
+ * (Matahari frozen 175.000/pack shows as 175.000 per 400 g).
+ */
+export const perKgOf = (p: Pick<MarketPrice, 'pricePerKg' | 'unit' | 'form' | 'price'>): number | undefined =>
+  p.pricePerKg || (p.unit === 'pack' && p.form === 'kupas' && p.price > 0 ? Math.round(p.price / KUPAS_BOX_KG) : undefined);
 export const FORMS: Form[] = ['utuh', 'kupas'];
 export const formOf = (p: Pick<MarketPrice, 'form'>): Form => (p.form === 'kupas' ? 'kupas' : 'utuh');
 
@@ -116,9 +123,9 @@ export function marketByVariety(prices: MarketPrice[], names: (code: string) => 
       const extra = [isLocal(list[0]) ? '' : list[0].origin, list[0].condition || ''].filter(Boolean).join(', ');
       // In the unit the form is shown in: whole per kg, kupas per 400 g box.
       const form0 = formOf(list[0]);
-      const perKg = list.map((p) => p.pricePerKg).filter((x): x is number => !!x).map((v) => shownPrice(form0, v));
-      const perFruit = list.filter((p) => !p.pricePerKg && p.unit === 'buah').map((p) => p.price);
-      const perPack = list.filter((p) => !p.pricePerKg && p.unit === 'pack').map((p) => p.price);
+      const perKg = list.map(perKgOf).filter((x): x is number => !!x).map((v) => shownPrice(form0, v));
+      const perFruit = list.filter((p) => !perKgOf(p) && p.unit === 'buah').map((p) => p.price);
+      const perPack = list.filter((p) => !perKgOf(p) && p.unit === 'pack').map((p) => p.price);
       const form = formOf(list[0]);
       return {
         key,
@@ -249,7 +256,7 @@ export interface WeeklySeries {
  * The series keep the farm's variety order (their colours follow the variety, not its rank).
  */
 export function weeklySeries(prices: MarketPrice[], form: Form, order: string[], names: (code: string) => string, weeks = 8, max = 4): { weeks: string[]; series: WeeklySeries[] } {
-  const local = prices.filter((p) => !isOlahan(p) && p.varietyCode && isLocal(p) && !p.condition && formOf(p) === form && p.pricePerKg);
+  const local = prices.filter((p) => !isOlahan(p) && p.varietyCode && isLocal(p) && !p.condition && formOf(p) === form && perKgOf(p));
   const byWeek = new Map<string, MarketPrice[]>();
   for (const p of local) {
     const w = weekStart(p.date);
@@ -268,7 +275,7 @@ export function weeklySeries(prices: MarketPrice[], form: Form, order: string[],
     values: ws.map((w) => {
       const xs = latestPerVendor(byWeek.get(w) || [])
         .filter((p) => p.varietyCode === code)
-        .map((p) => p.pricePerKg!);
+        .map((p) => perKgOf(p)!);
       return xs.length ? shownPrice(form, median(xs)) : undefined;
     }),
   }));
