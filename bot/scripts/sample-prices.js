@@ -56,8 +56,20 @@ async function wipeDate(date) {
   console.log(`${date}: ${snap.size} prices deleted, ${gone} screenshots`);
 }
 
+/** Shows the saved prices whose variety, product or note has this word (read only). */
+async function find(word) {
+  const w = String(word || '').toLowerCase();
+  const snap = await db.collection('marketPrices').get();
+  const hits = snap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((p) => `${p.variety} ${p.product} ${p.note}`.toLowerCase().includes(w));
+  for (const p of hits) {
+    const { photo, createdAt, vendorPhone, workerPhone, ...rest } = p;
+    console.log(JSON.stringify(rest));
+  }
+  console.log(`${hits.length} prices with "${word}"`);
+}
+
 const action = process.argv[2];
-(action === 'save' ? save() : action === 'wipe' ? wipe() : action === 'wipe-date' ? wipeDate(process.argv[3]) : Promise.reject(new Error('save, wipe or wipe-date')))
+(action === 'find' ? find(process.argv[3]) : action === 'save' ? save() : action === 'wipe' ? wipe() : action === 'wipe-date' ? wipeDate(process.argv[3]) : Promise.reject(new Error('save, wipe or wipe-date')))
   .then(() => process.exit(0))
   .catch((e) => {
     console.error(e.message);
