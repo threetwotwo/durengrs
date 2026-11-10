@@ -54,7 +54,8 @@ const screen = (name, data) => ({ version: '3.0', screen: name, data });
 const withError = (res, message) => ({ ...res, data: { ...res.data, error_message: message } });
 // `saved` goes back to WhatsApp with the completion, so the chat message after the Flow can say what really happened;
 // `report_id` too, so the bot can read the report's photos (lib/ai.js) and reply.
-const done = (message, title = '✅ Laporan tersimpan', reportId = '') => screen('DONE', { title, message, saved: true, report_id: reportId });
+// A Flow screen shows *bold* marks as they are (only chat messages make them bold), so they go.
+const done = (message, title = '✅ Laporan tersimpan', reportId = '') => screen('DONE', { title, message: String(message).replace(/\*/g, ''), saved: true, report_id: reportId });
 const notSaved = (message) => screen('DONE', { title: '⚠️ Gagal', message, saved: false, report_id: '' });
 const treeGone = (treeId) => notSaved(`Pohon ${treeId || ''} tidak ditemukan atau sudah tidak aktif, tidak ada yang disimpan.`);
 

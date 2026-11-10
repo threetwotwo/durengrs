@@ -19,13 +19,13 @@ test('the tree grade is the same as the webapp: totals, management\'s call, newe
   assert.equal(G.treeGrade([]).grade, 'ungraded');
 });
 
-test('what the worker is told: the band, where the fruit goes', () => {
-  const t = (g, o) => G.gradeLines('A3', g, o).join('\n');
-  assert.match(t({ grade: 'high', pct: 74, date: '2026-10-26' }), /grade HIGH \(74%, dinilai 26 Okt 2026\)[\s\S]*Karet merah\* hanya untuk buah > 1,5 kg[\s\S]*fresh di toko[\s\S]*Produksi durian kupas/);
-  assert.match(t({ grade: 'midhigh' }), /KARET KUNING\* \(grade MID-HIGH\)[\s\S]*karet kuning[\s\S]*kotak 400 g/);
-  assert.match(t({ grade: 'mid' }), /TANPA KARET\* \(grade MID\)[\s\S]*Produksi pasta\*: ziplock 250 g/);
-  assert.match(t({ grade: 'low' }), /TANPA KARET[\s\S]*pasta/);
-  assert.match(t({ grade: 'ungraded' }), /KARET HIJAU\* \(belum punya grade\)[\s\S]*QC manajemen/);
+test('what the worker is told: the band only (workers know the sorting)', () => {
+  const t = (g) => G.gradeLines('A3', g).join('\n');
+  assert.equal(t({ grade: 'high', pct: 74, date: '2026-10-26' }), '🔴 Pohon A3: HIGH, 74%.');
+  assert.equal(t({ grade: 'midhigh' }), '🟡 Pohon A3: *KARET KUNING* (MID-HIGH).');
+  assert.equal(t({ grade: 'mid', pct: 56 }), '⚪ Pohon A3: *TANPA KARET* (MID, 56%).');
+  assert.equal(t({ grade: 'ungraded' }), '🟢 Pohon A3: *KARET HIJAU* (belum dinilai, untuk QC).');
+  assert.doesNotMatch(t({ grade: 'midhigh' }), /kupas/i, 'no kupas station at the farm');
 });
 
 test('a High tree\'s fruit: red only when over 1.5 kg, round and with perfect skin; else yellow', () => {
@@ -39,7 +39,7 @@ test('a High tree\'s fruit: red only when over 1.5 kg, round and with perfect sk
   ] }).join('\n');
   assert.match(msg, /🔴 A3-1110-01 1\.720 g → \*KARET MERAH\*/);
   assert.match(msg, /🟡 A3-1110-02 1\.320 g → \*KARET KUNING\* \(≤ 1,5 kg\)/);
-  assert.match(msg, /juring/);
+  assert.doesNotMatch(msg, /juring|fresh di toko|kupas/i, 'no explanations');
 });
 
 test('a failed read says nothing', async () => {

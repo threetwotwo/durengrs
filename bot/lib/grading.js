@@ -71,13 +71,6 @@ const BAND = {
  */
 const RED = { minG: 1500, minShape: 4, minSkin: 4 };
 
-/** What a band means after sorting: where the fruit goes and how it is packed. */
-const GOES = {
-  high: 'Jual *fresh di toko*, butiran utuh: proses seperti biasa (*bungkus daun pisang*).',
-  midhigh: '*Produksi durian kupas*: kotak 400 g (frozen), bawa ke *stasiun kupas*.',
-  none: '*Produksi pasta*: ziplock 250 g.',
-};
-
 /** One fruit's band from its tree's grade and, for a High tree, the fruit's weight, shape and skin. */
 function fruitBand(grade, f = {}) {
   if (grade !== 'high') return { band: grade === 'mid' || grade === 'low' ? 'mid' : grade || 'ungraded', why: [] };
@@ -88,42 +81,28 @@ function fruitBand(grade, f = {}) {
   return { band: why.length ? 'midhigh' : 'high', why };
 }
 
-function gradeLines(treeId, g, { kupasHint = false, items } = {}) {
+/** The worker's lines: the tree's band (workers know the sorting), and for a High tree each fruit's band. */
+function gradeLines(treeId, g, { items } = {}) {
   const band = BAND[g.grade] || BAND.ungraded;
-  if (g.grade === 'ungraded')
-    return [
-      `${band.emoji} Pohon ${treeId}: *${band.name}* (belum punya grade).`,
-      '👉 Pasang karet hijau dan kemas buahnya untuk *QC manajemen*: serahkan ke manajemen untuk dinilai.',
-    ];
-  const what = `${g.pct !== undefined ? `${String(g.pct).replace('.', ',')}%, ` : ''}${g.date ? `dinilai ${R.dateLabel(g.date)}` : ''}`.replace(/, $/, '');
+  if (g.grade === 'ungraded') return [`${band.emoji} Pohon ${treeId}: *${band.name}* (belum dinilai, untuk QC).`];
   const label = { high: 'HIGH', midhigh: 'MID-HIGH', mid: 'MID', low: 'LOW' }[g.grade];
-  const hint = kupasHint ? [`Setelah dikupas di kebun, kirim *KUPAS ${treeId}* (boleh beberapa pohon satu varietas) untuk mencatat kotaknya.`] : [];
-  if (g.grade === 'high') {
-    const head = `${band.emoji} Pohon ${treeId}: grade HIGH${what ? ` (${what})` : ''}.`;
-    const rule = `*Karet merah* hanya untuk buah > 1,5 kg, bentuk bulat, kulit sempurna, juring penuh (4-5). Selain itu *karet kuning*.`;
-    if (!items || !items.length)
-      return [head, rule, `🔴 Karet merah → ${GOES.high}`, `🟡 Karet kuning → ${GOES.midhigh}`];
-    // After the fruits are weighed and scored: each fruit's band.
-    const per = items.map((f) => ({ f, ...fruitBand('high', f) }));
-    const lines = per.map(({ f, band: b, why }) => `${BAND[b].emoji} ${f.code ? f.code.replace(/-\d{4}(\d{4})-/, '-$1-') : 'buah'} ${Math.round(f.weightG).toLocaleString('id-ID')} g → *${BAND[b].name}*${why.length ? ` (${why.join(', ')})` : ''}`);
-    const anyYellow = per.some((x) => x.band === 'midhigh');
-    return [
-      head,
-      ...lines,
-      'Cek juga juringnya: kalau tidak penuh (2-3), pakai karet kuning.',
-      `🔴 Karet merah → ${GOES.high}`,
-      ...(anyYellow ? [`🟡 Karet kuning → ${GOES.midhigh}`, ...hint] : []),
-    ];
-  }
-  const head = `${band.emoji} Pohon ${treeId}: *${band.name}* (grade ${label}${what ? `, ${what}` : ''}).`;
-  if (g.grade === 'midhigh') return [head, `👉 Pasang karet kuning. ${GOES.midhigh}`, ...hint];
-  return [head, `👉 Tanpa karet. ${GOES.none}`];
+  const pct = g.pct !== undefined ? `, ${String(g.pct).replace('.', ',')}%` : '';
+  if (g.grade !== 'high') return [`${band.emoji} Pohon ${treeId}: *${band.name}* (${label}${pct}).`];
+  const head = `${band.emoji} Pohon ${treeId}: HIGH${pct}.`;
+  if (!items || !items.length) return [head];
+  return [
+    head,
+    ...items.map((f) => {
+      const { band: b, why } = fruitBand('high', f);
+      return `${BAND[b].emoji} ${f.code ? f.code.replace(/-\d{4}(\d{4})-/, '-$1-') : 'buah'} ${Math.round(f.weightG).toLocaleString('id-ID')} g → *${BAND[b].name}*${why.length ? ` (${why.join(', ')})` : ''}`;
+    }),
+  ];
 }
 
 /** Loads the tree's samplings (treeGrades) and gives its lines; a failed read says nothing rather than a wrong instruction. */
 async function treeGradeLines(byTree, treeId, items) {
   try {
-    return gradeLines(treeId, treeGrade(await byTree('treeGrades', treeId)), { kupasHint: true, items });
+    return gradeLines(treeId, treeGrade(await byTree('treeGrades', treeId)), { items });
   } catch (err) {
     console.error('Tree grade read failed:', err.message);
     return [];
