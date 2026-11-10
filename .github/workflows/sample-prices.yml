@@ -14,7 +14,7 @@ on:
         default: 'save'
 
 env:
-  ACTION: rematch
+  ACTION: samplings
 
 jobs:
   run:

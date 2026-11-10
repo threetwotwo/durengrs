@@ -102,8 +102,19 @@ async function codes(list) {
   }
 }
 
+/** Every tree sampling (read only): tree, the fruit's day, fruit, when saved, from, grade and total. */
+async function samplings() {
+  const G = require('../lib/grading');
+  const snap = await db.collection('treeGrades').get();
+  const list = snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => String(a.treeId).localeCompare(String(b.treeId)) || String(a.date).localeCompare(String(b.date)));
+  for (const g of list) {
+    const t = G.sampleTotal(g);
+    console.log(`${g.treeId} | ${g.date} | ${g.fruitCode || '-'} | at ${String(g.at || '').slice(0, 16)} | ${g.from || ''} | set ${g.grade || '-'} | ${t.pct}% ${t.complete ? 'complete' : `partial ${Object.keys(g.qc || {}).length}`} -> ${t.grade}`);
+  }
+}
+
 const action = process.argv[2];
-(action === 'codes' ? codes(process.argv[3]) : action === 'rematch' ? rematch() : action === 'find' ? find(process.argv[3]) : action === 'save' ? save() : action === 'wipe' ? wipe() : action === 'wipe-date' ? wipeDate(process.argv[3]) : Promise.reject(new Error('save, wipe or wipe-date')))
+(action === 'samplings' ? samplings() : action === 'codes' ? codes(process.argv[3]) : action === 'rematch' ? rematch() : action === 'find' ? find(process.argv[3]) : action === 'save' ? save() : action === 'wipe' ? wipe() : action === 'wipe-date' ? wipeDate(process.argv[3]) : Promise.reject(new Error('save, wipe or wipe-date')))
   .then(() => process.exit(0))
   .catch((e) => {
     console.error(e.message);
