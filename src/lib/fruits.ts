@@ -235,6 +235,8 @@ export interface BoardTree {
   gradedOn?: string;
   /** Fruit still on the tree (the workers' last fruit count, less what was picked since). */
   onTree: number;
+  /** The day of its latest picked fruit this season. */
+  lastPicked?: string;
 }
 
 /** A tree with fruit to harvest: fruit counted on it, or fruit already picked this season. */
@@ -269,6 +271,7 @@ export function gradeBoard(
     };
     t.fruits++;
     t.grams += Number(r.weightG) || 0;
+    if (!t.lastPicked || r.date > t.lastPicked) t.lastPicked = r.date;
     trees.set(r.treeId, t);
   }
   for (const o of others) {

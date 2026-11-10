@@ -6,7 +6,10 @@ import { fruitsUrl, treeUrl } from '../lib/router';
 import { BOARD_GRADES, type BoardTree, gradeBoard, hasPotential } from '../lib/fruits';
 import { fruitOnTree } from '../lib/crop';
 import { useCrops } from './useCrops';
-import { formatShortDate } from '../lib/treatments';
+import { addDays, formatShortDate, todayStr } from '../lib/treatments';
+
+/** Ungraded trees picked within this many days stand out: their fruit is ready for QC. */
+const RECENT_DAYS = 3;
 import { GradeTag } from './HarvestBits';
 import { Link } from './Link';
 import { useFruits, useVarietyName } from './useFruits';
@@ -42,6 +45,9 @@ export const GradeBoard: React.FC = () => {
   const counts = Object.fromEntries(BOARD_GRADES.map((g) => [g, board.reduce((n, v) => n + v.byGrade[g].filter(hasPotential).length, 0)]));
 
   // A tree in its cell: its code (to its fruits), its total when fully scored; commas between.
+  // Ungraded trees with fruit picked in the last 3 days: their fruit is at the packing house now, ready for QC.
+  const recentFrom = addDays(todayStr(), -RECENT_DAYS);
+  const isRecent = (tr: BoardTree) => tr.grade === 'ungraded' && !!tr.lastPicked && tr.lastPicked >= recentFrom;
   const treeLink = (tr: BoardTree, i: number) => (
     <React.Fragment key={tr.treeId}>
       {i > 0 && <span className="text-slate-400">, </span>}
@@ -52,9 +58,9 @@ export const GradeBoard: React.FC = () => {
           n: tr.fruits,
           on: tr.onTree,
           kg: fmt(tr.grams / 1000, 1),
-          graded: tr.gradedOn ? t('gb.graded', { date: formatShortDate(tr.gradedOn) }) : '',
+          graded: tr.gradedOn ? t('gb.graded', { date: formatShortDate(tr.gradedOn) }) : tr.lastPicked ? t('gb.picked', { date: formatShortDate(tr.lastPicked) }) : '',
         })}
-        className={`whitespace-nowrap font-mono underline underline-offset-4 ${hasPotential(tr) ? 'font-bold text-slate-900 decoration-slate-300 hover:decoration-slate-900' : 'text-slate-500 decoration-slate-200 hover:text-slate-900'}`}
+        className={`whitespace-nowrap font-mono underline underline-offset-4 ${isRecent(tr) ? 'font-extrabold text-white bg-emerald-600 rounded px-1 decoration-emerald-200 hover:bg-emerald-700' : hasPotential(tr) ? 'font-bold text-slate-900 decoration-slate-300 hover:decoration-slate-900' : 'text-slate-500 decoration-slate-200 hover:text-slate-900'}`}
       >
         {tr.treeId}
       </Link>
@@ -174,6 +180,12 @@ export const GradeBoard: React.FC = () => {
           </table>
         </div>
         </>
+      )}
+      {board.length > 0 && (
+        <p className="text-xs text-slate-600 flex items-center gap-2">
+          <span className="font-mono font-extrabold text-white bg-emerald-600 rounded px-1">A12</span>
+          {t('gb.recent', { n: RECENT_DAYS })}
+        </p>
       )}
     </div>
   );

@@ -114,3 +114,10 @@ test('the grading board shows trees with fruit to harvest: counted on the tree o
   assert.deepEqual(ungraded.map((t) => t.treeId), ['A12', 'A21', 'A30'], 'the most fruit on the tree first; none last');
   assert.deepEqual(ungraded.map(hasPotential), [true, true, false]);
 });
+
+test('the board knows each tree\'s latest picking day', async () => {
+  const { gradeBoard } = await import('../src/lib/fruits');
+  const h = (id: string, date: string) => ({ id, date, treeId: 'A21', block: 'A', variant: 'MK', items: [{ code: `A21-${date.replace(/-/g, '')}-01`, weightG: 1500, aroma: 3, skin: 3, shape: 3 }] }) as any;
+  const b = gradeBoard(fruitRows([h('1', '2026-11-02'), h('2', '2026-11-09')]));
+  assert.equal(b[0].byGrade.ungraded[0].lastPicked, '2026-11-09');
+});
