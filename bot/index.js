@@ -12,7 +12,7 @@ const express = require('express');
 const { decryptRequest, encryptResponse } = require('./lib/encryption');
 const { treeGradeLines } = require('./lib/grading');
 const { parseKupas, parseWeights, kupasStore } = require('./lib/kupas');
-const { parseStock, reportStock, stockList } = require('./lib/stock');
+const { parseStock, reportStock, stockList, TEMPLATE: STOCK_TEMPLATE } = require('./lib/stock');
 const { byTree: cropByTree } = require('./lib/cropData');
 const { getTreeById, getTreeRecord, isArchived, getLastReport } = require('./lib/trees');
 const { getCollageUrl } = require('./lib/reports');
@@ -91,8 +91,8 @@ const HELP_BODY = [
   '• *PANEN*: buah yang dipungut hari ini, ditimbang dan dinilai',
   'Langsung ke laporan panen: kirim *PANEN A1*.',
   '',
-  '📦 *Stok gudang (pupuk & obat)*',
-  'Kirim *PAKAI TSP 1 sak blok A*, *MASUK Gandasil B 10 bungkus*, atau *OPNAME KCL 30 sak*. Ketik *STOK* untuk melihat sisa.',
+  '📦 *Barang gudang (pupuk & obat)*',
+  'Setiap ambil barang: nama barang, jumlah dipakai, sisa di gudang. Contoh: *Antracol pakai 2 bungkus, sisa 3*. Ketik *GUDANG* untuk contoh lengkap, *STOK* untuk melihat sisa.',
   '',
   '📋 *Ringkasan hari ini*',
   'Kirim kata *RINGKASAN*: semua yang Anda catat hari ini.',
@@ -260,6 +260,7 @@ const kupas = kupasStore(fdb, cropByTree, async (id) => {
 });
 async function handleStock(to, typed, stock) {
   try {
+    if (stock.word === 'GUDANG' && !stock.rest) return sendText(to, STOCK_TEMPLATE);
     if (!/\d/.test(stock.rest)) return sendText(to, await stockList(fdb, stock.rest));
     return sendText(to, await reportStock(fdb, { text: typed, type: stock.type, workerPhone: to }));
   } catch (err) {
@@ -454,7 +455,7 @@ async function handleIncomingMessage(body) {
     const open = await kupas.open(to);
     if (open) return sendText(to, await kupas.saveWeights(to, open, boxWeights));
   }
-  // The warehouse's pupuk and obat (lib/stock.js): "PAKAI TSP 1 sak blok A", "MASUK …", "OPNAME …", "STOK".
+  // The warehouse's pupuk and obat (lib/stock.js): "Antracol pakai 2 bungkus sisa 3", "MASUK …", "GUDANG", "STOK".
   const stock = parseStock(typed);
   if (stock && (/\d/.test(stock.rest) || /^(STOK|STOCK|GUDANG)$/.test(stock.word))) return handleStock(to, typed, stock);
   const typedPrices = priceText(typed);

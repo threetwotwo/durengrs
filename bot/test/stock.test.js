@@ -63,9 +63,9 @@ test('a report saves its moves and answers with the new balance', async () => {
     ],
   });
   const reply = await K.reportStock(db, { text: 'PAKAI TSP 1 sak blok A\ngandasil merah 2 bungkus\nurea 1 sak', type: 'out', workerPhone: '628', today: '2026-11-10', read });
-  assert.match(reply, /TSP[^\n]*dipakai 50 kg \(1 kemasan\) \(blok A\)\. \*Sisa 40 kg[^\n]*hampir habis/);
-  assert.match(reply, /Gandasil B[^\n]*dipakai 1\.000 gr \(2 kemasan\)[^\n]*Sisa 6\.500 gr/);
-  assert.match(reply, /"urea" tidak ada di daftar stok/);
+  assert.match(reply, /TSP[^\n]*dipakai 50 kg \(1 kemasan\) \(blok A\), \*sisa 40 kg[^\n]*hampir habis/);
+  assert.match(reply, /Gandasil B[^\n]*dipakai 1\.000 gr \(2 kemasan\), \*sisa 6\.500 gr/);
+  assert.match(reply, /"urea" tidak ada di daftar gudang/);
   const saved = Object.values(db.store.stockMoves).filter((m) => m.source === 'whatsapp');
   assert.equal(saved.length, 2);
   assert.deepEqual(saved.map((m) => [m.itemId, m.type, m.qty, m.block]), [['A01', 'out', 50, 'A'], ['A21', 'out', 1000, undefined]]);
@@ -77,4 +77,20 @@ test('STOK lists the balances', async () => {
   assert.match(all, /🟢 TSP[^\n]*90 kg/);
   assert.match(await K.stockList(db, 'gandasil'), /Gandasil B[^\n]*7\.500 gr/);
   assert.match(await K.stockList(db, 'urea'), /Tidak ada produk "urea"/);
+});
+
+test("William's way: item, used, what's left; the left is counted after the use", async () => {
+  assert.equal(K.parseStock('Antracol pakai 2 bungkus, sisa 3').type, 'out');
+  assert.equal(K.parseStock('Nama barang: TSP\nDipakai: 1 sak\nSisa: 1 sak').word, 'LAPOR');
+  assert.equal(K.parseStock('pohonnya sudah dipakai'), null, 'no number: not a report');
+  assert.equal(K.parseStock('GUDANG').word, 'GUDANG');
+  const db = fakeDb({ stockItems: items, stockMoves: opening });
+  const read = async () => ({
+    moves: [{ item_id: 'A21', written: 'gandasil merah', type: 'out', qty: 2, unit: 'bungkus', block: '', note: '', left_qty: 10, left_unit: '' }],
+  });
+  const reply = await K.reportStock(db, { text: 'gandasil merah pakai 2 bungkus sisa 10', type: 'out', workerPhone: '628', today: '2026-11-12', read });
+  assert.match(reply, /Gandasil B[^\n]*dipakai 1\.000 gr \(2 kemasan\), \*sisa 5\.000 gr \(10 kemasan\)\*/, 'what is left, as written (not 6.500 recorded)');
+  const saved = Object.values(db.store.stockMoves).filter((m) => m.source === 'whatsapp');
+  assert.deepEqual(saved.map((m) => [m.type, m.qty]), [['out', 1000], ['count', 5000]]);
+  assert.match(K.TEMPLATE, /Nama barang[\s\S]*Jumlah dipakai[\s\S]*Sisa di gudang/);
 });

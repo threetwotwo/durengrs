@@ -1,11 +1,14 @@
-// lib/stock.js — the warehouse's pupuk and obat on WhatsApp (the balances: src/shared/stock.ts). A message that
-// starts with a stock word is a stock report; Gemini matches what is written to the stock list:
-//   PAKAI TSP 1 sak blok A          used in the field (out)
+// lib/stock.js — the warehouse's pupuk and obat on WhatsApp (the balances: src/shared/stock.ts). Workers write as
+// William taught them, item, amount used, what's left, in any order and words; Gemini matches the stock list:
+//   Antracol pakai 2 bungkus sisa 3       used (out), then the count of what's left
+//   Nama barang: TSP / Dipakai: 1 sak / Sisa: 2 sak      the same, as the template
+//   PAKAI TSP 1 sak blok A          used only (the reply gives what should be left)
 //   MASUK Gandasil B 10 bungkus     a delivery (in)
-//   OPNAME KCL 30 sak               a count: the balance is what was counted
-//   STOK                            the balances (STOK TSP: one product's)
-// Several lines in one message are fine; a line without its own word takes the message's. Saved right away as
-// stockMoves (mistakes are deleted on the webapp's Stock page); the reply gives each product's new balance.
+//   OPNAME KCL 30 sak               a count only
+//   GUDANG                          the template; STOK: the balances (STOK TSP: one product's)
+// A message is a stock report when it starts with one of those words, or says "pakai"/"sisa" with a number.
+// Several products in one message are fine. Saved right away as stockMoves (mistakes are deleted on the webapp's
+// Stock page).
 'use strict';
 const S = require('./shared');
 const R = require('./rules');
@@ -13,12 +16,27 @@ const R = require('./rules');
 /** The word a stock report starts with, and what it means. */
 const WORDS = { pakai: 'out', keluar: 'out', masuk: 'in', beli: 'in', terima: 'in', opname: 'count', stok: 'count', stock: 'count', gudang: null };
 
-/** { type: 'out'|'in'|'count'|null, rest } when the message is a stock report; null otherwise. */
+/** { type: 'out'|'in'|'count'|null, rest, word } when the message is a stock report; null otherwise. */
 function parseStock(text) {
-  const m = String(text || '').trim().match(/^(pakai|keluar|masuk|beli|terima|opname|stok|stock|gudang)\b[:\s]*([\s\S]*)$/i);
-  if (!m) return null;
-  return { type: WORDS[m[1].toLowerCase()], rest: m[2].trim(), word: m[1].toUpperCase() };
+  const t = String(text || '').trim();
+  const m = t.match(/^(pakai|keluar|masuk|beli|terima|opname|stok|stock|gudang)\b[:\s]*([\s\S]*)$/i);
+  if (m) return { type: WORDS[m[1].toLowerCase()], rest: m[2].trim(), word: m[1].toUpperCase() };
+  // William's way: "Antracol pakai 2 bungkus sisa 3", "Nama barang: … Dipakai: … Sisa: …".
+  if (/\d/.test(t) && /\b(di|ter)?pakai\b|\bsisa\b|nama barang/i.test(t)) return { type: 'out', rest: t, word: 'LAPOR' };
+  return null;
 }
+
+/** What GUDANG answers: how to report, as William taught it. */
+const TEMPLATE = [
+  '📦 *Lapor barang gudang*',
+  'Setiap ambil barang, kirim:',
+  '• Nama barang',
+  '• Jumlah dipakai',
+  '• Sisa di gudang',
+  '',
+  'Contoh: *Antracol pakai 2 bungkus, sisa 3 bungkus*',
+  'Boleh beberapa barang, satu baris satu barang. Barang datang: *MASUK Gandasil 10 bungkus*. Lihat sisa: *STOK*.',
+].join('\n');
 
 const SCHEMA = {
   type: 'OBJECT',
@@ -35,6 +53,8 @@ const SCHEMA = {
           unit: { type: 'STRING' },
           block: { type: 'STRING' },
           note: { type: 'STRING' },
+          left_qty: { type: 'NUMBER' },
+          left_unit: { type: 'STRING' },
         },
         required: ['written', 'type', 'qty', 'unit'],
       },
@@ -56,6 +76,8 @@ Return one entry per product and quantity written.
 - qty: the number as written (a plain number; "1,5" is 1.5; "setengah" is 0.5).
 - unit: as written: kg, gr, ltr, ml, or the pack word (sak, karung, botol, bungkus, kemasan, pcs). "" when no unit is written.
 - block: the block or trees it was used on when written ("blok A", "A1-A20" -> "A"), else "".
+- left_qty, left_unit: what is left in the warehouse when written ("sisa 3 bungkus", "tinggal 2 sak"); -1 and "" when not written. A line with only "sisa" (nothing used): type "count" with qty and unit the remainder, left_qty -1.
+- A line may say used and left together ("pakai 2 bungkus sisa 3"): type "out", qty 2, left_qty 3; when the left has no unit, it is the unit of what was used.
 - note: anything else written about that line, short, else "".`;
 }
 
@@ -76,11 +98,11 @@ async function reportStock(db, { text, type, workerPhone, today = R.todayStr(), 
     const item = byId.get(m.item_id);
     const kind = m.type === 'unknown' ? type : m.type;
     if (!item) {
-      lines.push(`❓ "${m.written}" tidak ada di daftar stok. Tulis nama produknya seperti di daftar (ketik *STOK* untuk melihat daftarnya).`);
+      lines.push(`❓ "${m.written}" tidak ada di daftar gudang. Tulis namanya seperti di kemasan (ketik *STOK* untuk melihat daftar).`);
       continue;
     }
     if (!kind) {
-      lines.push(`❓ ${item.name}: dipakai, masuk, atau hasil opname? Kirim lagi dengan *PAKAI*, *MASUK*, atau *OPNAME* di depan.`);
+      lines.push(`❓ ${item.name}: dipakai berapa, sisa berapa? Contoh: *${item.name} pakai 1, sisa 2*.`);
       continue;
     }
     const qty = S.toItemUnit(Number(m.qty), m.unit, item);
@@ -88,7 +110,11 @@ async function reportStock(db, { text, type, workerPhone, today = R.todayStr(), 
       lines.push(`❓ ${item.name}: jumlah "${m.qty} ${m.unit}" tidak bisa dibaca dalam ${item.unit}. Tulis dengan satuannya, contoh: *2 sak* atau *50 kg*.`);
       continue;
     }
-    save.push({ itemId: item.id, type: kind, qty, date: today, ...(m.block ? { block: m.block.toUpperCase() } : {}), ...(m.note ? { note: m.note.slice(0, 200) } : {}), ...(workerPhone ? { workerPhone } : {}), source: 'whatsapp', at, raw: text.slice(0, 300) });
+    const base = { itemId: item.id, date: today, ...(workerPhone ? { workerPhone } : {}), source: 'whatsapp', raw: text.slice(0, 300) };
+    save.push({ ...base, type: kind, qty, ...(m.block ? { block: m.block.toUpperCase() } : {}), ...(m.note ? { note: m.note.slice(0, 200) } : {}), at });
+    // "sisa 3": what's left, counted right after the use (it sets the balance, whatever was recorded before).
+    const left = m.left_qty >= 0 && kind !== 'count' ? S.toItemUnit(Number(m.left_qty), m.left_unit || m.unit, item) : undefined;
+    if (left !== undefined) save.push({ ...base, type: 'count', qty: left, note: 'sisa di gudang', at: `${at}+1` });
   }
   if (save.length) {
     const batch = db.batch();
@@ -96,16 +122,22 @@ async function reportStock(db, { text, type, workerPhone, today = R.todayStr(), 
     await batch.commit();
   }
   const after = S.stockBalances([...moves, ...save.map((s, i) => ({ id: `new${i}`, ...s }))]);
-  const word = { out: 'dipakai', in: 'masuk', count: 'dihitung' };
+  // One line per product: what was used or came in, and what's left now.
+  const word = { out: 'dipakai', in: 'masuk' };
+  const done = new Set();
   for (const s of save) {
+    if (done.has(s.itemId)) continue;
+    done.add(s.itemId);
     const item = byId.get(s.itemId);
+    const mine = save.filter((x) => x.itemId === s.itemId);
     const b = after.get(s.itemId)?.balance ?? 0;
     const level = S.stockLevel(item, b);
+    const did = mine.filter((x) => x.type !== 'count').map((x) => `${word[x.type]} ${S.stockQty(x.qty, item)}${x.block ? ` (blok ${x.block})` : ''}`);
     lines.push(
-      `✅ ${item.name}: ${word[s.type]} ${S.stockQty(s.qty, item)}${s.block ? ` (blok ${s.block})` : ''}. *Sisa ${S.stockQty(b, item)}*${b < 0 ? ' ⚠️ minus: cek dan kirim OPNAME' : level === 'out' ? ' ⚠️ HABIS' : level === 'low' ? ' ⚠️ hampir habis' : ''}`
+      `✅ ${item.name}: ${did.length ? `${did.join(', ')}, ` : ''}*sisa ${S.stockQty(b, item)}*${b < 0 ? ' ⚠️ minus, tulis sisanya' : level === 'out' ? ' ⚠️ HABIS' : level === 'low' ? ' ⚠️ hampir habis' : ''}`
     );
   }
-  if (!lines.length) return 'Laporan stok tidak terbaca. Contoh: *PAKAI TSP 1 sak blok A*, *MASUK Gandasil B 10 bungkus*, *OPNAME KCL 30 sak*.';
+  if (!lines.length) return `Laporan tidak terbaca.\n\n${TEMPLATE}`;
   console.log(`Stock report: ${save.length} moves saved, ${lines.length - save.length} not`);
   return lines.join('\n');
 }
@@ -130,4 +162,4 @@ async function stockList(db, query = '') {
   return `${head}\n${body}${foot}`.slice(0, 4000);
 }
 
-module.exports = { parseStock, reportStock, stockList, prompt, SCHEMA };
+module.exports = { parseStock, reportStock, stockList, prompt, SCHEMA, TEMPLATE };

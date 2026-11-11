@@ -4,7 +4,7 @@ import type { Bundle } from './index';
 export const stock: Bundle = {
   id: {
     'st.title': 'Stok gudang',
-    'st.desc': 'Pupuk dan obat di gudang kebun. Sisa = hasil opname terakhir + yang masuk − yang dipakai sejak itu. Gudang melapor lewat WhatsApp: PAKAI TSP 1 sak blok A, MASUK …, OPNAME …, atau STOK untuk melihat sisa.',
+    'st.desc': 'Pupuk dan obat di gudang kebun. Sisa = hitungan terakhir + yang masuk − yang dipakai sejak itu. Pekerja melapor lewat WhatsApp setiap ambil barang: nama barang, jumlah dipakai, sisa di gudang (contoh: Antracol pakai 2 bungkus, sisa 3). Kirim GUDANG untuk contoh, STOK untuk melihat sisa.',
     'st.add': 'Catat',
     'st.none': 'Belum ada daftar stok.',
     'st.search': 'Cari produk, produsen, kandungan…',
@@ -50,7 +50,7 @@ export const stock: Bundle = {
   },
   en: {
     'st.title': 'Warehouse stock',
-    'st.desc': "The farm warehouse's pupuk and obat. Balance = the last stock count + deliveries − what was used since. The warehouse reports on WhatsApp: PAKAI TSP 1 sak blok A, MASUK …, OPNAME …, or STOK to see the balances.",
+    'st.desc': "The farm warehouse's pupuk and obat. Balance = the last count + deliveries − what was used since. Workers report on WhatsApp each time they take something: item, amount used, what's left (e.g. Antracol pakai 2 bungkus, sisa 3). GUDANG sends the template, STOK the balances.",
     'st.add': 'Record',
     'st.none': 'No stock list yet.',
     'st.search': 'Search product, producer, content…',
