@@ -880,8 +880,6 @@ const QcSection: React.FC<{ f: FruitRow; all: FruitRow[] }> = ({ f, all }) => {
       setState('error');
     }
   };
-  const tone = (on: boolean, v: number) =>
-    on ? (v >= 4 ? 'bg-emerald-600 text-white border-emerald-600' : v === 3 ? 'bg-amber-500 text-white border-amber-500' : 'bg-rose-600 text-white border-rose-600') : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50';
   const treeTotal = f.tg?.total;
   return (
     <section aria-labelledby="qc-h" className="border-t border-slate-100">
@@ -913,31 +911,55 @@ const QcSection: React.FC<{ f: FruitRow; all: FruitRow[] }> = ({ f, all }) => {
             </p>
             {list.map((c) => {
               const v = qc[c.key];
-              const on = (n: number) => v !== undefined && Math.max(1, Math.round(v)) === n;
+              const set = (n: number | undefined) => {
+                setQc((x) => (n === undefined ? Object.fromEntries(Object.entries(x).filter(([k]) => k !== c.key)) : { ...x, [c.key]: n }));
+                setState('idle');
+              };
+              // The slider's colour follows the score: red below 2.5, amber to 3.5, green from 4; grey until scored.
+              const accent = v === undefined ? '#cbd5e1' : v >= 4 ? '#059669' : v >= 2.5 ? '#f59e0b' : '#e11d48';
               return (
-                <div key={c.key} className="py-1.5">
+                <div key={c.key} className="py-2">
                   <div className="flex items-baseline justify-between gap-2">
                     <span className="text-sm font-semibold text-slate-900">
                       {t(`qc.c.${c.key}`)} <span className="text-xs font-normal text-slate-500">{c.weight}%</span>
                     </span>
                     <span className="text-[11px] text-slate-500 text-right">{t(`qc.c.${c.key}.scale`)}</span>
                   </div>
-                  <div role="radiogroup" aria-label={t(`qc.c.${c.key}`)} className="mt-1 grid grid-cols-5 gap-1.5">
-                    {[1, 2, 3, 4, 5].map((n) => (
-                      <button
-                        key={n}
-                        type="button"
-                        role="radio"
-                        aria-checked={on(n)}
-                        onClick={() => {
-                          setQc((x) => (on(n) ? Object.fromEntries(Object.entries(x).filter(([k]) => k !== c.key)) : { ...x, [c.key]: n }));
-                          setState('idle');
-                        }}
-                        className={`h-11 rounded-lg border text-base font-bold tabular ${tone(on(n), n)}`}
-                      >
-                        {on(n) && v !== n ? fmtScore(v) : n}
-                      </button>
-                    ))}
+                  <div className="mt-1 flex items-center gap-3">
+                    <div className="flex-1 min-w-0">
+                      <input
+                        type="range"
+                        min={1}
+                        max={5}
+                        step={0.5}
+                        value={v ?? 3}
+                        aria-label={t(`qc.c.${c.key}`)}
+                        aria-valuetext={v === undefined ? t('qc.unscored') : fmtScore(v)}
+                        onChange={(e) => set(Number(e.currentTarget.value))}
+                        // A tap on an unscored slider takes the value where it sits (3), as a drag would.
+                        onPointerUp={(e) => v === undefined && set(Number(e.currentTarget.value))}
+                        onKeyUp={(e) => v === undefined && set(Number(e.currentTarget.value))}
+                        className={`w-full h-8 cursor-pointer ${v === undefined ? 'opacity-50' : ''}`}
+                        style={{ accentColor: accent }}
+                      />
+                      <div className="flex justify-between px-[6px] text-[10px] text-slate-400 tabular select-none" aria-hidden="true">
+                        {[1, 2, 3, 4, 5].map((n) => (
+                          <span key={n}>{n}</span>
+                        ))}
+                      </div>
+                    </div>
+                    <span className={`w-12 shrink-0 text-center rounded-lg py-1.5 text-base font-bold tabular ${v === undefined ? 'text-slate-400 bg-slate-50 border border-dashed border-slate-300' : 'text-white'}`} style={v === undefined ? undefined : { background: accent }}>
+                      {v === undefined ? '–' : fmtScore(v)}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => set(undefined)}
+                      disabled={v === undefined}
+                      aria-label={t('qc.clear', { c: t(`qc.c.${c.key}`) })}
+                      className="w-7 h-7 shrink-0 rounded-full text-slate-400 hover:text-slate-900 hover:bg-slate-100 disabled:invisible"
+                    >
+                      ×
+                    </button>
                   </div>
                 </div>
               );

@@ -98,8 +98,9 @@ export function qcTotal(f: Pick<HarvestFruit, 'aroma' | 'skin' | 'shape' | 'qc' 
 export const gradeOf = (pct: number): Grade =>
   pct >= GRADE_FROM.high ? 'high' : pct >= GRADE_FROM.midhigh ? 'midhigh' : pct >= GRADE_FROM.mid ? 'mid' : 'low';
 
-/** A typed 1-5 score, or undefined to clear it. */
-export const checkQc = (v: unknown): number | undefined => (typeof v === 'number' && Number.isInteger(v) && v >= 1 && v <= 5 ? v : undefined);
+/** A score set on the form, 1-5 in halves (3.5), or undefined to clear it. */
+export const checkQc = (v: unknown): number | undefined =>
+  typeof v === 'number' && Number.isInteger(v * 2) && v >= 1 && v <= 5 ? v : undefined;
 
 /**
  * Grading lives on the tree: management samples one fruit (in the sheet's words, "1pc mewakili 1 pohon") and that

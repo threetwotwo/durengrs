@@ -76,3 +76,12 @@ test("the tree's grade is its latest graded fruit's: the fruit's own day and num
   assert.equal(g.get('A7')?.total.grade, 'high');
   assert.equal(g.get('A3')?.id, 'sheet-3');
 });
+
+test('scores in halves: 3.5 counts as 3.5 of 5', async () => {
+  const { checkQc } = await import('../src/lib/grading');
+  assert.equal(checkQc(3.5), 3.5);
+  assert.equal(checkQc(3.25), undefined);
+  assert.equal(checkQc(0.5), undefined);
+  const all = (v: number) => Object.fromEntries(CRITERIA.map((c) => [c.key, v]));
+  assert.equal(qcTotal({ aroma: NaN, skin: NaN, shape: NaN, qc: all(3.5) }).pct, 70);
+});
