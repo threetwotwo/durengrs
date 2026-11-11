@@ -1,37 +1,1035 @@
-INVENTARIS OBAT & PUPUK - Kb. AVINA			Total Jenis Produk	Stok Tersedia	Habis																								
-			69	58	11																								
-							Pcs	Kemasan																Sub-Total					Sub-Total
-No	Product Info	Kandungan / Bahan Aktif	Tipe	Cara Kerja	Kemasan	Satuan	Opname	Opname	Opname	Opname	ENDING	IN	IN	IN	IN	IN	IN	IN	IN	Rebalancing	IN	IN	Rebalancing	IN	OUT	OUT	Rebalancing	Rebalancing	OUT
-	[nama - produsen - (kemasan)]						14 Oct 26	14 Oct 26	21 Oct 26	10 Nov 26	BALANCE	8-Sep-26	14-Sep-26	15-Sep-26	25-Sep-26	27-Sep-26	2-Oct-26	3-Oct-26	13-Oct-26	14-Oct-26	21-Oct-26	28-Oct-26	10-Nov-26	Dates	17-Sep-26	3-Oct-26	14-Oct-26	10-Nov-26	Dates
-A. CROP NUTRITION																													
-1	TSP 46% Cap Kuda by Santani (50kg)	P2O5 46%	Pupuk Makro Tunggal - P	Tabur		kg	1.8	90kg	1.8		90	75								15				90					0
-2	MOP/KCL by Mahkota (50kg)	K2O 60%	Pupuk Makro Tunggal - K	Tabur		kg	32.0	50kg			1,600									1,600				1,600					0
-3	Vitalongan+ Pak Tani by Saprotan (25kg) 	K2O 36%, Zn 1%	Pupuk Makro Tunggal - K	Tabur		kg	3.4	25kg			85	90												90			5		5
-4	KNO3 Putih (PN Prill) by Saprotan (2kg)	N 13%, K2O 45%, 	Pupuk Makro Majemuk - N, K	Tabur/Kocor		kg	6.0	2kg	6		12	10				12								22			10		10
-5	KNO3 Merah (CPN) by Saprotan (2kg)	N 15%, K2O 15%	Pupuk Makro Majemuk - N, K	Tabur/Kocor		kg	2.0	2kg	2		4	4												4			0		0
-6	KS Pak Tani by Saprotan (1kg)	CaO 26%, N 15%, B 0.5%	Pupuk Makro Majemuk - N, Ca, B	Tabur		kg	41.0	1kg			41	45				48								93			52		52
-7	Amsul Mesti-ZA by Lao Ying (50kg)	N 21%, S 23-24%	Pupuk Makro Majemuk - N, S	Tabur		kg	0.6	30kg	0.6		30	30								0				30			0		0
-8	YaraMila Unik (50kg)	N 16%, P 16%, K 16%	Pupuk Makro Majemuk - N, P, K 	Tabur		kg	?	50kg	Habis		25	75												75			50		50
-9	Mutiara Grower (50kg)	N 15%, P 9%, K 20% + TE	Pupuk Makro Majemuk - N, P, K 	Tabur		kg	?	50kg	Habis		0	50												50			50		50
-10	YaraMila Winner (50kg)	N 15%, P 9%, K 20% + TE	Pupuk Makro Majemuk - N, P, K 	Tabur		kg	0.2	50kg	Habis		10	125												125			115		115
-11	Nitrophoska PERFECT (Cl-free) by Santani (50kg)	N 15%, P 6%, K 20% + TE	Pupuk Makro Majemuk - N, P, K 	Tabur		kg	2.0	50kg	Habis		300						200					200		400			100		100
-12	Vita4 / Polysulphate (50kg)	K2O 13%, CaO 16.5%, MgO 5.6%, SO3 46.5%	Pupuk Makro Majemuk - K, Ca, Mg, S	Tabur		kg	6.8	50kg	6.8		340	600												600	250		10		260
-13	PolyVIT-PIM / Polysulphate (50kg)	K2O 13%, CaO 16.5%, MgO 5.6%, SO3 46.5%	Pupuk Makro Majemuk - K, Ca, Mg, S	Tabur		kg	5.0	50kg			250									250				250					0
-14	Vita4 / Polysulphate (1kg)	K2O 13%, CaO 16.5%, MgO 5.6%, SO3 46.5%	Pupuk Makro Majemuk - K, Ca, Mg, S	Tabur		kg	17.0	2kg			34									34				34					0
-15	Librel RMX 26 by BASF (500gr)	B 0.5%, Cu 1.5%,Fe 4%, Mg 2%, Mn 4%, Mo 0.1%, Zn 1.5%	Pupuk Mikro Majemuk	Semprot		gr	1.0	500gr	1		500	500												500			0		0
-16	Zinc Sulfate by Galaxy (1ltr)	ZnSO4 40%, N 15.5%, Ca 24.5%, SiO2 10.5%, Mg 6.5%	Pupuk Mikro Majemuk	Semprot		ltr	4.0	1ltr	4		4	4								1				5		1			1
-17	YARAVita Caltrac (1ltr)	CaO 32.4%, N 4.1%, B 0.2%, Zn 1.8% 	Pupuk Makro + Mikro - Ca	Semprot		ml	0.0	1ltr			0	1,000												1,000	1,000		0		1,000
-18	A-Plus Cal by Advansia (250gr) 	CaO 34%, N 0%, B 0.67%, Zn 1.67%	Pupuk Makro + Mikro - Ca	Semprot		gr	3.0	250gr	Habis		750				750									750			0		0
-19	MKP Pak Tani by Saprotan (1kg)	P2O5 52%, K2O 34%	Pupuk Makro Majemuk - P, K 	Semprot		gr	1.3	1kg	1.3		1,300	1								1,300				1,301			1		1
-20	Magnesium Sulfate by Saprotan (1kg)	MgO 16%, S 13%	Pupuk Makro Majemuk - Mg, S	Semprot		kg	21.0	1kg			21				26									26			5		5
-21	Gandasil B - Merah (500gr)	N 6%, P 20%, K 30%	Pupuk Makro Majemuk - N, P, K Generatif	Semprot		gr	15.0	500gr	15		7,500	10								7,500				7,510			10		10
-22	Gandasil D - Hijau (500gr)	N 20%, P 15%, K 15%	Pupuk Makro Majemuk - N, P, K Vegetatif	Semprot		gr	10.0	500gr	10		5,000	500	5,000											5,500			500		500
-23	Growmore NPK 6-30-30 (454gr)	N 6%, P 30%, K 30%	Pupuk Makro Majemuk - N, P, K 	Semprot		gr	1.0	454gr	1		454				454									454			0		0
-24	Growmore NPK 10-55-10 (454gr)	N 10%, P 55%, K 10%	Pupuk Makro Majemuk - N, P, K 	Semprot		gr	1.0	454gr	1		454				454									454			0		0
-25	Natural Plus (1ltr)	N 16%, P 3%, K 3% + TE	Pupuk Makro Majemuk - N, P, K 	Semprot		ltr	8.0	1ltr	8		8							4		4				8					0
-26	Neo Kristalon Merah (400gr)	N 12%, P 12%,  K 36% +TE	Pupuk Makro Majemuk - N, P, K 	Semprot		gr	13.0	400gr	13		5,200	4				12				5,200				5,216			16		16
-27	Neo Kristalon Hijau (400gr)	N 18%, P 18%, K 18% +3MgO+2S+TE	Pupuk Makro Majemuk - N, P, K 	Semprot		gr	2.0	400gr	2		800									800				800			0		0
-BUY	Bio Fulvic Acid Powder 95%		Asam Fulvat	Semprot		kg		1kg			0											0		0					0
-	Nitrea (50kg)			Tabur/Kocor		kg					100											100		100					0
-	Nitrophoska Special (Cl-free) by Santani	N 12%, P 12%, K 12%, MgO 2% + TE	Pupuk Makro Majemuk - N, P, K 	Tabur		kg					100											100		100					0
-	ZK / SOP					kg					25											25		25					0
+INVENTARIS OBAT & PUPUK - Kb. AVINA			Habis			Total Jenis Produk	Stok Tersedia																																																	
+			24			91	65																																																	
+								Pcs	Kemasan																Sub-Total					Sub-Total																										
+No	Product Info	Producer	Kemasan	Satuan	Kandungan / Bahan Aktif	Tipe	Cara Kerja	Opname	Opname	Opname	Opname	ENDING	IN	IN	IN	IN	IN	IN	IN	IN	Rebalancing	IN	IN	Rebalancing	IN	OUT	OUT	Rebalancing	Rebalancing	OUT																										
+					(Technical specification)			14 Oct 26	14 Oct 26	21 Oct 26	10 Nov 26	BALANCE	8-Sep-26	14-Sep-26	15-Sep-26	25-Sep-26	27-Sep-26	2-Oct-26	3-Oct-26	13-Oct-26	14-Oct-26	21-Oct-26	28-Oct-26	10-Nov-26	Dates	17-Sep-26	3-Oct-26	14-Oct-26	10-Nov-26	Dates																										
+A. CROP NUTRITION																																																								
+1	Nitrea (Urea)	Kujang	50	kg	N 46%	Pupuk Makro Tunggal - N	Tabur				75	100											100		100					0																										
+2	TSP 46% Cap Kuda	Santani	50	kg	P2O5 46%	Pupuk Makro Tunggal - P	Tabur	1.8	90kg	1.8	50	90	75								15				90					0																										
+3	MOP/KCL Mahkota	Wilmar	50	kg	K2O 60%	Pupuk Makro Tunggal - K	Tabur	32.0	50kg		1,750	1,600									1,600				1,600					0																										
+4	Vitalongan+ Pak Tani	Saprotan	25	kg	K2O 36%, Zn 1%	Pupuk Makro Tunggal - K	Tabur	3.4	25kg		90	85	90												90			5		5																										
+5	KNO3 Putih (PN Prill)	Saprotan	2	kg	N 13%, K2O 45%, 	Pupuk Makro Majemuk - N, K	Tabur/Kocor	6.0	2kg	6	12	12	10				12								22			10		10																										
+6	KNO3 Merah (CPN)	Saprotan	2	kg	N 15%, K2O 15%	Pupuk Makro Majemuk - N, K	Tabur/Kocor	2.0	2kg	2	4	4	4												4			0		0																										
+7	KS Pak Tani	Saprotan	1	kg	CaO 26%, N 15%, B 0.5%	Pupuk Makro Majemuk - N, Ca, B	Tabur	41.0	1kg		41	41	45				48								93			52		52																										
+8	Amsul Mesti-ZA	Lao Ying	50	kg	N 21%, S 23-24%	Pupuk Makro Majemuk - N, S	Tabur	0.6	30kg	0.6	30	30	30								0				30			0		0																										
+9	ZK (SOP) Santagrow	Santani	25	kg	K20 50%, S 18%	Pupuk Makro Majemuk - K, S 	Tabur				25	25											25		25					0																										
+10	YaraMila Unik	Yara	50	kg	N 16%, P 16%, K 16%	Pupuk Makro Majemuk - N, P, K 	Tabur	?	50kg	Habis	0	25	75												75			50		50																										
+11	Mutiara Grower	Meroke	50	kg	N 15%, P 9%, K 20% + TE	Pupuk Makro Majemuk - N, P, K 	Tabur	?	50kg	Habis	0	0	50												50			50		50																										
+12	YaraMila Winner	Yara	50	kg	N 15%, P 9%, K 20% + TE	Pupuk Makro Majemuk - N, P, K 	Tabur	0.2	50kg	Habis	0	10	125												125			115		115																										
+13	Nitrophoska PERFECT (Cl-free)	Santani	50	kg	N 15%, P 6%, K 20% + TE	Pupuk Makro Majemuk - N, P, K 	Tabur	2.0	50kg	Habis	200	300						200					200		400			100		100																										
+14	Nitrophoska Special (Cl-free)	Santani	50	kg	N 12%, P 12%, K 12%, MgO 2% + TE	Pupuk Makro Majemuk - N, P, K 	Tabur				50	100											100		100					0																										
+15	VITA4 / Polysulphate	ICL	50	kg	K2O 13%, CaO 16.5%, MgO 5.6%, SO3 46.5%	Pupuk Makro Majemuk - K, Ca, Mg, S	Tabur	6.8	50kg	6.8	350	340	600												600	250		10		260																										
+16	VITA4 / Polysulphate	ICL	2	kg	K2O 13%, CaO 16.5%, MgO 5.6%, SO3 46.5%	Pupuk Makro Majemuk - K, Ca, Mg, S	Tabur	17.0	2kg		34	34									34				34					0																										
+17	Librel RMX 26	BASF	500	gr	B 0.5%, Cu 1.5%,Fe 4%, Mg 2%, Mn 4%, Mo 0.1%, Zn 1.5%	Pupuk Mikro Majemuk	Semprot	1.0	500gr	1	282	500	500												500			0		0																										
+18	Zinc Sulfate	Galaxy	1	ltr	ZnSO4 40%, N 15.5%, Ca 24.5%, SiO2 10.5%, Mg 6.5%	Pupuk Mikro Majemuk	Semprot	4.0	1ltr	4	4	4	4								1				5		1			1																										
+19	YaraVita Caltrac	Yara	1	ltr	CaO 32.4%, N 4.1%, B 0.2%, Zn 1.8% 	Pupuk Makro + Mikro - Ca	Semprot	0.0	1ltr		0	0	1,000												1,000	1,000		0		1,000																										
+20	A-Plus Cal	Advansia	250	gr	CaO 34%, N 0%, B 0.67%, Zn 1.67%	Pupuk Makro + Mikro - Ca	Semprot	3.0	250gr	Habis	0	750				750									750			0		0																										
+21	MKP Pak Tani	Saprotan	1000	gr	P2O5 52%, K2O 34%	Pupuk Makro Majemuk - P, K 	Semprot	1.3	1kg	1.3	1,346	1,300	1								1,300				1,301			1		1																										
+22	Magnesium Sulfate	Saprotan	1	kg	MgO 16%, S 13%	Pupuk Makro Majemuk - Mg, S	Semprot	21.0	1kg		17	21				26									26			5		5																										
+23	Gandasil B - Merah	Kalatham	500	gr	N 6%, P 20%, K 30%	Pupuk Makro Majemuk - N, P, K Generatif	Semprot	15.0	500gr	15	7,500	7,500	10								7,500				7,510			10		10																										
+24	Gandasil D - Hijau	Kalatham	500	gr	N 20%, P 15%, K 15%	Pupuk Makro Majemuk - N, P, K Vegetatif	Semprot	10.0	500gr	10	5,000	5,000	500	5,000											5,500			500		500																										
+25	GrowMore NPK 6-30-30	GrowMore	454	gr	N 6%, P 30%, K 30%	Pupuk Makro Majemuk - N, P, K 	Semprot	1.0	454gr	1	454	454				454									454			0		0																										
+26	GrowMore NPK 10-55-10	GrowMore	454	gr	N 10%, P 55%, K 10%	Pupuk Makro Majemuk - N, P, K 	Semprot	1.0	454gr	1	454	454				454									454			0		0																										
+27	Natural Plus	Sugi AKDI	1	ltr	N 16%, P 3%, K 3% + TE	Pupuk Makro Majemuk - N, P, K 	Semprot	8.0	1ltr	8	8	8							4		4				8					0																										
+28	Neo Kristalon Merah	Saprotan	400	gr	N 12%, P 12%,  K 36% +TE	Pupuk Makro Majemuk - N, P, K 	Semprot	13.0	400gr	13	5,200	5,200	4				12				5,200				5,216			16		16																										
+29	Neo Kristalon Hijau	Saprotan	400	gr	N 18%, P 18%, K 18% +3MgO+2S+TE	Pupuk Makro Majemuk - N, P, K 	Semprot	2.0	400gr	2	800	800									800				800			0		0																										
+30	Bio Fulvic Acid Powder 95%	China	1000	gr	Fulvic Acid 95%	Additive: Asam Fulvat	Semprot		1kg		1,000	0											0		0					0																										
+																																																								
+																																																								
+																																																								
+B. CROP PROTECTION																																																								
+1	Dithane M-45 80WP	UPL	1000	gr	Group M03: Mankozeb 80%	Fungicide & Oomyceticides	Contact, Protective	2.0	1kg		2000.0	1.5	2.0												2.0	0.5				0.5																										
+2	Antracol 70WP	Bayer	1000	gr	Group M3: Propineb 70%	Fungicide & Oomyceticides	Contact, Protective	1.7	1kg		1,935	1		1											1.0					0.0																										
+3	AmistarTop 325SC	Syngenta	250	ml	Group 11: Azoksistrobin 200g/L + Group 3: Difenokonazol 125g/L	Fungicide & Oomyceticides	Systemic, Protective & Curative	1.0	250ml	Habis	0	2,000		2,000											2000.0					0.0																										
+4	Trivia 73WP	Bayer	500	gr	Group 43: Fluopikolid 6% + Group M03: Propineb 66.7%	Fungicide & Oomyceticides	Contact & Systemic, Protective & Curative				0	200			200										200.0					0.0																										
+5	Ridomild Gold	Syngenta	100	gr	Group 4: Metalaksil-M/Mefenoksam 4% + Group M03: Mankozeb 64%	Fungicide & Oomyceticides	Contact & Systemic, Curative				90	200			200										200.0					0.0																										
+6	Orondis Opti 6/400SC	Syngenta	500	ml	Group 49: Oksatiapiprolin 6g/L + Group M05: Klorotalonil 400g/L	Fungicide & Oomyceticides (Busuk Akar Parah)	Systemic, Translaminar	1.0	500ml		500	500			500										500.0					0.0																										
+7	Sumi Boxam 100SC	Advansia	100	ml	Group 22: Etaboksam 100g/L	Fungicide & Oomyceticides (Busuk Akar Parah)	Systemic, Protective & Curative	1.0	100ml		100	100				100									100.0					0.0																										
+8	Aximil 480SL	Advansia	250	ml	Group 4: Metalaksil-M 480g/L	Fungicide & Oomyceticides (Kanker Basah)	Systemic, Protective & Curative	1.0	250ml		250	250				250									250.0					0.0																										
+9	Akuzole 175/75 SC	Advansia	500	ml	Group 3: Prokloraz 175g/L + Difenokonazol 75g/L	Fungicide & Oomyceticides	Systemic, Protective	1.0	500ml		500	500				500									500.0					0.0																										
+10	Acuren 25 WP	Advansia	200	gr	Group 20: Pencycuron 25%	Fungicide & Oomyceticides (Hawar Rhizo)	Systemic, Protective	1.0	200gr		200	200				200									200.0					0.0																										
+11	Revus Opti 440SC	Syngenta	250	ml	Group 40: Mandipropamid 40g/L + Group M5: Klorotalonil 400g/L	Fungicide & Oomyceticides (Busuk Akar Parah)	Contact & Systemic, Protective	1.0	250ml		250	250				250									250.0					0.0																										
+12	Azza 250/250SC	Advansia	500	ml	Group 1: Karbendazim 250g/L + Group M5: Klorotalonil 250g/L	Fungicide & Oomyceticides	Systemic, Protective & Curative	1.0	500ml		500	500				500									500.0					0.0																										
+13	TAFT 75WP	Saprotan	400	gr	Group 1: Karbendazim 12% + Group M03: Mankozeb 63%	Fungicide & Oomyceticides (hawar daun)	Systemic, Protective & Curative	3.0	400gr		1,200	0													0.0					0.0																										
+14	icON Phite 400 (1ltr)	Sonic Essentials, AUS	1	ltr	Group 33: Phosphoric Acid 400g/L	Fungicide & Oomyceticides  (phytophthora, kanker batang, busuk akar)	Systemic, Curative	4.0	1ltr		4	0													0.0					0.0																										
+15	Curacron 500EC	Syngenta	500	ml	Group 1B: Profenofos 500 g/L	Insecticides & Acaricides	Kontak & Lambung	9.0	500ml		4,500	5,000		5,000											5000.0					0.0																										
+16	Besvidor 25WP	TBM	100	gr	Group 4A: Imidakloprid 25%	Insecticides & Acaricides	Kontak & Lambung	7.0	100gr		700	1,000		1,000											1000.0					0.0																										
+17	Winder 100EC	MSI	100	ml	Group 4A: Imidakloprid 100 g/L	Insecticides & Acaricides	Kontak & Lambung	1.0	100ml		100	100			100										100.0					0.0																										
+18	Decis 25EC	Bayer	100	ml	Group 3A: Deltametrin 25 g/L	Insecticides & Acaricides	Kontak & Lambung	2.0	100ml	Habis	0	200			200										200.0					0.0																										
+19	Agus 500 SC	Advansia	250	ml	Group 12A: Diafentiuron 500 g/L	Insecticides & Acaricides	Kontak & Lambung	1.0	250ml		250	250				250									250.0					0.0																										
+20	Afonil 50 SC	Advansia	500	ml	Group 2: Fipronil 50 g/L	Insecticides & Acaricides	Kontak & Lambung				500	500				500									500.0					0.0																										
+21	Akosu 100 SC	Advansia	250	ml	Group 13: Klorfenapir 100g/L	Insecticides & Acaricides	Kontak	1.0	250ml		250	250				250									250.0					0.0																										
+22	Atamit 20/25WP	Advansia	200	gr	Group 4A: Piridaben 25% + Group 21A: Asetamiprid 20%	Insecticides & Acaricides	Systemic, Kontak & Lambung	1.0	200gr		200	200				200									200.0					0.0																										
+23	Furadan 3GR	FMC	2000	gr	Group 1A: Karbofuran 3%	Insecticides & Nematicides	Systemic, Kontak & Lambung	1.0	2kg		1,300	0													0.0					0.0																										
+24	Toram 25SP	Saprotan	100	gr	Group 4A: Nitenpyram 25%	Insecticides & Acaricides	Kontak & Lambung	3.0	100gr		300	0													0.0					0.0																										
+25	Kozima 50sc	Saprotan	400	ml	Group 2B: Fipronil 50g/L (phenylprazole)	Insecticides & Acaricides (Thrips, rayap)	Systemic, Kontak & Lambung	1.0	400ml		400	0													0.0					0.0																										
+26	Abenz 22EC	Advansia	100	ml	Group 6: Emamektin Benzoat 22g/L	Insecticides & Acaricides (Ulat kupu2 ngengat)	Kontak & Lambung				100	100										100			100.0					0.0																										
+27	Lannate 40SP	DuPont	100	gr	Group 1A: Metomil 40%	Insecticides & Oviside (Ulat buah)	Systemic, Kontak & Lambung - Protective				1	100										100			100.0					0.0																										
+28	Bom Up 520SL	Saprotan	1	ltr	Group 9: Isopropilamina Glifosat 520 g/L	Herbicide	Systemic	7.0	1ltr		7	7							7						7.0					0.0																										
+																																																								
+C. SOIL CONDITIONERS & ROOT ZONE IMPROVERS																																																								
+1	Dolomite Super (Mesh 80)	Mekarindo	50	kg	MgO 21.61%, CaO 33.86%, SiO2 0.03%, Al2O3+Fe2O3 3%	Liming Agents	Tabur	10.5	50kg	10.5	400	500	500												500					0																										
+2	Manohara (Mesh 4000)	MTAJ	1	kg	CaCO3 71.35%, MgO 8.92%, SiO2 4.79%Zn 2.87%, B 0.53%	Liming Agents	Kocor	7.0	1kg		7	8	8												8					0																										
+3	Manohara (Mesh 2500)	MTAJ	1	kg	CaCO3 96.11%, MgO 0.95%, Zn 3.95%, B 6.88%	Liming Agents	Kocor	1.0	1kg		1	0													0					0																										
+4	Novelgro TERRA	Novelvar	1	ltr	Asam Humat,	Soil Conditioner - sari pati kompos penyubur tanah	Kocor	1.0	1ltr		1	0													0					0																										
+5	Novelgro TERRA	Novelvar	100	ml	Asam Humat,	Soil Conditioner - sari pati kompos penyubur tanah	Kocor	1.0	100ml		100	0													0					0																										
+6	Humid Acid		1	ltr	Asam Humat, Asam Fulvat, Potassium	Soil Conditioner	Kocor	12.0	1ltr		3	12								12					12					0																										
+7	Riogen	MG	1	ltr	Azospirillum sp., Azotobacter sp, Lactobacillus sp, Actinomycetes, bakteri pelarut fosfat, yeast, mikroba selulotik	Pupuk Hayati Cair	Kocor	6.0	1ltr		2	4								4					4					0																										
+8	Vigano	EDN	1	ltr	Bacillus sp, Pseudomonas sp, Azotobacter sp, 	Pupuk Hayati Cair	Kocor	1.0	1ltr		1	0													0					0																										
+9	Dinosaurus	PDP	1	ltr	Azotobacter sp., Azospirillum sp., Streptomyces sp, Pelarut Hara	Pupuk Hayati Cair	Kocor	2.0	1ltr		1	0													0					0																										
+10	EM4	SP	1000	ml	Lactobacillus sp., Rhodopseudomonas sp., Actinomycetes & Streptomyces sp., Yeast	Pupuk Hayati Cair	Kocor	1.0	400ml		433	0													0					0																										
+11	FloraONE Cair	CBI	1	ltr	Trichoderma harzianum, Pseudomonas fluorescens, Azospirillum sp. & Rhizobium sp., Aspergillus niger	Pupuk Hayati Bio-Fungisida & Bakterisida	Kocor / Semprot	2.0	500ml		5														0					0																										
+12	Molases		500	ml							1,000														0					0																										
+D. BIOSTIMULANTS & MICROBIALS																																																								
+1	Ambition	Bayer	1	ltr	Amino Acids 46.9%, Fulvic Acid 2%, Zn+Mn+B 1.64%	Amino Acids (aktivator pertumbuhan)		6.0	1ltr		3	6								6					6					0																										
+2	YaraAmplix OPTITRAC	Yara	1000	ml	Ekstrak rumput laut & hara mikro	Algae/Yeast & Others	Sistemik / Foliar	0.8	1ltr		820	1,000	1,000												1,000					0																										
+3	Basfoliar Aktiv	Behn Meyer	1	ltr	Fosfit + Ekstrak Rumput Laut	Algae/Yeast & Others	Sistemik / Fitoaleksin	2.3	1ltr		3	5		5											5					0																										
+4	Raja Laut	Solusi Tani	100	ml		Amino Acids		2.0	100ml		200	0													0					0																										
+5	Raja Amino	Solusi Tani	100	ml		Amino Acids		3.0	100ml		300	0													0					0																										
+6	Gro Start Pro Root Boost	Sonic Essentials, AUS	1	ltr	Elicitors (to activate plant defences), Humic acids, Seaweed extract, NPK, Zn	Root growth enhancer 		1.0	1ltr		1	0													0					0																										
+7	Novelgro SILIKA	Novelvar	1	ltr	Perlindungan tanaman non pestisida	Soluble Silicates		1.0	1ltr		1	0													0					0																										
+8	Oligo Zinc Seng EDTA 15%	Van Iperen	20	gr	Zn EDTA 15%	Pupuk Mikro (Zn) Pemacu akar & aktivator pertumbuhan'	Semprot	1.0	20gr		20	20	20												20					0																										
+9	Oligo Copper Tembaga EDTA 15%	Van Iperen	20	gr	Cu EDTA 15%	Pupuk Mikro (Cu) Perisai Jamur & Virus	Semprot	1.0	20gr		20	20	20												20					0																										
+10	Liquinox Start Vit B1	Liquinox	100	ml	P2O5 2%, Fe 0.1%, Vit-B1 0.1%, Yucca extract 0.1%	Root Stimulant, Reduces Transplant Shock	Semprot	1.0	100ml		100	0													0					0																										
+11	Trichoderma Titanium	IPB	1	kg	Trichoderma asperellum 10^7 CFU/g, Trichoderma harzianum 10^6 CFU/g, Gliocladium aureum 10^5 CFU/g, Bacillus subtilis 10^7 CFU/g	Pupuk Hayati Bio-Mikroba Tanah (Bio-fertilizer)	Kocor	10.0	1kg		9	10								10					10					0																										
+12	Trichoderma Planteria	IPB	500	gr	Trichoderma asperellum 10^6 CFU/g, Gliocladium virens 10^5 CFU/g	Pupuk Hayati Bio-Mikroba Tanah (Bio-fertilizer)		1.0	500gr		500	0													0					0																										
+13	FloraONE Padat (500gr)	CBI	500	gr	Trichoderma harzianum, Pseudomonas fluorescens, Azospirillum sp. & Rhizobium sp., Aspergillus niger	Pupuk Hayati Bio-Fungisida & Bakterisida	Tabur / Kocor		500gr	14	3,000	7,000										7,000			7,000					0																										
+14	Fumyco	Saraswati	1000	gr	Mycorrhiza	Pupuk Hayati Mikoriza	Tabur				200	7											7		7					0																										
+																																																								
+E. PLANT GROWTH REGULATORS (ZPT) 																																																								
+1	Poston 250SC	Saprotan	250	ml	Paklobutrazol 250 g/L	Growth Inhibitors/Retardants	Induktor Pembungaan	5.4	250ml		1,500	1,000							1,000						1,000					0																										
+2	Booster76	ZPT Natur	100	ml	Paklobutrazol	Rangsang pembungaan & pembuahan diluar musim		2.5	100ml		100	0													0					0																										
+3	Ichipon 480SL	AgroChemica	100	ml	Etefon 480 g/L	Ethylene generator, meningkatkan pembentukan bunga & buah	ZPT SISTEMIK	0.1	100ml		37	0													0					0																										
+4	NovelGRO Alpha	Novelvar	14	ml	Sitokinin	Hormon tanaman, signals cell to divide, size growth, delays aging		17.0	14ml		238	0													0					0																										
+																																																								
+F. ADJUVANTS & WATER QUALITY CONDITIONERS (Bahan Pembantu Semprot)																																																								
+1	Spreader	DGW	250	ml	Perata, Perekat, Penembus	Stickers, Spreaders, Wetters & Penetrans	Surfaktan	2.0	250ml	Habis	1,500	2,000			500								1,500		2,000					0																										
+2	Intra Ecoshield	Behn Meyer	1	ltr	Pelindung Fisik / Coating	Stickers, Spreaders, Wetters & Penetrans	Pelindung	?			0	1		1											1					0																										
+3	Glumon	Primasid	50	ml	Perekat Serangga	Pest Stickers		1.0	50ml	1	50	0													0					0																										
+4	Ovladac	?	500	ml	Large pest Repellant via pungent odor	Vs boars, monkeys, squirrels, rats	Paint directly on trunk	1.0	500ml	1	500	0													0					0																										
+5	Santer 850 SWC	Santani	1	ltr	Perata, Perekat, Penembus	Stickers, Spreaders, Wetters & Penetrans					2	2											2		2					0																										
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								
+																																																								

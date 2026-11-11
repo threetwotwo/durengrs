@@ -41,7 +41,7 @@ export const StockPage: React.FC = () => {
   const qty = (n: number, i: StockItem) => stockQty(n, i, lang);
   const rows = useMemo(() => {
     const s = q.trim().toLowerCase();
-    return (items || []).filter((i) => !s || `${i.name} ${i.content || ''} ${i.kind || ''} ${i.method || ''}`.toLowerCase().includes(s));
+    return (items || []).filter((i) => !s || `${i.name} ${i.producer || ''} ${i.content || ''} ${i.kind || ''} ${i.method || ''}`.toLowerCase().includes(s));
   }, [items, q]);
   const levels = (items || []).map((i) => stockLevel(i, bal.get(i.id)?.balance ?? 0));
   const sections = [...new Set(rows.map((i) => i.section || ''))];
@@ -89,21 +89,30 @@ export const StockPage: React.FC = () => {
       <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('st.search')} aria-label={t('st.search')} className={`${inputCls} max-w-sm`} />
       {items && !items.length && <p className="p-8 text-center text-sm text-slate-600 bg-white rounded-xl border border-slate-200">{t('st.none')}</p>}
       {rows.length > 0 && (
+        // As the warehouse's inventory sheet: one row per product, by section; tap a row for its history.
         <div className="bg-white rounded-xl border border-slate-200 overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-slate-900">
               <tr>
-                <th scope="col" className={th}>{t('st.col.product')}</th>
+                <th scope="col" className={`${th} w-10 text-right`}>{t('st.col.no')}</th>
+                <th scope="col" className={`${th} sticky left-0 z-10 bg-slate-900 min-w-[8rem] sm:min-w-[11rem]`}>{t('st.col.product')}</th>
                 <th scope="col" className={`${th} text-right`}>{t('st.col.balance')}</th>
-                <th scope="col" className={`${th} hidden sm:table-cell`}>{t('st.col.method')}</th>
-                <th scope="col" className={`${th} hidden md:table-cell`}>{t('st.col.last')}</th>
+                <th scope="col" className={th}>{t('st.col.pack')}</th>
+                <th scope="col" className={th}>{t('st.col.producer')}</th>
+                <th scope="col" className={th}>{t('st.col.content')}</th>
+                <th scope="col" className={th}>{t('st.col.kind')}</th>
+                <th scope="col" className={th}>{t('st.col.method')}</th>
+                <th scope="col" className={th}>{t('st.col.counted')}</th>
+                <th scope="col" className={th}>{t('st.col.last')}</th>
               </tr>
             </thead>
             {sections.map((sec) => (
               <tbody key={sec}>
                 {sec && (
                   <tr>
-                    <td colSpan={4} className="px-2.5 py-1.5 bg-slate-100 text-xs font-bold text-slate-700 border-b border-slate-200">{sec}</td>
+                    <td colSpan={10} className="p-0 bg-slate-100 border-b border-slate-200">
+                      <span className="sticky left-0 inline-block px-2.5 py-1.5 text-xs font-bold text-slate-700">{sec}</span>
+                    </td>
                   </tr>
                 )}
                 {rows
@@ -114,60 +123,61 @@ export const StockPage: React.FC = () => {
                     const lv = stockLevel(i, balance);
                     const isOpen = open === i.id;
                     const history = moves.filter((m) => m.itemId === i.id).sort(byTime).reverse();
+                    const cell = `${td} whitespace-nowrap text-slate-600`;
                     return (
                       <React.Fragment key={i.id}>
-                        <tr className="hover:bg-slate-50 cursor-pointer" onClick={() => setOpen(isOpen ? null : i.id)}>
-                          <td className={td}>
-                            <button type="button" aria-expanded={isOpen} className="flex items-start gap-1.5 text-left">
+                        <tr className="group hover:bg-slate-50 cursor-pointer" onClick={() => setOpen(isOpen ? null : i.id)}>
+                          <td className={`${td} text-right tabular text-slate-500`}>{i.no ?? ''}</td>
+                          <td className={`${td} sticky left-0 z-[1] bg-white group-hover:bg-slate-50`}>
+                            <button type="button" aria-expanded={isOpen} className="flex items-start gap-1 text-left">
                               {isOpen ? <ChevronDown className="w-4 h-4 mt-0.5 text-slate-400 shrink-0" /> : <ChevronRight className="w-4 h-4 mt-0.5 text-slate-400 shrink-0" />}
-                              <span>
-                                <span className="block font-semibold text-slate-900">{i.name}</span>
-                                {i.content && <span className="block text-xs text-slate-500">{i.content}</span>}
-                                {i.status === 'buy' && <span className="inline-block mt-0.5 px-1.5 rounded bg-sky-100 text-sky-800 text-[10px] font-bold">{t('st.buy')}</span>}
-                              </span>
+                              <span className="font-semibold text-slate-900">{i.name}</span>
                             </button>
                           </td>
                           <td className={`${td} text-right whitespace-nowrap`}>
-                            <span className={`inline-block px-2 py-0.5 rounded-md font-semibold tabular ${LEVEL_TONE[lv]}`}>{qty(balance, i)}</span>
-                            {lv !== 'ok' && <span className="block text-[11px] text-slate-500 mt-0.5">{t(`st.level.${lv}`)}</span>}
+                            <span className={`inline-block px-2 py-0.5 rounded-md font-semibold tabular ${LEVEL_TONE[lv]}`}>{qty(balance, { ...i, pack: undefined })}</span>
+                            {i.pack && i.pack > 1 && balance > 0 && (
+                              <span className="block mt-0.5 text-[11px] text-slate-500 tabular">{t('st.packs', { n: (Math.round((balance / i.pack) * 10) / 10).toLocaleString(locale) })}</span>
+                            )}
+                            {i.status === 'buy' && <span className="block mt-0.5 text-[10px] font-bold text-sky-800">{t('st.buy')}</span>}
                           </td>
-                          <td className={`${td} hidden sm:table-cell text-slate-600`}>{i.method || '—'}</td>
-                          <td className={`${td} hidden md:table-cell text-slate-600 whitespace-nowrap`}>
-                            {b?.last ? `${formatShortDate(b.last.date)} · ${word[b.last.type]} ${qty(b.last.qty, i)}` : '—'}
-                          </td>
+                          <td className={`${cell} tabular`}>{i.pack ? `${i.pack.toLocaleString(locale)} ${i.unit}` : i.unit}</td>
+                          <td className={cell}>{i.producer || '—'}</td>
+                          <td className={`${td} text-xs text-slate-600 min-w-[12rem] max-w-[20rem]`}>{i.content || '—'}</td>
+                          <td className={`${td} text-xs text-slate-600 min-w-[10rem] max-w-[16rem]`}>{i.kind || '—'}</td>
+                          <td className={`${td} text-xs text-slate-600 min-w-[7rem] max-w-[12rem]`}>{i.method || '—'}</td>
+                          <td className={`${cell} tabular`}>{b?.since ? `${formatShortDate(b.since)} · ${qty(b.counted ?? 0, i)}` : '—'}</td>
+                          <td className={`${cell} tabular`}>{b?.last && b.last.source !== 'sheet' ? `${formatShortDate(b.last.date)} · ${word[b.last.type]} ${qty(b.last.qty, i)}` : '—'}</td>
                         </tr>
                         {isOpen && (
                           <tr>
-                            <td colSpan={4} className="px-3 py-3 bg-slate-50 border-b border-slate-200">
-                              <p className="text-xs text-slate-600 mb-2">
-                                {[i.kind, i.pack ? t('st.pack', { n: qty(i.pack, { ...i, pack: undefined }) }) : '', b?.since ? t('st.since', { date: formatShortDate(b.since) }) : '']
-                                  .filter(Boolean)
-                                  .join(' · ')}
-                              </p>
-                              {history.length ? (
-                                <ul className="divide-y divide-slate-200 bg-white rounded-lg border border-slate-200">
-                                  {history.map((m) => (
-                                    <li key={m.id} className="px-3 py-2 flex items-start gap-3 text-sm">
-                                      <span className="w-14 shrink-0 tabular text-slate-600">{formatShortDate(m.date)}</span>
-                                      <span className="flex-1 min-w-0">
-                                        <strong className={m.type === 'in' ? 'text-emerald-800' : m.type === 'out' ? 'text-rose-800' : 'text-slate-900'}>
-                                          {word[m.type]} {m.type === 'in' ? '+' : m.type === 'out' ? '−' : '='}
-                                          {qty(m.qty, i)}
-                                        </strong>
-                                        {m.block && <span className="ml-1.5 text-slate-600">{t('st.block', { b: m.block })}</span>}
-                                        <span className="block text-xs text-slate-500">
-                                          {[m.workerPhone ? workerLabel(m.workerPhone) : m.source === 'sheet' ? t('st.fromSheet') : t('st.fromApp'), m.note].filter(Boolean).join(' · ')}
+                            <td colSpan={10} className="p-0 bg-slate-50 border-b border-slate-200">
+                              <div className="sticky left-0 max-w-[calc(100vw-2rem)] sm:max-w-2xl px-3 py-3">
+                                {history.length ? (
+                                  <ul className="divide-y divide-slate-200 bg-white rounded-lg border border-slate-200">
+                                    {history.map((m) => (
+                                      <li key={m.id} className="px-3 py-2 flex items-start gap-3 text-sm">
+                                        <span className="w-14 shrink-0 tabular text-slate-600">{formatShortDate(m.date)}</span>
+                                        <span className="flex-1 min-w-0">
+                                          <strong className={m.type === 'in' ? 'text-emerald-800' : m.type === 'out' ? 'text-rose-800' : 'text-slate-900'}>
+                                            {word[m.type]} {m.type === 'in' ? '+' : m.type === 'out' ? '−' : '='}
+                                            {qty(m.qty, i)}
+                                          </strong>
+                                          {m.block && <span className="ml-1.5 text-slate-600">{t('st.block', { b: m.block })}</span>}
+                                          <span className="block text-xs text-slate-500">
+                                            {[m.workerPhone ? workerLabel(m.workerPhone) : m.source === 'sheet' ? t('st.fromSheet') : t('st.fromApp'), m.note].filter(Boolean).join(' · ')}
+                                          </span>
                                         </span>
-                                      </span>
-                                      <button type="button" onClick={() => remove(m)} aria-label={t('st.remove')} className="p-1.5 rounded text-slate-400 hover:text-rose-700 hover:bg-rose-50">
-                                        <Trash2 className="w-4 h-4" />
-                                      </button>
-                                    </li>
-                                  ))}
-                                </ul>
-                              ) : (
-                                <p className="text-sm text-slate-500">{t('st.noMoves')}</p>
-                              )}
+                                        <button type="button" onClick={(e) => (e.stopPropagation(), remove(m))} aria-label={t('st.remove')} className="p-1.5 rounded text-slate-400 hover:text-rose-700 hover:bg-rose-50">
+                                          <Trash2 className="w-4 h-4" />
+                                        </button>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                ) : (
+                                  <p className="text-sm text-slate-500">{t('st.noMoves')}</p>
+                                )}
+                              </div>
                             </td>
                           </tr>
                         )}

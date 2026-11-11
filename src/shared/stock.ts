@@ -11,8 +11,12 @@ export type StockUnit = (typeof STOCK_UNITS)[number];
 
 export interface StockItem {
   id: string;
-  /** As the warehouse names it: "TSP 46% Cap Kuda by Santani (50kg)". */
+  /** As the warehouse names it: "TSP 46% Cap Kuda". */
   name: string;
+  /** Its number in its section of the inventory sheet. */
+  no?: number;
+  /** Producer: Santani, Syngenta… */
+  producer?: string;
   /** Short names workers use ("TSP", "KCL"), for reading their messages. */
   aliases?: string[];
   /** Kandungan / bahan aktif. */

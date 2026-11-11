@@ -44,7 +44,7 @@ const SCHEMA = {
 };
 
 function prompt(items, type) {
-  const list = items.map((i) => `${i.id} = ${i.name}${i.content ? ` [${i.content}]` : ''} (kept in ${i.unit}${i.pack ? `, 1 pack = ${i.pack} ${i.unit}` : ''})`).join('\n');
+  const list = items.map((i) => `${i.id} = ${i.name}${i.producer ? ` by ${i.producer}` : ''}${i.content ? ` [${i.content}]` : ''} (kept in ${i.unit}${i.pack ? `, 1 pack = ${i.pack} ${i.unit}` : ''})`).join('\n');
   return `You read a durian farm's warehouse report in Indonesian: pupuk (fertiliser) and obat (pesticide) taken out for the field, delivered, or counted.
 The products in the warehouse:
 ${list}
