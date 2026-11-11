@@ -4,7 +4,7 @@ import { addDoc, collection, deleteDoc, doc, onSnapshot } from 'firebase/firesto
 import { db } from '../lib/firebase';
 import { useFarm } from '../context/FarmContext';
 import { useT } from '../i18n';
-import { type StockItem, type StockMove, type StockMoveType, byTime, normalizeUnit, stockBalances, stockLevel, stockQty, toItemUnit } from '../shared/stock';
+import { type StockItem, type StockMove, type StockMoveType, byTime, stockBalances, stockLevel, stockQty, toItemUnit } from '../shared/stock';
 import { formatShortDate, todayStr } from '../lib/treatments';
 import { PageHeader, btnPrimary, btnSecondary, inputCls } from './PageHeader';
 
@@ -71,7 +71,7 @@ export const StockPage: React.FC = () => {
         }
       />
       {error && <p role="alert" className="text-sm text-rose-700">{error}</p>}
-      {adding && items && <MoveForm items={items} onDone={() => setAdding(false)} />}
+      {adding && items && <MoveForm items={items} balances={bal} onDone={() => setAdding(false)} />}
       {items && (
         <dl className="grid grid-cols-3 gap-2">
           {[
@@ -193,23 +193,37 @@ export const StockPage: React.FC = () => {
   );
 };
 
-/** Management records a delivery, a use or a count here (the warehouse does it on WhatsApp). */
-const MoveForm: React.FC<{ items: StockItem[]; onDone: () => void }> = ({ items, onDone }) => {
-  const { t } = useT();
-  const [itemId, setItemId] = useState(items[0]?.id || '');
-  const [type, setType] = useState<StockMoveType>('out');
+/**
+ * Management records here (the warehouse reports on WhatsApp): what kind first, Incoming by default, then Stock
+ * count, Outgoing last; the product; how much, in packs when it comes in packs; and before saving, what the balance
+ * will be. The day (today) and a note fold away; the block only asks when something goes out.
+ */
+const MoveForm: React.FC<{ items: StockItem[]; balances: Map<string, { balance: number }>; onDone: () => void }> = ({ items, balances, onDone }) => {
+  const { t, locale } = useT();
+  const lang = locale.startsWith('id') ? 'id' : 'en';
+  const [type, setType] = useState<StockMoveType>('in');
+  const [itemId, setItemId] = useState('');
   const [amount, setAmount] = useState('');
   const [unit, setUnit] = useState('');
   const [block, setBlock] = useState('');
   const [note, setNote] = useState('');
   const [date, setDate] = useState(todayStr());
+  const [more, setMore] = useState(false);
   const [state, setState] = useState<'idle' | 'saving' | 'error'>('idle');
   const item = items.find((i) => i.id === itemId);
-  const units = item ? [item.unit, ...(item.pack ? ['pack'] : []), ...(item.unit === 'kg' ? ['gr'] : item.unit === 'gr' ? ['kg'] : item.unit === 'ltr' ? ['ml'] : ['ltr'])] : [];
+  // Packs first when the product comes in packs (a delivery is counted in sacks and bottles), then its own unit.
+  const units = item
+    ? [...(item.pack && item.pack > 1 ? ['pack'] : []), item.unit, ...(item.unit === 'kg' ? ['gr'] : item.unit === 'gr' ? ['kg'] : item.unit === 'ltr' ? ['ml'] : ['ltr'])]
+    : [];
+  const u = unit || units[0] || '';
   const n = Number(amount.replace(',', '.'));
-  const inUnit = item ? toItemUnit(n, unit || item.unit, item) : undefined;
+  const inUnit = item && amount.trim() ? toItemUnit(n, u, item) : undefined;
+  const now = item ? balances.get(item.id)?.balance ?? 0 : 0;
+  const after = inUnit === undefined ? undefined : type === 'count' ? inUnit : type === 'in' ? now + inUnit : now - inUnit;
+  const ok = !!item && inUnit !== undefined && (type === 'count' ? inUnit >= 0 : inUnit > 0);
+  const sections = [...new Set(items.map((i) => i.section || ''))];
   const save = async () => {
-    if (!item || inUnit === undefined || (type !== 'count' && !(inUnit > 0))) return;
+    if (!ok || !item) return;
     setState('saving');
     try {
       await addDoc(collection(db, 'stockMoves'), {
@@ -217,7 +231,7 @@ const MoveForm: React.FC<{ items: StockItem[]; onDone: () => void }> = ({ items,
         type,
         qty: inUnit,
         date,
-        ...(block.trim() ? { block: block.trim().toUpperCase() } : {}),
+        ...(type === 'out' && block.trim() ? { block: block.trim().toUpperCase() } : {}),
         ...(note.trim() ? { note: note.trim().slice(0, 200) } : {}),
         source: 'webapp',
         at: new Date().toISOString(),
@@ -228,59 +242,91 @@ const MoveForm: React.FC<{ items: StockItem[]; onDone: () => void }> = ({ items,
       setState('error');
     }
   };
+  const tone: Record<StockMoveType, string> = {
+    in: '!bg-emerald-600 !text-white !border-emerald-600',
+    count: '!bg-slate-900 !text-white !border-slate-900',
+    out: '!bg-rose-600 !text-white !border-rose-600',
+  };
   return (
-    <section className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
-      <div className="grid gap-3 sm:grid-cols-2">
-        <label className="block space-y-1 sm:col-span-2">
-          <span className="text-sm font-semibold text-slate-800">{t('st.col.product')}</span>
-          <select value={itemId} onChange={(e) => (setItemId(e.target.value), setUnit(''))} className={inputCls}>
-            {items.map((i) => (
-              <option key={i.id} value={i.id}>{i.name}</option>
+    <section className="bg-white rounded-xl border border-slate-200 p-4 space-y-4 max-w-2xl">
+      <div role="radiogroup" aria-label={t('st.type')} className="grid grid-cols-3 gap-2">
+        {(['in', 'count', 'out'] as const).map((k) => (
+          <button
+            key={k}
+            type="button"
+            role="radio"
+            aria-checked={type === k}
+            onClick={() => setType(k)}
+            className={`${btnSecondary} !justify-center !px-2 whitespace-nowrap text-[13px] sm:text-sm ${type === k ? tone[k] : ''}`}
+          >
+            {t(`st.type.${k}`)}
+          </button>
+        ))}
+      </div>
+      <label className="block space-y-1">
+        <span className="text-sm font-semibold text-slate-800">{t('st.col.product')}</span>
+        <select value={itemId} onChange={(e) => (setItemId(e.target.value), setUnit(''))} className={inputCls}>
+          <option value="">{t('st.pick')}</option>
+          {sections.map((sec) => (
+            <optgroup key={sec} label={sec}>
+              {items
+                .filter((i) => (i.section || '') === sec)
+                .map((i) => (
+                  <option key={i.id} value={i.id}>
+                    {i.name}
+                    {i.producer ? ` · ${i.producer}` : ''}
+                  </option>
+                ))}
+            </optgroup>
+          ))}
+        </select>
+        {item && <span className="block text-xs text-slate-500">{t('st.now', { q: stockQty(now, item, lang) })}</span>}
+      </label>
+      <label className="block space-y-1">
+        <span className="text-sm font-semibold text-slate-800">{t(`st.amount.${type}`)}</span>
+        <span className="flex gap-2">
+          <input inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} disabled={!item} placeholder="0" className={`${inputCls} text-lg font-semibold`} />
+          <select value={u} onChange={(e) => setUnit(e.target.value)} disabled={!item} className={`${inputCls} !w-40`} aria-label={t('st.unit')}>
+            {units.map((x) => (
+              <option key={x} value={x}>{x === 'pack' ? t('st.unit.pack', { n: item?.pack ?? '', u: item?.unit ?? '' }) : x}</option>
             ))}
           </select>
-        </label>
-        <fieldset className="sm:col-span-2">
-          <legend className="text-sm font-semibold text-slate-800 mb-1">{t('st.type')}</legend>
-          <div className="flex gap-2 flex-wrap">
-            {(['out', 'in', 'count'] as const).map((k) => (
-              <button key={k} type="button" aria-pressed={type === k} onClick={() => setType(k)} className={`${btnSecondary} ${type === k ? '!bg-slate-900 !text-white !border-slate-900' : ''}`}>
-                {t(`st.type.${k}`)}
-              </button>
-            ))}
-          </div>
-        </fieldset>
-        <label className="block space-y-1">
-          <span className="text-sm font-semibold text-slate-800">{t('st.amount')}</span>
-          <span className="flex gap-2">
-            <input inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} className={inputCls} />
-            <select value={unit || item?.unit} onChange={(e) => setUnit(e.target.value)} className={`${inputCls} !w-32`} aria-label={t('st.unit')}>
-              {units.map((u) => (
-                <option key={u} value={u}>{u === 'pack' ? t('st.unit.pack', { n: item?.pack ?? '' , u: item?.unit ?? '' }) : u}</option>
-              ))}
-            </select>
-          </span>
-          {item && inUnit !== undefined && normalizeUnit(unit) && unit !== item.unit && <span className="text-xs text-slate-500">= {stockQty(inUnit, item, 'en')}</span>}
-        </label>
-        <label className="block space-y-1">
-          <span className="text-sm font-semibold text-slate-800">{t('st.date')}</span>
-          <input type="date" value={date} max={todayStr()} onChange={(e) => setDate(e.target.value)} className={inputCls} />
-        </label>
+        </span>
+      </label>
+      {type === 'out' && (
         <label className="block space-y-1">
           <span className="text-sm font-semibold text-slate-800">{t('st.blockLabel')}</span>
-          <input value={block} onChange={(e) => setBlock(e.target.value)} placeholder="A" className={inputCls} />
+          <input value={block} onChange={(e) => setBlock(e.target.value)} placeholder="A" className={`${inputCls} max-w-[8rem]`} />
         </label>
-        <label className="block space-y-1">
-          <span className="text-sm font-semibold text-slate-800">{t('st.note')}</span>
-          <input value={note} onChange={(e) => setNote(e.target.value)} className={inputCls} />
-        </label>
-      </div>
-      <div className="flex items-center gap-2">
-        <button type="button" onClick={save} disabled={state === 'saving' || inUnit === undefined || (type !== 'count' && !(inUnit > 0))} className={btnPrimary}>
+      )}
+      {more ? (
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="block space-y-1">
+            <span className="text-sm font-semibold text-slate-800">{t('st.date')}</span>
+            <input type="date" value={date} max={todayStr()} onChange={(e) => setDate(e.target.value)} className={inputCls} />
+          </label>
+          <label className="block space-y-1">
+            <span className="text-sm font-semibold text-slate-800">{t('st.note')}</span>
+            <input value={note} onChange={(e) => setNote(e.target.value)} className={inputCls} />
+          </label>
+        </div>
+      ) : (
+        <button type="button" onClick={() => setMore(true)} className="text-xs font-semibold text-slate-600 underline underline-offset-2">
+          {t('st.more', { date: date === todayStr() ? t('st.today') : formatShortDate(date) })}
+        </button>
+      )}
+      <div className="flex items-center gap-3 flex-wrap border-t border-slate-100 pt-3">
+        <button type="button" onClick={save} disabled={!ok || state === 'saving'} className={btnPrimary}>
           {state === 'saving' && <Loader2 className="w-4 h-4 animate-spin" />}
           {t('st.save')}
         </button>
         <button type="button" onClick={onDone} className="text-sm font-semibold text-slate-600 hover:text-slate-900 px-2 min-h-9">{t('common.cancel')}</button>
-        {state === 'error' && <span role="alert" className="text-xs text-rose-700">{t('fr.saveError')}</span>}
+        {item && after !== undefined && (
+          <span className={`text-sm tabular ${after < 0 ? 'text-rose-700 font-semibold' : 'text-slate-700'}`}>
+            {t('st.after', { q: stockQty(after, item, lang) })}
+          </span>
+        )}
+        {state === 'error' && <span role="alert" className="w-full text-xs text-rose-700">{t('fr.saveError')}</span>}
       </div>
     </section>
   );
