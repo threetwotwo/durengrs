@@ -113,8 +113,23 @@ async function samplings() {
   }
 }
 
+/** The newest health reports (read only): when, which tree, and what createdAt holds. */
+async function reports() {
+  const snap = await db.collection('reports').get();
+  const rows = snap.docs.map((d) => {
+    const r = d.data();
+    const c = r.createdAt;
+    const kind = c && typeof c.toDate === 'function' ? 'timestamp' : typeof c;
+    const when = kind === 'timestamp' ? c.toDate().toISOString() : String(c || '');
+    return { id: d.id, when, kind, date: r.date || '', tree: r.treeId, source: r.source || '' };
+  });
+  rows.sort((a, b) => String(b.date || b.when).localeCompare(String(a.date || a.when)));
+  for (const r of rows.slice(0, 15)) console.log(`${r.date} | ${r.when} | ${r.kind} | ${r.tree} | ${r.source} | ${r.id}`);
+  console.log(`${rows.length} reports; createdAt kinds: ${JSON.stringify(rows.reduce((m, r) => ((m[r.kind] = (m[r.kind] || 0) + 1), m), {}))}`);
+}
+
 const action = process.argv[2];
-(action === 'samplings' ? samplings() : action === 'codes' ? codes(process.argv[3]) : action === 'rematch' ? rematch() : action === 'find' ? find(process.argv[3]) : action === 'save' ? save() : action === 'wipe' ? wipe() : action === 'wipe-date' ? wipeDate(process.argv[3]) : Promise.reject(new Error('save, wipe or wipe-date')))
+(action === 'reports' ? reports() : action === 'samplings' ? samplings() : action === 'codes' ? codes(process.argv[3]) : action === 'rematch' ? rematch() : action === 'find' ? find(process.argv[3]) : action === 'save' ? save() : action === 'wipe' ? wipe() : action === 'wipe-date' ? wipeDate(process.argv[3]) : Promise.reject(new Error('save, wipe or wipe-date')))
   .then(() => process.exit(0))
   .catch((e) => {
     console.error(e.message);
