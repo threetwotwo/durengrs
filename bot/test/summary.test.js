@@ -33,7 +33,7 @@ const busy = () => {
   };
 };
 
-test('grouped as Laporan KESEHATAN and Laporan PANEN, the worker thanked first; nothing else', () => {
+test('grouped as Laporan PANEN and Laporan KESEHATAN, the worker thanked first; nothing else', () => {
   const text = buildSummary(busy(), day, U, NOW, 'Udin');
   assert.equal(
     text,
@@ -44,16 +44,16 @@ test('grouped as Laporan KESEHATAN and Laporan PANEN, the worker thanked first; 
       'Terima kasih, Udin! 🙏 Catatan Anda hari ini sudah tersimpan ✅: 1 laporan KESEHATAN, 1 laporan PANEN (3 buah).',
       'Juga tercatat: hitung buah 1 pohon, curah hujan 12 mm.',
       '',
+      '🧺 *Laporan PANEN*',
+      '• Hari ini *A3* (Anda) ✅: 3 buah, 6,1 kg · aroma 3,3 · kulit 4 · bentuk 4,3 (A3-20261027-01 s/d 03)',
+      '• 21 Okt *A0* (Budi): 2 buah, 4,9 kg',
+      '• 7 hari terakhir: 5 buah, 11 kg dari 2 pohon',
+      '',
       '🩺 *Laporan KESEHATAN*',
       '• 14:20 *B1* (Budi) 🟡 Bunga mulai mekar',
       '• 10:05 *B2* (••0000) 🔴 Kanker batang (getah merah)',
       '• 09:00 *A1* (Anda) ✅ 🟢 Buah sebesar telur, ada 40',
       '• 7 hari terakhir: 3 laporan dari 3 pohon',
-      '',
-      '🧺 *Laporan PANEN*',
-      '• Hari ini *A3* (Anda) ✅: 3 buah, 6,1 kg · aroma 3,3 · kulit 4 · bentuk 4,3 (A3-20261027-01 s/d 03)',
-      '• 21 Okt *A0* (Budi): 2 buah, 4,9 kg',
-      '• 7 hari terakhir: 5 buah, 11 kg dari 2 pohon',
       '',
       'Kirim ID pohon untuk lapor. Kirim *RINGKASAN* untuk melihat ringkasan ini lagi.',
     ].join('\n')
@@ -82,9 +82,12 @@ test('long words are cut on a word boundary; many reports end with how many more
   assert.deepEqual(harvestLines({ recentHarvests: [] }, day), []);
 });
 
-test('the template line: one line, KESEHATAN then PANEN', () => {
+test('the template line: one line, PANEN then KESEHATAN', () => {
   const line = summaryLine(busy(), day, U, NOW);
-  assert.equal(line, 'KESEHATAN: 3 laporan hari ini. PANEN: 3 buah hari ini, 5 buah dalam 7 hari. Catatan Anda hari ini sudah tersimpan ✅.');
+  assert.equal(line, 'PANEN: 3 buah hari ini, 5 buah dalam 7 hari. KESEHATAN: 3 laporan hari ini. Catatan Anda hari ini sudah tersimpan ✅.');
+  // No health report for days: says since when, plainly.
+  const quiet = summaryLine({ ...busy(), reports: [], recentReports: [{ treeId: 'E2', createdAt: at('09:08', '2026-10-20') }] }, day, U, NOW);
+  assert.match(quiet, /^PANEN: [^.]*\. KESEHATAN: tidak ada laporan baru sejak 20 Okt\./);
 });
 
 test('sending: everyone on the Workers page unless switched off, once a day; a test number gets it regardless', async () => {
@@ -121,7 +124,7 @@ test('the 06:00 summary is of yesterday: "kemarin" where the day summary says "h
   assert.match(text, /Catatan Anda kemarin sudah tersimpan ✅/);
   assert.match(text, /• Kemarin \*A3\* \(Anda\) ✅: 3 buah/);
   assert.doesNotMatch(text, /hari ini/i);
-  assert.match(summaryLine(busy(), day, U, morning), /^KESEHATAN: 3 laporan kemarin\. PANEN: 3 buah kemarin/);
+  assert.match(summaryLine(busy(), day, U, morning), /^PANEN: 3 buah kemarin[^.]*\. KESEHATAN: 3 laporan kemarin/);
 });
 
 test('RINGKASAN in the morning, before the worker has recorded anything today, is of yesterday (as the 06:00 message)', () => {

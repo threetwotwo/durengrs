@@ -336,14 +336,15 @@ function buildSummary(data, date, phone, now = Date.now(), name = '', opts = {})
     lines.push('');
   }
 
+  // PANEN first: in the season, the harvest is what the morning is about.
+  const panen = harvestLines(data, date, phone, HARVEST_MAX, now);
+  lines.push('🧺 *Laporan PANEN*', ...(panen.length ? panen : [`• Belum ada panen dalam ${BACK_DAYS} hari terakhir`]));
+
   const health = healthLines(data, phone);
-  lines.push(`🩺 *Laporan KESEHATAN*${health.onlyEarlier ? ' (terakhir)' : ''}`);
+  lines.push('', `🩺 *Laporan KESEHATAN*${health.onlyEarlier ? ' (terakhir)' : ''}`);
   if (health.lines.length) lines.push(...health.lines);
   else lines.push(`• Belum ada laporan dalam ${BACK_DAYS} hari terakhir`);
   if (data.recentReports) lines.push(`• 7 hari terakhir: ${d.weekReports} laporan dari ${d.weekTrees} pohon`);
-
-  const panen = harvestLines(data, date, phone, HARVEST_MAX, now);
-  lines.push('', '🧺 *Laporan PANEN*', ...(panen.length ? panen : [`• Belum ada panen dalam ${BACK_DAYS} hari terakhir`]));
 
   if (opts.prices) {
     const p = priceLines(data, date);
@@ -355,7 +356,7 @@ function buildSummary(data, date, phone, now = Date.now(), name = '', opts = {})
   return lines.join('\n');
 }
 
-/** One line for the template (no line breaks allowed in a template's values): KESEHATAN, then PANEN. */
+/** One line for the template (no line breaks allowed in a template's values): PANEN, then KESEHATAN. */
 function summaryLine(data, date, phone, now = Date.now()) {
   const d = digest(data, date, now);
   const when = dayWord(date, now);
@@ -363,11 +364,13 @@ function summaryLine(data, date, phone, now = Date.now()) {
   const mineNote = m && (m.reports.length || m.harvests.length) ? ` Catatan Anda ${when} sudah tersimpan ✅.` : '';
   const kes = d.reports
     ? `KESEHATAN: ${d.reports} laporan ${when}`
-    : `KESEHATAN: belum ada laporan ${when}${d.lastReportAt ? ` (terakhir ${shortDay(R.todayStr(new Date(d.lastReportAt)))})` : ''}`;
+    : d.lastReportAt && R.todayStr(new Date(d.lastReportAt)) < R.addDays(date, -1)
+      ? `KESEHATAN: tidak ada laporan baru sejak ${shortDay(R.todayStr(new Date(d.lastReportAt)))}`
+      : `KESEHATAN: belum ada laporan ${when}`;
   const week = (data.recentHarvests || []).filter((h) => h.date >= R.addDays(date, -6));
   const weekFruits = week.reduce((n, h) => n + (Number(h.fruits) || 0), 0);
   const pan = `PANEN: ${d.fruits ? `${num(d.fruits, 0)} buah ${when}` : `belum ada ${when}`}${weekFruits ? `, ${num(weekFruits, 0)} buah dalam 7 hari` : ''}`;
-  return `${kes}. ${pan}.${mineNote}`;
+  return `${pan}. ${kes}.${mineNote}`;
 }
 
 /**
