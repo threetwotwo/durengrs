@@ -105,6 +105,8 @@ export function sortFruits(rows: FruitRow[], sort: FruitSort | null, desc: boole
 export interface FruitSummary {
   n: number;
   kg: number;
+  /** The fruits' weight in grams. */
+  g: number;
   avgG: number;
   aroma: number;
   skin: number;
@@ -117,7 +119,7 @@ export function summarizeFruits(rows: FruitRow[]): FruitSummary | null {
   const sum = (f: (r: FruitRow) => number) => rows.reduce((s, r) => s + (f(r) || 0), 0);
   const avg = (f: (r: FruitRow) => number) => Math.round((sum(f) / rows.length) * 10) / 10;
   const g = sum((r) => r.weightG);
-  return { n: rows.length, kg: Math.round(g / 10) / 100, avgG: Math.round(g / rows.length), aroma: avg((r) => r.aroma), skin: avg((r) => r.skin), shape: avg((r) => r.shape) };
+  return { n: rows.length, g: Math.round(g), kg: Math.round(g / 10) / 100, avgG: Math.round(g / rows.length), aroma: avg((r) => r.aroma), skin: avg((r) => r.skin), shape: avg((r) => r.shape) };
 }
 
 /** Per variety (most fruits first), for the comparison above the table. */

@@ -388,14 +388,35 @@ export const FruitsPage: React.FC = () => {
                 {byDay && r.date !== rows[i - 1]?.date && (
                   <tr>
                     <td colSpan={COLS} className="p-0 bg-slate-100 border-b border-slate-200">
-                      <span className="sticky left-0 inline-flex items-baseline gap-2 px-2.5 py-1.5 text-xs">
-                        <strong className="text-slate-900">{dayLabel(r.date)}</strong>
-                        <span className="text-slate-600 tabular">
-                          {(() => {
-                            const d = days.find((x) => x.date === r.date);
-                            return d ? `${t('fr.dayN', { n: d.n })} · ${fmt(d.g / 1000, 1)} kg` : '';
-                          })()}
-                        </span>
+                      {/* The day's total in grams, large, then each variety's (of the fruits shown). */}
+                      <span className="sticky left-0 flex w-fit max-w-[calc(100vw-3rem)] flex-wrap items-center gap-x-3 gap-y-1.5 px-2.5 py-2">
+                        <strong className="text-sm text-slate-900">{dayLabel(r.date)}</strong>
+                        {(() => {
+                          const list = rows.filter((x) => x.date === r.date);
+                          const g = list.reduce((n, x) => n + (Number(x.weightG) || 0), 0);
+                          const byV = new Map<string, { n: number; g: number }>();
+                          for (const x of list) {
+                            const v = byV.get(x.variant || '—') || { n: 0, g: 0 };
+                            v.n++;
+                            v.g += Number(x.weightG) || 0;
+                            byV.set(x.variant || '—', v);
+                          }
+                          return (
+                            <>
+                              <span className="text-base font-bold text-slate-900 tabular">
+                                {fmt(g)} g <span className="text-xs font-semibold text-slate-600">· {t('fr.dayN', { n: list.length })}</span>
+                              </span>
+                              {[...byV.entries()]
+                                .sort((a, b) => b[1].g - a[1].g)
+                                .map(([v, x]) => (
+                                  <span key={v} className="inline-flex items-baseline gap-1.5 rounded-md bg-white border border-slate-200 px-2 py-0.5 text-xs tabular">
+                                    <strong className="text-emerald-900">{v}</strong>
+                                    <span className="text-slate-700">{fmt(x.n)} · {fmt(x.g)} g</span>
+                                  </span>
+                                ))}
+                            </>
+                          );
+                        })()}
                       </span>
                     </td>
                   </tr>
@@ -478,7 +499,7 @@ export const FruitsPage: React.FC = () => {
               <tfoot className="tabular font-semibold text-slate-800 bg-slate-50">
                 <tr>
                   <th scope="row" colSpan={2} className="sticky left-0 bg-slate-50 px-2.5 py-2 text-left text-xs font-semibold">
-                    {t('fr.sum', { n: fmt(sum.n), kg: fmt(sum.kg, 2) })}
+                    {t('fr.sum', { n: fmt(sum.n), g: fmt(sum.g) })}
                   </th>
                   <td className={wide} />
                   <td className="px-2.5 py-2 text-left text-xs font-semibold text-slate-600 whitespace-nowrap">
