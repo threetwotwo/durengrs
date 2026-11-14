@@ -94,3 +94,30 @@ test("William's way: item, used, what's left; the left is counted after the use"
   assert.deepEqual(saved.map((m) => [m.type, m.qty]), [['out', 1000], ['count', 5000]]);
   assert.match(K.TEMPLATE, /Nama barang[\s\S]*Jumlah dipakai[\s\S]*Sisa di gudang/);
 });
+
+test('a misspelled or two-pack product is still found', async () => {
+  const its = [
+    { id: 'A01', name: 'TSP 46% Cap Kuda (50kg)', unit: 'kg', pack: 50 },
+    { id: 'A15', name: 'VITA4 / Polysulphate (50 kg)', unit: 'kg', pack: 50 },
+    { id: 'A16', name: 'VITA4 / Polysulphate (2 kg)', unit: 'kg', pack: 2 },
+  ];
+  const bal = new Map([['A15', { balance: 382 }], ['A16', { balance: 34 }]]);
+  const line = (written, extra = {}) => ({ written, type: 'out', qty: 38, unit: 'kg', left_qty: 344, left_unit: 'kg', ...extra });
+  assert.equal(K.matchItem(line('VITA4'), its, bal).id, 'A15');
+  assert.equal(K.matchItem(line('Polysulpate'), its, bal).id, 'A15');
+  assert.equal(K.matchItem(line('Polisulpate'), its, bal).id, 'A15');
+  assert.equal(K.matchItem(line('VITA4 / polysulpate'), its, bal).id, 'A15');
+  assert.equal(K.matchItem(line('vita4', { qty: 2, left_qty: 30 }), its, bal).id, 'A16', 'the sisa near the small pack');
+  assert.equal(K.matchItem(line('vita4', { left_qty: -1 }), its, new Map()).id, 'A15', 'else the bigger pack');
+  assert.equal(K.matchItem(line('Urea'), its, bal), undefined);
+});
+
+test('a line the reader left without a product is matched by name', async () => {
+  const db = fakeDb({
+    stockItems: { A15: { name: 'VITA4 / Polysulphate (50 kg)', unit: 'kg', pack: 50, order: 15 }, A16: { name: 'VITA4 / Polysulphate (2 kg)', unit: 'kg', pack: 2, order: 16 } },
+    stockMoves: { o15: { itemId: 'A15', type: 'count', qty: 382, date: '2026-11-10', at: '1' }, o16: { itemId: 'A16', type: 'count', qty: 34, date: '2026-11-10', at: '1' } },
+  });
+  const read = async () => ({ moves: [{ item_id: '', written: 'Polysulpate', type: 'out', qty: 38, unit: 'kg', left_qty: 344, left_unit: 'kg' }] });
+  const reply = await K.reportStock(db, { text: 'Polysulpate, pakai 38kg, sisa 344kg', type: 'out', today: '2026-11-14', read });
+  assert.match(reply, /VITA4 \/ Polysulphate \(50 kg\).*sisa 344 kg/);
+});

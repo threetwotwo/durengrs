@@ -63,14 +63,19 @@ const SCHEMA = {
   required: ['moves'],
 };
 
-function prompt(items, type) {
-  const list = items.map((i) => `${i.id} = ${i.name}${i.producer ? ` by ${i.producer}` : ''}${i.content ? ` [${i.content}]` : ''} (kept in ${i.unit}${i.pack ? `, 1 pack = ${i.pack} ${i.unit}` : ''})`).join('\n');
+function prompt(items, type, balances = new Map()) {
+  const list = items
+    .map((i) => {
+      const b = balances.get(i.id)?.balance;
+      return `${i.id} = ${i.name}${i.producer ? ` by ${i.producer}` : ''}${i.content ? ` [${i.content}]` : ''} (kept in ${i.unit}${i.pack ? `, 1 pack = ${i.pack} ${i.unit}` : ''}${b !== undefined ? `, now ${b} ${i.unit} in stock` : ''})`;
+    })
+    .join('\n');
   return `You read a durian farm's warehouse report in Indonesian: pupuk (fertiliser) and obat (pesticide) taken out for the field, delivered, or counted.
 The products in the warehouse:
 ${list}
 
 Return one entry per product and quantity written.
-- item_id: the id of the product meant, from the list ("TSP" is the TSP product, "KCL" or "MOP" the MOP/KCL one, "Gandasil merah" Gandasil B - Merah, "Kristalon hijau" Neo Kristalon Hijau). "" when none fits or two fit equally.
+- item_id: the id of the product meant, from the list ("TSP" is the TSP product, "KCL" or "MOP" the MOP/KCL one, "Gandasil merah" Gandasil B - Merah, "Kristalon hijau" Neo Kristalon Hijau). Workers misspell names ("Polysulpate", "Polisulfat" are Polysulphate): match by sound. When two products share a name and differ only by pack size (e.g. VITA4 50 kg and 2 kg), pick the one whose pack size is written; else the one whose stock is nearest what is written as left ("sisa"); else the bigger pack. "" only when no product fits, or two different products fit equally.
 - written: the product as written.
 - type: "out" for used, taken out, applied ("pakai", "keluar", "dipakai", "ambil", "tabur", "semprot", "kocor"); "in" for delivered or bought ("masuk", "datang", "beli", "terima"); "count" for a stock count ("opname", "stok", "sisa", "tinggal"). ${type ? `The message is a "${type}" report: use it for lines that don't say otherwise.` : 'If a line does not say, "unknown".'}
 - qty: the number as written (a plain number; "1,5" is 1.5; "setengah" is 0.5).
@@ -81,6 +86,52 @@ Return one entry per product and quantity written.
 - note: anything else written about that line, short, else "".`;
 }
 
+const normName = (s) => String(s || '').toLowerCase().replace(/\s+by\s+.*$/, '').replace(/\([^)]*\)/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+const words = (s) => normName(s).split(' ').filter((w) => w.length >= 3);
+function editDistance(a, b) {
+  const d = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    let prev = d[0];
+    d[0] = i;
+    for (let j = 1; j <= b.length; j++) {
+      const t = d[j];
+      d[j] = Math.min(d[j] + 1, d[j - 1] + 1, prev + (a[i - 1] === b[j - 1] ? 0 : 1));
+      prev = t;
+    }
+  }
+  return d[b.length];
+}
+const close = (w, x) => w === x || (w.length >= 6 && x.length >= 6 && editDistance(w, x) <= 2);
+
+/**
+ * The product a line meant when the reader left it out: the written name's words against each product's name and
+ * aliases (misspellings forgiven). Accepted only when every match is one product name (packs of it may differ: then
+ * the pack whose stock is nearest the written "sisa", else the bigger pack).
+ */
+function matchItem(m, items, balances = new Map()) {
+  const ws = words(m.written);
+  if (!ws.length) return undefined;
+  const hits = items.filter((i) => [i.name, ...(i.aliases || [])].some((n) => words(n).some((x) => ws.some((w) => close(w, x)))));
+  if (!hits.length || new Set(hits.map((i) => normName(i.name))).size > 1) return undefined;
+  return pickPack(hits, m, balances);
+}
+
+/** Of the packs of one product: the one whose stock is nearest the written "sisa", else the bigger pack. */
+function pickPack(hits, m, balances) {
+  if (hits.length === 1) return hits[0];
+  const left = m.left_qty >= 0 ? m.left_qty : m.type === 'count' ? m.qty : undefined;
+  if (left !== undefined) {
+    const off = (i) => {
+      const q = S.toItemUnit(Number(left), (m.left_qty >= 0 && m.left_unit) || m.unit, i);
+      const b = balances.get(i.id)?.balance;
+      return q === undefined || b === undefined ? Infinity : Math.abs(q - b);
+    };
+    const best = [...hits].sort((a, b) => off(a) - off(b))[0];
+    if (off(best) < Infinity) return best;
+  }
+  return [...hits].sort((a, b) => (b.pack || 0) - (a.pack || 0))[0];
+}
+
 /** Saves the moves read from a report and gives the reply. */
 async function reportStock(db, { text, type, workerPhone, today = R.todayStr(), read }) {
   // Gemini, loaded only when a report is read (lib/ai pulls in Firestore).
@@ -89,13 +140,14 @@ async function reportStock(db, { text, type, workerPhone, today = R.todayStr(), 
   const items = itemsSnap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (a.order || 0) - (b.order || 0));
   if (!items.length) return 'Daftar stok gudang belum ada. Minta manajemen memasukkannya dulu.';
   const moves = movesSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
-  const answer = await read([{ text: prompt(items, type) }, { text: `The report:\n${text}` }], { schema: SCHEMA });
+  const before = S.stockBalances(moves);
+  const answer = await read([{ text: prompt(items, type, before) }, { text: `The report:\n${text}` }], { schema: SCHEMA });
   const byId = new Map(items.map((i) => [i.id, i]));
   const lines = [];
   const save = [];
   const at = new Date().toISOString();
   for (const m of answer?.moves || []) {
-    const item = byId.get(m.item_id);
+    const item = byId.get(m.item_id) || matchItem(m, items, before);
     const kind = m.type === 'unknown' ? type : m.type;
     if (!item) {
       lines.push(`❓ "${m.written}" tidak ada di daftar gudang. Tulis namanya seperti di kemasan (ketik *STOK* untuk melihat daftar).`);
@@ -162,4 +214,4 @@ async function stockList(db, query = '') {
   return `${head}\n${body}${foot}`.slice(0, 4000);
 }
 
-module.exports = { parseStock, reportStock, stockList, prompt, SCHEMA, TEMPLATE };
+module.exports = { parseStock, reportStock, stockList, matchItem, prompt, SCHEMA, TEMPLATE };
