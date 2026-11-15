@@ -15,9 +15,10 @@ import { useCallback, useSyncExternalStore } from 'react';
  *   #/harvest               crop tracking per tree, graded harvests, forecast
  *   #/harvest/fruits        every fruit from Laporan PANEN, one row each (?variant=MK&block=A&sort=weight)
  *   #/harvest/fruits/A3-20261021-01   one fruit
- *   #/harvest/prices        other vendors' prices (?day=2026-11-02)
  *   #/harvest/kupas         the kupas station's boxes (Laporan KUPAS)
- *   #/harvest/grades        the grading board: each variety's fruiting trees by grade
+ *   #/grades                the grading board: each variety's fruiting trees by grade (was #/harvest/grades)
+ *   #/prices                other vendors' prices (?week=2026-11-09; was #/harvest/prices)
+ *   #/more                  the pages used less: schedule, variants, workers, kupas boxes, guide
  *   #/schedule              routines (sprays, fertiliser rounds)
  *   #/variants
  *   #/guide                 research guide
@@ -27,7 +28,7 @@ import { useCallback, useSyncExternalStore } from 'react';
  * gives working Back/Forward, shareable deep links, and survives reloads.
  */
 
-export type AppTab = 'dashboard' | 'trees' | 'reports' | 'problems' | 'harvest' | 'schedule' | 'stock' | 'variants' | 'workers' | 'guide';
+export type AppTab = 'dashboard' | 'trees' | 'reports' | 'problems' | 'harvest' | 'grades' | 'prices' | 'stock' | 'more' | 'schedule' | 'variants' | 'workers' | 'guide';
 
 export interface Route {
   tab: AppTab;
@@ -41,11 +42,11 @@ export interface Route {
   /** #/harvest/fruits (the fruits table) and #/harvest/fruits/<code> (one fruit). */
   fruits: boolean;
   fruitCode: string | null;
-  /** #/harvest/prices: other vendors' prices. */
+  /** #/prices: other vendors' prices. */
   prices: boolean;
   /** #/harvest/kupas: the kupas boxes. */
   kupas: boolean;
-  /** #/harvest/grades: the grading board. */
+  /** #/grades: the grading board. */
   board: boolean;
   params: URLSearchParams;
   /** Path without query, e.g. "/trees/A12". */
@@ -56,7 +57,10 @@ export interface Route {
   known: boolean;
 }
 
-const TABS: AppTab[] = ['dashboard', 'trees', 'reports', 'problems', 'harvest', 'schedule', 'stock', 'variants', 'workers', 'guide'];
+const TABS: AppTab[] = ['dashboard', 'trees', 'reports', 'problems', 'harvest', 'grades', 'prices', 'stock', 'more', 'schedule', 'variants', 'workers', 'guide'];
+
+/** The pages behind More: the More tab is lit on them. */
+export const MORE_TABS: AppTab[] = ['more', 'schedule', 'variants', 'workers', 'guide'];
 
 /** The page a hash address points to. Old addresses (#/kebun) still land on the right page. */
 export function parseHash(hash: string): Route {
@@ -86,6 +90,10 @@ export function parseHash(hash: string): Route {
     tab = 'problems'; // older links: problems and workers were views of Reports
   } else if (segs[0] === 'reports' && segs.length === 1 && params.get('view') === 'activity') {
     tab = 'workers';
+  } else if (segs[0] === 'harvest' && (segs[1] === 'prices' || segs[1] === 'grades') && segs.length === 2) {
+    tab = segs[1] === 'prices' ? 'prices' : 'grades'; // their old addresses, under Harvest
+    prices = tab === 'prices';
+    board = tab === 'grades';
   } else if (TABS.includes(segs[0] as AppTab) && segs[0] !== 'dashboard') {
     tab = segs[0] as AppTab;
     if (tab === 'trees' && segs.length === 2) treeId = decodeURIComponent(segs[1]);
@@ -95,10 +103,10 @@ export function parseHash(hash: string): Route {
     else if (tab === 'harvest' && segs[1] === 'fruits' && segs.length <= 3) {
       fruits = true;
       fruitCode = segs[2] ? decodeURIComponent(segs[2]) : null;
-    } else if (tab === 'harvest' && segs[1] === 'prices' && segs.length === 2) prices = true;
-    else if (tab === 'harvest' && segs[1] === 'kupas' && segs.length === 2) kupas = true;
-    else if (tab === 'harvest' && segs[1] === 'grades' && segs.length === 2) board = true;
+    } else if (tab === 'harvest' && segs[1] === 'kupas' && segs.length === 2) kupas = true;
     else if (segs.length > 1) known = false;
+    if (tab === 'prices') prices = segs.length === 1;
+    if (tab === 'grades') board = segs.length === 1;
   } else {
     known = false;
   }
@@ -235,9 +243,9 @@ export const fruitsUrl = (filters: Record<string, string | null | undefined> = {
   return '/harvest/fruits' + (qs ? `?${qs}` : '');
 };
 export const fruitUrl = (key: string) => `/harvest/fruits/${encodeURIComponent(key)}`;
-export const pricesUrl = () => '/harvest/prices';
+export const pricesUrl = () => '/prices';
 export const kupasUrl = () => '/harvest/kupas';
-export const boardUrl = () => '/harvest/grades';
+export const boardUrl = () => '/grades';
 /** The Count page, optionally on one block. */
 export const countUrl = (block?: string) => (block ? `/count?block=${encodeURIComponent(block)}` : '/count');
 
@@ -248,6 +256,9 @@ export const TAB_TITLES: Record<AppTab, string> = {
   reports: 'nav.reports',
   problems: 'nav.problems',
   harvest: 'nav.harvest',
+  grades: 'nav.grades',
+  prices: 'nav.prices',
+  more: 'nav.more',
   schedule: 'nav.schedule',
   stock: 'nav.stock',
   variants: 'nav.variants',

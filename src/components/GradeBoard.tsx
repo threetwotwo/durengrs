@@ -24,7 +24,7 @@ const COLUMN: Record<(typeof BOARD_GRADES)[number], string> = {
 };
 
 /**
- * The grading board (#/harvest/grades, and on the dashboard), as management keeps it in its sheet: one band per
+ * The grading board (#/grades, and on the dashboard), as management keeps it in its sheet: one band per
  * variety, its trees with fruit to harvest (fruit counted on the tree, or picked this season) set out by grade; trees
  * with neither fold behind a count. A tree shows its total when fully scored; tapping it lists its fruits.
  */

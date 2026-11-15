@@ -1,10 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Image as ImageIcon, Loader2, Trash2 } from 'lucide-react';
+import { Image as ImageIcon, Loader2, Trash2 } from 'lucide-react';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useFarm } from '../context/FarmContext';
 import { useT } from '../i18n';
-import { goBack, useQueryParams } from '../lib/router';
+import { useQueryParams } from '../lib/router';
 import {
   type Form,
   type MarketPrice,
@@ -30,7 +30,7 @@ import { PageHeader, inputCls } from './PageHeader';
 import { VendorTable } from './VendorTable';
 
 /**
- * Other vendors' durian prices (#/harvest/prices?day=2026-11-02), sent to the WhatsApp bot as a screenshot or text
+ * Other vendors' durian prices (#/prices?week=2026-11-09), sent to the WhatsApp bot as a screenshot or text
  * with the word HARGA and read by Gemini (bot/lib/prices.js). For one day: per variety the market's range and middle
  * per kg, how many sellers, a suggested price (the middle, rounded to Rp5.000) and the store's own price, typed here;
  * below, every price read, to correct (vendor, variety, grade, per kg) or delete, with the screenshot it came from.
@@ -105,10 +105,6 @@ export const PricesPage: React.FC = () => {
 
   return (
     <div className="space-y-4">
-      <button type="button" onClick={() => goBack('/harvest')} className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-600 hover:text-slate-900 min-h-9">
-        <ArrowLeft className="w-4 h-4" />
-        {t('hp.title')}
-      </button>
       <PageHeader title={t('mp.title')} description={t('mp.desc')} />
 
       {msg && (

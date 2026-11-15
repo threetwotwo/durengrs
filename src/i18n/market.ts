@@ -1,6 +1,6 @@
 import type { Bundle } from './index';
 
-/** Other vendors' prices (#/harvest/prices) and the Workers page switch for them in the morning summary. */
+/** Other vendors' prices (#/prices) and the Workers page switch for them in the morning summary. */
 export const market: Bundle = {
   id: {
     'mp.title': 'Harga pasar',

@@ -2,9 +2,9 @@ import React, { useEffect, useRef } from 'react';
 import { useFarm, AppTab } from '../context/FarmContext';
 import { Link } from './Link';
 import { useT, type Lang } from '../i18n';
-import { LayoutDashboard, Sprout, ClipboardList, CalendarCheck, BookOpen, Wheat, Sheet as SheetIcon, Users, Stethoscope, Package } from 'lucide-react';
+import { LayoutDashboard, ClipboardList, BookOpen, Wheat, Sheet as SheetIcon, Stethoscope, Package, Medal, Tag, Ellipsis } from 'lucide-react';
 import { setGuideOn, useGuideOn } from '../lib/guideMode';
-import { useRoute } from '../lib/router';
+import { MORE_TABS, useRoute, type Route } from '../lib/router';
 import { isDue, isOpen } from '../lib/cases';
 import { scrollToTop } from '../lib/scrollTop';
 
@@ -23,11 +23,10 @@ const toneClass: Record<Tone, string> = {
   muted: 'bg-slate-700 text-slate-200',
 };
 
-/** Every page, always visible: the daily work first, then the farm's set-up. The Guide shows when it is on. */
+/** The daily pages, always visible; the ones used less (schedule, variants, workers, kupas, guide) behind More. */
 function useNavItems(): NavItem[] {
   const { t } = useT();
   const { unreadReportsCount, scheduleTasks, cases } = useFarm();
-  const guideOn = useGuideOn();
   const overdue = scheduleTasks.filter((x) => x.status === 'overdue').length;
   const soon = scheduleTasks.filter((x) => x.status === 'soon').length;
   const open = cases.filter(isOpen).length;
@@ -53,13 +52,15 @@ function useNavItems(): NavItem[] {
       badge: open ? { text: due ? t('nav.badge.dueChecks', { n: due }) : String(open), tone: due ? 'danger' : 'muted' } : undefined,
     },
     { id: 'harvest', label: t('nav.harvest'), icon: Wheat },
-    { id: 'schedule', label: t('nav.schedule'), icon: CalendarCheck, badge: scheduleBadge },
+    { id: 'grades', label: t('nav.grades'), icon: Medal },
+    { id: 'prices', label: t('nav.prices'), icon: Tag },
     { id: 'stock', label: t('nav.stock'), icon: Package },
-    { id: 'variants', label: t('nav.variants'), icon: Sprout },
-    { id: 'workers', label: t('nav.workers'), icon: Users },
-    ...(guideOn ? [{ id: 'guide' as AppTab, label: t('nav.guide'), icon: BookOpen }] : []),
+    { id: 'more', label: t('nav.more'), icon: Ellipsis, badge: scheduleBadge },
   ];
 }
+
+/** The tab lit for a page: More for the pages behind it. */
+const isOn = (route: Route, id: AppTab) => route.tab === id || (id === 'more' && MORE_TABS.includes(route.tab));
 
 const tabPath = (id: AppTab) => (id === 'dashboard' ? '/' : `/${id}`);
 
@@ -148,7 +149,7 @@ export const Header: React.FC = () => {
           >
             {items.map((item) => {
               const Icon = item.icon;
-              const on = route.tab === item.id;
+              const on = isOn(route, item.id);
               return (
                 <Link
                   key={item.id}
@@ -197,7 +198,7 @@ export const BottomNav: React.FC = () => {
       <ul className="flex min-w-full">
         {items.map((item) => {
           const Icon = item.icon;
-          const on = route.tab === item.id;
+          const on = isOn(route, item.id);
           return (
             <li key={item.id} className="flex-1 min-w-[4.5rem]">
               <Link
