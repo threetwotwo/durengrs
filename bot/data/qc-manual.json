@@ -1,0 +1,6 @@
+[
+  { "tree": "C18", "by": "William (WhatsApp, 15 Nov)", "grade": "low",
+    "given": { "warna": 1, "manis": 1, "pahit": 1, "lemak": 3, "dagingTebal": 3, "kulitBersih": 3, "bentuk": 2 } },
+  { "tree": "D21", "by": "William (WhatsApp, 15 Nov)", "grade": "low",
+    "given": { "warna": 1, "manis": 1, "pahit": 1, "lemak": 3, "dagingTebal": 3, "kulitBersih": 3, "bentuk": 3.5 } }
+]
