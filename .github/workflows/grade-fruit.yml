@@ -12,7 +12,7 @@ on:
         default: 'dry'
 
 env:
-  ACTION: apply
+  ACTION: dry
 
 jobs:
   run:
