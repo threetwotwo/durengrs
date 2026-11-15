@@ -115,3 +115,24 @@ test("a variety's frozen and other-origin rows sit right under it; unmatched var
   assert.deepEqual(grid.map((g) => g.name), ['Matahari', 'Matahari (frozen)', 'Musang King', 'Musang King (Malaysia, frozen)', 'Tawan']);
   assert.equal(grid[1].kupas?.low, 175000);
 });
+
+test('the vendors table: each quote against the market middle and our price; sorted by any column, blanks last', async () => {
+  const { vendorRows, sortVendorRows } = await import('../src/lib/market');
+  const p = (id: string, vendor: string, price: number, extra = {}) => ({ id, date: '2026-11-14', vendor, varietyCode: 'MK', price, unit: 'kg' as const, pricePerKg: price, ...extra });
+  const rows = vendorRows(
+    [p('a', 'Toko A', 150000), p('b', 'Toko B', 200000), p('c', '', 250000), p('d', 'Toko D', 175000, { form: 'kupas', unit: 'pack', pricePerKg: undefined })],
+    () => 'Musang King',
+    new Map([['MK', { utuh: 180000 }]])
+  );
+  const a = rows.find((r) => r.p.id === 'a')!;
+  assert.equal(a.median, 200000);
+  assert.equal(a.vsMarket, -25);
+  assert.equal(a.store, 180000);
+  assert.equal(a.vsStore, -16.7);
+  const d = rows.find((r) => r.p.id === 'd')!;
+  assert.equal(d.compare, 175000, 'a kupas pack as a 400 g box');
+  assert.equal(d.vsMarket, undefined, 'the only kupas quote: nothing to compare');
+  assert.deepEqual(sortVendorRows(rows, 'compare', 'desc').map((r) => r.p.id), ['c', 'b', 'd', 'a']);
+  assert.deepEqual(sortVendorRows(rows, 'vendor', 'asc').map((r) => r.p.id), ['a', 'b', 'd', 'c'], 'no vendor name: last');
+  assert.deepEqual(sortVendorRows(rows, 'vendor', 'desc').map((r) => r.p.id), ['d', 'b', 'a', 'c'], 'still last the other way');
+});

@@ -285,3 +285,73 @@ export function weeklySeries(prices: MarketPrice[], form: Form, order: string[],
   }));
   return { weeks: ws, series };
 }
+
+// ---------- the vendors table ----------
+
+/** One vendor's quote with what it compares to: its price in the form's unit, the market middle, our own price. */
+export interface VendorRow {
+  p: MarketPrice;
+  vendor: string;
+  variety: string;
+  form: Form;
+  /** Origin and condition, when not local fresh ("Malaysia · frozen"). */
+  origin: string;
+  /** In the form's unit: whole per kg, kupas per 400 g box. */
+  compare?: number;
+  median?: number;
+  /** Above (+) or below (-) the market middle, in %. */
+  vsMarket?: number;
+  store?: number;
+  /** Above (+) or below (-) our own price, in %. */
+  vsStore?: number;
+}
+
+const pctOff = (a?: number, b?: number) => (a && b ? Math.round((a / b - 1) * 1000) / 10 : undefined);
+
+/** Each quote with its comparisons: the market middle of its variety and form, and our price beside local fresh. */
+export function vendorRows(prices: MarketPrice[], names: (code: string) => string, store: Map<string, StorePrice>, cond: (c: string) => string = (c) => c): VendorRow[] {
+  const groups = new Map(marketByVariety(prices, names, store).map((g) => [g.key, g]));
+  return prices.map((p) => {
+    const form = formOf(p);
+    const g = groups.get(`${varietyKey(p)}|${form}`);
+    const per = perKgOf(p);
+    const compare = per ? shownPrice(form, per) : undefined;
+    return {
+      p,
+      vendor: (p.vendor || '').trim() || (p.vendorPhone ? `+${p.vendorPhone}` : ''),
+      variety: p.varietyCode ? names(p.varietyCode) : p.variety || 'Durian',
+      form,
+      origin: [isLocal(p) ? '' : (p.origin || '').trim(), p.condition ? cond(p.condition) : ''].filter(Boolean).join(' · '),
+      compare,
+      median: g?.median,
+      vsMarket: (g?.perKg.length || 0) > 1 ? pctOff(compare, g?.median) : undefined,
+      store: g?.store,
+      vsStore: pctOff(compare, g?.store),
+    };
+  });
+}
+
+export type VendorSortKey = 'vendor' | 'variety' | 'form' | 'origin' | 'grade' | 'price' | 'compare' | 'vsMarket' | 'vsStore' | 'date';
+
+/** Sorted by a column, either way; rows without a value for it always last. Ties: variety, then the cheaper. */
+export function sortVendorRows(rows: VendorRow[], key: VendorSortKey, dir: 'asc' | 'desc'): VendorRow[] {
+  const val = (r: VendorRow): string | number | undefined => {
+    switch (key) {
+      case 'vendor': return r.vendor.toLowerCase() || undefined;
+      case 'variety': return r.variety.toLowerCase();
+      case 'form': return r.form;
+      case 'origin': return r.origin.toLowerCase() || undefined;
+      case 'grade': return (r.p.grade || '').toLowerCase() || undefined;
+      case 'price': return r.p.price;
+      case 'date': return r.p.date;
+      default: return r[key];
+    }
+  };
+  const s = dir === 'asc' ? 1 : -1;
+  const cmp = (a: string | number, b: string | number) => (a < b ? -1 : a > b ? 1 : 0);
+  return [...rows].sort((a, b) => {
+    const [x, y] = [val(a), val(b)];
+    if (x === undefined || y === undefined) return x === y ? 0 : x === undefined ? 1 : -1;
+    return s * cmp(x, y) || cmp(a.variety.toLowerCase(), b.variety.toLowerCase()) || (a.compare ?? Infinity) - (b.compare ?? Infinity);
+  });
+}

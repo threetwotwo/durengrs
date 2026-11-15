@@ -27,6 +27,7 @@ import {
 import { removeMarketPrice, setStorePrice, updateMarketPrice } from '../lib/marketData';
 import { addDays, formatShortDate, todayStr } from '../lib/treatments';
 import { PageHeader, inputCls } from './PageHeader';
+import { VendorTable } from './VendorTable';
 
 /**
  * Other vendors' durian prices (#/harvest/prices?day=2026-11-02), sent to the WhatsApp bot as a screenshot or text
@@ -246,6 +247,8 @@ export const PricesPage: React.FC = () => {
               </table>
             </section>
           )}
+
+          <VendorTable prices={fruits} names={names} store={store} />
 
           <details className="bg-white rounded-xl border border-slate-200 shadow-xs">
             <summary className="px-3 py-3 text-sm font-semibold text-slate-800 cursor-pointer">
