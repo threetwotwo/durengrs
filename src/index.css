@@ -4,6 +4,24 @@
   --font-sans: "Plus Jakarta Sans", sans-serif;
   --font-mono: "JetBrains Mono", monospace;
   --font-display: "Fraunces", Georgia, serif;
+  /* Save buttons: a pop when saved, a shake when it failed (QcBits SaveButton). */
+  --animate-pop: pop 0.35s ease-out;
+  --animate-shake: shake 0.4s ease-in-out;
+  --animate-flash: flash 2.4s ease-out;
+  @keyframes pop {
+    0% { transform: scale(0.92); }
+    60% { transform: scale(1.06); }
+    100% { transform: scale(1); }
+  }
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-6px); }
+    75% { transform: translateX(6px); }
+  }
+  @keyframes flash {
+    0%, 30% { background-color: rgb(209 250 229); }
+    100% { background-color: transparent; }
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

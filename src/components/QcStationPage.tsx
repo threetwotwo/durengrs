@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Check, ChevronRight, Loader2 } from 'lucide-react';
+import { ArrowLeft, Check, ChevronRight } from 'lucide-react';
 import { useFarm } from '../context/FarmContext';
 import { useT } from '../i18n';
 import { navigate, qcUrl } from '../lib/router';
@@ -11,8 +11,8 @@ import type { ReportPhoto } from '../types';
 import { GradeTag, ScoreChip } from './HarvestBits';
 import { LanguageToggle } from './Header';
 import { Link } from './Link';
-import { btnPrimary, inputCls } from './PageHeader';
-import { QcPhotos, ScoreSlider } from './QcBits';
+import { inputCls } from './PageHeader';
+import { QcPhotos, SaveButton, type SaveState, ScoreSlider } from './QcBits';
 import { useFruits, useVarietyName } from './useFruits';
 
 /** How far back fruits wait for grading. */
@@ -77,19 +77,20 @@ const FruitList: React.FC<{ fruits: FruitRow[]; graded: Map<string, any> }> = ({
   const noGrade = todo.filter((f) => !f.tg).sort(newest);
   const more = todo.filter((f) => f.tg).sort(newest);
   const done = fruits.filter((f) => graded.has(sampleId(f))).sort(newest);
-  const [flash] = useState(() => {
+  const [[flash, flashKey]] = useState(() => {
     try {
-      const v = sessionStorage.getItem('cilowong.qc.saved');
+      const v = [sessionStorage.getItem('cilowong.qc.saved'), sessionStorage.getItem('cilowong.qc.savedKey')];
       sessionStorage.removeItem('cilowong.qc.saved');
+      sessionStorage.removeItem('cilowong.qc.savedKey');
       return v;
     } catch {
-      return null;
+      return [null, null];
     }
   });
   return (
     <div className="px-4 pt-4 space-y-5">
       {flash && (
-        <p role="status" className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-sm font-semibold text-emerald-900">
+        <p role="status" className="animate-pop flex items-center gap-2 px-3 py-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-sm font-semibold text-emerald-900">
           <Check className="w-4 h-4" />
           {flash}
         </p>
@@ -98,13 +99,13 @@ const FruitList: React.FC<{ fruits: FruitRow[]; graded: Map<string, any> }> = ({
       <Section title={t('qcs.noGrade')} hint={t('qcs.noGrade.hint')} list={noGrade} tone="new" empty={t('qcs.noGrade.none')} />
       <Section title={t('qcs.more')} hint={t('qcs.more.hint')} list={more} />
       {done.length > 0 && (
-        <details className="group">
+        <details className="group" open={!!flashKey && done.some((f) => f.key === flashKey)}>
           <summary className="cursor-pointer list-none flex items-center gap-1.5 text-sm font-bold text-slate-700 py-1">
             <ChevronRight className="w-4 h-4 transition-transform group-open:rotate-90" />
             {t('qcs.done', { n: done.length })}
           </summary>
           <div className="mt-2">
-            <Cards list={done} graded={graded} />
+            <Cards list={done} graded={graded} lit={flashKey} />
           </div>
         </details>
       )}
@@ -125,7 +126,7 @@ const Section: React.FC<{ title: string; hint: string; list: FruitRow[]; tone?: 
   );
 };
 
-const Cards: React.FC<{ list: FruitRow[]; graded?: Map<string, any> }> = ({ list, graded }) => {
+const Cards: React.FC<{ list: FruitRow[]; graded?: Map<string, any>; lit?: string | null }> = ({ list, graded, lit }) => {
   const { t, locale } = useT();
   const variety = useVarietyName();
   const day = (d: string) => (d === todayStr() ? t('fr.today') : d === addDays(todayStr(), -1) ? t('fr.yesterday') : formatShortDate(d));
@@ -136,7 +137,7 @@ const Cards: React.FC<{ list: FruitRow[]; graded?: Map<string, any> }> = ({ list
         const total = mine ? sampleTotal(mine) : undefined;
         return (
           <li key={f.key}>
-            <Link to={qcUrl(f.key)} className="flex items-center gap-3 px-3.5 py-3 hover:bg-slate-50 active:bg-slate-100">
+            <Link to={qcUrl(f.key)} className={`flex items-center gap-3 px-3.5 py-3 hover:bg-slate-50 active:bg-slate-100 ${f.key === lit ? 'animate-flash' : ''}`}>
               <span className="w-14 shrink-0 font-mono text-lg font-bold text-slate-900">{f.treeId}</span>
               <span className="min-w-0 flex-1">
                 <span className="block text-sm font-semibold text-slate-800 truncate">{variety(f.variant) || '—'}</span>
@@ -173,8 +174,10 @@ const GradeFruit: React.FC<{ f: FruitRow; existing?: import('../lib/grading').Tr
   const [photos, setPhotos] = useState<ReportPhoto[]>(existing?.photos || []);
   const [uploading, setUploading] = useState(0);
   const [by, setBy] = useState(existing?.by || readName());
-  const [state, setState] = useState<'idle' | 'saving' | 'error'>('idle');
-  useEffect(() => window.scrollTo(0, 0), []);
+  const [state, setState] = useState<SaveState>('idle');
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
   const total = sampleTotal({ qc: { ...kebun, ...qc } });
   const shopDone = MGMT.every((c) => qc[c.key] !== undefined);
   const save = async () => {
@@ -201,10 +204,13 @@ const GradeFruit: React.FC<{ f: FruitRow; existing?: import('../lib/grading').Tr
       try {
         const g = sampleTotal({ qc: { ...kebun, ...qc } });
         sessionStorage.setItem('cilowong.qc.saved', t('qcs.saved', { tree, grade: t(`qc.grade.${g.grade}`), pct: g.pct.toLocaleString(locale) }));
+        sessionStorage.setItem('cilowong.qc.savedKey', f.key);
       } catch {
         /* no message, the list still shows it graded */
       }
-      navigate(qcUrl(), { replace: true });
+      // The tick shows for a moment, then back to the list, where the fruit lights up under "Sudah dinilai".
+      setState('saved');
+      setTimeout(() => navigate(qcUrl(), { replace: true }), 1100);
     } catch (e) {
       console.error('Shop grading save failed:', e);
       setState('error');
@@ -270,10 +276,7 @@ const GradeFruit: React.FC<{ f: FruitRow; existing?: import('../lib/grading').Tr
             <span className="text-xs text-slate-500"> · {t('qc.progress', { n: MGMT.filter((c) => qc[c.key] !== undefined).length, total: MGMT.length })}</span>
           )}
         </span>
-        <button type="button" onClick={save} disabled={!shopDone || state === 'saving' || uploading > 0 || !tree} className={`${btnPrimary} min-h-12 px-6 text-base`}>
-          {state === 'saving' && <Loader2 className="w-4 h-4 animate-spin" />}
-          {t('qcs.save')}
-        </button>
+        <SaveButton big state={state} onClick={save} disabled={!shopDone || uploading > 0 || !tree || state === 'saved'} label={t('qcs.save')} />
         {!shopDone && <span className="w-full text-xs text-slate-500">{t('qcs.allSix')}</span>}
         {state === 'error' && <span role="alert" className="w-full text-xs text-rose-700">{t('fr.saveError')}</span>}
       </div>

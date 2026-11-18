@@ -1,5 +1,5 @@
 import React from 'react';
-import { Camera, Image as ImageIcon, Loader2 } from 'lucide-react';
+import { AlertCircle, Camera, Check, Image as ImageIcon, Loader2 } from 'lucide-react';
 import { useT } from '../i18n';
 import type { Criterion } from '../lib/grading';
 import type { ReportPhoto } from '../types';
@@ -142,5 +142,66 @@ export const QcPhotos: React.FC<{
       </div>
       {error && <p role="alert" className="mt-1 text-xs text-rose-700">{t('qc.photoError')}</p>}
     </div>
+  );
+};
+
+export type SaveState = 'idle' | 'saving' | 'saved' | 'error';
+
+/**
+ * A QC save button that answers every tap: it presses in, spins with "Menyimpan…" while saving, turns into a green
+ * tick that pops ("Tersimpan", with a short buzz on phones) when saved, and shakes red when it failed.
+ */
+export const SaveButton: React.FC<{
+  state: SaveState;
+  onClick: () => void;
+  disabled?: boolean;
+  label: string;
+  savedLabel?: string;
+  big?: boolean;
+}> = ({ state, onClick, disabled, label, savedLabel, big }) => {
+  const { t } = useT();
+  React.useEffect(() => {
+    if (state !== 'saved') return;
+    try {
+      navigator.vibrate?.(40);
+    } catch {
+      /* no buzz on this device */
+    }
+  }, [state]);
+  const tone =
+    state === 'saved'
+      ? 'bg-emerald-700 animate-pop'
+      : state === 'saving'
+        ? 'bg-emerald-600 cursor-wait'
+        : state === 'error'
+          ? 'bg-rose-600 hover:bg-rose-700 animate-shake'
+          : 'bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 disabled:text-slate-500';
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled || state === 'saving'}
+      aria-live="polite"
+      className={`${big ? 'min-h-12 px-6 text-base' : 'min-h-11 px-4 text-sm'} min-w-32 rounded-xl text-white font-bold inline-flex items-center justify-center gap-2 transition-[transform,background-color] duration-150 active:scale-95 disabled:cursor-not-allowed disabled:active:scale-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 ${tone}`}
+    >
+      {state === 'saving' ? (
+        <>
+          <Loader2 className="w-5 h-5 animate-spin" />
+          {t('qc.saving')}
+        </>
+      ) : state === 'saved' ? (
+        <>
+          <Check className="w-5 h-5" strokeWidth={3} />
+          {savedLabel || t('qc.saved')}
+        </>
+      ) : state === 'error' ? (
+        <>
+          <AlertCircle className="w-5 h-5" />
+          {t('qc.retry')}
+        </>
+      ) : (
+        label
+      )}
+    </button>
   );
 };

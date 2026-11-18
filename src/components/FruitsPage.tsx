@@ -2,7 +2,7 @@ import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { type KupasBox, shortBox } from '../lib/kupas';
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowDown, ArrowLeft, ArrowUp, CalendarDays, Image as ImageIcon, Check, ChevronLeft, ChevronRight, Download, Loader2, Pencil, Search, Trash2 } from 'lucide-react';
+import { ArrowDown, ArrowLeft, ArrowUp, CalendarDays, Image as ImageIcon, ChevronLeft, ChevronRight, Download, Loader2, Pencil, Search, Trash2 } from 'lucide-react';
 import { useFarm } from '../context/FarmContext';
 import { useT } from '../i18n';
 import { fruitUrl, fruitsUrl, goBack, kupasUrl, navigate, reportUrl, treeUrl, useQueryParams } from '../lib/router';
@@ -23,7 +23,7 @@ import {
 import { codeOnTree, moveHarvestFruit, removeHarvestFruit, saveTreeGrade, updateHarvestItems } from '../lib/fieldData';
 import { toCsv } from '../lib/kebun';
 import { CRITERIA, GRADE_FROM, GROUPS, type Grade, type QcKey, currentScores, newestFirst, sampleTotal, storedScore } from '../lib/grading';
-import { QcPhotos, ScoreSlider } from './QcBits';
+import { QcPhotos, SaveButton, ScoreSlider } from './QcBits';
 import { diffDays, formatShortDate, todayStr } from '../lib/treatments';
 import { PageHeader, btnPrimary, btnSecondary, inputCls } from './PageHeader';
 import { Link } from './Link';
@@ -985,16 +985,12 @@ const QcSection: React.FC<{ f: FruitRow; all: FruitRow[] }> = ({ f, all }) => {
             <span className="text-xs text-slate-500"> · {t('qc.progress', { n: total.scored, total: CRITERIA.length })}</span>
           )}
         </span>
-        {state === 'saved' && !changed && next ? (
-          <Link to={fruitUrl(next.key)} replace className={btnPrimary}>
+        {state === 'saved' && !changed && next && (
+          <Link to={fruitUrl(next.key)} replace className={btnSecondary}>
             {t('qc.next', { code: next.treeId || next.key })}
           </Link>
-        ) : (
-          <button type="button" onClick={save} disabled={(!changed && !!mine) || state === 'saving' || uploading > 0 || !tree} className={btnPrimary}>
-            {state === 'saving' ? <Loader2 className="w-4 h-4 animate-spin" /> : state === 'saved' && !changed ? <Check className="w-4 h-4" /> : null}
-            {state === 'saved' && !changed ? t('qc.saved') : t('qc.saveTree')}
-          </button>
         )}
+        <SaveButton state={state === 'saved' && changed ? 'idle' : state} onClick={save} disabled={(!changed && !!mine) || uploading > 0 || !tree} label={t('qc.saveTree')} />
         {state === 'error' && <span role="alert" className="w-full text-xs text-rose-700">{t('fr.saveError')}</span>}
       </div>
     </section>
