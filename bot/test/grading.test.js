@@ -8,14 +8,14 @@ const a3 = { wangi: 3, kulitBersih: 2, kulitTipis: 2, bentuk: 2, juring: 3, biji
 
 test('the tree grade is the same as the webapp: totals, management\'s call, newest graded sampling', () => {
   assert.equal(G.sampleTotal({ qc: a3 }).grade, 'high');
-  assert.equal(Math.round(G.sampleTotal({ qc: a3 }).pct), 74);
+  assert.equal(Math.round(G.sampleTotal({ qc: a3 }).pct), 76, 'the old 14 scores blended into the 9: 74% then, 76% now');
   assert.equal(G.sampleTotal({ grade: 'low' }).grade, 'low', 'B29: LOW with no scores');
   assert.equal(G.sampleTotal({ qc: { manis: 5 } }).grade, 'ungraded');
   const g = G.treeGrade([
     { date: '2026-10-26', qc: a3 },
     { date: '2026-11-06', qc: { manis: 5 } }, // newer, unfinished: the older stands
   ]);
-  assert.deepEqual([g.grade, Math.round(g.pct), g.date], ['high', 74, '2026-10-26']);
+  assert.deepEqual([g.grade, Math.round(g.pct), g.date], ['high', 76, '2026-10-26']);
   assert.equal(G.treeGrade([]).grade, 'ungraded');
 });
 
@@ -54,4 +54,12 @@ test('the bot takes the latest graded fruit too (A7: fruit 02 after the sheet\'s
     { date: '2026-11-04', fruitCode: 'A7-20261104-02', qc: full(3.6), at: '2026-11-07T04:26' },
   ]);
   assert.equal(g.grade, 'high');
+});
+
+test('a grading of the 9 criteria (the shop page): scored as the webapp, all 9 needed', () => {
+  const qc = { bentuk: 4, kulitBersih: 4, wangi: 4, manis: 4, creamy: 4, daging: 4, warna: 4, kulitTipis: 4, pahit: 4 };
+  assert.deepEqual(G.sampleTotal({ qc }), { pct: 80, complete: true, grade: 'high' });
+  assert.equal(G.sampleTotal({ qc: { ...qc, manis: 2, creamy: 2.5 } }).pct, 66);
+  const { pahit, ...eight } = qc;
+  assert.equal(G.sampleTotal({ qc: eight }).grade, 'ungraded');
 });

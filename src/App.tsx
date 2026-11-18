@@ -27,6 +27,7 @@ const ProblemsPage = lazy(() => import('./components/Problems').then((m) => ({ d
 const ProblemPage = lazy(() => import('./components/ProblemPage').then((m) => ({ default: m.ProblemPage })));
 const CountPage = lazy(() => import('./components/CountPage').then((m) => ({ default: m.CountPage })));
 const MorePage = lazy(() => import('./components/MorePage').then((m) => ({ default: m.MorePage })));
+const QcStationPage = lazy(() => import('./components/QcStationPage').then((m) => ({ default: m.QcStationPage })));
 const WorkersPage = lazy(() => import('./components/WorkersPage').then((m) => ({ default: m.WorkersPage })));
 
 const AppContent: React.FC = () => {
@@ -46,6 +47,26 @@ const AppContent: React.FC = () => {
     document.title = `${route.treeId ? t('app.title.tree', { id: route.treeId }) : route.reportId ? t('app.title.report') : route.pageKey === 'count' ? t('count.title') : route.fruitCode ? route.fruitCode : route.prices ? t('mp.title') : route.fruits ? t('fr.title') : t(TAB_TITLES[route.tab])} · Cilowong`;
     mainRef.current?.focus({ preventScroll: true });
   }, [route.pageKey, lang]);
+
+  // The shop team's grading page stands alone: no tabs, nothing else of the app.
+  if (route.tab === 'qc')
+    return (
+      <div className="min-h-screen bg-slate-100 text-slate-900 font-sans">
+        {error && <div role="alert" className="bg-rose-600 text-white px-4 py-2 text-sm font-medium">{error}</div>}
+        {loading ? (
+          <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-2.5" role="status">
+            <RefreshCw className="w-7 h-7 text-emerald-600 animate-spin" />
+            <p className="text-sm font-medium text-slate-600">{t('app.loading')}</p>
+          </div>
+        ) : (
+          <ErrorBoundary key={lang} resetKey={route.pageKey}>
+            <Suspense fallback={<div className="m-4 h-64 rounded-xl bg-white border border-slate-200 animate-pulse" />}>
+              <QcStationPage fruitKey={route.fruitCode} />
+            </Suspense>
+          </ErrorBoundary>
+        )}
+      </div>
+    );
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-100 text-slate-900 font-sans">

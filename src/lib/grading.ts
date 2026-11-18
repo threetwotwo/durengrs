@@ -1,28 +1,22 @@
 /**
- * Fruit grading, the Kb. AVINA harvest report: 14 criteria in five groups, each with its weight (together 100%).
- * Three are scored by the worker in Laporan PANEN (aroma, kulit, bentuk: 1-5); management scores the other 11 on the
- * fruit's page, 1 (the second word: Cacat, Rongga, Pucat…) to 5 (the first: Bersih, Penuh, Terang…). A criterion
- * gives weight × score / 5, so the total runs to 100%; the grade follows the total.
+ * Fruit grading, 9 criteria with weights (together 100%). The farm team scores three in Laporan PANEN on WhatsApp
+ * (bentuk buah, warna kulit, aroma: 1-5, the fruit's own shape, skin, aroma); the shop team opens the fruit and scores
+ * the other six on the webapp (#/qc), 1 to 5 in halves. A criterion gives weight × score / 5, so the total runs to
+ * 100%; the grade follows the total.
+ *
+ * Gradings made before (14 criteria) keep their scores; the two new criteria come from the old ones blended:
+ * tekstur creamy = mean(lemak, tekstur, kering), ketebalan daging = mean(daging tebal, biji, juring). Juring, biji,
+ * kering, tekstur and unik count only through those.
  */
 import type { HarvestFruit } from './fieldData';
 
-export type QcKey =
-  | 'wangi'
-  | 'kulitBersih'
-  | 'kulitTipis'
-  | 'bentuk'
-  | 'juring'
-  | 'biji'
-  | 'dagingTebal'
-  | 'warna'
-  | 'benyek'
-  | 'tekstur'
-  | 'manis'
-  | 'lemak'
-  | 'pahit'
-  | 'unik';
+export type QcKey = 'bentuk' | 'kulitBersih' | 'wangi' | 'manis' | 'creamy' | 'daging' | 'warna' | 'kulitTipis' | 'pahit';
+/** Scores of the old 14-criteria grading, kept on the samplings made with it. */
+export type OldQcKey = 'juring' | 'biji' | 'dagingTebal' | 'benyek' | 'tekstur' | 'lemak' | 'unik';
+export type QcScores = Partial<Record<QcKey | OldQcKey, number>>;
 
-export type QcGroup = 'aroma' | 'kulit' | 'buah' | 'daging' | 'rasa';
+/** Who scores it: the farm team (Laporan PANEN on WhatsApp) or the shop team (the webapp). */
+export type QcGroup = 'kebun' | 'toko';
 
 export interface Criterion {
   key: QcKey;
@@ -34,24 +28,41 @@ export interface Criterion {
 }
 
 export const CRITERIA: Criterion[] = [
-  { key: 'wangi', group: 'aroma', weight: 5, from: 'aroma' },
-  { key: 'kulitBersih', group: 'kulit', weight: 5, from: 'skin' },
-  { key: 'kulitTipis', group: 'kulit', weight: 5 },
-  { key: 'bentuk', group: 'buah', weight: 5, from: 'shape' },
-  { key: 'juring', group: 'buah', weight: 5 },
-  { key: 'biji', group: 'buah', weight: 10 },
-  { key: 'dagingTebal', group: 'daging', weight: 10 },
-  { key: 'warna', group: 'daging', weight: 10 },
-  { key: 'benyek', group: 'daging', weight: 5 },
-  { key: 'tekstur', group: 'daging', weight: 5 },
-  { key: 'manis', group: 'rasa', weight: 15 },
-  { key: 'lemak', group: 'rasa', weight: 10 },
-  { key: 'pahit', group: 'rasa', weight: 5 },
-  { key: 'unik', group: 'rasa', weight: 5 },
+  { key: 'bentuk', group: 'kebun', weight: 5, from: 'shape' },
+  { key: 'kulitBersih', group: 'kebun', weight: 5, from: 'skin' },
+  { key: 'wangi', group: 'kebun', weight: 5, from: 'aroma' },
+  { key: 'manis', group: 'toko', weight: 20 },
+  { key: 'creamy', group: 'toko', weight: 20 },
+  { key: 'daging', group: 'toko', weight: 20 },
+  { key: 'warna', group: 'toko', weight: 15 },
+  { key: 'kulitTipis', group: 'toko', weight: 5 },
+  { key: 'pahit', group: 'toko', weight: 5 },
 ];
-export const GROUPS: QcGroup[] = ['aroma', 'kulit', 'buah', 'daging', 'rasa'];
-/** The criteria management fills in. */
+export const GROUPS: QcGroup[] = ['kebun', 'toko'];
+/** The criteria the shop team scores. */
 export const MGMT = CRITERIA.filter((c) => !c.from);
+
+const okScore = (v: unknown): v is number => typeof v === 'number' && v >= 0 && v <= 5;
+const mean = (...v: unknown[]) => (v.every(okScore) ? (v as number[]).reduce((a, b) => a + b, 0) / v.length : undefined);
+
+/** A criterion's score from a sampling's stored scores: its own, or for an old grading the blend of its old ones. */
+export function storedScore(qc: QcScores | undefined, key: QcKey): number | undefined {
+  if (!qc) return undefined;
+  if (okScore(qc[key])) return qc[key];
+  if (key === 'creamy') return mean(qc.lemak, qc.tekstur, qc.benyek);
+  if (key === 'daging') return mean(qc.dagingTebal, qc.biji, qc.juring);
+  return undefined;
+}
+
+/** The 9 scores of a sampling (old gradings blended), for the form and the table. */
+export function currentScores(qc: QcScores | undefined): Partial<Record<QcKey, number>> {
+  const out: Partial<Record<QcKey, number>> = {};
+  for (const c of CRITERIA) {
+    const v = storedScore(qc, c.key);
+    if (v !== undefined) out[c.key] = Math.round(v * 100) / 100;
+  }
+  return out;
+}
 
 export type Grade = 'high' | 'midhigh' | 'mid' | 'low' | 'ungraded';
 /**
@@ -62,22 +73,21 @@ export type Grade = 'high' | 'midhigh' | 'mid' | 'low' | 'ungraded';
 export const GRADE_FROM = { high: 70, midhigh: 60, mid: 50 } as const;
 
 /**
- * One criterion's score on a fruit, 0-5: management's when it has one (the QC sheet scores all 14, in steps finer
- * than whole numbers: 9 points of 10 is 4.5), else, for aroma, skin and shape, the worker's own.
+ * One criterion's score on a fruit, 0-5: the grading's when it has one, else, for aroma, skin and shape, the
+ * worker's own.
  */
 export function scoreOf(f: Pick<HarvestFruit, 'aroma' | 'skin' | 'shape' | 'qc'>, c: Criterion): number | undefined {
-  const ok = (v: unknown): v is number => typeof v === 'number' && v >= 0 && v <= 5;
-  const m = f.qc?.[c.key];
-  if (ok(m)) return m;
+  const m = storedScore(f.qc, c.key);
+  if (m !== undefined) return m;
   const w = c.from ? f[c.from] : undefined;
-  return ok(w) && w >= 1 ? w : undefined;
+  return okScore(w) && w >= 1 ? w : undefined;
 }
 
 const GRADES: Grade[] = ['high', 'midhigh', 'mid', 'low'];
 
 /**
- * A fruit's total: points (weight × score / 5, out of 100) of the criteria scored, how many of the 14 have a score,
- * and the grade (management's own when set, else from the total; Ungraded until all 14 have a score).
+ * A fruit's total: points (weight × score / 5, out of 100) of the criteria scored, how many of the 9 have a score,
+ * and the grade (management's own when set, else from the total; Ungraded until all 9 have a score).
  */
 export function qcTotal(f: Pick<HarvestFruit, 'aroma' | 'skin' | 'shape' | 'qc' | 'qcGrade'>) {
   let points = 0;
@@ -104,7 +114,7 @@ export const checkQc = (v: unknown): number | undefined =>
 
 /**
  * Grading lives on the tree: management samples one fruit (in the sheet's words, "1pc mewakili 1 pohon") and that
- * fruit's 14 scores grade the tree; every fruit of the tree carries its grade. Each sampling is one document in
+ * fruit's scores grade the tree; every fruit of the tree carries its grade. Each sampling is one document in
  * `treeGrades`; the tree's grade is its newest sampling that has a grade, so an older one stays as history.
  */
 export interface TreeGrade {
@@ -112,8 +122,10 @@ export interface TreeGrade {
   treeId: string;
   /** The sampled fruit's day (YYYY-MM-DD). */
   date: string;
-  /** All 14 criteria, 0-5 (the sheet's points as scores: 9 of 10 is 4.5). */
-  qc?: Partial<Record<QcKey, number>>;
+  /** The 9 criteria, 0-5 (older gradings: the 14 of then, see storedScore). */
+  qc?: QcScores;
+  /** Who scored it on the shop's grading page (#/qc). */
+  by?: string;
   /** Management's own call, over the total (the sheet's MGMT QC). */
   grade?: Grade;
   note?: string;
@@ -122,11 +134,11 @@ export interface TreeGrade {
   fruitKey?: string;
   fruitCode?: string;
   weightG?: number;
-  from?: 'sheet' | 'webapp';
+  from?: 'sheet' | 'webapp' | 'toko' | 'whatsapp-qc';
   at?: string;
 }
 
-/** A sampling's total and grade: its own 14 scores (no worker fallback), management's grade over the total. */
+/** A sampling's total and grade: its own scores (no worker fallback), management's grade over the total. */
 export function sampleTotal(s: Pick<TreeGrade, 'qc' | 'grade'>) {
   return qcTotal({ aroma: NaN, skin: NaN, shape: NaN, qc: s.qc, qcGrade: s.grade });
 }

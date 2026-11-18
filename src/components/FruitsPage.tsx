@@ -2,7 +2,7 @@ import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { type KupasBox, shortBox } from '../lib/kupas';
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowDown, ArrowLeft, ArrowUp, CalendarDays, Camera, Image as ImageIcon, Check, ChevronLeft, ChevronRight, Download, Loader2, Pencil, Search, Trash2 } from 'lucide-react';
+import { ArrowDown, ArrowLeft, ArrowUp, CalendarDays, Image as ImageIcon, Check, ChevronLeft, ChevronRight, Download, Loader2, Pencil, Search, Trash2 } from 'lucide-react';
 import { useFarm } from '../context/FarmContext';
 import { useT } from '../i18n';
 import { fruitUrl, fruitsUrl, goBack, kupasUrl, navigate, reportUrl, treeUrl, useQueryParams } from '../lib/router';
@@ -22,7 +22,8 @@ import {
 } from '../lib/fruits';
 import { codeOnTree, moveHarvestFruit, removeHarvestFruit, saveTreeGrade, updateHarvestItems } from '../lib/fieldData';
 import { toCsv } from '../lib/kebun';
-import { CRITERIA, GRADE_FROM, GROUPS, type Grade, type QcKey, newestFirst, sampleTotal } from '../lib/grading';
+import { CRITERIA, GRADE_FROM, GROUPS, type Grade, type QcKey, currentScores, newestFirst, sampleTotal, storedScore } from '../lib/grading';
+import { QcPhotos, ScoreSlider } from './QcBits';
 import { diffDays, formatShortDate, todayStr } from '../lib/treatments';
 import { PageHeader, btnPrimary, btnSecondary, inputCls } from './PageHeader';
 import { Link } from './Link';
@@ -483,7 +484,7 @@ export const FruitsPage: React.FC = () => {
                   <td className={`${td} text-center`}><ScoreChip v={r.skin} /></td>
                   <td className={`${td} text-center`}><ScoreChip v={r.shape} /></td>
                   {CRITERIA.map((c, j) => {
-                    const v = sampled ? r.tg!.sample.qc?.[c.key] : undefined;
+                    const v = sampled ? storedScore(r.tg!.sample.qc, c.key) : undefined;
                     return (
                       <td key={c.key} className={`${td} ${wide} text-center ${j === 0 || CRITERIA[j - 1].group !== c.group ? 'border-l border-slate-100' : ''}`}>
                         {typeof v === 'number' ? <ScoreChip v={Math.round(v * 10) / 10} size="sm" /> : ''}
@@ -809,7 +810,6 @@ const KupasOfFruit: React.FC<{ code: string }> = ({ code }) => {
 };
 
 /** A score as typed (4) or from the sheet (4.5, 0). */
-const fmtScore = (v: number | undefined) => (v === undefined ? '' : String(Math.round(v * 100) / 100));
 /** One sampling per fruit: treeGrades/{harvest id}-{place}. */
 const sampleId = (f: FruitRow) => `${f.harvest.id}-${f.index}`;
 
@@ -833,7 +833,7 @@ const QcSection: React.FC<{ f: FruitRow; all: FruitRow[] }> = ({ f, all }) => {
   const current = f.tg?.sample;
   const start = useMemo(() => {
     const scored = samples.find((g) => g.qc && Object.keys(g.qc).length);
-    const base: Partial<Record<QcKey, number>> = { ...((mine || (current?.qc && Object.keys(current.qc).length ? current : scored))?.qc || {}) };
+    const base: Partial<Record<QcKey, number>> = currentScores((mine || (current?.qc && Object.keys(current.qc).length ? current : scored))?.qc);
     // The worker's own scores of this fruit, where the tree has none yet.
     for (const c of CRITERIA) if (c.from && base[c.key] === undefined && f[c.from] >= 1 && f[c.from] <= 5) base[c.key] = f[c.from];
     return base;
@@ -844,7 +844,6 @@ const QcSection: React.FC<{ f: FruitRow; all: FruitRow[] }> = ({ f, all }) => {
   const [note, setNote] = useState(startNote);
   const [photos, setPhotos] = useState(startPhotos);
   const [uploading, setUploading] = useState(0);
-  const [photoError, setPhotoError] = useState(false);
   const [state, setState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   useEffect(() => {
     setQc(start);
@@ -856,28 +855,10 @@ const QcSection: React.FC<{ f: FruitRow; all: FruitRow[] }> = ({ f, all }) => {
   }, [f.key, mine?.id, current?.id]);
   const total = sampleTotal({ qc });
   const changed =
-    JSON.stringify(qc) !== JSON.stringify(mine?.qc || (mine ? {} : null)) || note.trim() !== startNote || photos.length !== startPhotos.length;
+    JSON.stringify(qc) !== JSON.stringify(mine ? currentScores(mine.qc) : null) || note.trim() !== startNote || photos.length !== startPhotos.length;
   const next = all
     .filter((r) => r.key !== f.key && !r.tg && r.treeId)
     .sort((a, b) => b.date.localeCompare(a.date) || a.key.localeCompare(b.key))[0];
-  const addPhoto = async (list: File[]) => {
-    if (!list.length) return;
-    const { uploadTreePhoto } = await import('../lib/photoUpload');
-    for (const file of list) {
-      setUploading((n) => n + 1);
-      setPhotoError(false);
-      try {
-        const up = await uploadTreePhoto(file, tree || 'tree', `${sampleId(f)}-${Date.now()}`, 'qc-photos');
-        setPhotos((p) => [...p, { url: up.url, medium: up.medium, thumb: up.thumb }]);
-        setState('idle');
-      } catch (e) {
-        console.error('Grading photo upload failed:', e);
-        setPhotoError(true);
-      } finally {
-        setUploading((n) => n - 1);
-      }
-    }
-  };
   const save = async () => {
     setState('saving');
     try {
@@ -930,111 +911,22 @@ const QcSection: React.FC<{ f: FruitRow; all: FruitRow[] }> = ({ f, all }) => {
             <p className="text-xs font-bold uppercase tracking-wide text-slate-500 pt-2 pb-1">
               {t(`qc.g.${g}`)} <span className="font-normal normal-case">· {list.reduce((n, c) => n + c.weight, 0)}%</span>
             </p>
-            {list.map((c) => {
-              const v = qc[c.key];
-              const set = (n: number | undefined) => {
-                setQc((x) => (n === undefined ? Object.fromEntries(Object.entries(x).filter(([k]) => k !== c.key)) : { ...x, [c.key]: n }));
-                setState('idle');
-              };
-              // The slider's colour follows the score: red below 2.5, amber to 3.5, green from 4; grey until scored.
-              const accent = v === undefined ? '#cbd5e1' : v >= 4 ? '#059669' : v >= 2.5 ? '#f59e0b' : '#e11d48';
-              return (
-                <div key={c.key} className="py-2">
-                  <div className="flex items-baseline justify-between gap-2">
-                    <span className="text-sm font-semibold text-slate-900">
-                      {t(`qc.c.${c.key}`)} <span className="text-xs font-normal text-slate-500">{c.weight}%</span>
-                    </span>
-                    <span className="text-[11px] text-slate-500 text-right">{t(`qc.c.${c.key}.scale`)}</span>
-                  </div>
-                  <div className="mt-1 flex items-center gap-3">
-                    <div className="flex-1 min-w-0">
-                      <input
-                        type="range"
-                        min={1}
-                        max={5}
-                        step={0.5}
-                        value={v ?? 3}
-                        aria-label={t(`qc.c.${c.key}`)}
-                        aria-valuetext={v === undefined ? t('qc.unscored') : fmtScore(v)}
-                        onChange={(e) => set(Number(e.currentTarget.value))}
-                        // A tap on an unscored slider takes the value where it sits (3), as a drag would.
-                        onPointerUp={(e) => v === undefined && set(Number(e.currentTarget.value))}
-                        onKeyUp={(e) => v === undefined && set(Number(e.currentTarget.value))}
-                        className={`w-full h-8 cursor-pointer ${v === undefined ? 'opacity-50' : ''}`}
-                        style={{ accentColor: accent }}
-                      />
-                      <div className="flex justify-between px-[6px] text-[10px] text-slate-400 tabular select-none" aria-hidden="true">
-                        {[1, 2, 3, 4, 5].map((n) => (
-                          <span key={n}>{n}</span>
-                        ))}
-                      </div>
-                    </div>
-                    <span className={`w-12 shrink-0 text-center rounded-lg py-1.5 text-base font-bold tabular ${v === undefined ? 'text-slate-400 bg-slate-50 border border-dashed border-slate-300' : 'text-white'}`} style={v === undefined ? undefined : { background: accent }}>
-                      {v === undefined ? '–' : fmtScore(v)}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => set(undefined)}
-                      disabled={v === undefined}
-                      aria-label={t('qc.clear', { c: t(`qc.c.${c.key}`) })}
-                      className="w-7 h-7 shrink-0 rounded-full text-slate-400 hover:text-slate-900 hover:bg-slate-100 disabled:invisible"
-                    >
-                      ×
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
+            {list.map((c) => (
+              <ScoreSlider
+                key={c.key}
+                c={c}
+                v={qc[c.key]}
+                set={(n) => {
+                  setQc((x) => (n === undefined ? Object.fromEntries(Object.entries(x).filter(([k]) => k !== c.key)) : { ...x, [c.key]: n }));
+                  setState('idle');
+                }}
+              />
+            ))}
           </fieldset>
         );
       })}
       <div className="px-4 sm:px-5 py-3 border-t border-slate-100 space-y-3">
-        <div>
-          <span className="text-sm font-semibold text-slate-800">{t('qc.photos')}</span>
-          <div className="mt-1 flex items-center gap-2 flex-wrap">
-            {(['camera', 'gallery'] as const).map((src) => (
-              <label key={src} className={`${btnSecondary} cursor-pointer`}>
-                {src === 'camera' ? <Camera className="w-4 h-4" /> : <ImageIcon className="w-4 h-4" />}
-                {t(src === 'camera' ? 'qc.photoAdd' : 'qc.photoGallery')}
-                <input
-                  type="file"
-                  accept="image/*"
-                  {...(src === 'camera' ? { capture: 'environment' as const } : { multiple: true })}
-                  className="sr-only"
-                  onChange={(e) => {
-                    // Copied before the input is reset: resetting it empties its FileList.
-                    const list = Array.from(e.target.files || []);
-                    e.target.value = '';
-                    addPhoto(list);
-                  }}
-                />
-              </label>
-            ))}
-            {uploading > 0 && (
-              <span className="inline-flex items-center gap-1.5 text-xs text-slate-600">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                {t('qc.photoUploading')}
-              </span>
-            )}
-            {photos.map((ph, i) => (
-              <span key={ph.url} className="relative">
-                <img src={ph.thumb || ph.medium || ph.url} alt="" className="w-14 h-14 rounded-md object-cover border border-slate-200" />
-                <button
-                  type="button"
-                  aria-label={t('qc.photoRemove', { i: i + 1 })}
-                  onClick={() => {
-                    setPhotos((p) => p.filter((x) => x.url !== ph.url));
-                    setState('idle');
-                  }}
-                  className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-slate-900 text-white text-xs leading-5"
-                >
-                  ×
-                </button>
-              </span>
-            ))}
-          </div>
-          {photoError && <p role="alert" className="mt-1 text-xs text-rose-700">{t('qc.photoError')}</p>}
-        </div>
+        <QcPhotos photos={photos} setPhotos={setPhotos} uploading={uploading} setUploading={setUploading} tree={tree} name={sampleId(f)} onChange={() => setState('idle')} />
         <label className="block space-y-1">
           <span className="text-sm font-semibold text-slate-800">{t('qc.note')}</span>
           <textarea

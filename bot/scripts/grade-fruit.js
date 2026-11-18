@@ -1,7 +1,8 @@
 // scripts/grade-fruit.js — management's grading sent outside the webapp (WhatsApp) onto each tree's newest fruit,
 // as the webapp's QC section saves it (treeGrades/{harvest id}-{place}). bot/data/qc-manual.json lists, per tree,
-// the scores given (criteria keys of lib/grading.js) and a grade; criteria not given are filled in: wangi from the
-// worker's aroma in Laporan PANEN (else 2), the rest 3 (unik 1). The grade given stands over the total.
+// the shop criteria given (manis, creamy, daging, warna, kulitTipis, pahit: lib/grading.js) and a grade; bentuk,
+// warna kulit and aroma come from the worker's Laporan PANEN (else 3), shop criteria not given are 3. The grade
+// given stands over the total.
 //   node scripts/grade-fruit.js [apply]     without apply: show what would be saved
 'use strict';
 const fs = require('fs');
@@ -16,7 +17,8 @@ process.env.GOOGLE_SERVICE_ACCOUNT_KEY_FILE = path.join(root, 'service-account.j
 const { db } = require('../lib/firestore');
 const G = require('../lib/grading');
 
-const FILL = { kulitTipis: 3, juring: 3, biji: 3, benyek: 3, tekstur: 3, unik: 1 };
+const FILL = { manis: 3, creamy: 3, daging: 3, warna: 3, kulitTipis: 3, pahit: 3 };
+const worker = (v) => (Number(v) >= 1 && Number(v) <= 5 ? Number(v) : 3);
 
 async function main() {
   const apply = process.argv[2] === 'apply';
@@ -32,7 +34,7 @@ async function main() {
       console.log(`${g.tree}: no fruit found, skipped`);
       continue;
     }
-    const qc = { wangi: Number(f.aroma) >= 1 ? Number(f.aroma) : 2, ...FILL, ...g.given };
+    const qc = { bentuk: worker(f.shape), kulitBersih: worker(f.skin), wangi: worker(f.aroma), ...FILL, ...g.given };
     const t = G.sampleTotal({ qc });
     const id = `${f.id}-${f.i}`;
     const old = await db.collection('treeGrades').doc(id).get();

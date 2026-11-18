@@ -18,6 +18,7 @@ import { useCallback, useSyncExternalStore } from 'react';
  *   #/harvest/kupas         the kupas station's boxes (Laporan KUPAS)
  *   #/grades                the grading board: each variety's fruiting trees by grade (was #/harvest/grades)
  *   #/prices                other vendors' prices (?week=2026-11-09; was #/harvest/prices)
+ *   #/qc                    the shop team's grading page, on its own (no tabs); #/qc/<fruit code> one fruit
  *   #/more                  the pages used less: schedule, variants, workers, kupas boxes, guide
  *   #/schedule              routines (sprays, fertiliser rounds)
  *   #/variants
@@ -28,7 +29,7 @@ import { useCallback, useSyncExternalStore } from 'react';
  * gives working Back/Forward, shareable deep links, and survives reloads.
  */
 
-export type AppTab = 'dashboard' | 'trees' | 'reports' | 'problems' | 'harvest' | 'grades' | 'prices' | 'stock' | 'more' | 'schedule' | 'variants' | 'workers' | 'guide';
+export type AppTab = 'dashboard' | 'trees' | 'reports' | 'problems' | 'harvest' | 'grades' | 'prices' | 'stock' | 'more' | 'schedule' | 'variants' | 'workers' | 'guide' | 'qc';
 
 export interface Route {
   tab: AppTab;
@@ -57,7 +58,7 @@ export interface Route {
   known: boolean;
 }
 
-const TABS: AppTab[] = ['dashboard', 'trees', 'reports', 'problems', 'harvest', 'grades', 'prices', 'stock', 'more', 'schedule', 'variants', 'workers', 'guide'];
+const TABS: AppTab[] = ['dashboard', 'trees', 'reports', 'problems', 'harvest', 'grades', 'prices', 'stock', 'more', 'schedule', 'variants', 'workers', 'guide', 'qc'];
 
 /** The pages behind More: the More tab is lit on them. */
 export const MORE_TABS: AppTab[] = ['more', 'schedule', 'variants', 'workers', 'guide'];
@@ -100,6 +101,7 @@ export function parseHash(hash: string): Route {
     else if (tab === 'guide' && segs.length === 2) topicId = decodeURIComponent(segs[1]);
     else if (tab === 'reports' && segs.length === 2) reportId = decodeURIComponent(segs[1]);
     else if (tab === 'problems' && segs.length === 2) caseId = decodeURIComponent(segs[1]);
+    else if (tab === 'qc' && segs.length === 2) fruitCode = decodeURIComponent(segs[1]);
     else if (tab === 'harvest' && segs[1] === 'fruits' && segs.length <= 3) {
       fruits = true;
       fruitCode = segs[2] ? decodeURIComponent(segs[2]) : null;
@@ -110,7 +112,7 @@ export function parseHash(hash: string): Route {
   } else {
     known = false;
   }
-  const pageKey = segs[0] === 'count' ? 'count' : prices ? 'prices' : kupas ? 'kupas' : board ? 'board' : fruits ? `fruits:${fruitCode ?? ''}` : `${tab}:${treeId ?? topicId ?? reportId ?? caseId ?? ''}`;
+  const pageKey = segs[0] === 'count' ? 'count' : prices ? 'prices' : kupas ? 'kupas' : board ? 'board' : fruits ? `fruits:${fruitCode ?? ''}` : `${tab}:${treeId ?? topicId ?? reportId ?? caseId ?? fruitCode ?? ''}`;
   return { tab, treeId, topicId, reportId, caseId, fruits, fruitCode, prices, kupas, board, params, path, pageKey, known };
 }
 
@@ -246,6 +248,8 @@ export const fruitUrl = (key: string) => `/harvest/fruits/${encodeURIComponent(k
 export const pricesUrl = () => '/prices';
 export const kupasUrl = () => '/harvest/kupas';
 export const boardUrl = () => '/grades';
+/** The shop team's grading page, or one fruit on it. */
+export const qcUrl = (key?: string) => (key ? `/qc/${encodeURIComponent(key)}` : '/qc');
 /** The Count page, optionally on one block. */
 export const countUrl = (block?: string) => (block ? `/count?block=${encodeURIComponent(block)}` : '/count');
 
@@ -264,4 +268,5 @@ export const TAB_TITLES: Record<AppTab, string> = {
   variants: 'nav.variants',
   workers: 'nav.workers',
   guide: 'nav.guide',
+  qc: 'qcs.title',
 };

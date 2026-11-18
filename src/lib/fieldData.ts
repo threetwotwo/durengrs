@@ -64,7 +64,7 @@ export interface HarvestFruit {
   /** Where the fruit went (a buyer, a shop, an order): typed on the fruits table, free text. */
   deliverTo?: string;
   /** Management's grading, 0-5 per criterion (lib/grading.ts; aroma, skin and shape fall back to the worker's own). */
-  qc?: Partial<Record<import('./grading').QcKey, number>>;
+  qc?: import('./grading').QcScores;
   /** Management's note on the fruit ("A3 - best MK w bitter aftertaste"). */
   qcNote?: string;
   /** When management last graded it (ISO time). */

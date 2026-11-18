@@ -1,5 +1,5 @@
 // lib/grading.js — a tree's grade for the harvest Flow, the same as the webapp's (src/lib/grading.ts): management
-// grades a tree from one sampled fruit (treeGrades), 14 criteria with weights (points = weight × score / 5), High
+// grades a tree from one sampled fruit (treeGrades), 9 criteria with weights (points = weight × score / 5), High
 // from 70%, Mid from 50%, Low below; management's own call (the QC sheet's MGMT QC) stands over the total; the tree's
 // grade is its newest sampling that has one. What the grade means at the packing house:
 //   High      -> red band when the fruit is over 1.5 kg, round, perfect skin (else yellow): sold fresh, whole
@@ -9,10 +9,17 @@
 'use strict';
 const R = require('./rules');
 
-const WEIGHTS = {
-  wangi: 5, kulitBersih: 5, kulitTipis: 5, bentuk: 5, juring: 5, biji: 10, dagingTebal: 10,
-  warna: 10, benyek: 5, tekstur: 5, manis: 15, lemak: 10, pahit: 5, unik: 5,
-};
+// 9 criteria (src/lib/grading.ts): bentuk, warna kulit, aroma from Laporan PANEN; the rest scored by the shop team.
+const WEIGHTS = { bentuk: 5, kulitBersih: 5, wangi: 5, manis: 20, creamy: 20, daging: 20, warna: 15, kulitTipis: 5, pahit: 5 };
+const ok = (v) => typeof v === 'number' && v >= 0 && v <= 5;
+const mean = (...v) => (v.every(ok) ? v.reduce((a, b) => a + b, 0) / v.length : undefined);
+/** A criterion's score: its own, or for a grading of the old 14 criteria the blend of the old ones. */
+function storedScore(qc = {}, k) {
+  if (ok(qc[k])) return qc[k];
+  if (k === 'creamy') return mean(qc.lemak, qc.tekstur, qc.benyek);
+  if (k === 'daging') return mean(qc.dagingTebal, qc.biji, qc.juring);
+  return undefined;
+}
 const GRADE_FROM = { high: 70, midhigh: 60, mid: 50 };
 
 /** A sampling's total (out of 100) and grade: 'high' | 'mid' | 'low' | 'ungraded'. */
@@ -20,8 +27,8 @@ function sampleTotal(s = {}) {
   let points = 0;
   let scored = 0;
   for (const [k, w] of Object.entries(WEIGHTS)) {
-    const v = s.qc?.[k];
-    if (typeof v !== 'number' || v < 0 || v > 5) continue;
+    const v = storedScore(s.qc, k);
+    if (v === undefined) continue;
     scored++;
     points += (w * v) / 5;
   }
