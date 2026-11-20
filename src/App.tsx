@@ -7,6 +7,8 @@ import { TAB_TITLES, goBack, navigate, useRoute } from './lib/router';
 import { AlertCircle, RefreshCw } from 'lucide-react';
 import { useT } from './i18n';
 import { parseRecordKey } from './lib/fieldLog';
+import { useSession } from './lib/auth';
+import { NoAccessScreen, SignInScreen } from './components/SignIn';
 
 const TreesPage = lazy(() => import('./components/TreesPage').then((m) => ({ default: m.TreesPage })));
 const TreeDetailView = lazy(() => import('./components/TreeDetailView').then((m) => ({ default: m.TreeDetailView })));
@@ -28,6 +30,7 @@ const ProblemPage = lazy(() => import('./components/ProblemPage').then((m) => ({
 const CountPage = lazy(() => import('./components/CountPage').then((m) => ({ default: m.CountPage })));
 const MorePage = lazy(() => import('./components/MorePage').then((m) => ({ default: m.MorePage })));
 const QcStationPage = lazy(() => import('./components/QcStationPage').then((m) => ({ default: m.QcStationPage })));
+const AccessPage = lazy(() => import('./components/AccessPage').then((m) => ({ default: m.AccessPage })));
 const WorkersPage = lazy(() => import('./components/WorkersPage').then((m) => ({ default: m.WorkersPage })));
 
 const AppContent: React.FC = () => {
@@ -110,6 +113,7 @@ const AppContent: React.FC = () => {
               {route.tab === 'grades' && <GradeBoardPage />}
               {route.tab === 'prices' && <PricesPage />}
               {route.tab === 'more' && <MorePage />}
+              {route.tab === 'access' && <AccessPage />}
               {route.tab === 'harvest' && (route.kupas ? <KupasPage /> : route.fruitCode ? <FruitPage key={route.fruitCode} fruitKey={route.fruitCode} /> : route.fruits ? <FruitsPage /> : <HarvestPage />)}
               {route.tab === 'schedule' && <SchedulePage />}
               {route.tab === 'trees' &&
@@ -149,9 +153,23 @@ const AppContent: React.FC = () => {
   );
 };
 
+/**
+ * Signed in with Google and with a role (lib/auth.ts): admins get the whole app; the shop team only the QC page
+ * (any other address goes there); anyone else sees that they have no access yet.
+ */
 export default function App() {
+  const session = useSession();
+  const route = useRoute();
+  const shop = session.status === 'signedIn' && session.role === 'shop';
+  useEffect(() => {
+    if (shop && route.tab !== 'qc') navigate('/qc', { replace: true });
+  }, [shop, route.tab]);
+  if (session.status === 'loading') return <SignInScreen loading />;
+  if (session.status === 'signedOut') return <SignInScreen />;
+  if (!session.role) return <NoAccessScreen email={session.user?.email || ''} />;
+  if (shop && route.tab !== 'qc') return <SignInScreen loading />;
   return (
-    <FarmProvider>
+    <FarmProvider scope={shop ? 'qc' : 'full'}>
       <AppContent />
     </FarmProvider>
   );

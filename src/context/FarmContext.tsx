@@ -85,7 +85,12 @@ interface FarmContextType {
 const FARM_CTX_KEY = '__cilowongFarmContext';
 const FarmContext: React.Context<FarmContextType | null> = ((globalThis as any)[FARM_CTX_KEY] ??= createContext<FarmContextType | null>(null));
 
-export const FarmProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+/**
+ * `scope`: 'full' for admins (every collection); 'qc' for the shop team, who may read only trees, varieties and
+ * harvests and read and write gradings (firestore.rules): only those are listened to, so nothing is denied.
+ */
+export const FarmProvider: React.FC<{ children: React.ReactNode; scope?: 'full' | 'qc' }> = ({ children, scope = 'full' }) => {
+  const full = scope === 'full';
   const [allTrees, setAllTrees] = useState<DurianTree[]>([]);
   const trees = useMemo(() => allTrees.filter((t) => t.active !== false), [allTrees]);
   const archivedTrees = useMemo(() => allTrees.filter((t) => t.active === false), [allTrees]);
@@ -109,6 +114,7 @@ export const FarmProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [unreadReportsCount, setUnreadReportsCount] = useState<number>(0);
 
   useEffect(() => {
+    if (!full) return;
     const q = query(
       collection(db, 'reports'),
       where('createdAt', '>', Timestamp.fromMillis(lastSeenAt)),
@@ -121,7 +127,7 @@ export const FarmProvider: React.FC<{ children: React.ReactNode }> = ({ children
       (err) => console.error('Unread reports listener failed:', err)
     );
     return () => unsub();
-  }, [lastSeenAt]);
+  }, [lastSeenAt, full]);
 
   useEffect(() => {
     if (activeTab !== 'reports') return;
@@ -137,6 +143,7 @@ export const FarmProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [scheduleError, setScheduleError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!full) return;
     const onErr = (err: any) => {
       console.error('Schedule listener failed:', err);
       setScheduleError(
@@ -168,7 +175,7 @@ export const FarmProvider: React.FC<{ children: React.ReactNode }> = ({ children
       unsubPlans();
       unsubTreatments();
     };
-  }, []);
+  }, [full]);
 
   // Farm records the Guide reads: harvests, season tasks, rain (last 120 days), lab results, weekly review.
   const [allHarvests, setHarvests] = useState<Harvest[]>([]);
@@ -191,6 +198,22 @@ export const FarmProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
     const since = addDays(todayStr(), -120);
     const seasonsSince = addDays(todayStr(), -400);
+    // The shop team: only what the QC page needs (the rules deny the rest).
+    if (!full) {
+      const qcSubs = [
+        onSnapshot(
+          query(collection(db, 'harvests'), where('date', '>=', seasonsSince)),
+          (s) => setHarvests(s.docs.map((d) => ({ id: d.id, ...(d.data() as any) }) as Harvest)),
+          onErr('Harvests')
+        ),
+        onSnapshot(
+          collection(db, 'treeGrades'),
+          (s) => setTreeGrades(s.docs.map((d) => ({ id: d.id, ...(d.data() as any) }) as TreeGrade)),
+          onErr('Grades')
+        ),
+      ];
+      return () => qcSubs.forEach((u) => u());
+    }
     const subs = [
       // This season and the last (400 days): what every total and list uses.
       onSnapshot(
@@ -256,7 +279,7 @@ export const FarmProvider: React.FC<{ children: React.ReactNode }> = ({ children
       ),
     ];
     return () => subs.forEach((u) => u());
-  }, []);
+  }, [full]);
 
   // Routines saved before plans kept their own last-done dates: rebuild those once from the full history.
   const rebuilt = useRef(new Set<string>());
@@ -403,8 +426,8 @@ export const FarmProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       );
 
-      // 3. Fetch initial report count via server aggregation
-      refreshReportsCount();
+      // 3. Fetch initial report count via server aggregation (admins only: the shop team can't read reports)
+      if (full) refreshReportsCount();
     } catch (e: any) {
       console.error('Failed to attach listeners:', e);
       setError(translate('err.listeners', { msg: e.message }));
@@ -415,7 +438,7 @@ export const FarmProvider: React.FC<{ children: React.ReactNode }> = ({ children
       unsubscribeTrees();
       unsubscribeVariants();
     };
-  }, [refreshReportsCount]);
+  }, [refreshReportsCount, full]);
 
   useEffect(() => {
     const unsub = loadData();

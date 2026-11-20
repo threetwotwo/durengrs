@@ -1,120 +1,56 @@
 rules_version = '2';
+// Who may read and write what (the webapp: Google sign-in, src/lib/auth.ts). Roles are in users/{email}:
+//   admin  everything
+//   shop   the shop team's QC page: read trees, varieties and harvests; read and write gradings (treeGrades)
+// Anyone else, signed in or not: nothing. The WhatsApp bot, the daily summary and the GitHub workflows use the
+// service account (Admin SDK), which these rules don't apply to: workers' WhatsApp reports are not affected.
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Farm cultivars catalog
-    match /variants/{code} {
-      allow read, write: if true;
+    function signedIn() {
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+    function member() {
+      return get(/databases/$(database)/documents/users/$(request.auth.token.email.lower()));
+    }
+    function role() {
+      return signedIn() && exists(/databases/$(database)/documents/users/$(request.auth.token.email.lower()))
+        ? member().data.get('role', '')
+        : '';
+    }
+    function isAdmin() {
+      return role() == 'admin';
+    }
+    function isShop() {
+      return role() == 'shop';
     }
 
-    // Orchard trees inventory
-    match /trees/{treeId} {
-      allow read, write: if true;
-    }
-
-    // Field inspection reports
-    match /reports/{reportId} {
-      allow read, write: if true;
-    }
-
-    // User access authorization list (for future Google Sign-In phase)
-    match /users/{email} {
-      allow read, write: if true;
-    }
-
-    // Audit log of tree edits (written by the webapp and the WhatsApp bot)
-    match /treeEdits/{id} {
-      allow read, write: if true;
-    }
-
-    // Recurring routines (fertilizer, sprays, pruning) and the log of what was applied
-    match /treatmentPlans/{id} {
-      allow read, write: if true;
-    }
-    match /treatments/{id} {
-      allow read, write: if true;
-    }
-
-    // Farm notes per Guide topic (what this farm has learned), keyed by topic id
-    match /guideNotes/{topicId} {
-      allow read, write: if true;
-    }
-
-    // Farm records for the Guide: harvests, one-off season tasks, daily rain, lab results, weekly review
-    match /harvests/{id} {
-      allow read, write: if true;
-    }
-    match /seasonTasks/{id} {
-      allow read, write: if true;
-    }
-    match /weather/{date} {
-      allow read, write: if true;
-    }
-    match /labResults/{id} {
-      allow read, write: if true;
-    }
-    match /farmMeta/{id} {
-      allow read, write: if true;
-    }
-
-    // One flowering date per block, used for the harvest outlook
-    match /harvestCycles/{block} {
-      allow read, write: if true;
-    }
-    // Trees (or some of their branches) that flowered apart from their block's date
-    match /bloomWaves/{id} {
-      allow read, write: if true;
-    }
-    // Per-tree crop counts: flower clusters, fruit set, kept after thinning, fruit on the tree
-    match /cropCounts/{id} {
-      allow read, write: if true;
-    }
-
-    // Problems on trees, followed from the first report that shows them until solved (written by the bot after
-    // Gemini reads a report; the web app closes, reopens or deletes one)
-    match /cases/{id} {
-      allow read, write: if true;
-    }
-
-    // Field workers: WhatsApp number -> name (the webapp shows names instead of numbers)
-    match /workers/{phone} {
-      allow read, write: if true;
-    }
-
-    // Other vendors' durian prices (the bot reads them from screenshots sent with HARGA; the webapp corrects them)
-    // and the store's own price per variety
-    match /marketPrices/{id} {
-      allow read, write: if true;
-    }
-    match /storePrices/{code} {
-      allow read, write: if true;
-    }
-
-    // The kupas station's boxes, one per code (bot/lib/kupas.js); kupasMode: a number's open Laporan KUPAS.
-    match /kupasBoxes/{id} {
-      allow read, write: if true;
-    }
-
-    // Management's fruit samplings that grade each tree (src/lib/grading.ts, bot/scripts/import-grades.js)
-    match /stockItems/{id} {
-      allow read, write: if true;
-    }
-    // The warehouse's stock movements: in, out, count (src/shared/stock.ts, bot/lib/stock.js)
-    match /stockMoves/{id} {
-      allow read, write: if true;
-    }
-
-    match /treeGrades/{id} {
-      allow read, write: if true;
-    }
-
-    // Connection test document
-    match /test/{docId} {
-      allow read, write: if true;
-    }
-
-    // Default deny for unmatched collections
+    // Admins: every collection.
     match /{document=**} {
-      allow read, write: if false;
+      allow read, write: if isAdmin();
+    }
+
+    // Everyone signed in reads their own access record (the webapp shows what they may open).
+    match /users/{email} {
+      allow get: if signedIn() && request.auth.token.email.lower() == email;
+    }
+
+    // The shop team: what the QC page lists (the fruits picked, their trees and varieties), read only.
+    match /trees/{id} {
+      allow read: if isShop();
+    }
+    match /variants/{code} {
+      allow read: if isShop();
+    }
+    match /harvests/{id} {
+      allow read: if isShop();
+    }
+    // ...and the gradings: read, and write one fruit's grading (its scores, photos, note, who), never delete.
+    match /treeGrades/{id} {
+      allow read: if isShop();
+      allow create, update: if isShop()
+        && request.resource.data.keys().hasOnly(['treeId', 'date', 'qc', 'grade', 'note', 'photos', 'fruitKey', 'fruitCode', 'weightG', 'from', 'by', 'at', 'updatedAt', 'scheme'])
+        && request.resource.data.treeId is string
+        && request.resource.data.qc is map;
     }
   }
 }

@@ -1,24 +1,33 @@
 rules_version = '2';
+// Photos. Links in the app carry a download token, so showing a photo needs no rule. Uploading and deleting follow
+// the role in Firestore users/{email} (firestore.rules): admins anything here; the shop team only grading photos.
+// The WhatsApp bot uploads report photos with the service account, which these rules don't apply to.
 service firebase.storage {
   match /b/{bucket}/o {
-    // Report photos are uploaded by the WhatsApp bot (Admin SDK, not affected by these rules).
-    // The webapp only needs to read them (links carry a token) and delete them with a report.
-    // No auth yet by the owner's choice: tighten this together with firestore.rules when sign-in is added.
+    function role() {
+      return request.auth != null && request.auth.token.email_verified == true
+        && firestore.exists(/databases/(default)/documents/users/$(request.auth.token.email.lower()))
+        ? firestore.get(/databases/(default)/documents/users/$(request.auth.token.email.lower())).data.get('role', '')
+        : '';
+    }
+    function jpeg() {
+      return request.resource.contentType == 'image/jpeg' && request.resource.size < 8 * 1024 * 1024;
+    }
     match /report-photos/{allPaths=**} {
-      allow read: if true;
-      allow delete: if true;
+      allow read: if role() == 'admin';
+      allow delete: if role() == 'admin';
     }
-    // Photos taken on the webapp's Count page (src/lib/photoUpload.ts): JPEGs made on the phone, a few hundred KB.
-    // Photos of a graded fruit (the fruit's page, grading): the same JPEGs.
+    // Photos of a graded fruit (the fruit's page, or the shop's QC page).
     match /qc-photos/{allPaths=**} {
-      allow read: if true;
-      allow create: if request.resource.contentType == 'image/jpeg' && request.resource.size < 8 * 1024 * 1024;
-      allow delete: if true;
+      allow read: if role() in ['admin', 'shop'];
+      allow create: if role() in ['admin', 'shop'] && jpeg();
+      allow delete: if role() in ['admin', 'shop'];
     }
+    // Photos taken on the Count page.
     match /count-photos/{allPaths=**} {
-      allow read: if true;
-      allow create: if request.resource.contentType == 'image/jpeg' && request.resource.size < 8 * 1024 * 1024;
-      allow delete: if true;
+      allow read: if role() == 'admin';
+      allow create: if role() == 'admin' && jpeg();
+      allow delete: if role() == 'admin';
     }
   }
 }

@@ -10,6 +10,7 @@ import { addDays, formatShortDate, todayStr } from '../lib/treatments';
 import type { ReportPhoto } from '../types';
 import { GradeTag, ScoreChip } from './HarvestBits';
 import { LanguageToggle } from './Header';
+import { SignOutButton } from './SignIn';
 import { Link } from './Link';
 import { inputCls } from './PageHeader';
 import { QcPhotos, SaveButton, type SaveState, ScoreSlider } from './QcBits';
@@ -54,6 +55,7 @@ export const QcStationPage: React.FC<{ fruitKey: string | null }> = ({ fruitKey 
           ) : null}
           <h1 className="font-bold text-base mr-auto">{t('qcs.title')}</h1>
           <LanguageToggle />
+          <SignOutButton className="-mr-2 p-2 rounded-lg hover:bg-slate-800" />
         </div>
       </header>
       {fruitKey ? (

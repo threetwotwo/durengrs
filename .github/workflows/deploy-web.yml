@@ -20,6 +20,7 @@ on:
       - 'firestore.rules'
       - 'firestore.indexes.json'
       - 'storage.rules'
+      - 'tests-rules/**'
       - '.github/workflows/deploy-web.yml'
   workflow_dispatch:
 
@@ -63,6 +64,17 @@ jobs:
           npx tsx --test tests/*.test.ts
           npx tsc --noEmit
           npm run build
+
+      # Who may read and write what: checked on the emulator before anything is deployed.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - name: Test access rules
+        working-directory: tests-rules
+        run: |
+          npm install --no-audit --no-fund --legacy-peer-deps --silent
+          npm test
 
       - uses: google-github-actions/auth@v2
         with:

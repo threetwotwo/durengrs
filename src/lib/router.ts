@@ -18,6 +18,7 @@ import { useCallback, useSyncExternalStore } from 'react';
  *   #/harvest/kupas         the kupas station's boxes (Laporan KUPAS)
  *   #/grades                the grading board: each variety's fruiting trees by grade (was #/harvest/grades)
  *   #/prices                other vendors' prices (?week=2026-11-09; was #/harvest/prices)
+ *   #/access                who may use the webapp (admins only): Google accounts and their role
  *   #/qc                    the shop team's grading page, on its own (no tabs); #/qc/<fruit code> one fruit
  *   #/more                  the pages used less: schedule, variants, workers, kupas boxes, guide
  *   #/schedule              routines (sprays, fertiliser rounds)
@@ -29,7 +30,7 @@ import { useCallback, useSyncExternalStore } from 'react';
  * gives working Back/Forward, shareable deep links, and survives reloads.
  */
 
-export type AppTab = 'dashboard' | 'trees' | 'reports' | 'problems' | 'harvest' | 'grades' | 'prices' | 'stock' | 'more' | 'schedule' | 'variants' | 'workers' | 'guide' | 'qc';
+export type AppTab = 'dashboard' | 'trees' | 'reports' | 'problems' | 'harvest' | 'grades' | 'prices' | 'stock' | 'more' | 'schedule' | 'variants' | 'workers' | 'guide' | 'qc' | 'access';
 
 export interface Route {
   tab: AppTab;
@@ -58,10 +59,10 @@ export interface Route {
   known: boolean;
 }
 
-const TABS: AppTab[] = ['dashboard', 'trees', 'reports', 'problems', 'harvest', 'grades', 'prices', 'stock', 'more', 'schedule', 'variants', 'workers', 'guide', 'qc'];
+const TABS: AppTab[] = ['dashboard', 'trees', 'reports', 'problems', 'harvest', 'grades', 'prices', 'stock', 'more', 'schedule', 'variants', 'workers', 'guide', 'qc', 'access'];
 
 /** The pages behind More: the More tab is lit on them. */
-export const MORE_TABS: AppTab[] = ['more', 'schedule', 'variants', 'workers', 'guide'];
+export const MORE_TABS: AppTab[] = ['more', 'schedule', 'variants', 'workers', 'guide', 'access'];
 
 /** The page a hash address points to. Old addresses (#/kebun) still land on the right page. */
 export function parseHash(hash: string): Route {
@@ -269,4 +270,5 @@ export const TAB_TITLES: Record<AppTab, string> = {
   workers: 'nav.workers',
   guide: 'nav.guide',
   qc: 'qcs.title',
+  access: 'acc.title',
 };
