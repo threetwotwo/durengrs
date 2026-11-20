@@ -67,7 +67,7 @@ function prompt(items, type, balances = new Map()) {
   const list = items
     .map((i) => {
       const b = balances.get(i.id)?.balance;
-      return `${i.id} = ${i.name}${i.producer ? ` by ${i.producer}` : ''}${i.content ? ` [${i.content}]` : ''} (kept in ${i.unit}${i.pack ? `, 1 pack = ${i.pack} ${i.unit}` : ''}${b !== undefined ? `, now ${b} ${i.unit} in stock` : ''})`;
+      return `${i.id} = ${i.name}${i.aliases?.length ? ` (also called ${i.aliases.join(', ')})` : ''}${i.producer ? ` by ${i.producer}` : ''}${i.content ? ` [${i.content}]` : ''} (kept in ${i.unit}${i.pack ? `, 1 pack = ${i.pack} ${i.unit}` : ''}${b !== undefined ? `, now ${b} ${i.unit} in stock` : ''})`;
     })
     .join('\n');
   return `You read a durian farm's warehouse report in Indonesian: pupuk (fertiliser) and obat (pesticide) taken out for the field, delivered, or counted.
@@ -137,7 +137,8 @@ async function reportStock(db, { text, type, workerPhone, today = R.todayStr(), 
   // Gemini, loaded only when a report is read (lib/ai pulls in Firestore).
   read = read || require('./ai').callGemini;
   const [itemsSnap, movesSnap] = await Promise.all([db.collection('stockItems').get(), db.collection('stockMoves').get()]);
-  const items = itemsSnap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (a.order || 0) - (b.order || 0));
+  // Archived products (no longer used) are not matched or listed.
+  const items = itemsSnap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((i) => !i.archived).sort((a, b) => (a.order || 0) - (b.order || 0));
   if (!items.length) return 'Daftar stok gudang belum ada. Minta manajemen memasukkannya dulu.';
   const moves = movesSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
   const before = S.stockBalances(moves);
@@ -197,7 +198,8 @@ async function reportStock(db, { text, type, workerPhone, today = R.todayStr(), 
 /** STOK: every balance (what is out or low first), or one product's when named. */
 async function stockList(db, query = '') {
   const [itemsSnap, movesSnap] = await Promise.all([db.collection('stockItems').get(), db.collection('stockMoves').get()]);
-  const items = itemsSnap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (a.order || 0) - (b.order || 0));
+  // Archived products (no longer used) are not matched or listed.
+  const items = itemsSnap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((i) => !i.archived).sort((a, b) => (a.order || 0) - (b.order || 0));
   if (!items.length) return 'Daftar stok gudang belum ada.';
   const bal = S.stockBalances(movesSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
   const q = query.trim().toLowerCase();

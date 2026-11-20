@@ -121,3 +121,17 @@ test('a line the reader left without a product is matched by name', async () => 
   const reply = await K.reportStock(db, { text: 'Polysulpate, pakai 38kg, sisa 344kg', type: 'out', today: '2026-11-14', read });
   assert.match(reply, /VITA4 \/ Polysulphate \(50 kg\).*sisa 344 kg/);
 });
+
+test('archived products are not matched or listed; other names reach the reader', async () => {
+  const db = fakeDb({
+    stockItems: { A01: { name: 'TSP 46%', unit: 'kg', pack: 50, order: 1, aliases: ['SP36'] }, A02: { name: 'Urea lama', unit: 'kg', pack: 50, order: 2, archived: true } },
+    stockMoves: {},
+  });
+  let asked = '';
+  const read = async (parts) => ((asked = parts[0].text), { moves: [{ item_id: 'A02', written: 'Urea', type: 'out', qty: 1, unit: 'sak', left_qty: -1, left_unit: '' }] });
+  const reply = await K.reportStock(db, { text: 'Urea pakai 1 sak', type: 'out', today: '2026-11-20', read });
+  assert.match(asked, /A01 = TSP 46% \(also called SP36\)/);
+  assert.doesNotMatch(asked, /Urea lama/);
+  assert.match(reply, /tidak ada di daftar/);
+  assert.doesNotMatch(await K.stockList(db), /Urea lama/);
+});

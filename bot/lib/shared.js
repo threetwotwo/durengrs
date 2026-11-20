@@ -61,6 +61,7 @@ __export(index_exports, {
   labelTajuk: () => labelTajuk,
   lastFruitCount: () => lastFruitCount,
   mergeLabelRules: () => mergeLabelRules,
+  newItemId: () => newItemId,
   normalize: () => normalize,
   normalizeUnit: () => normalizeUnit,
   packFromName: () => packFromName,
@@ -711,6 +712,14 @@ function stockQty(qty, item, locale = "id") {
   const packWord = locale === "id" ? "kemasan" : "packs";
   return `${f(qty)} ${item.unit}${packs && Math.abs(packs - Math.round(packs * 10) / 10) < 1e-9 ? ` (${f(packs)} ${packWord})` : packs ? ` (${f(Math.round(packs * 10) / 10)} ${packWord})` : ""}`;
 }
+function newItemId(items, section) {
+  const letter = (section.trim()[0] || "X").toUpperCase();
+  let no = Math.max(0, ...items.filter((i) => (i.section || "") === section).map((i) => i.no || 0)) + 1;
+  const ids = new Set(items.map((i) => i.id));
+  const idOf = (n) => `${letter}${String(n).padStart(2, "0")}`;
+  while (ids.has(idOf(no))) no++;
+  return { id: idOf(no), no, order: letter.charCodeAt(0) * 1e3 + no };
+}
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
   ACTIONS,
@@ -754,6 +763,7 @@ function stockQty(qty, item, locale = "id") {
   labelTajuk,
   lastFruitCount,
   mergeLabelRules,
+  newItemId,
   normalize,
   normalizeUnit,
   packFromName,

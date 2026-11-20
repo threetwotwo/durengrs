@@ -35,6 +35,10 @@ export interface StockItem {
   /** Warn below this balance (item's unit); default: less than one pack. */
   min?: number;
   order?: number;
+  /** Management's note: where it's kept, how it's mixed, who supplies it. */
+  note?: string;
+  /** No longer used: hidden on the Stock page and not matched by the WhatsApp bot; its history stays. */
+  archived?: boolean;
 }
 
 export type StockMoveType = 'in' | 'out' | 'count';
@@ -134,4 +138,17 @@ export function stockQty(qty: number, item: Pick<StockItem, 'unit' | 'pack'>, lo
   const packs = item.pack && item.pack > 1 && qty > 0 ? qty / item.pack : 0;
   const packWord = locale === 'id' ? 'kemasan' : 'packs';
   return `${f(qty)} ${item.unit}${packs && Math.abs(packs - Math.round(packs * 10) / 10) < 1e-9 ? ` (${f(packs)} ${packWord})` : packs ? ` (${f(Math.round(packs * 10) / 10)} ${packWord})` : ''}`;
+}
+
+/**
+ * The id, number and place of a new product in a section, as the inventory sheet numbers them: the section's letter
+ * and the next number (A16 after A15), ordered after the section's last product.
+ */
+export function newItemId(items: Pick<StockItem, 'id' | 'section' | 'no'>[], section: string): { id: string; no: number; order: number } {
+  const letter = (section.trim()[0] || 'X').toUpperCase();
+  let no = Math.max(0, ...items.filter((i) => (i.section || '') === section).map((i) => i.no || 0)) + 1;
+  const ids = new Set(items.map((i) => i.id));
+  const idOf = (n: number) => `${letter}${String(n).padStart(2, '0')}`;
+  while (ids.has(idOf(no))) no++;
+  return { id: idOf(no), no, order: letter.charCodeAt(0) * 1000 + no };
 }
