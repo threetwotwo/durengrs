@@ -1,5 +1,5 @@
 import React from 'react';
-import { BookOpen, CalendarCheck, ChevronRight, KeyRound, LogOut, Package2, Sprout, Users } from 'lucide-react';
+import { BookOpen, CalendarCheck, ChevronRight, LogOut, Package2, Sprout, Users } from 'lucide-react';
 import { auth, signOut } from '../lib/auth';
 import { useFarm } from '../context/FarmContext';
 import { useT } from '../i18n';
@@ -19,7 +19,6 @@ export const MorePage: React.FC = () => {
     { to: '/workers', icon: Users, title: t('nav.workers'), desc: t('more.workers') },
     { to: kupasUrl(), icon: Package2, title: t('ku.title'), desc: t('more.kupas') },
     { to: '/guide', icon: BookOpen, title: t('nav.guide'), desc: t('more.guide') },
-    { to: '/access', icon: KeyRound, title: t('acc.title'), desc: t('more.access') },
   ];
   return (
     <div className="space-y-4">

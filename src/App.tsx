@@ -30,7 +30,6 @@ const ProblemPage = lazy(() => import('./components/ProblemPage').then((m) => ({
 const CountPage = lazy(() => import('./components/CountPage').then((m) => ({ default: m.CountPage })));
 const MorePage = lazy(() => import('./components/MorePage').then((m) => ({ default: m.MorePage })));
 const QcStationPage = lazy(() => import('./components/QcStationPage').then((m) => ({ default: m.QcStationPage })));
-const AccessPage = lazy(() => import('./components/AccessPage').then((m) => ({ default: m.AccessPage })));
 const WorkersPage = lazy(() => import('./components/WorkersPage').then((m) => ({ default: m.WorkersPage })));
 
 const AppContent: React.FC = () => {
@@ -113,7 +112,7 @@ const AppContent: React.FC = () => {
               {route.tab === 'grades' && <GradeBoardPage />}
               {route.tab === 'prices' && <PricesPage />}
               {route.tab === 'more' && <MorePage />}
-              {route.tab === 'access' && <AccessPage />}
+              {route.tab === 'access' && <WorkersPage tab="access" />}
               {route.tab === 'harvest' && (route.kupas ? <KupasPage /> : route.fruitCode ? <FruitPage key={route.fruitCode} fruitKey={route.fruitCode} /> : route.fruits ? <FruitsPage /> : <HarvestPage />)}
               {route.tab === 'schedule' && <SchedulePage />}
               {route.tab === 'trees' &&

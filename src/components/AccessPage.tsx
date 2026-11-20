@@ -4,7 +4,7 @@ import { collection, deleteDoc, doc, onSnapshot, setDoc, updateDoc } from 'fireb
 import { db } from '../lib/firebase';
 import { ROLES, type Role, auth, emailKey } from '../lib/auth';
 import { useT } from '../i18n';
-import { PageHeader, btnPrimary, inputCls } from './PageHeader';
+import { btnPrimary, inputCls } from './PageHeader';
 
 interface Member {
   id: string;
@@ -15,11 +15,12 @@ interface Member {
 }
 
 /**
- * #/access (admins): the Google accounts that may use the webapp and their role. Admin: everything. Shop team: only
+ * Webapp access (the Workers page's second tab, #/access; admins only): the Google accounts (Gmail or a Google
+ * Workspace address) that may use the webapp and their role. Admin: everything. Shop team: only
  * the QC page. Taking someone off (or changing their role) applies at once on their device. Workers need nothing
  * here: they report on WhatsApp.
  */
-export const AccessPage: React.FC = () => {
+export const AccessSection: React.FC = () => {
   const { t } = useT();
   const [members, setMembers] = useState<Member[] | null>(null);
   const [email, setEmail] = useState('');
@@ -63,7 +64,6 @@ export const AccessPage: React.FC = () => {
   const admins = (members || []).filter((m) => m.role === 'admin').length;
   return (
     <div className="space-y-4 max-w-3xl">
-      <PageHeader title={t('acc.title')} description={t('acc.desc')} />
       {error && <p role="alert" className="text-sm text-rose-700">{error}</p>}
       <section className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
         <h2 className="text-sm font-bold text-slate-900">{t('acc.add')}</h2>
@@ -90,7 +90,7 @@ export const AccessPage: React.FC = () => {
         {(members || []).map((m) => (
           <li key={m.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
             <span className="min-w-0 flex-1">
-              <span className="block font-semibold text-slate-900 truncate">
+              <span className={`block font-semibold text-slate-900 ${m.name ? 'truncate' : 'break-all'}`}>
                 {m.name || m.id}
                 {m.id === me && <span className="ml-2 text-xs font-normal text-slate-500">{t('acc.you')}</span>}
               </span>
